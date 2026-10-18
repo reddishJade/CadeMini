@@ -17,7 +17,7 @@ class WorkspacePolicy:
         self.read_only = read_only
 
     def check(self, call: ToolCallBlock) -> Decision:
-        if call.name in {"glob", "grep", "history"}:
+        if call.name in {"glob", "grep", "history", "skill"}:
             return "allow"
         if call.name == "read":
             return "allow" if self._inside(call.args.get("path")) else "deny"

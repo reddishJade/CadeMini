@@ -542,3 +542,51 @@ def test_cli_exposes_history_tool(tmp_path: Path) -> None:
     tool_result = next(entry for entry in log.branch() if entry.type == "tool_result")
     assert "Matching entries" in str(tool_result.data["content"])
     assert "hi" in str(tool_result.data["content"])
+
+
+def test_cli_exposes_skill_catalog_and_tool(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    skill_dir = workspace / ".cade" / "skills" / "greeter"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: greeter\ndescription: Say hello\n---\nSay HELLO.",
+        encoding="utf-8",
+    )
+    sessions = tmp_path / "sessions"
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [ToolCall(id="s1", name="skill", input={"name": "greeter"})]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("done"),
+        ]
+    )
+
+    code = main(
+        [
+            "exec",
+            "use the skill",
+            "--project-root",
+            str(workspace),
+            "--sessions-dir",
+            str(sessions),
+            "--yes",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "<available-skills>" in system_text
+    assert "greeter" in system_text
+    log = SessionLog.open(_session_files(sessions)[0])
+    tool_result = next(entry for entry in log.branch() if entry.type == "tool_result")
+    assert "Say HELLO." in str(tool_result.data["content"])

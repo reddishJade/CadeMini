@@ -22,6 +22,7 @@ from .policy import WorkspacePolicy
 from .projection import project
 from .provider import ProviderConfig, build_provider
 from .request import Budget, BuildReport, Request, RequestTooLarge, build, estimate
+from .skills import LoadSkillTool, Skill, discover_skills, render_skill_catalog
 from .tools import (
     BashTool,
     EditTool,
@@ -60,6 +61,7 @@ __all__ = [
     "GlobTool",
     "GrepTool",
     "HistoryTool",
+    "LoadSkillTool",
     "LogEntry",
     "LogError",
     "LoopEvent",
@@ -76,6 +78,7 @@ __all__ = [
     "SessionApprover",
     "SessionInfo",
     "SessionLog",
+    "Skill",
     "SummaryMessage",
     "SystemMessage",
     "TextBlock",
@@ -92,10 +95,12 @@ __all__ = [
     "build",
     "build_provider",
     "build_tools",
+    "discover_skills",
     "estimate",
     "list_sessions",
     "load_project_instructions",
     "project",
+    "render_skill_catalog",
     "reset_window",
     "resolve_workspace_path",
     "run",

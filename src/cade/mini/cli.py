@@ -29,6 +29,7 @@ from .policy import WorkspacePolicy
 from .projection import project
 from .provider import ProviderConfig, build_provider
 from .request import Budget
+from .skills import LoadSkillTool, discover_skills, render_skill_catalog
 from .tools import build_tools
 from .types import LogError, ToolCallBlock
 from .window import reset_window
@@ -142,7 +143,9 @@ def main(
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2
 
-    base_tools = build_tools(project_root)
+    skills = discover_skills(project_root)
+    skill_catalog = render_skill_catalog(skills)
+    base_tools = (*build_tools(project_root), LoadSkillTool(project_root, skills))
     policy = WorkspacePolicy(project_root, read_only=read_only)
     approve = SessionApprover(auto_approve=args.yes)
     compactor = Compactor(selected)
@@ -152,10 +155,14 @@ def main(
         return reset_window(log, handoff=WINDOW_HANDOFF, reason="fallback")
 
     def context() -> tuple[str, ...]:
-        if not use_instructions:
-            return ()
-        text = load_project_instructions(project_root)
-        return (text,) if text else ()
+        parts: list[str] = []
+        if use_instructions:
+            text = load_project_instructions(project_root)
+            if text:
+                parts.append(text)
+        if skill_catalog:
+            parts.append(skill_catalog)
+        return tuple(parts)
 
     try:
         log = _open_log(sessions_dir, resume)
