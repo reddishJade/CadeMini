@@ -555,6 +555,7 @@ def _append_request(
             "context": cast(list[JsonValue], list(context)),
             "estimated_tokens": request.report.estimated_tokens,
             "dropped": cast(list[JsonValue], dropped),
+            "snapshot": request.as_record(),
         },
     )
 

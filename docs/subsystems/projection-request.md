@@ -39,7 +39,8 @@ turns. A request that cannot fit raises `RequestTooLarge`.
 
 The system message carries base instructions plus, in order: instructions,
 skill catalog, NOTE, memory, and goal. These inputs are request-only; the
-request audit records their digests and lengths, not their full text.
+v2 request audit records their full text, the admitted messages, tool definitions,
+non-authentication options, and budget. Session files can contain sensitive input.
 
 ## Tests
 

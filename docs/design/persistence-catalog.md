@@ -6,7 +6,7 @@ narrower jobs.
 
 | Artifact | Default location | Owner | Lifetime | Schema |
 | --- | --- | --- | --- | --- |
-| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Closed v1 |
+| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Write v2; read v1/v2 |
 | Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
 | Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
 | Working note | `NOTE.md` | Project | Project | Markdown |

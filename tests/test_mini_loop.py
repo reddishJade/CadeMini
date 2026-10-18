@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
 
@@ -259,6 +260,32 @@ async def test_concurrent_run_is_rejected_without_writing(tmp_path: Path) -> Non
         provider=FakeProvider([_text_response("ok")]),
         tools=(),
         budget=Budget(100_000),
+    )
+    assert result.termination == "completed"
+
+
+async def test_request_is_persisted_before_provider_call(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+
+    class AuditedProvider(FakeProvider):
+        async def stream(self, messages, tools, options=None):
+            saved = log.branch()[-1]
+            assert saved.type == "request"
+            assert saved.v == 2
+            snapshot = saved.data["snapshot"]
+            assert isinstance(snapshot, dict)
+            assert snapshot["messages"] == messages
+            assert snapshot["tools"] == [asdict(tool) for tool in tools]
+            assert snapshot["options"] is None
+            yield FinalMessage("done", "end_turn")
+
+    result = await run(
+        log,
+        "task",
+        provider=AuditedProvider([]),
+        tools=(EchoTool(),),
+        budget=Budget(100_000),
+        context=("instructions",),
     )
     assert result.termination == "completed"
 

@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from cade_mini.core.log import SessionLog, list_sessions, session_title
+from cade_mini.core.projection import project
 from cade_mini.core.types import LogError
 
 
@@ -129,7 +130,7 @@ def test_append_writes_one_complete_line_per_fact(tmp_path: Path) -> None:
     assert raw.endswith(b"\n")
     lines = raw.splitlines()
     assert len(lines) == 3
-    assert all(json.loads(line)["v"] == 1 for line in lines)
+    assert all(json.loads(line)["v"] == 2 for line in lines)
 
 
 def test_incomplete_tail_is_ignored_and_repaired(tmp_path: Path) -> None:
@@ -145,6 +146,32 @@ def test_incomplete_tail_is_ignored_and_repaired(tmp_path: Path) -> None:
     assert [entry.type for entry in entries] == ["meta", "user", "user"]
     assert entries[-1].data["text"] == "after crash"
     assert b"broken" not in log.path.read_bytes()
+
+
+def test_v1_session_resumes_without_rewriting_old_facts(tmp_path: Path) -> None:
+    path = _sessions(tmp_path) / "session-legacy.jsonl"
+    path.parent.mkdir()
+    original = (
+        b'{"v":1,"id":"old","parent":null,"ts":"2026-10-18T00:00:00+00:00",'
+        b'"type":"user","data":{"text":"legacy task","source":"user"}}\n'
+    )
+    path.write_bytes(original)
+    log = SessionLog.open(path)
+    before = project(log.branch())
+    entry = log.append("assistant", {"blocks": [{"type": "text", "text": "answer"}]})
+    assert entry.v == 2
+    assert entry.parent == "old"
+    assert path.read_bytes().startswith(original)
+    assert project(SessionLog.open(path).branch())[:1] == before
+
+
+def test_future_session_version_is_rejected(tmp_path: Path) -> None:
+    log = SessionLog.create(_sessions(tmp_path), session_id="future")
+    record = json.loads(log.path.read_text(encoding="utf-8"))
+    record["v"] = 3
+    log.path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    with pytest.raises(LogError, match="invalid session record"):
+        SessionLog.open(log.path)
 
 
 def test_open_rejects_non_session_file(tmp_path: Path) -> None:

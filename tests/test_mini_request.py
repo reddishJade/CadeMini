@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import copy
+import json
 
 import pytest
 
-from cade_mini.ai.types import ToolDefinition
+from cade_mini.ai.types import StreamOptions, ToolDefinition
 from cade_mini.core.request import Budget, RequestTooLarge, build, estimate
 from cade_mini.core.types import (
     AssistantMessage,
@@ -203,6 +204,55 @@ def test_build_digests_change_with_input() -> None:
     assert first.conversation_digest != second.conversation_digest
     assert first.digest != second.digest
     assert first.tools_digest == second.tools_digest
+
+
+def test_request_snapshot_is_complete_and_excludes_runtime_credentials() -> None:
+    tool = ToolDefinition(
+        name="echo", description="Echo", parameters={"type": "object"}
+    )
+    options = StreamOptions(
+        temperature=0.2,
+        max_tokens=200,
+        api_key="secret-api-key",
+        headers={"Authorization": "secret-header"},
+        signal=object(),
+        on_payload=lambda value: value,
+        metadata={"purpose": "test"},
+    )
+    budget = Budget(100_000, output_reserve=200)
+    request = build(
+        [_user("task")],
+        tools=(tool,),
+        budget=budget,
+        options=options,
+        context=("instructions",),
+    )
+    record = request.as_record()
+    assert record["messages"] == list(request.messages)
+    assert record["tools"] == [
+        {
+            "name": "echo",
+            "description": "Echo",
+            "parameters": {"type": "object"},
+            "builtin": None,
+        }
+    ]
+    assert record["budget"] == {
+        "context_window": 100_000,
+        "output_reserve": 200,
+        "headroom_tokens": 1024,
+    }
+    saved_options = record["options"]
+    assert isinstance(saved_options, dict)
+    assert saved_options["temperature"] == 0.2
+    assert saved_options["max_tokens"] == 200
+    assert (
+        not {"api_key", "headers", "signal", "on_payload", "on_response"}
+        & saved_options.keys()
+    )
+    assert "secret" not in json.dumps(record)
+    saved_options["temperature"] = 1.0
+    assert options.temperature == 0.2
 
 
 def test_estimate_counts_context() -> None:

@@ -3,6 +3,21 @@
 This page records changes that require action from an existing user or
 automation.
 
+## Session v2 and snapshot v2
+
+New session facts use v2. This reader also accepts v1 and mixed-version branches.
+Resume an old session normally; its existing bytes remain unchanged. Request
+audits now contain normalized request inputs, excluding authentication and runtime
+objects. See [decision 0004](../decisions/0004-normalized-request-audit.md).
+
+Older releases reject sessions after v2 facts are appended. Back up `.cade-mini/`
+before resuming if rollback is needed. Rollback uses that backup; do not remove
+v2 records manually. No migration command is required.
+
+Snapshot v2 records before/after file state. Old snapshots remain available for
+manual inspection but cannot be undone automatically. New snapshots can be
+recorded above them. See [Snapshots and goals](../snapshots-goals.md).
+
 ## Standalone project
 
 Cade Mini now installs as `cade-mini`, with Python imports under `cade_mini`.
@@ -11,7 +26,7 @@ or migration tools are provided.
 
 Authenticate again with `cade-mini login`. Credentials and skills use
 `~/.cade-mini/`; project skills use `.cade-mini/skills/`. Mini no longer
-reads `.cade` directories. Session schema v1 remains the current format.
+reads `.cade` directories. This earlier packaging change retained schema v1.
 
 ## When an upgrade is needed
 

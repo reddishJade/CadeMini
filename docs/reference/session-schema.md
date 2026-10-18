@@ -1,19 +1,19 @@
 # Cade Mini session schema
 
-> Status: decided for the first increment. This is the persistent format and
-> projection contract. Change it only with a version bump and a migration note.
+> Current writer: v2. Readers accept v1 and v2, including mixed-version logs.
+> This is the persistent format and projection contract.
 
 ## Envelope
 
 One JSON object per line in `session-<id>.jsonl`:
 
 ```json
-{"v":1,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
+{"v":2,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
 ```
 
 | Field | Type | Contract |
 | --- | --- | --- |
-| `v` | `1` | Schema version. A different value is not v1 |
+| `v` | `1` or `2` | Read both versions; append v2; reject other values |
 | `id` | string | Unique in the file; 12 lowercase hex characters |
 | `parent` | string or null | Previous head; null only for the first event |
 | `ts` | string | ISO 8601 UTC timestamp |
@@ -61,9 +61,16 @@ These are recorded but never projected.
 | Type | Payload | Purpose |
 | --- | --- | --- |
 | `meta` | `{"session": str, "project": str, "created": str}` | First event; identifies the session |
-| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str]}` | Request audit; dynamic context and admission result |
+| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit; v2 adds the normalized snapshot below |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | Run outcome |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | Failed model attempt that produced no message |
+
+The v2 `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
+`report`. `budget` records the context window, output reserve, and headroom;
+`report` records the admission result. Options omit API keys, all headers,
+cancellation signals, and callbacks. This is the provider-interface input, not
+an HTTP capture. The remaining request data is not redacted. A v1 request has no
+snapshot; do not infer it from current provider behavior.
 
 A failed attempt does not become an assistant message. A run result does not
 duplicate the final answer; the answer is the last assistant text.
@@ -114,7 +121,8 @@ hosts can render it differently.
 
 - Directory: `.cade-mini/sessions/` by default.
 - File: `session-<id>.jsonl`.
-- Lock: `session-<id>.lock`, one writer per session.
+- Append lock: `session-<id>.lock`.
+- Run lock: `session-<id>.run.lock`; concurrent turns are rejected.
 - Append: one line, `flush`, `fsync`.
 - Before append: truncate an incomplete trailing line from a crash.
 - On read: ignore an incomplete trailing line; reject any earlier invalid line.
@@ -124,7 +132,7 @@ hosts can render it differently.
 ## Compaction record
 
 ```json
-{"v":1,"id":"e80","parent":"e79","ts":"...","type":"compaction",
+{"v":2,"id":"e80","parent":"e79","ts":"...","type":"compaction",
  "data":{"summary":"## Goal\n...","first_kept_id":"e52","tokens_before":48210,
          "model":"gpt-5.6-luna","provider":"openai-codex",
          "usage":{"input":43000,"output":1200},"details":null}}
@@ -137,7 +145,7 @@ previous one and may include the previous summary in its input.
 ## Window record
 
 ```json
-{"v":1,"id":"e90","parent":"e89","ts":"...","type":"window",
+{"v":2,"id":"e90","parent":"e89","ts":"...","type":"window",
  "data":{"start_id":"e88","reason":"manual","handoff":"Optional note."}}
 ```
 
@@ -149,4 +157,5 @@ through `/new-context`, or automatic when compaction cannot reduce enough.
 `v` is the only compatibility switch. A change to an existing payload, a new
 conversation event type, or a change to projection semantics requires a new `v`
 and a migration note. Adding a log-only event type is a new `v` as well, because
-older readers must reject it rather than ignore it.
+older readers must reject it rather than ignore it. See the
+[upgrade guide](../upgrade/README.md) for v1 resume and rollback.

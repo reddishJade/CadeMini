@@ -30,5 +30,5 @@ tests, and a migration path.
 
 ## Current status
 
-Schema v1 is closed. No migration exists. The next format change must add the
-first entry to the upgrade guide.
+Writers use closed schema v2. Readers accept v1 and v2 without rewriting old
+facts. The [upgrade guide](../upgrade/README.md) documents resume and rollback.

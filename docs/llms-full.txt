@@ -1456,7 +1456,7 @@ narrower jobs.
 
 | Artifact | Default location | Owner | Lifetime | Schema |
 | --- | --- | --- | --- | --- |
-| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Closed v1 |
+| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Write v2; read v1/v2 |
 | Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
 | Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
 | Working note | `NOTE.md` | Project | Project | Markdown |
@@ -1671,20 +1671,20 @@ should be present. See the [validation guidelines](../testing.md).
 
 # Cade Mini session schema
 
-> Status: decided for the first increment. This is the persistent format and
-> projection contract. Change it only with a version bump and a migration note.
+> Current writer: v2. Readers accept v1 and v2, including mixed-version logs.
+> This is the persistent format and projection contract.
 
 ## Envelope
 
 One JSON object per line in `session-<id>.jsonl`:
 
 ```json
-{"v":1,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
+{"v":2,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
 ```
 
 | Field | Type | Contract |
 | --- | --- | --- |
-| `v` | `1` | Schema version. A different value is not v1 |
+| `v` | `1` or `2` | Read both versions; append v2; reject other values |
 | `id` | string | Unique in the file; 12 lowercase hex characters |
 | `parent` | string or null | Previous head; null only for the first event |
 | `ts` | string | ISO 8601 UTC timestamp |
@@ -1732,9 +1732,16 @@ These are recorded but never projected.
 | Type | Payload | Purpose |
 | --- | --- | --- |
 | `meta` | `{"session": str, "project": str, "created": str}` | First event; identifies the session |
-| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str]}` | Request audit; dynamic context and admission result |
+| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit; v2 adds the normalized snapshot below |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | Run outcome |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | Failed model attempt that produced no message |
+
+The v2 `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
+`report`. `budget` records the context window, output reserve, and headroom;
+`report` records the admission result. Options omit API keys, all headers,
+cancellation signals, and callbacks. This is the provider-interface input, not
+an HTTP capture. The remaining request data is not redacted. A v1 request has no
+snapshot; do not infer it from current provider behavior.
 
 A failed attempt does not become an assistant message. A run result does not
 duplicate the final answer; the answer is the last assistant text.
@@ -1785,7 +1792,8 @@ hosts can render it differently.
 
 - Directory: `.cade-mini/sessions/` by default.
 - File: `session-<id>.jsonl`.
-- Lock: `session-<id>.lock`, one writer per session.
+- Append lock: `session-<id>.lock`.
+- Run lock: `session-<id>.run.lock`; concurrent turns are rejected.
 - Append: one line, `flush`, `fsync`.
 - Before append: truncate an incomplete trailing line from a crash.
 - On read: ignore an incomplete trailing line; reject any earlier invalid line.
@@ -1795,7 +1803,7 @@ hosts can render it differently.
 ## Compaction record
 
 ```json
-{"v":1,"id":"e80","parent":"e79","ts":"...","type":"compaction",
+{"v":2,"id":"e80","parent":"e79","ts":"...","type":"compaction",
  "data":{"summary":"## Goal\n...","first_kept_id":"e52","tokens_before":48210,
          "model":"gpt-5.6-luna","provider":"openai-codex",
          "usage":{"input":43000,"output":1200},"details":null}}
@@ -1808,7 +1816,7 @@ previous one and may include the previous summary in its input.
 ## Window record
 
 ```json
-{"v":1,"id":"e90","parent":"e89","ts":"...","type":"window",
+{"v":2,"id":"e90","parent":"e89","ts":"...","type":"window",
  "data":{"start_id":"e88","reason":"manual","handoff":"Optional note."}}
 ```
 
@@ -1820,7 +1828,8 @@ through `/new-context`, or automatic when compaction cannot reduce enough.
 `v` is the only compatibility switch. A change to an existing payload, a new
 conversation event type, or a change to projection semantics requires a new `v`
 and a migration note. Adding a log-only event type is a new `v` as well, because
-older readers must reject it rather than ignore it.
+older readers must reject it rather than ignore it. See the
+[upgrade guide](../upgrade/README.md) for v1 resume and rollback.
 
 # Subsystems
 
@@ -1948,7 +1957,8 @@ turns. A request that cannot fit raises `RequestTooLarge`.
 
 The system message carries base instructions plus, in order: instructions,
 skill catalog, NOTE, memory, and goal. These inputs are request-only; the
-request audit records their digests and lengths, not their full text.
+v2 request audit records their full text, the admitted messages, tool definitions,
+non-authentication options, and budget. Session files can contain sensitive input.
 
 ## Tests
 
@@ -3313,7 +3323,7 @@ host-state files with narrow scopes.
 
 ## Current format
 
-- Session log: schema v1, closed. See [Session log schema](../reference/session-schema.md).
+- Session log: write closed schema v2; read v1 and v2. See [Session log schema](../reference/session-schema.md).
 - Entry file: one JSON object per line; a trailing newline is required.
 - Session directory: `.cade-mini/sessions`.
 - Compaction and windows are entries, not file rewrites.
@@ -3327,9 +3337,8 @@ fields are allowed only when old readers can ignore them.
 
 ## History
 
-There are no format migrations yet. When the first change lands, add a record
-under [upgrade](../upgrade/README.md) and a decision record describing the
-migration and rollback.
+V2 adds normalized request audits without rewriting v1 facts. Resume and rollback
+are described in the [upgrade guide](../upgrade/README.md).
 
 ## Verification
 
@@ -3379,8 +3388,8 @@ tests, and a migration path.
 
 ## Current status
 
-Schema v1 is closed. No migration exists. The next format change must add the
-first entry to the upgrade guide.
+Writers use closed schema v2. Readers accept v1 and v2 without rewriting old
+facts. The [upgrade guide](../upgrade/README.md) documents resume and rollback.
 
 # Upgrade guide
 
@@ -3391,6 +3400,21 @@ first entry to the upgrade guide.
 This page records changes that require action from an existing user or
 automation.
 
+## Session v2 and snapshot v2
+
+New session facts use v2. This reader also accepts v1 and mixed-version branches.
+Resume an old session normally; its existing bytes remain unchanged. Request
+audits now contain normalized request inputs, excluding authentication and runtime
+objects. See [decision 0004](../decisions/0004-normalized-request-audit.md).
+
+Older releases reject sessions after v2 facts are appended. Back up `.cade-mini/`
+before resuming if rollback is needed. Rollback uses that backup; do not remove
+v2 records manually. No migration command is required.
+
+Snapshot v2 records before/after file state. Old snapshots remain available for
+manual inspection but cannot be undone automatically. New snapshots can be
+recorded above them. See [Snapshots and goals](../snapshots-goals.md).
+
 ## Standalone project
 
 Cade Mini now installs as `cade-mini`, with Python imports under `cade_mini`.
@@ -3399,7 +3423,7 @@ or migration tools are provided.
 
 Authenticate again with `cade-mini login`. Credentials and skills use
 `~/.cade-mini/`; project skills use `.cade-mini/skills/`. Mini no longer
-reads `.cade` directories. Session schema v1 remains the current format.
+reads `.cade` directories. This earlier packaging change retained schema v1.
 
 ## When an upgrade is needed
 

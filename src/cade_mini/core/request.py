@@ -5,12 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import asdict, dataclass, fields
+from typing import Any, cast
 
-from cade_mini.ai.types import StreamOptions, ToolDefinition
+from cade_mini.ai.types import StreamOptions, ThinkingBudgets, ToolDefinition
 from cade_mini.core.types import (
     AssistantMessage,
+    JsonValue,
     Message,
     SummaryMessage,
     SystemMessage,
@@ -76,6 +77,33 @@ class Request:
     options: StreamOptions | None
     report: BuildReport
     admitted: tuple[Message, ...]
+    budget: Budget
+
+    def as_record(self) -> dict[str, JsonValue]:
+        """返回规范化请求输入，不保存认证参数或运行时对象。"""
+        options: dict[str, Any] | None = None
+        if self.options is not None:
+            excluded = {"api_key", "headers", "signal", "on_payload", "on_response"}
+            options = {}
+            for field in fields(self.options):
+                if field.name in excluded:
+                    continue
+                value = getattr(self.options, field.name)
+                options[field.name] = (
+                    asdict(value) if isinstance(value, ThinkingBudgets) else value
+                )
+        record = {
+            "messages": list(self.messages),
+            "tools": [asdict(tool) for tool in self.tools],
+            "options": options,
+            "budget": asdict(self.budget),
+            "report": asdict(self.report),
+        }
+        # JSON 往返隔离嵌套对象，并在调用 Provider 前拒绝不可序列化的输入。
+        return cast(
+            dict[str, JsonValue],
+            json.loads(json.dumps(record, ensure_ascii=False, allow_nan=False)),
+        )
 
     def require_sendable(self) -> None:
         if self.report.over_budget:
@@ -150,6 +178,7 @@ def build(
             context_tokens=_tokens(system_text) if context else 0,
         ),
         admitted=tuple(messages),
+        budget=budget,
     )
 
 

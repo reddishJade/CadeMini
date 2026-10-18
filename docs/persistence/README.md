@@ -5,7 +5,7 @@ host-state files with narrow scopes.
 
 ## Current format
 
-- Session log: schema v1, closed. See [Session log schema](../reference/session-schema.md).
+- Session log: write closed schema v2; read v1 and v2. See [Session log schema](../reference/session-schema.md).
 - Entry file: one JSON object per line; a trailing newline is required.
 - Session directory: `.cade-mini/sessions`.
 - Compaction and windows are entries, not file rewrites.
@@ -19,9 +19,8 @@ fields are allowed only when old readers can ignore them.
 
 ## History
 
-There are no format migrations yet. When the first change lands, add a record
-under [upgrade](../upgrade/README.md) and a decision record describing the
-migration and rollback.
+V2 adds normalized request audits without rewriting v1 facts. Resume and rollback
+are described in the [upgrade guide](../upgrade/README.md).
 
 ## Verification
 
