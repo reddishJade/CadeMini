@@ -49,8 +49,9 @@ library.
 `build` renders `docs/mini/index.html` from Markdown and the manifest. It needs
 `markdown-it-py`, installed by the `docs` extra.
 
-`llms --write` updates `docs/cade-mini/llms.txt`, the agent-readable catalog.
-Run it when pages change.
+`llms --write` updates `docs/cade-mini/llms.txt` and
+`docs/cade-mini/llms-full.txt`. The first is an agent catalog; the second
+contains the full page bodies.
 
 ### Adding a page
 

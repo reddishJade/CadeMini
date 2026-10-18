@@ -1,0 +1,1048 @@
+# Cade Mini
+
+> A small, durable coding agent built on one append-only session log.
+
+# Cade Mini
+
+<!-- source: README.md -->
+
+# Cade Mini
+
+Cade Mini is the small coding agent in the Cade repository. It keeps one rule at
+the center of the design:
+
+> The session log is the source of truth. The model-visible history is a
+> deterministic projection. Request construction only produces the current
+> request.
+
+The result is a small agent that can survive compaction, window changes, and
+process restarts without inventing history.
+
+## Start here
+
+- [Quickstart](quickstart.md) installs and runs the first task.
+- [CLI](cli.md) lists one-shot, REPL, session, web, and recovery commands.
+- [Configuration](configuration.md) documents `cade-mini.json`.
+- [Architecture](architecture.md) explains the log, projection, request, and run
+  pipeline.
+- [Sessions and context](sessions-context.md) covers resume, compaction,
+  pruning, and history retrieval.
+- [Tools and security](tools-security.md) covers modes, rules, grants, shell
+  analysis, and the sandbox.
+- [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
+- [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
+- [Hooks, MCP, and subagents](hooks-mcp-subagents.md) covers extensions.
+- [Hosts](hosts.md) covers the CLI REPL and the local web host.
+- [Development](development.md) covers checks, tests, and the docs pipeline.
+- [Parity](parity.md) links the acceptance against Cade.
+
+## Design and reference
+
+The guides are task-oriented. The detailed design and schema references remain
+the source of truth for invariants:
+
+- [Cade Mini design](../cade-mini.md)
+- [Session log schema](../cade-mini-schema.md)
+- [Harvest notes](../cade-mini-harvest.md)
+- [Parity acceptance](../cade-mini-parity.md)
+
+## Built docs
+
+The docs are Markdown-first. A small tool validates links and anchors, builds a
+single-page site, and generates an `llms.txt` catalog for agents:
+
+```bash
+python -m cade.mini.docs check
+python -m cade.mini.docs build
+```
+
+The generated site is [docs/mini/index.html](../mini/index.html); the generated
+catalogs are `docs/cade-mini/llms.txt` and `docs/cade-mini/llms-full.txt`.
+
+# Quickstart
+
+<!-- source: quickstart.md -->
+
+# Quickstart
+
+Cade Mini requires Python 3.12 or newer. The repository uses `uv` for
+development and for the `cade-mini` entry point.
+
+## Install and authenticate
+
+From the repository root:
+
+```bash
+uv sync --locked
+```
+
+Cade Mini reuses Cade's credential store. Configure a provider once with the
+Cade login command, or set the provider's API key environment variable:
+
+```bash
+cade login
+# or
+export DEEPSEEK_API_KEY=...
+```
+
+Codex uses the stored Codex OAuth credential. `--provider codex` selects it; no
+separate Mini login command exists.
+
+## Run one task
+
+```bash
+uv run --locked cade-mini "Read README.md and explain the entry point in three bullets."
+```
+
+The same command can be written explicitly:
+
+```bash
+uv run --locked cade-mini exec "Read README.md and explain the entry point."
+```
+
+Cade Mini runs in the current directory by default. Use `--project-root` to
+point at another workspace.
+
+## Choose a mode
+
+- `act` is the default. Reads run directly; writes and shell commands ask.
+- `build` allows structured writes and read-only shell commands. Mutating shell
+  commands still ask.
+- `plan` hides write and edit tools and denies mutations. Read-only shell
+  commands are allowed.
+
+```bash
+uv run --locked cade-mini --mode plan "Propose a fix for the failing test."
+uv run --locked cade-mini --mode build "Fix the bug and run the test."
+```
+
+For non-interactive automation, `--yes` approves asks, and `--read-only` denies
+writes and shell commands. Prefer rule-based allows over `--yes` for shared
+repositories; see [Configuration](configuration.md).
+
+## Continue work
+
+Sessions live under `.cade-mini/sessions` by default.
+
+```bash
+uv run --locked cade-mini --list-sessions
+uv run --locked cade-mini --continue "What did you change?"
+uv run --locked cade-mini --resume SESSION_ID "Continue the task."
+```
+
+Omitting the task starts the interactive REPL. See [CLI](cli.md) for all REPL
+commands.
+
+## Open the web host
+
+```bash
+uv run --locked cade-mini --web --port 8765
+```
+
+Open `http://127.0.0.1:8765`. The web host has no terminal prompt, so writes and
+shell commands are denied unless you start it with `--yes` or use rules. The
+host serves one durable session for its lifetime.
+
+## Build the docs
+
+```bash
+uv sync --locked --extra docs
+uv run --locked python -m cade.mini.docs check
+uv run --locked python -m cade.mini.docs build
+```
+
+Open `docs/mini/index.html`. The docs source is under `docs/cade-mini/`.
+
+# CLI
+
+<!-- source: cli.md -->
+
+# CLI
+
+The `cade-mini` entry point runs one task, starts a REPL, manages sessions, or
+serves the web host.
+
+```bash
+cade-mini [TASK] [options]
+cade-mini exec TASK [options]
+```
+
+`exec` is an explicit alias for a one-shot task. Without a task, `cade-mini`
+starts the interactive REPL.
+
+## One-shot options
+
+- `--project-root PATH` sets the workspace. The default is the current
+  directory.
+- `--config PATH` selects a config file. The default is
+  `<project-root>/cade-mini.json`.
+- `--provider NAME`, `--model NAME`, and `--effort EFFORT` override provider
+  defaults.
+- `--mode plan|build|act` selects the execution mode.
+- `--read-only` / `--no-read-only` denies or permits writes and shell commands.
+- `--yes` approves asks. Use it only in trusted, non-interactive contexts.
+- `--auto-review` / `--no-auto-review` lets the model review ask-level calls.
+- `--max-steps N` bounds model steps.
+- `--context-window N` overrides the model context window.
+- `--sandbox off|workspace|strict` selects the Linux bubblewrap policy.
+- `--json` emits JSONL events for a one-shot task.
+
+## Sessions
+
+- `--list-sessions` prints ID, update time, and title, then exits.
+- `--continue` resumes the latest session in the project.
+- `--resume` resumes the latest session; `--resume ID` resumes a specific one.
+- `--sessions-dir PATH` changes the session directory. A relative path is
+  resolved against the project root.
+- `--undo` restores the latest file snapshot and exits without contacting a
+  provider.
+
+`--continue` and `--resume` cannot be combined.
+
+## Goals and web host
+
+- `--goal TEXT` sets the workspace goal before running.
+- `--web` starts the local web host instead of the REPL.
+- `--host` and `--port` bind the web host. The default is `127.0.0.1:8765`.
+
+## REPL commands
+
+- `/new` starts a new session.
+- `/resume [ID]` resumes the latest or a specific session.
+- `/compact` summarizes older turns.
+- `/new-context [NOTE]` starts a new window, optionally with a handoff note.
+- `/mode [MODE]` shows or switches the execution mode.
+- `/permissions [clear]` shows or clears session grants.
+- `/undo` restores the latest snapshot.
+- `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
+- `/context` prints the session ID, provider, budget, and event count.
+- `/help` prints the command list.
+- `/exit` or `/quit` exits.
+
+## Exit codes
+
+- `0`: the run completed.
+- `1`: the run ended without completion, or no snapshot was available for
+  `--undo`.
+- `2`: argument, configuration, or startup error.
+
+## Examples
+
+```bash
+cade-mini --list-sessions
+cade-mini --continue "Summarize the current state."
+cade-mini --undo
+cade-mini --mode plan "Find the smallest fix for the failing test."
+cade-mini --mode build --yes "Fix the test and run pytest."
+cade-mini --web --port 8765
+```
+
+# Configuration
+
+<!-- source: configuration.md -->
+
+# Configuration
+
+Cade Mini reads `<project-root>/cade-mini.json` by default. Use `--config PATH`
+to select another file. Command-line options override the file; the file
+overrides built-in defaults.
+
+The file is strict: unknown keys and invalid values are rejected instead of
+silently ignored.
+
+## Example
+
+```json
+{
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "reasoning_effort": "high",
+  "context_window": 128000,
+  "max_steps": 30,
+  "sessions_dir": ".cade-mini/sessions",
+  "mode": "act",
+  "read_only": false,
+  "instructions": true,
+  "note": true,
+  "memory": true,
+  "auto_review": false,
+  "prompt_modules": ["identity", "tool_discipline", "working_note", "environment"],
+  "sandbox": "workspace",
+  "rules": [
+    {
+      "tool": "bash",
+      "command_prefix": "git status",
+      "decision": "allow"
+    }
+  ]
+}
+```
+
+## Fields
+
+- `provider`, `model`: provider name and model identifier. The CLI flags
+  override both.
+- `reasoning_effort`: provider reasoning effort. The CLI flag is `--effort`.
+- `context_window`: model context window in tokens.
+- `max_steps`: maximum model steps in one run.
+- `sessions_dir`: session directory. Relative paths resolve against the project
+  root.
+- `mode`: `plan`, `build`, or `act`.
+- `read_only`: deny writes and shell commands.
+- `instructions`: load `AGENTS.md` or `CLAUDE.md` into request context.
+- `note`: load `NOTE.md` working state.
+- `memory`: load `MEMORY.md` durable facts.
+- `auto_review`: let the model review ask-level tool calls. Default is false.
+- `prompt_modules`: system prompt modules. Available names are `identity`,
+  `tool_discipline`, `working_note`, and `environment`.
+- `sandbox`: `off`, `workspace`, or `strict`. The OS sandbox is implemented on
+  Linux with bubblewrap; other hosts keep path, mode, shell, and approval
+  checks.
+
+## Rules
+
+Rules are evaluated last match first. A rule matches a tool name or `*`, and
+optionally a path or command prefix. `decision` is `allow`, `deny`, or `ask`.
+
+```json
+{
+  "rules": [
+    {"tool": "bash", "command_prefix": "git", "decision": "deny"},
+    {"tool": "bash", "command_prefix": "git status", "decision": "allow"},
+    {"tool": "write", "path_prefix": "docs/", "decision": "allow"}
+  ]
+}
+```
+
+Hard boundaries win over rules: a path outside the workspace is denied even if a
+rule allows the tool. `read_only` also wins over grants and rules.
+
+## Hooks
+
+Hooks run shell commands around tools. A non-zero `before_tool` hook denies the
+call.
+
+```json
+{
+  "hooks": [
+    {
+      "event": "before_tool",
+      "command": "python tools/check_tool.py",
+      "matcher": "bash",
+      "timeout_ms": 10000
+    }
+  ]
+}
+```
+
+`event` is `before_tool` or `after_tool`. `matcher` is a tool name, a prefix
+ending in `*`, or omitted for all tools. Hooks receive `CADE_HOOK_EVENT`,
+`CADE_TOOL_NAME`, `CADE_TOOL_ARGS`, and `CADE_TOOL_RESULT` in the environment.
+
+## MCP servers
+
+MCP servers use stdio and keep one persistent connection per server.
+
+```json
+{
+  "mcp_servers": {
+    "files": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "cwd": ".",
+      "timeout_ms": 30000,
+      "env": {"LOG_LEVEL": "warn"}
+    }
+  }
+}
+```
+
+Discovered tools are exposed as `mcp__<server>__<tool>`. They ask by default,
+are denied in plan mode and read-only mode, and can be allowed by a rule.
+
+# Architecture
+
+<!-- source: architecture.md -->
+
+# Architecture
+
+Cade Mini is a pipeline with four stages. Each stage has one owner and one
+direction of data flow.
+
+```text
+Session log -> Conversation projection -> Request -> Run
+```
+
+## Session log
+
+`SessionLog` is an append-only JSONL file. Each entry has an ID, timestamp,
+type, parent ID, and data. The active branch ends at the latest entry. A tree is
+possible, but the loop follows one branch.
+
+The log stores facts:
+
+- `system`, `user`, `assistant`, and `tool_result` are model-visible facts.
+- `compaction` records a summary and `first_kept_id`.
+- `window` records a new context start and an optional handoff.
+- `request`, `run`, and `attempt` are audit facts. They never become
+  conversation messages.
+
+The schema is closed and versioned. See [Session log schema](../cade-mini-schema.md).
+
+## Projection
+
+`project(entries)` is a pure function. It reads the branch and produces the
+deterministic conversation projection:
+
+1. Take the latest system message.
+2. Apply the latest window start.
+3. Apply the latest compaction summary.
+4. Keep retained user, assistant, and tool-result messages.
+5. Pair tool calls with tool results; insert a synthetic interrupted result at
+   the tail when the log ends mid-call.
+
+No projection step writes to the log. Replaying the same entries always
+produces the same conversation.
+
+## Request
+
+`build(conversation, tools, budget, context)` admits messages into the current
+model window. It:
+
+- joins request-only context such as instructions, skill catalog, NOTE, memory,
+  and goal;
+- replaces old tool bodies with references to the history tool;
+- drops the oldest turns when needed;
+- converts the result to provider wire format;
+- returns a `Request` with a `BuildReport`.
+
+Admission does not mutate the conversation and does not write facts. A request
+that still exceeds the budget is rejected rather than silently truncated.
+
+## Run
+
+`run()` appends the user fact, calls the provider, appends assistant and
+tool-result facts, and executes tools. It is the only stage that writes during a
+turn. Compaction and window fallback are decisions expressed as new log facts.
+
+## Package map
+
+- `types.py`: log, message, block, and error types.
+- `log.py`: append, lock, tail repair, session listing.
+- `projection.py`: deterministic conversation projection.
+- `request.py`: budget, admission, wire conversion.
+- `loop.py`: provider stream, tool execution, retries, facts.
+- `compaction.py` and `window.py`: context reduction decisions.
+- `tools.py`, `policy.py`, `shell.py`, `sandbox.py`: workspace tools and safety.
+- `skills.py`, `memory.py`, `note.py`, `instructions.py`, `goal.py`: request
+  context and durable state.
+- `hooks.py`, `mcp.py`, `subagents.py`: extension mechanisms.
+- `snapshots.py`, `approval.py`, `review.py`: recovery and approvals.
+- `cli.py`, `web.py`, `docs.py`: hosts and documentation.
+
+The Mini package imports only `cade.ai` and
+`cade.harness.execution_env` from the rest of Cade. It does not import the Cade
+agent, product, or server layers. `test_mini_boundary.py` enforces this firewall.
+
+## Why the split
+
+The split prevents a common failure: the request builder starts hiding
+messages, then the history rewrite becomes the only copy of what happened. Mini
+keeps the original facts and lets the projection and admission be replaced
+without losing history.
+
+# Sessions and context
+
+<!-- source: sessions-context.md -->
+
+# Sessions and context
+
+A session is an append-only JSONL file under `.cade-mini/sessions` by default.
+The file name is `session-<id>.jsonl`. The session title is derived from the
+first user message; no extra event type is needed.
+
+## Resume
+
+```bash
+cade-mini --list-sessions
+cade-mini --continue "Continue where we stopped."
+cade-mini --resume SESSION_ID "Explain the current state."
+```
+
+`--continue` and `--resume` open the latest or a specific session. Existing
+sessions keep their original system fact; a new `cade-mini.json` does not rewrite
+history. If a resumed session has no system entry, the current prompt is added.
+
+## Compaction
+
+When the full conversation exceeds the input budget, `Compactor`:
+
+1. Selects a cut at a visible user boundary.
+2. Sends the older messages to the provider for a summary.
+3. Appends a `compaction` fact with the summary and `first_kept_id`.
+4. Reprojects the conversation as the latest system, summary, and retained tail.
+
+Compaction is iterative: a prior summary is serialized as `PRIOR SUMMARY` and
+can be summarized again. The original user, assistant, and tool-result facts
+remain in the log.
+
+## Pruning
+
+Request admission replaces old tool results with a reference:
+
+```text
+[tool output omitted; call_id=...; use the history tool ...]
+```
+
+The latest four tool results are protected first. If the request still does not
+fit, older protected results and finally the newest result can be replaced. The
+model can recover exact content with the `history` tool using `call_id` or
+`entry_id`.
+
+## Windows
+
+A `window` fact starts a new context at a user entry and may include a handoff.
+The CLI can start one explicitly with `/new-context`. If compaction cannot bring
+a request under budget, the loop can append an automatic window with a fixed
+handoff that points to `NOTE.md` and the history tool.
+
+## History tool
+
+`history` accepts one of:
+
+- `query`: case-insensitive search over the branch, returning entry IDs and
+  snippets.
+- `entry_id`: exact content of one log entry.
+- `call_id`: exact tool result for one call.
+
+Exact content is capped. Search results are capped and point back to entry IDs.
+
+## Request context order
+
+For each task the request contains:
+
+1. The system message.
+2. Project instructions from `AGENTS.md`, `CLAUDE.md`, or their variants.
+3. The skill catalog.
+4. `NOTE.md` working state.
+5. `MEMORY.md` durable facts.
+6. An active goal.
+
+Items 2-6 are request-only context. They are recorded in the request audit but
+never become conversation facts. See [Architecture](architecture.md) and the
+[design](../cade-mini.md).
+
+# Tools and security
+
+<!-- source: tools-security.md -->
+
+# Tools and security
+
+## Workspace tools
+
+- `read`: read a UTF-8 file with line numbers. Files are capped.
+- `write`: write UTF-8 text and create parent directories.
+- `edit`: replace one exact occurrence of old text.
+- `glob`: list files matching a workspace glob.
+- `grep`: search file contents with a regular expression.
+- `bash`: run a shell command in the workspace.
+
+## Context and extension tools
+
+- `history`: retrieve compacted or pruned evidence.
+- `skill`: load the full body of an available `SKILL.md`.
+- `memory`: append a durable fact to `MEMORY.md`.
+- `goal`: read, set, complete, or clear the workspace goal.
+- `subagent`: run one child task in its own session.
+- `mcp__<server>__<tool>`: tools discovered from a configured MCP server.
+
+## Modes
+
+`plan` exposes read, glob, grep, history, skill, and bash. Writes and edits are
+hidden and denied. Only classified read-only shell commands are allowed.
+
+`build` exposes all tools. Writes and edits are allowed. Read-only shell
+commands are allowed; mutating or unknown commands ask.
+
+`act` exposes all tools. Writes, edits, and shell commands ask.
+
+`--read-only` denies writes, edits, shell commands, memory, and MCP regardless of
+mode. It does not block reads, search, history, skills, or goal state.
+
+## Rules and grants
+
+Static rules live in `cade-mini.json`. They are evaluated last match first and
+can match tool, path prefix, and command prefix. A hard path boundary always
+wins.
+
+A session grant is created when an approval answer is `a` (always). The grant
+matches the same tool and the same path or command. `/permissions` lists grants;
+`/permissions clear` removes them. Grants last for the process only. Use rules
+for durable policy.
+
+## Shell classification
+
+The shell analyzer labels a command as `read_only`, `mutating`, or `unknown`.
+It is deliberately conservative:
+
+- `ls`, `cat`, `grep`, `rg`, `git status`, `git diff`, and similar commands are
+  read-only.
+- `rm`, `mv`, `cp`, `git commit`, `python`, and other mutating commands are
+  mutating.
+- Pipelines, redirections, command lists, substitutions, and unknown binaries
+  are unknown.
+
+Plan mode denies unknown commands. Build and act ask.
+
+## Approvals
+
+An ask is answered by:
+
+- `--yes`: approve.
+- `--auto-review`: ask the model for `ALLOW` or `DENY`; failures deny.
+- Otherwise a TTY prompt: `y` once, `n` deny, `a` always for this exact call.
+- Non-TTY without `--yes` or auto-review: deny.
+
+## Sandbox
+
+On Linux, `--sandbox workspace` or `--sandbox strict` wraps shell commands with
+bubblewrap. The sandbox confines the workspace and denies network access by
+default. On other hosts the sandbox is unavailable and Cade Mini keeps path
+boundaries, mode policy, shell classification, and approvals.
+
+## Best practices
+
+- Use `plan` for review and `build` for scoped edits.
+- Prefer explicit rules over `--yes` in shared repositories.
+- Keep commands simple so the classifier can reason about them.
+- Use `--read-only` for inspection-only automation.
+
+# Snapshots and goals
+
+<!-- source: snapshots-goals.md -->
+
+# Snapshots and goals
+
+## File snapshots
+
+Cade Mini records a snapshot before a file tool changes a file. Snapshots live
+under `.cade-mini/snapshots` with a JSONL index and one directory per snapshot.
+
+Covered changes:
+
+- `write` and `edit`.
+- Common single-command shell mutations: `rm`, `mv`, `cp`, `touch`, `mkdir`,
+  redirection with `>`, and `sed -i`.
+- Creating a file records that it did not exist; undo removes it.
+
+Not covered:
+
+- Complex pipelines, command lists, unknown scripts, and commands that mutate
+  files without naming them.
+- Files larger than the snapshot limit (5 MiB) are rejected rather than
+  silently skipped.
+- Directory trees are not copied; directory mutations are skipped.
+
+## Undo
+
+```bash
+cade-mini --undo
+```
+
+This restores the latest snapshot and exits without contacting a provider. In
+the REPL, use `/undo`. Each call restores one snapshot, so repeated undo walks
+back through the recorded changes.
+
+Snapshots are project state, not session facts. They are not part of the
+JSONL session branch.
+
+## Goals
+
+A goal is one durable objective stored in `.cade-mini/goal.json`. It has an
+objective, a status (`active` or `done`), and an update time.
+
+```bash
+cade-mini --goal "Add a regression test for the parser" "Start the task."
+```
+
+In the REPL:
+
+- `/goal` shows the current goal.
+- `/goal TEXT` sets an active goal.
+- `/goal done` marks it complete.
+- `/goal clear` removes it.
+
+The `goal` tool provides the same actions to the model. An active goal is added
+to request context so a resumed or compacted session still knows the objective.
+Goals are host state; they do not change the session schema.
+
+Goals are intentionally small. Use `NOTE.md` for working details and `MEMORY.md`
+for facts that outlive the objective.
+
+# Skills and memory
+
+<!-- source: skills-memory.md -->
+
+# Skills and memory
+
+## Skills
+
+Cade Mini discovers `SKILL.md` files in three roots:
+
+1. `~/.cade/skills/<name>/SKILL.md` for user skills.
+2. `<project>/.cade/skills/<name>/SKILL.md` for project skills.
+3. `<project>/.cade-mini/skills/<name>/SKILL.md` for Mini-specific skills.
+
+Later roots override earlier roots with the same skill name. A skill file can
+start with YAML frontmatter:
+
+```markdown
+---
+name: release-check
+description: Validate release metadata before tagging.
+---
+
+Run the release checklist...
+```
+
+`name` defaults to the parent directory. `description` defaults to the first
+non-empty body line. Invalid names and empty bodies are skipped.
+
+The request gets a compact `<available-skills>` catalog with names and
+descriptions. The model loads a body on demand with the `skill` tool:
+
+```json
+{"name": "release-check"}
+```
+
+Skill bodies are facts in the tool result, not request-only context. Loading the
+same skill twice is harmless but adds another tool result.
+
+## Memory
+
+`MEMORY.md` at the project root stores durable facts. It is loaded into request
+context as `<memory source="MEMORY.md">` on every task, capped at 32 KiB.
+
+The model appends facts with the `memory` tool:
+
+```json
+{"text": "Prefer pytest and keep changes minimal."}
+```
+
+`memory` writes only `MEMORY.md`; it cannot write arbitrary paths. The file is
+capped at 64 KiB for writes. Remove stale entries manually when it fills.
+
+Memory is different from the other state files:
+
+- `AGENTS.md` is project instruction, owned by the project.
+- `NOTE.md` is short-lived working state; it is summarized with compaction.
+- `MEMORY.md` is a durable preference or convention.
+- The session log is the record of what happened.
+
+## Request context
+
+Instructions, skill catalog, `NOTE.md`, `MEMORY.md`, and an active goal are all
+request-only context. They appear in each request audit but never become
+conversation messages. See [Sessions and context](sessions-context.md).
+
+# Hooks, MCP, and subagents
+
+<!-- source: hooks-mcp-subagents.md -->
+
+# Hooks, MCP, and subagents
+
+## Hooks
+
+Hooks run shell commands around tools. They are configured in `cade-mini.json`:
+
+```json
+{
+  "hooks": [
+    {
+      "event": "before_tool",
+      "command": "python tools/check_tool.py",
+      "matcher": "bash",
+      "timeout_ms": 10000
+    }
+  ]
+}
+```
+
+- `before_tool` runs after policy and approval, before the tool executes. A
+  non-zero exit denies the call and records an error tool result.
+- `after_tool` runs after a successful or failed executed tool. Its output is
+  ignored.
+- `matcher` is an exact tool name, a prefix ending in `*`, or omitted for all.
+- Commands run with the workspace as the working directory and receive
+  `CADE_HOOK_EVENT`, `CADE_TOOL_NAME`, `CADE_TOOL_ARGS`, and
+  `CADE_TOOL_RESULT`.
+
+Hooks are trusted configuration. A hook that hangs is killed after its timeout.
+
+## MCP
+
+MCP servers use stdio. Cade Mini starts one persistent process per server and
+discovers its tools at startup:
+
+```json
+{
+  "mcp_servers": {
+    "files": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "timeout_ms": 30000
+    }
+  }
+}
+```
+
+Tools are named `mcp__<server>__<tool>`. Their input schema comes from the
+server's `tools/list` response. Calls run sequentially over the connection and
+preserve server state.
+
+Policy:
+
+- `plan` mode hides MCP tools and denies them.
+- `read_only` denies them.
+- `build` and `act` ask by default; a rule can allow a specific tool.
+
+A server that fails to start is reported at startup and skipped. Connections
+are closed at process exit.
+
+## Subagents
+
+The `subagent` tool runs one child task in its own session and returns the final
+answer with the child session ID:
+
+```json
+{"prompt": "Find the failing test and report the file and line."}
+```
+
+The child:
+
+- gets the parent's provider, budget, policy, approver, hooks, and request
+  context;
+- gets the base tools plus a history tool bound to its own log;
+- does not get another `subagent` tool, so it cannot recurse;
+- uses at most 20 steps;
+- writes its own session under `<sessions>/subagents/`.
+
+The parent records only the tool call and the returned summary. The child log
+keeps the detailed evidence.
+
+## Limits
+
+MCP is a small stdio client, not a full capability negotiation implementation.
+Hooks are shell commands, not in-process callbacks. Subagents are sequential and
+share the parent's approval context rather than running in parallel.
+
+# Hosts
+
+<!-- source: hosts.md -->
+
+# Hosts
+
+Cade Mini has two hosts: the terminal CLI and a local web host. Both use the
+same session log, request builder, tools, and policy.
+
+## Terminal
+
+Without a task, the CLI starts a REPL:
+
+```bash
+cade-mini
+```
+
+The REPL prints tool progress to stderr, streams assistant text to stdout, and
+accepts the commands listed in [CLI](cli.md). With a task, it runs once and
+exits:
+
+```bash
+cade-mini "Fix the failing test."
+cade-mini exec "Fix the failing test."
+```
+
+One-shot mode supports `--json` for a JSONL event stream. The REPL does not.
+
+## Web
+
+```bash
+cade-mini --web --host 127.0.0.1 --port 8765
+```
+
+Open `http://127.0.0.1:8765`. The page submits tasks and displays the final
+answer.
+
+Endpoints:
+
+- `GET /` serves the page.
+- `POST /api/task` accepts `{"task": "..."}` and returns the answer,
+  termination, steps, error, and session ID.
+- `GET /api/sessions` returns the session list.
+
+The web host serves one session for its lifetime. Requests are serialized so two
+browser tabs cannot interleave turns.
+
+Security:
+
+- The server binds to loopback by default.
+- There is no terminal to answer an approval prompt. Without `--yes` or a rule,
+  writes and shell commands are denied while reads still work.
+- `--read-only` denies mutations explicitly.
+
+## Choosing a host
+
+Use the terminal for interactive review and approvals. Use the web host for a
+small local console or a demo. Use one-shot mode for scripts and CI, with
+`--read-only` or explicit rules rather than a blanket `--yes`.
+
+There is no separate TUI workbench. The REPL provides terminal interaction, and
+the web host provides a browser surface.
+
+# Development
+
+<!-- source: development.md -->
+
+# Development
+
+## Setup
+
+```bash
+uv sync --locked --extra dev
+```
+
+Run checks from the repository root:
+
+```bash
+uv run --locked ruff check src/cade/
+uv run --locked ruff format --check src/cade/
+uv run --locked pyright src/cade/
+uv run --locked pytest -q src/cade/tests
+```
+
+For Mini-focused work:
+
+```bash
+uv run --locked pytest -q \
+  src/cade/tests/test_mini_log.py \
+  src/cade/tests/test_mini_projection.py \
+  src/cade/tests/test_mini_request.py \
+  src/cade/tests/test_mini_loop.py \
+  src/cade/tests/test_mini_cli.py
+```
+
+The full suite includes a few Windows-only failures in unrelated Cade modules;
+check the current CI and test summary before treating them as regressions.
+
+## Documentation
+
+The docs source is `docs/cade-mini/`. The manifest is
+`docs/cade-mini/docs.json`; it defines navigation order and which pages are
+published.
+
+```bash
+uv sync --locked --extra docs
+uv run --locked python -m cade.mini.docs check
+uv run --locked python -m cade.mini.docs build
+uv run --locked python -m cade.mini.docs llms --write
+```
+
+`check` validates the manifest, page files, relative links, and anchors. The CI
+workflow runs it without the docs extra, because checking uses only the standard
+library.
+
+`build` renders `docs/mini/index.html` from Markdown and the manifest. It needs
+`markdown-it-py`, installed by the `docs` extra.
+
+`llms --write` updates `docs/cade-mini/llms.txt` and
+`docs/cade-mini/llms-full.txt`. The first is an agent catalog; the second
+contains the full page bodies.
+
+### Adding a page
+
+1. Add the Markdown file under `docs/cade-mini/`.
+2. Add it to a section in `docs.json`.
+3. Use relative links to other pages.
+4. Run `python -m cade.mini.docs check`.
+5. Regenerate `llms.txt` and the site.
+
+Every Markdown file under `docs/cade-mini/` must be listed in the manifest,
+except paths matching `exclude` (decision records are excluded).
+
+### Writing style
+
+- Use active voice and short sentences.
+- Lead with the task, then the details.
+- Use fenced code blocks with a language.
+- Keep commands copy-pasteable.
+- State limitations explicitly.
+
+The repository language rules apply: code comments and docstrings are Chinese;
+documentation, prompts, and UI text are English.
+
+## Boundaries
+
+Mini imports only `cade.ai` and `cade.harness.execution_env` from the rest of
+Cade. `src/cade/tests/test_mini_boundary.py` enforces the import firewall. Do not
+add imports from `cade.coding_agent`, `cade.server`, or the Cade harness session
+layers.
+
+Public interfaces include the session schema, config fields, CLI flags, tool
+names, and docs manifest. Change them with tests and documentation in the same
+commit.
+
+# Parity
+
+<!-- source: parity.md -->
+
+# Parity
+
+Cade Mini was accepted against Cade on two real repository workflows and a
+session resume. The full report is [Cade Mini parity](../cade-mini-parity.md).
+
+## Workflows
+
+Two clean Git repositories started from the same baseline and the same
+`AGENTS.md` instruction: "Run pytest after changes. Keep changes minimal."
+
+Bug fix:
+
+- Task: fix `add` in `calc.py` so pytest passes.
+- Both agents changed `a - b` to `a + b`, ran pytest, got one passing test, and
+  answered `FIXED`.
+
+Feature:
+
+- Task: add `mul(a, b)` and a test.
+- Both agents produced the same diff, ran pytest, got two passing tests, and
+  answered `PASS`.
+
+Resume:
+
+- Both agents resumed their prior session, recalled `calc.py`, and identified
+  the corrected `+` operator.
+
+## Evidence
+
+- Mini ran with `--mode build --yes`; Cade ran with `--mode build --approval
+  auto-review`.
+- Both used DeepSeek `deepseek-chat`.
+- Mini used five steps per workflow; Cade used four. Mini issued an extra `glob`
+  inspection, which did not change the result.
+- Cade emits JSONL telemetry and budget/approval events; Mini emits human tool
+  progress and appends request/run facts to its session log.
+
+## Differences
+
+- Mini's snapshots cover write/edit and common single-command shell mutations;
+  complex pipelines are not covered.
+- Mini's MCP client is persistent per server but has a narrower capability
+  surface than Cade's.
+- The OS sandbox is Linux-only; Windows keeps path boundaries, modes, shell
+  classification, and approvals.
+- The live Codex acceptance passed: write created `codex.txt`, and a resumed
+  Codex session read it back.
+
+The parity report records the concrete fixtures and observed results. Re-run a
+workflow by creating a clean fixture, running both agents with the settings
+above, and comparing the diff and test result rather than the prose answer.

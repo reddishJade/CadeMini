@@ -42,8 +42,8 @@ Committed on `experiment/cade-mini`:
   independent subagents, durable project memory, tool lifecycle hooks, a
   persistent stdio MCP bridge, file snapshots/undo covering common shell
   mutation targets, workspace goals, automatic approval review, a local web
-  host, a Markdown guide set with a link/anchors checker, generated site and
-  `llms.txt`, and 205 tests.
+  host, a Markdown guide set with a link/anchors checker, generated site,
+  `llms.txt`, and `llms-full.txt`, and 207 tests.
 - A real CLI acceptance run through the configured DeepSeek account passed: the
   model used the write and read tools, `hello.txt` contained `mini`, and a
   resumed run on the same session read the file and answered `mini`.
@@ -61,7 +61,7 @@ Committed on `experiment/cade-mini`:
   `{"answer":"WEB-OK","termination":"completed"}` from DeepSeek.
 - The Mini docs are built from `docs/cade-mini/` and `docs.json`. `python -m
   cade.mini.docs check` validates links and anchors in CI; `build` writes
-  `docs/mini/index.html`; `llms --write` writes the agent catalog.
+  `docs/mini/index.html`; `llms --write` writes the catalog and full corpus.
 - Parity acceptance passed on two repository workflows and a session resume:
   Mini and Cade produced the same bug-fix and feature diffs, both ran pytest,
   and both recalled the earlier fix. See [cade-mini-parity.md](cade-mini-parity.md).

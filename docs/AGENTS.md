@@ -24,7 +24,8 @@ uv run --locked python -m cade.mini.docs llms --write
 ```
 
 `check` validates the manifest, page existence, relative links, and anchors. It
-runs in CI. Run it before committing docs changes.
+also verifies that `llms.txt` and `llms-full.txt` are current. It runs in CI.
+Run it before committing docs changes.
 
 ## Page layout
 

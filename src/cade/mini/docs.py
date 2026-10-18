@@ -16,6 +16,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 _DOCS_ROOT = _REPO_ROOT / "docs" / "cade-mini"
 _SITE_OUT = _REPO_ROOT / "docs" / "mini" / "index.html"
 _LLMS_NAME = "llms.txt"
+_LLMS_FULL_NAME = "llms-full.txt"
 _LINK = re.compile(r"\[[^\]]+\]\(([^)\s]+)")
 _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 _FENCE = re.compile(r"^\s*(```|~~~)")
@@ -151,6 +152,17 @@ def check(root: Path = _DOCS_ROOT) -> list[str]:
                 f"{_LLMS_NAME}: out of date; run "
                 "`python -m cade.mini.docs llms --write`"
             )
+    full_expected = render_llms_full(root)
+    full_path = root / _LLMS_FULL_NAME
+    if not full_path.is_file():
+        errors.append(f"{_LLMS_FULL_NAME}: generated catalog is missing")
+    else:
+        actual_full = full_path.read_text(encoding="utf-8")
+        if actual_full != full_expected:
+            errors.append(
+                f"{_LLMS_FULL_NAME}: out of date; run "
+                "`python -m cade.mini.docs llms --write`"
+            )
     return errors
 
 
@@ -195,10 +207,40 @@ def render_llms(root: Path = _DOCS_ROOT) -> str:
     return "\n".join(lines)
 
 
+def render_llms_full(root: Path = _DOCS_ROOT) -> str:
+    """生成包含完整页面正文的 llms-full.txt。"""
+    manifest, manifest_errors = load_manifest(root)
+    if manifest_errors:
+        raise DocsError("; ".join(manifest_errors))
+    pages, page_errors = list_pages(root)
+    if page_errors:
+        raise DocsError("; ".join(page_errors))
+    lines = [
+        f"# {manifest.get('title', 'Cade Mini')}",
+        "",
+        f"> {manifest.get('description', '')}",
+        "",
+    ]
+    for page in pages:
+        lines.extend(
+            [
+                f"# {page.title}",
+                "",
+                f"<!-- source: {page.relative} -->",
+                "",
+                page.path.read_text(encoding="utf-8").strip(),
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def write_llms(root: Path = _DOCS_ROOT) -> Path:
-    """把生成结果写入 llms.txt。"""
+    """把生成结果写入 llms.txt 和 llms-full.txt。"""
     path = root / _LLMS_NAME
     path.write_text(render_llms(root), encoding="utf-8")
+    full_path = root / _LLMS_FULL_NAME
+    full_path.write_text(render_llms_full(root), encoding="utf-8")
     return path
 
 

@@ -103,7 +103,7 @@ single-page site, and generates an <code>llms.txt</code> catalog for agents:</p>
 python -m cade.mini.docs build
 </code></pre>
 <p>The generated site is <a href="../mini/index.html">docs/mini/index.html</a>; the generated
-catalog is <code>docs/cade-mini/llms.txt</code>.</p>
+catalogs are <code>docs/cade-mini/llms.txt</code> and <code>docs/cade-mini/llms-full.txt</code>.</p>
 
 </section>
 <section class="page" id="page-quickstart" data-title="Quickstart">
@@ -791,8 +791,9 @@ workflow runs it without the docs extra, because checking uses only the standard
 library.</p>
 <p><code>build</code> renders <code>docs/mini/index.html</code> from Markdown and the manifest. It needs
 <code>markdown-it-py</code>, installed by the <code>docs</code> extra.</p>
-<p><code>llms --write</code> updates <code>docs/cade-mini/llms.txt</code>, the agent-readable catalog.
-Run it when pages change.</p>
+<p><code>llms --write</code> updates <code>docs/cade-mini/llms.txt</code> and
+<code>docs/cade-mini/llms-full.txt</code>. The first is an agent catalog; the second
+contains the full page bodies.</p>
 <h3>Adding a page</h3>
 <ol>
 <li>Add the Markdown file under <code>docs/cade-mini/</code>.</li>

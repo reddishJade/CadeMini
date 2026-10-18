@@ -49,4 +49,4 @@ python -m cade.mini.docs build
 ```
 
 The generated site is [docs/mini/index.html](../mini/index.html); the generated
-catalog is `docs/cade-mini/llms.txt`.
+catalogs are `docs/cade-mini/llms.txt` and `docs/cade-mini/llms-full.txt`.

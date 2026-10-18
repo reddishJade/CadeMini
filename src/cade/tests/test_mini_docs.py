@@ -44,6 +44,22 @@ def test_llms_lists_every_manifest_page() -> None:
     assert "(tools-security.md)" in catalog
 
 
+def test_llms_full_contains_page_bodies() -> None:
+    catalog = docs.render_llms_full(docs._DOCS_ROOT)
+
+    assert "<!-- source: architecture.md -->" in catalog
+    assert "The session log is the source of truth" in catalog
+
+
+def test_stale_llms_full_is_reported(tmp_path: Path) -> None:
+    _write_docs(tmp_path, {"README.md": "# Test\n\nOriginal.\n"})
+    (tmp_path / "README.md").write_text("# Test\n\nChanged.\n", encoding="utf-8")
+
+    issues = docs.check(tmp_path)
+
+    assert any("llms-full.txt: out of date" in issue for issue in issues)
+
+
 def test_broken_link_is_reported(tmp_path: Path) -> None:
     _write_docs(
         tmp_path,
