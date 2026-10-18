@@ -57,6 +57,9 @@ Committed on `experiment/cade-mini`:
   and created `build.txt` with content `build-mode`.
 - A real web-host run passed: an HTTP POST to `/api/task` returned
   `{"answer":"WEB-OK","termination":"completed"}` from DeepSeek.
+- Parity acceptance passed on two repository workflows and a session resume:
+  Mini and Cade produced the same bug-fix and feature diffs, both ran pytest,
+  and both recalled the earlier fix. See [cade-mini-parity.md](cade-mini-parity.md).
 - A real MCP subprocess test discovers an `echo` tool, calls it, and receives
   `echo:hi`; subagent, memory, and hook paths are covered by CLI and async tests.
 - A live Codex smoke reached the API but the account returned HTTP 429 "usage
@@ -65,8 +68,8 @@ Committed on `experiment/cade-mini`:
 - On non-Linux hosts the OS sandbox is unavailable; path boundaries, mode
   policy, shell classification, and approvals remain the active safety layer.
 - Snapshots cover write/edit changes only; shell mutations are not snapshotted.
-- Next: parity acceptance against Cade on real repository workflows. The live
-  Codex acceptance is pending account quota.
+- Remaining: live Codex acceptance when quota returns, persistent MCP
+  sessions, and shell-mutation snapshots.
 
 ## 1. What Cade is today
 
