@@ -46,8 +46,8 @@ jobs:
             printf 'Internal assets must stay outside the public tree:\n%s\n' "$blocked" >&2
             exit 1
           fi
-      - name: Install development dependencies
-        run: uv sync --locked --extra dev
+      - name: Install check dependencies
+        run: uv sync --locked --extra dev --extra docs
       - name: Docs check
         run: uv run --locked python -m cade_mini.docs check
       - name: Ruff lint check
