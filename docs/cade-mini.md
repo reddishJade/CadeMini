@@ -35,19 +35,22 @@ Committed on `experiment/cade-mini`:
   request admission, agent loop, Codex provider and credential store, six
   workspace tools with a policy, compaction and window reset, CLI/REPL with
   resume, project instructions, session listing/titles/`--continue`, project
-  configuration, session approval, and 107 tests.
+  configuration, session approval, history retrieval, tool-result pruning,
+  iterative compaction, automatic window fallback, and 115 tests.
 - A real CLI acceptance run through the configured DeepSeek account passed: the
   model used the write and read tools, `hello.txt` contained `mini`, and a
   resumed run on the same session read the file and answered `mini`.
 - A second real run used `cade-mini.json` and `AGENTS.md`; the model followed the
   project instruction and answered `ZEBRA`. `--list-sessions` showed the session
   title derived from the first user input.
+- A real compaction run passed: the first turn produced 21k characters, the
+  second turn triggered compaction, and the resulting projection was
+  `system, summary, user, assistant` with a completed answer.
 - A live Codex smoke reached the API but the account returned HTTP 429 "usage
   limit has been reached". The loop recorded `request` and `attempt` facts and
   terminated with `provider_error`; the provider and error paths are verified.
-- Next: context milestone (history retrieval, tool-result pruning, iterative
-  compaction, automatic window fallback). The live Codex acceptance is pending
-  account quota.
+- Next: skills, prompt modules, and NOTE handoff. The live Codex acceptance is
+  pending account quota.
 
 ## 1. What Cade is today
 
