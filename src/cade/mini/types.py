@@ -71,6 +71,7 @@ class SummaryMessage(BaseModel):
     role: Literal["summary"] = "summary"
     text: str
     source_id: str
+    kind: Literal["compaction", "window"] = "compaction"
 
 
 class AssistantMessage(BaseModel):

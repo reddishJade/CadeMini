@@ -71,7 +71,9 @@ def project(entries: Sequence[LogEntry]) -> list[Message]:
     if system is not None:
         messages.append(SystemMessage(text=_text(system[1].data, "text")))
     if handoff and window_entry is not None:
-        messages.append(SummaryMessage(text=handoff, source_id=window_entry.id))
+        messages.append(
+            SummaryMessage(text=handoff, source_id=window_entry.id, kind="window")
+        )
     if summary is not None and compaction_entry is not None:
         messages.append(SummaryMessage(text=summary, source_id=compaction_entry.id))
 
