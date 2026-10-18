@@ -32,6 +32,7 @@ def test_loads_values(tmp_path: Path) -> None:
                 "sessions_dir": "data/sessions",
                 "read_only": True,
                 "instructions": False,
+                "auto_review": True,
                 "prompt_modules": ["identity"],
                 "mode": "plan",
                 "sandbox": "strict",
@@ -67,6 +68,7 @@ def test_loads_values(tmp_path: Path) -> None:
     assert config.sessions_dir == "data/sessions"
     assert config.read_only is True
     assert config.instructions is False
+    assert config.auto_review is True
     assert config.prompt_modules == ["identity"]
     assert config.mode == "plan"
     assert config.sandbox == "strict"

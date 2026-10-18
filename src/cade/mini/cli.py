@@ -6,13 +6,14 @@ import argparse
 import asyncio
 import json
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any, cast
 
 from .approval import SessionApprover
 from .compaction import Compactor
 from .config import MiniConfig
+from .goal import GoalStore, GoalTool
 from .grants import GrantStore
 from .history import HistoryTool
 from .hooks import HookRunner
@@ -35,11 +36,14 @@ from .projection import project
 from .prompts import render_system_prompt
 from .provider import ProviderConfig, build_provider
 from .request import Budget
+from .review import AutoReviewer
 from .sandbox import MiniSandboxMode, build_sandbox
 from .skills import LoadSkillTool, discover_skills, render_skill_catalog
+from .snapshots import SnapshotStore
 from .subagents import SubagentTool
 from .tools import build_tools
 from .types import LogError, ToolCallBlock
+from .web import WebHost
 from .window import reset_window
 
 WINDOW_HANDOFF = (
@@ -56,6 +60,8 @@ Commands:
   /new-context [NOTE]  Start a new window, optionally with a handoff note
   /mode [MODE]         Show or switch plan/build/act
   /permissions [clear] Show or clear session grants
+  /undo                Restore the latest file snapshot
+  /goal [TEXT|done]    Show, set, complete, or clear the goal
   /context             Show session and budget information
   /help                Show this help
   /exit                Exit
@@ -94,6 +100,9 @@ def main(
     except ValueError as exc:
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2
+    goals = GoalStore(project_root)
+    if args.goal:
+        goals.set(args.goal)
 
     provider_name = args.provider or config.provider or ProviderConfig().provider
     model_name = args.model or config.model or ProviderConfig().model
@@ -110,6 +119,9 @@ def main(
     )
     use_note = args.note if args.note is not None else config.note
     use_memory = args.memory if args.memory is not None else config.memory
+    use_auto_review = (
+        args.auto_review if args.auto_review is not None else config.auto_review
+    )
     mode = cast(Mode, args.mode or config.mode)
     sandbox_mode = cast(
         MiniSandboxMode,
@@ -129,6 +141,13 @@ def main(
 
     if args.list_sessions:
         _print_sessions(sessions_dir)
+        return 0
+    if args.undo:
+        snapshot = SnapshotStore(project_root).undo_last()
+        if snapshot is None:
+            print("cade-mini: no snapshots to undo", file=sys.stderr)
+            return 1
+        print(f"restored {snapshot.path}")
         return 0
     if args.continue_ and args.resume is not None:
         print(
@@ -168,10 +187,16 @@ def main(
     for error in mcp_errors:
         print(f"cade-mini: mcp: {error}", file=sys.stderr)
     sandbox = build_sandbox(sandbox_mode, project_root)
+    snapshots = SnapshotStore(project_root)
     core_tools = (
-        *build_tools(project_root, sandbox=sandbox),
+        *build_tools(
+            project_root,
+            sandbox=sandbox,
+            snapshots=snapshots,
+        ),
         LoadSkillTool(project_root, skills),
         MemoryTool(project_root),
+        GoalTool(project_root),
         *mcp_tools,
     )
     grants = GrantStore()
@@ -184,6 +209,8 @@ def main(
     )
     approve = SessionApprover(auto_approve=args.yes, grants=grants)
     hooks = HookRunner(config.hooks, project_root)
+    if use_auto_review and not args.yes:
+        approve = AutoReviewer(selected, workspace=project_root)
 
     def note_context() -> str | None:
         return load_working_note(project_root) if use_note else None
@@ -208,6 +235,9 @@ def main(
         memory = load_memory(project_root) if use_memory else None
         if memory:
             parts.append(memory)
+        goal = goals.load()
+        if goal is not None and goal.status == "active":
+            parts.append(f"<goal>\n{goal.objective}\n</goal>")
         return tuple(parts)
 
     subagent = SubagentTool(
@@ -231,6 +261,38 @@ def main(
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2
     tools = _tools_for(base_tools, project_root, log)
+
+    if args.web:
+        web_approve = SessionApprover(
+            auto_approve=args.yes,
+            is_tty=lambda: False,
+        )
+
+        def web_runner(task: str) -> RunResult:
+            return _run_task(
+                log,
+                task,
+                selected,
+                tools,
+                policy,
+                web_approve,
+                budget,
+                context(),
+                max_steps,
+                lambda event: None,
+                compactor,
+                hooks,
+                fallback_window,
+            )
+
+        WebHost(
+            runner=web_runner,
+            log=log,
+            sessions_dir=sessions_dir,
+            host=args.host,
+            port=args.port,
+        ).serve_forever()
+        return 0
 
     if one_shot:
         result = _run_task(
@@ -263,6 +325,8 @@ def main(
         selected,
         base_tools,
         project_root,
+        snapshots,
+        goals,
         policy,
         approve,
         budget,
@@ -283,6 +347,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("task", nargs="?", help="Task to run once; omit for REPL")
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     parser.add_argument("--config", type=Path, default=None, help="Config file")
+    parser.add_argument("--goal", default=None, help="Set the workspace goal")
     parser.add_argument("--sessions-dir", type=Path, default=None)
     parser.add_argument("--provider", default=None)
     parser.add_argument("--model", default=None)
@@ -306,6 +371,18 @@ def _parser() -> argparse.ArgumentParser:
         help="List sessions and exit",
     )
     parser.add_argument(
+        "--undo",
+        action="store_true",
+        help="Restore the latest file snapshot and exit",
+    )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Start the local web host instead of the REPL",
+    )
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
         "--instructions",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -322,6 +399,12 @@ def _parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Load MEMORY.md durable facts (default: on)",
+    )
+    parser.add_argument(
+        "--auto-review",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Let the model review ask-level tool calls (default: off)",
     )
     parser.add_argument("--yes", action="store_true", help="Approve writes and shell")
     parser.add_argument(
@@ -406,7 +489,7 @@ def _run_task(
     provider: Provider,
     tools: Sequence[Tool],
     policy: WorkspacePolicy,
-    approve: Callable[[ToolCallBlock], bool],
+    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]],
     budget: Budget,
     context: Sequence[str],
     max_steps: int,
@@ -442,8 +525,10 @@ def _repl(
     provider: Provider,
     base_tools: Sequence[Tool],
     workspace: Path,
+    snapshots: SnapshotStore,
+    goals: GoalStore,
     policy: WorkspacePolicy,
-    approve: Callable[[ToolCallBlock], bool],
+    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]],
     budget: Budget,
     context_provider: Callable[[], tuple[str, ...]],
     max_steps: int,
@@ -513,6 +598,28 @@ def _repl(
             else:
                 grants = policy.grants.describe()
                 print("\n".join(grants) if grants else "no session grants")
+            continue
+        if text == "/undo":
+            snapshot = snapshots.undo_last()
+            if snapshot is None:
+                print("no snapshots to undo")
+            else:
+                print(f"restored {snapshot.path}")
+            continue
+        if text.startswith("/goal"):
+            value = text[len("/goal") :].strip()
+            if not value:
+                goal = goals.load()
+                print("no goal" if goal is None else f"{goal.status}: {goal.objective}")
+            elif value == "done":
+                goal = goals.complete()
+                print("goal completed" if goal is not None else "no goal")
+            elif value == "clear":
+                goals.clear()
+                print("goal cleared")
+            else:
+                goal = goals.set(value)
+                print(f"goal set: {goal.objective}")
             continue
         if text == "/compact":
             compacted = asyncio.run(compactor(log, budget))

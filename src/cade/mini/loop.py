@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
@@ -155,7 +156,7 @@ async def run(
     tools: Sequence[Tool],
     budget: Budget,
     policy: Policy | None = None,
-    approve: Callable[[ToolCallBlock], bool] | None = None,
+    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]] | None = None,
     options: StreamOptions | None = None,
     context: Sequence[str] = (),
     max_steps: int = 50,
@@ -317,7 +318,7 @@ async def run(
                     cancel.reason,
                 )
 
-            decision = _decide(policy, approve, call)
+            decision = await _decide(policy, approve, call)
             if decision == "deny":
                 content = f"Permission denied: {call.name}"
                 _append_tool_result(log, call, content, True)
@@ -602,15 +603,20 @@ def _tool_map(tools: Sequence[Tool]) -> dict[str, Tool]:
     return result
 
 
-def _decide(
+async def _decide(
     policy: Policy | None,
-    approve: Callable[[ToolCallBlock], bool] | None,
+    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]] | None,
     call: ToolCallBlock,
 ) -> Decision:
     decision = policy.check(call) if policy is not None else "allow"
-    if decision == "ask":
-        return "allow" if approve is not None and approve(call) else "deny"
-    return decision
+    if decision != "ask":
+        return decision
+    if approve is None:
+        return "deny"
+    result = approve(call)
+    if inspect.isawaitable(result):
+        result = await result
+    return "allow" if result else "deny"
 
 
 def _retryable(failure: ProviderFailure) -> bool:

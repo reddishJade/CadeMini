@@ -19,7 +19,9 @@ from cade.ai.events import (
 )
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.mini.cli import main
+from cade.mini.goal import GoalStore
 from cade.mini.log import SessionLog
+from cade.mini.snapshots import SnapshotStore
 
 
 class FakeProvider:
@@ -891,3 +893,82 @@ def test_cli_memory_tool_appends(tmp_path: Path) -> None:
     assert "new durable fact" in (workspace / "MEMORY.md").read_text(
         encoding="utf-8"
     )
+
+
+def test_cli_undo_restores_latest_snapshot(tmp_path: Path) -> None:
+    target = tmp_path / "a.txt"
+    target.write_text("old", encoding="utf-8")
+    SnapshotStore(tmp_path).capture(target)
+    target.write_text("new", encoding="utf-8")
+
+    code = main(["--undo", "--project-root", str(tmp_path)])
+
+    assert code == 0
+    assert target.read_text(encoding="utf-8") == "old"
+
+
+def test_cli_sets_goal_in_context(tmp_path: Path) -> None:
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        [
+            "exec",
+            "hi",
+            "--goal",
+            "ship milestone 6",
+            "--project-root",
+            str(tmp_path),
+            "--sessions-dir",
+            str(tmp_path / "sessions"),
+            "--yes",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "ship milestone 6" in system_text
+    goal = GoalStore(tmp_path).load()
+    assert goal is not None
+    assert goal.objective == "ship milestone 6"
+
+
+def test_cli_auto_review_allows_write(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="w1",
+                            name="write",
+                            input={"path": "a.txt", "content": "x"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("ALLOW"),
+            _text("done"),
+        ]
+    )
+
+    code = main(
+        [
+            "exec",
+            "write",
+            "--auto-review",
+            "--project-root",
+            str(workspace),
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    assert (workspace / "a.txt").read_text(encoding="utf-8") == "x"

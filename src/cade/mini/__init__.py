@@ -3,6 +3,7 @@
 from .approval import SessionApprover
 from .compaction import CompactionConfig, Compactor
 from .config import HookConfig, McpServerConfig, MiniConfig, RuleConfig
+from .goal import Goal, GoalStore, GoalTool
 from .grants import Grant, GrantStore
 from .history import HistoryTool
 from .hooks import HookRunner
@@ -28,9 +29,11 @@ from .projection import project
 from .prompts import DEFAULT_MODULES, render_system_prompt
 from .provider import ProviderConfig, build_provider
 from .request import Budget, BuildReport, Request, RequestTooLarge, build, estimate
+from .review import AutoReviewer
 from .sandbox import build_sandbox
 from .shell import classify_command
 from .skills import LoadSkillTool, Skill, discover_skills, render_skill_catalog
+from .snapshots import Snapshot, SnapshotStore
 from .subagents import SubagentTool
 from .tools import (
     BashTool,
@@ -56,11 +59,13 @@ from .types import (
     ToolResultMessage,
     UserMessage,
 )
+from .web import WebHost
 from .window import reset_window
 
 __all__ = [
     "DEFAULT_MODULES",
     "AssistantMessage",
+    "AutoReviewer",
     "BashTool",
     "Budget",
     "BuildReport",
@@ -69,6 +74,9 @@ __all__ = [
     "Compactor",
     "EditTool",
     "GlobTool",
+    "Goal",
+    "GoalStore",
+    "GoalTool",
     "Grant",
     "GrantStore",
     "GrepTool",
@@ -97,6 +105,8 @@ __all__ = [
     "SessionInfo",
     "SessionLog",
     "Skill",
+    "Snapshot",
+    "SnapshotStore",
     "SubagentTool",
     "SummaryMessage",
     "SystemMessage",
@@ -109,6 +119,7 @@ __all__ = [
     "ToolResultMessage",
     "ToolStartEvent",
     "UserMessage",
+    "WebHost",
     "WorkspacePolicy",
     "WriteTool",
     "build",

@@ -12,6 +12,7 @@ from typing import Any
 from cade.harness.execution_env import CommandSandbox, SubprocessShell
 
 from .loop import CancellationToken, ToolResult
+from .snapshots import SnapshotStore
 from .types import JsonValue, ToolCallBlock
 
 MAX_READ_BYTES = 50 * 1024
@@ -127,6 +128,14 @@ class WriteTool(WorkspaceTool):
     name = "write"
     description = "Write UTF-8 text to a file, creating parent directories."
 
+    def __init__(
+        self,
+        workspace: Path,
+        snapshots: SnapshotStore | None = None,
+    ) -> None:
+        super().__init__(workspace)
+        self.snapshots = snapshots
+
     def _parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
@@ -147,6 +156,8 @@ class WriteTool(WorkspaceTool):
             )
         content = _text_arg(args, "content")
         data = content.encode("utf-8")
+        if self.snapshots is not None:
+            self.snapshots.capture(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         return ToolResult(
@@ -160,6 +171,14 @@ class EditTool(WorkspaceTool):
         "Replace one exact occurrence of old text with new text. The old text "
         "must appear exactly once."
     )
+
+    def __init__(
+        self,
+        workspace: Path,
+        snapshots: SnapshotStore | None = None,
+    ) -> None:
+        super().__init__(workspace)
+        self.snapshots = snapshots
 
     def _parameters(self) -> dict[str, Any]:
         return {
@@ -188,6 +207,8 @@ class EditTool(WorkspaceTool):
             raise ValueError("old text was not found")
         if count > 1:
             raise ValueError(f"old text appears {count} times; make it unique")
+        if self.snapshots is not None:
+            self.snapshots.capture(path)
         path.write_bytes(text.replace(old, new, 1).encode("utf-8"))
         return ToolResult(
             content=(
@@ -362,12 +383,13 @@ def build_tools(
     workspace: Path,
     *,
     sandbox: CommandSandbox | None = None,
+    snapshots: SnapshotStore | None = None,
 ) -> tuple[WorkspaceTool, ...]:
     """构造绑定同一工作区的六个工具。"""
     return (
         ReadTool(workspace),
-        WriteTool(workspace),
-        EditTool(workspace),
+        WriteTool(workspace, snapshots),
+        EditTool(workspace, snapshots),
         GlobTool(workspace),
         GrepTool(workspace),
         BashTool(workspace, sandbox),

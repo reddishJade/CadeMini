@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +41,7 @@ class SubagentTool:
         sessions_dir: Path,
         system_prompt: str,
         policy: Policy,
-        approve: Callable[[ToolCallBlock], bool],
+        approve: Callable[[ToolCallBlock], bool | Awaitable[bool]],
         context: Callable[[], Sequence[str]] | None = None,
         max_steps: int = 20,
         hooks: Hooks | None = None,

@@ -84,6 +84,7 @@ class WorkspacePolicy:
         if call.name in {
             "glob",
             "grep",
+            "goal",
             "history",
             "memory",
             "skill",
