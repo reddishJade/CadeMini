@@ -152,11 +152,13 @@ async def run(
     cancel: CancellationToken | None = None,
     on_event: Callable[[LoopEvent], None] | None = None,
     compact: Callable[[SessionLog, Budget], Awaitable[bool]] | None = None,
+    window: Callable[[SessionLog], bool] | None = None,
 ) -> RunResult:
     """追加用户输入并驱动模型/工具循环，直到完成或终止。
 
     每次 provider 调用前把请求审计写入日志；只有 assistant 与 tool_result
-    进入投影。上下文超限时先调用 compact 钩子；钩子未减少历史则终止。
+    进入投影。上下文超限时先调用 compact 钩子；压缩后仍超预算时再调用
+    window 钩子丢弃更早的历史。
     """
     if max_steps <= 0:
         raise ValueError("max_steps must be positive")
@@ -195,6 +197,15 @@ async def run(
             options=options,
             context=context,
         )
+        if request.report.over_budget and window is not None and window(log):
+            conversation = project(log.branch())
+            request = build(
+                conversation,
+                tools=definitions,
+                budget=budget,
+                options=options,
+                context=context,
+            )
         if request.report.over_budget:
             return _finish(
                 log,

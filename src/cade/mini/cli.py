@@ -39,6 +39,11 @@ Use the provided tools to inspect and modify files. Read before editing.
 Prefer small, verifiable changes. Run relevant checks when useful.
 Never claim a change you did not make. Keep answers concise."""
 
+WINDOW_HANDOFF = (
+    "Earlier history was discarded to fit the model window. "
+    "Use the history tool with an entry_id or call_id to retrieve exact details."
+)
+
 _HELP = """\
 Commands:
   /new                 Start a new session
@@ -143,6 +148,9 @@ def main(
     compactor = Compactor(selected)
     on_event: Callable[[LoopEvent], None] = _json_event if args.json else _human_event
 
+    def fallback_window(log: SessionLog) -> bool:
+        return reset_window(log, handoff=WINDOW_HANDOFF, reason="fallback")
+
     def context() -> tuple[str, ...]:
         if not use_instructions:
             return ()
@@ -169,6 +177,7 @@ def main(
             max_steps,
             on_event,
             compactor,
+            fallback_window,
         )
         if args.json:
             _final_json(result)
@@ -191,6 +200,7 @@ def main(
         max_steps,
         on_event,
         compactor,
+        fallback_window,
     )
 
 
@@ -303,6 +313,7 @@ def _run_task(
     max_steps: int,
     on_event: Callable[[LoopEvent], None],
     compactor: Compactor,
+    window: Callable[[SessionLog], bool] | None,
 ) -> RunResult:
     return asyncio.run(
         run(
@@ -317,6 +328,7 @@ def _run_task(
             max_steps=max_steps,
             on_event=on_event,
             compact=compactor,
+            window=window,
         )
     )
 
@@ -334,6 +346,7 @@ def _repl(
     max_steps: int,
     on_event: Callable[[LoopEvent], None],
     compactor: Compactor,
+    window: Callable[[SessionLog], bool] | None,
 ) -> int:
     tools = _tools_for(base_tools, workspace, log)
     print(f"Cade Mini session {log.session_id}. Enter a task, /help, or /exit.")
@@ -397,6 +410,7 @@ def _repl(
                 max_steps,
                 on_event,
                 compactor,
+                window,
             )
         except KeyboardInterrupt:
             print("\n[interrupted]")

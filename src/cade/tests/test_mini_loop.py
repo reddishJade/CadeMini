@@ -28,6 +28,7 @@ from cade.mini import (
     WorkspacePolicy,
     build_tools,
     project,
+    reset_window,
     run,
 )
 
@@ -480,3 +481,42 @@ async def test_run_executes_workspace_tools_with_policy(tmp_path: Path) -> None:
     assert (workspace / "a.txt").read_text(encoding="utf-8") == "hello"
     tool_results = [entry for entry in log.branch() if entry.type == "tool_result"]
     assert any("hello" in str(entry.data["content"]) for entry in tool_results)
+
+
+async def test_run_falls_back_to_window_when_over_budget(
+    tmp_path: Path,
+) -> None:
+    log = _log(tmp_path)
+    old = log.append("user", {"text": "old task", "source": "user"})
+    log.append(
+        "compaction",
+        {
+            "summary": "x" * 40_000,
+            "first_kept_id": old.id,
+            "tokens_before": 1,
+            "model": "m",
+            "provider": "p",
+            "usage": None,
+            "details": None,
+        },
+    )
+    provider = FakeProvider([_text_response("done")])
+    called: list[bool] = []
+
+    def window(log: SessionLog) -> bool:
+        called.append(True)
+        return reset_window(log, handoff="handoff", reason="fallback")
+
+    result = await run(
+        log,
+        "new task",
+        provider=provider,
+        tools=(),
+        budget=Budget(context_window=2_000, output_reserve=0, headroom_tokens=0),
+        window=window,
+    )
+
+    assert called == [True]
+    assert result.termination == "completed"
+    assert result.answer == "done"
+    assert any(entry.type == "window" for entry in log.branch())
