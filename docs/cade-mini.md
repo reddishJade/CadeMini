@@ -36,7 +36,8 @@ Committed on `experiment/cade-mini`:
   workspace tools with a policy, compaction and window reset, CLI/REPL with
   resume, project instructions, session listing/titles/`--continue`, project
   configuration, session approval, history retrieval, tool-result pruning,
-  iterative compaction, automatic window fallback, and 115 tests.
+  iterative compaction, automatic window fallback, skills, composable prompt
+  modules, NOTE working state, and 134 tests.
 - A real CLI acceptance run through the configured DeepSeek account passed: the
   model used the write and read tools, `hello.txt` contained `mini`, and a
   resumed run on the same session read the file and answered `mini`.
@@ -46,11 +47,13 @@ Committed on `experiment/cade-mini`:
 - A real compaction run passed: the first turn produced 21k characters, the
   second turn triggered compaction, and the resulting projection was
   `system, summary, user, assistant` with a completed answer.
+- A real skills run passed: the model called the `skill` tool, loaded the
+  `orange` skill, and answered `ORANGE`; NOTE.md and AGENTS.md were in context.
 - A live Codex smoke reached the API but the account returned HTTP 429 "usage
   limit has been reached". The loop recorded `request` and `attempt` facts and
   terminated with `provider_error`; the provider and error paths are verified.
-- Next: skills, prompt modules, and NOTE handoff. The live Codex acceptance is
-  pending account quota.
+- Next: plan/build/act modes, rule policy, grants, shell analysis, and
+  sandboxing. The live Codex acceptance is pending account quota.
 
 ## 1. What Cade is today
 
