@@ -19,6 +19,7 @@ from .loop import (
     ToolStartEvent,
     run,
 )
+from .memory import MemoryTool, load_memory
 from .note import load_working_note
 from .policy import WorkspacePolicy, filter_tools
 from .projection import project
@@ -74,6 +75,7 @@ __all__ = [
     "LogEntry",
     "LogError",
     "LoopEvent",
+    "MemoryTool",
     "Message",
     "MiniConfig",
     "MiniError",
@@ -112,6 +114,7 @@ __all__ = [
     "estimate",
     "filter_tools",
     "list_sessions",
+    "load_memory",
     "load_project_instructions",
     "load_working_note",
     "project",

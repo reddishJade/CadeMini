@@ -36,6 +36,7 @@ class MiniConfig(BaseModel):
     read_only: bool = False
     instructions: bool = True
     note: bool = True
+    memory: bool = True
     prompt_modules: list[str] | None = None
     mode: Literal["plan", "build", "act"] = "act"
     rules: list[RuleConfig] = Field(default_factory=list)

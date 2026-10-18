@@ -26,6 +26,7 @@ from .loop import (
     ToolStartEvent,
     run,
 )
+from .memory import MemoryTool, load_memory
 from .note import load_working_note
 from .policy import Mode, WorkspacePolicy, filter_tools
 from .projection import project
@@ -106,6 +107,7 @@ def main(
         args.instructions if args.instructions is not None else config.instructions
     )
     use_note = args.note if args.note is not None else config.note
+    use_memory = args.memory if args.memory is not None else config.memory
     mode = cast(Mode, args.mode or config.mode)
     sandbox_mode = cast(
         MiniSandboxMode,
@@ -162,6 +164,7 @@ def main(
     core_tools = (
         *build_tools(project_root, sandbox=sandbox),
         LoadSkillTool(project_root, skills),
+        MemoryTool(project_root),
     )
     grants = GrantStore()
     policy = WorkspacePolicy(
@@ -193,6 +196,9 @@ def main(
         note = note_context()
         if note:
             parts.append(note)
+        memory = load_memory(project_root) if use_memory else None
+        if memory:
+            parts.append(memory)
         return tuple(parts)
 
     subagent = SubagentTool(
@@ -298,6 +304,12 @@ def _parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Load NOTE.md working state (default: on)",
+    )
+    parser.add_argument(
+        "--memory",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Load MEMORY.md durable facts (default: on)",
     )
     parser.add_argument("--yes", action="store_true", help="Approve writes and shell")
     parser.add_argument(

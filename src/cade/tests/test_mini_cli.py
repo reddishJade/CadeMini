@@ -812,3 +812,82 @@ def test_cli_runs_a_subagent(tmp_path: Path) -> None:
     assert len(child_files) == 1
     child_names = {tool.name for tool in provider.requests[1][1]}
     assert "subagent" not in child_names
+
+
+def test_cli_includes_memory(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "MEMORY.md").write_text("- DURABLE FACT", encoding="utf-8")
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        ["exec", "hi", "--project-root", str(workspace), "--yes"],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "DURABLE FACT" in system_text
+
+
+def test_cli_can_disable_memory(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "MEMORY.md").write_text("- DURABLE FACT", encoding="utf-8")
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        [
+            "exec",
+            "hi",
+            "--project-root",
+            str(workspace),
+            "--yes",
+            "--no-memory",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "DURABLE FACT" not in system_text
+
+
+def test_cli_memory_tool_appends(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="m1",
+                            name="memory",
+                            input={"text": "new durable fact"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("done"),
+        ]
+    )
+
+    code = main(
+        ["exec", "remember", "--project-root", str(workspace), "--yes"],
+        provider=provider,
+    )
+
+    assert code == 0
+    assert "new durable fact" in (workspace / "MEMORY.md").read_text(
+        encoding="utf-8"
+    )
