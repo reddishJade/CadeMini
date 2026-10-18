@@ -20,6 +20,7 @@ from cade.mini import (
     build,
     estimate,
 )
+from cade.mini.types import Message
 
 
 def _user(text: str) -> UserMessage:
@@ -69,14 +70,18 @@ def test_build_merges_context_into_one_system_message() -> None:
     assert request.report.context_tokens > 0
 
 
-def test_build_drops_old_tool_evidence_before_turns() -> None:
-    conversation = [
-        _user("old"),
-        AssistantMessage(blocks=(ToolCallBlock(id="c1", name="bash"),)),
-        _tool_result("c1", "x" * 20_000),
-        _user("new"),
-        _assistant("done"),
-    ]
+def test_build_prunes_old_tool_evidence_but_keeps_recent() -> None:
+    conversation: list[Message] = [_user("run")]
+    for index in range(1, 6):
+        conversation.append(
+            AssistantMessage(blocks=(ToolCallBlock(id=f"c{index}", name="bash"),))
+        )
+        conversation.append(
+            _tool_result(
+                f"c{index}",
+                "x" * 20_000 if index == 1 else "small",
+            )
+        )
 
     request = build(
         conversation,
@@ -90,6 +95,8 @@ def test_build_drops_old_tool_evidence_before_turns() -> None:
         message for message in request.messages if message["role"] == "tool"
     ]
     assert tool_messages[0]["content"].startswith("[tool output omitted")
+    assert tool_messages[0]["content"].count("use the history tool") == 1
+    assert tool_messages[1]["content"] == "small"
 
 
 def test_build_drops_oldest_turn_when_no_tool_evidence() -> None:

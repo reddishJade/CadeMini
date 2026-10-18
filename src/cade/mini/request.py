@@ -21,7 +21,11 @@ from .types import (
     UserMessage,
 )
 
-_TOOL_REFERENCE = "[tool output omitted from this request; call_id={call_id}]"
+_TOOL_REFERENCE = (
+    "[tool output omitted from this request; call_id={call_id}; "
+    "use the history tool with call_id={call_id} for exact content]"
+)
+_KEEP_RECENT_TOOL_RESULTS = 4
 _SUMMARY_TAGS = {"compaction": "compaction-summary", "window": "window-handoff"}
 
 
@@ -181,26 +185,25 @@ def _drop_tool_evidence(
     messages: list[Message],
     budget: int,
 ) -> tuple[list[Message], tuple[str, ...]]:
-    """从旧到新把工具正文替换为引用，保护最近用户轮次。"""
+    """从旧到新替换工具正文，保留最近几次工具结果。"""
     if budget <= 0:
         return messages, ()
-    latest_user = max(
-        (
-            index
-            for index, message in enumerate(messages)
-            if isinstance(message, UserMessage)
-        ),
-        default=-1,
-    )
+    candidates = [
+        index
+        for index, message in enumerate(messages)
+        if isinstance(message, ToolResultMessage)
+    ]
+    protected = set(candidates[-_KEEP_RECENT_TOOL_RESULTS:])
     projected = list(messages)
     dropped: list[str] = []
-    for index, message in enumerate(projected):
-        if latest_user >= 0 and index >= latest_user:
-            break
-        if not isinstance(message, ToolResultMessage):
+    for index in candidates:
+        if index in protected:
             continue
         if _estimate_messages(projected) <= budget:
             break
+        message = projected[index]
+        if not isinstance(message, ToolResultMessage):
+            continue
         projected[index] = message.model_copy(
             update={"content": _TOOL_REFERENCE.format(call_id=message.call_id)}
         )
