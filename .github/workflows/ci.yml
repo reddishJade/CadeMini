@@ -40,31 +40,49 @@ jobs:
         run: |
           set -euo pipefail
           bash -n .githooks/pre-push
-          blocked="$(git ls-files -- benchmarks .cade \
+          blocked="$(git ls-files -- benchmarks .cade .cade-mini \
             e2e-results benchmark-results eval-results evals)"
           if [[ -n "$blocked" ]]; then
             printf 'Internal assets must stay outside the public tree:\n%s\n' "$blocked" >&2
             exit 1
           fi
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap
       - name: Install development dependencies
         run: uv sync --locked --extra dev
       - name: Docs check
-        run: uv run --locked python -m cade.mini.docs check
+        run: uv run --locked python -m cade_mini.docs check
       - name: Ruff lint check
-        run: uv run --locked ruff check src/cade/
+        run: uv run --locked ruff check src/cade_mini/ tests/
       - name: Ruff format check
-        run: uv run --locked ruff format --check src/cade/
+        run: uv run --locked ruff format --check src/cade_mini/ tests/
       - name: Pyright type check
-        run: uv run --locked pyright src/cade/
+        run: uv run --locked pyright src/cade_mini/
       - name: Regression tests
-        if: hashFiles('src/cade/tests/**/test_*.py') != ''
-        run: uv run --locked pytest -q src/cade/tests
+        run: |
+          mkdir -p e2e-results/ci
+          uv run --locked pytest -q tests --basetemp=e2e-results/ci/pytest
       - name: CLI startup check
-        run: uv run --locked cade --help
+        run: uv run --locked cade-mini --help
+      - name: Module startup check
+        run: uv run --locked python -m cade_mini --help
+      - name: Login startup check
+        run: uv run --locked cade-mini login --help
       - name: Build distributions
         run: uv build --no-sources
+      - name: Check installed wheel without Cade
+        shell: bash
+        run: |
+          uv venv --python 3.12 e2e-results/wheel-env
+          uv export --locked --no-dev --no-emit-project --no-hashes \
+            -o e2e-results/runtime-requirements.txt > /dev/null
+          uv pip install --python e2e-results/wheel-env/bin/python \
+            -r e2e-results/runtime-requirements.txt dist/*.whl
+          mkdir -p e2e-results/wheel-workspace
+          cd e2e-results/wheel-workspace
+          ../wheel-env/bin/cade-mini --help
+          ../wheel-env/bin/python -I -m cade_mini --help
+          ../wheel-env/bin/cade-mini login --help
+          ../wheel-env/bin/python -I -c \
+            'import importlib.util; assert importlib.util.find_spec("cade") is None'
       - name: Calculate distribution checksums
         if: inputs.upload-artifacts
         working-directory: dist

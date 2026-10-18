@@ -11,6 +11,19 @@ cade-mini exec TASK [options]
 `exec` is an explicit alias for a one-shot task. Without a task, `cade-mini`
 starts the interactive REPL.
 
+## Login
+
+```bash
+cade-mini login
+cade-mini login --method device_code
+cade-mini login --provider deepseek
+```
+
+`--provider` defaults to `openai-codex`. Codex supports `browser` (default) and
+`device_code`; other providers use `api_key` with a hidden input prompt.
+Credentials are stored in `~/.cade-mini/auth.json`. Login does not change
+project provider or model settings.
+
 ## One-shot options
 
 - `--project-root PATH` sets the workspace. The default is the current
@@ -77,7 +90,7 @@ starts the interactive REPL.
   checks still apply.
 
 ```text
-Review @src/cade/mini/core/loop.py and use $review-only
+Review @src/cade_mini/core/loop.py and use $review-only
 !git status
 ```
 
@@ -97,6 +110,7 @@ tool. See [Steering and queueing](design/steering-queue.md).
 - `1`: the run ended without completion, or no snapshot was available for
   `--undo`.
 - `2`: argument, configuration, or startup error.
+- `130`: login was cancelled.
 
 ## Examples
 

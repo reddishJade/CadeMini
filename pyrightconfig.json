@@ -2,7 +2,7 @@
   "extraPaths": ["src"],
   "venvPath": ".",
   "venv": ".venv",
-  "include": ["src", "benchmarks"],
+  "include": ["src"],
   "exclude": [
     "**/.*",
     "**/.venv",

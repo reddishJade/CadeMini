@@ -2,11 +2,10 @@
 
 ## Skills
 
-Cade Mini discovers `SKILL.md` files in three roots:
+Cade Mini discovers `SKILL.md` files in two roots:
 
-1. `~/.cade/skills/<name>/SKILL.md` for user skills.
-2. `<project>/.cade/skills/<name>/SKILL.md` for project skills.
-3. `<project>/.cade-mini/skills/<name>/SKILL.md` for Mini-specific skills.
+1. `~/.cade-mini/skills/<name>/SKILL.md` for user skills.
+2. `<project>/.cade-mini/skills/<name>/SKILL.md` for project skills.
 
 Later roots override earlier roots with the same skill name. A skill file can
 start with YAML frontmatter:

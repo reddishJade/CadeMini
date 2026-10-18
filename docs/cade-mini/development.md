@@ -4,30 +4,31 @@
 
 ```bash
 uv sync --locked --extra dev
+mkdir -p e2e-results
 ```
 
 Run checks from the repository root:
 
 ```bash
-uv run --locked ruff check src/cade/
-uv run --locked ruff format --check src/cade/
-uv run --locked pyright src/cade/
-uv run --locked pytest -q src/cade/tests
+uv run --locked ruff check src/cade_mini/ tests/
+uv run --locked ruff format --check src/cade_mini/ tests/
+uv run --locked pyright src/cade_mini/
+uv run --locked pytest -q tests --basetemp=e2e-results/pytest
 ```
 
 For Mini-focused work:
 
 ```bash
 uv run --locked pytest -q \
-  src/cade/tests/test_mini_log.py \
-  src/cade/tests/test_mini_projection.py \
-  src/cade/tests/test_mini_request.py \
-  src/cade/tests/test_mini_loop.py \
-  src/cade/tests/test_mini_cli.py
+  tests/test_mini_log.py \
+  tests/test_mini_projection.py \
+  tests/test_mini_request.py \
+  tests/test_mini_loop.py \
+  tests/test_mini_cli.py --basetemp=e2e-results/pytest
 ```
 
-The full suite includes a few Windows-only failures in unrelated Cade modules;
-check the current CI and test summary before treating them as regressions.
+This suite covers only Mini and its owned lower layers; the separate Cade
+project has its own tests.
 
 ## Documentation
 
@@ -37,17 +38,17 @@ published.
 
 ```bash
 uv sync --locked --extra docs
-uv run --locked python -m cade.mini.docs check
-uv run --locked python -m cade.mini.docs build
-uv run --locked python -m cade.mini.docs llms --write
-uv run --locked python -m cade.mini.docs catalogs --write
+uv run --locked python -m cade_mini.docs check
+uv run --locked python -m cade_mini.docs build
+uv run --locked python -m cade_mini.docs llms --write
+uv run --locked python -m cade_mini.docs catalogs --write
 ```
 
 `check` validates the manifest, page files, relative links, and anchors. The CI
 workflow runs it without the docs extra, because checking uses only the standard
 library.
 
-`build` renders `docs/mini/index.html` from Markdown and the manifest. It needs
+`build` renders `docs/index.html` from Markdown and the manifest. It needs
 `markdown-it-py`, installed by the `docs` extra.
 
 `llms --write` updates `docs/cade-mini/llms.txt` and
@@ -59,7 +60,7 @@ contains the full page bodies.
 1. Add the Markdown file under `docs/cade-mini/`.
 2. Add it to a section in `docs.json`.
 3. Use relative links to other pages.
-4. Run `python -m cade.mini.docs check`.
+4. Run `python -m cade_mini.docs check`.
 5. Regenerate `llms.txt` and the site.
 
 Every Markdown file under `docs/cade-mini/` must be listed in the manifest,
@@ -78,10 +79,9 @@ documentation, prompts, and UI text are English.
 
 ## Boundaries
 
-Mini imports only `cade.ai` and `cade.harness.execution_env` from the rest of
-Cade. `src/cade/tests/test_mini_boundary.py` enforces the import firewall. Do not
-add imports from `cade.coding_agent`, `cade.server`, or the Cade harness session
-layers.
+Mini owns the provider and process layers in `cade_mini.ai` and
+`cade_mini.execution_env`. `tests/test_mini_boundary.py` rejects imports from
+the old `cade` namespace. Do not add dependencies on the separate Cade project.
 
 Public interfaces include the session schema, config fields, CLI flags, tool
 names, and docs manifest. Change them with tests and documentation in the same

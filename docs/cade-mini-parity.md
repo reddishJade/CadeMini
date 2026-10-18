@@ -1,5 +1,10 @@
 # Cade Mini parity acceptance
 
+> Historical record from before the standalone project split. Package names,
+> paths, and development plans below describe that earlier checkout. For the
+> current project, see the [manual](cade-mini/README.md) and
+> [architecture](architecture.md).
+
 Date: 2026-10-18. Host: Windows. Provider: DeepSeek `deepseek-chat` in both
 agents. Fixtures and session evidence are under the ignored `e2e-results/`
 directory.

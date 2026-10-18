@@ -1,5 +1,10 @@
 # Cade Mini harvest audit
 
+> Historical record from before the standalone project split. Package names,
+> paths, and development plans below describe that earlier checkout. For the
+> current project, see the [manual](cade-mini/README.md) and
+> [architecture](architecture.md).
+
 > Status: first pass, read-only. This audit classifies the existing code for the
 > Mini refactor. It does not move or edit code.
 

@@ -1,5 +1,10 @@
 # Cade Mini: a full refactor of Cade's core
 
+> Historical record from before the standalone project split. Package names,
+> paths, and development plans below describe that earlier checkout. For the
+> current project, see the [manual](cade-mini/README.md) and
+> [architecture](architecture.md).
+
 > Status: proposal, revised after review. This is a plan, not a reduced feature
 > list. Cade Mini is the same product idea with a corrected structure.
 
@@ -230,31 +235,31 @@ These are the back-edges that make the current code hard to maintain.
 
 1. **The projection is written into the log.** A rollover stores the complete
    encoded replacement surface in `context_window_reset`
-   ([recorder.py](../src/cade/harness/session/recorder.py) `record_context_window_reset`,
-   [surface.py](../src/cade/harness/session/surface.py) applies `replacement` at
+   ([recorder.py](https://github.com/reddishJade/cade/blob/main/src/cade/harness/session/recorder.py) `record_context_window_reset`,
+   [surface.py](https://github.com/reddishJade/cade/blob/main/src/cade/harness/session/surface.py) applies `replacement` at
    replay). Replay then depends on output produced by an older version of the
    projection code, not only on facts.
 2. **Request assembly mutates history.** `DefaultRequestAssembler.assemble`
    rewrites `context.messages` in place
-   ([request.py](../src/cade/agent/request.py)). `call_provider` appends a
+   ([request.py](https://github.com/reddishJade/cade/blob/main/src/cade/agent/request.py)). `call_provider` appends a
    `ContextMessage` to history while sending the request
-   ([_provider.py](../src/cade/agent/_provider.py)). Request construction is
+   ([_provider.py](https://github.com/reddishJade/cade/blob/main/src/cade/agent/_provider.py)). Request construction is
    therefore also a state update.
 3. **One fact is recorded several times.** The final answer is stored again in
    the `final` event and in an `assistant` record, on top of the assistant
    event's text; replay de-duplicates it with a heuristic
-   ([recorder.py](../src/cade/harness/session/recorder.py),
-   [surface.py](../src/cade/harness/session/surface.py) `_append_plain_assistant`).
+   ([recorder.py](https://github.com/reddishJade/cade/blob/main/src/cade/harness/session/recorder.py),
+   [surface.py](https://github.com/reddishJade/cade/blob/main/src/cade/harness/session/surface.py) `_append_plain_assistant`).
    Tool calls are stored inside the assistant event and again as `tool_use`
-   events ([events.py](../src/cade/harness/agent_runtime/events.py)), then
+   events ([events.py](https://github.com/reddishJade/cade/blob/main/src/cade/harness/agent_runtime/events.py)), then
    de-duplicated by call ID at replay.
 4. **Three event vocabularies.** `AgentEvent` becomes `AgentHarnessEvent`, then a
-   versioned session envelope ([event_codec.py](../src/cade/harness/session/event_codec.py)).
+   versioned session envelope ([event_codec.py](https://github.com/reddishJade/cade/blob/main/src/cade/harness/session/event_codec.py)).
    Each boundary is a translation layer that can drift from the log.
 5. **History is a mutable working state.** `ContextManager.history` holds both
    the projection and the loop's writes; replay loads into it
-   ([context_manager.py](../src/cade/agent/context_manager.py),
-   [replay.py](../src/cade/harness/session/replay.py)). There is no runtime
+   ([context_manager.py](https://github.com/reddishJade/cade/blob/main/src/cade/agent/context_manager.py),
+   [replay.py](https://github.com/reddishJade/cade/blob/main/src/cade/harness/session/replay.py)). There is no runtime
    boundary between "what the log says" and "what this process currently has".
 
 Pi and Dsh show the alternative:

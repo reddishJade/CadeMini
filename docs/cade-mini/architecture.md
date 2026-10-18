@@ -78,10 +78,11 @@ turn. Compaction and window fallback are decisions expressed as new log facts.
   `app/instructions.py`, `app/note.py`: startup and request context.
 - `hosts/cli.py`, `hosts/web.py`, `docs.py`: hosts and documentation.
 
-The Mini package imports only `cade.ai` and
-`cade.harness.execution_env` from the rest of Cade. It does not import the Cade
-agent, product, or server layers. `test_mini_boundary.py` enforces this firewall.
-There are no top-level re-exports; import the owning submodule directly.
+Mini owns `cade_mini.ai` and `cade_mini.execution_env` as lower layers for
+provider protocols and local process execution. It does not depend on the
+separate Cade project. `test_mini_boundary.py` rejects old Cade imports and
+application dependencies in these lower layers. There are no top-level
+re-exports; import the owning submodule directly.
 
 ## Why the split
 

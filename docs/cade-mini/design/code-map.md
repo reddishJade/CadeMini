@@ -1,101 +1,57 @@
-# Code map and relationship to Cade
+# Code map
 
-## Where Cade Mini lives
+Cade Mini is an independent project. The `cade-mini` distribution installs the
+`cade_mini` package and the `cade-mini` command. It does not install or depend
+on Cade.
 
-Cade Mini is the `cade.mini` subpackage in the `cade-agent` distribution:
+## Package layout
 
 ```text
-src/cade/
-  ai/                    shared provider adapters, events, auth, models
-  harness/               shared execution environment, sessions, policies
-  agent/                 Cade's own agent loop
-  coding_agent/          Cade's product assembly, TUI, tools, modes
-  server/                Cade's browser server
-  mini/                  Cade Mini (this package)
+src/cade_mini/
+  ai/             provider adapters, events, auth protocols, models
+  execution_env/  local subprocess execution and output capture
+  core/           log, projection, request, loop, compaction, window
+  tools/          workspace actions and history retrieval
+  safety/         policy, shell analysis, grants, approval, review
+  extensions/     skills, memory, hooks, mcp, subagents, snapshots, goal
+  app/            config, provider assembly, credentials, request context
+  hosts/          cli, auth, web
+  docs.py
+  __main__.py
+tests/            regression and integration tests
 ```
 
-Cade Mini is not a copied-out project. It is a parallel implementation that
-shares only two lower layers with Cade:
+Provider and execution modules originated in Cade and are now owned and
+maintained here. Mini includes only the process execution code it uses, not
+Cade's filesystem or Linux sandbox implementation. Mini has no OS sandbox.
 
-- `cade.ai`: provider streaming, model resolution, credentials, usage.
-- `cade.harness.execution_env`: subprocess execution.
-
-There is no OS sandbox in Mini. `test_mini_boundary.py` enforces that Mini does
-not import `cade.agent`, `cade.harness` session/policy modules,
-`cade.coding_agent`, or `cade.server`. Mini owns its own log, projection, request
-builder, loop, tools, policy, and hosts.
-
-## Can it start on its own?
-
-Yes, at runtime:
+## Entry points
 
 ```bash
 uv run --locked cade-mini
-uv run --locked cade-mini "Fix the failing test."
-uv run --locked python -m cade.mini
+uv run --locked cade-mini exec "Fix the failing test."
+uv run --locked python -m cade_mini
+uv run --locked cade-mini login
 uv run --locked cade-mini --web --port 8765
 ```
 
-The `cade-mini` console script and `python -m cade.mini` both call
-`cade.mini.hosts.cli:main`. The terminal, web, sessions, snapshots, goals, and
-extensions are Mini code.
-
-It is **not** a standalone distribution:
-
-- Installing `cade-agent` installs both `cade` and `cade-mini`.
-- Mini still imports `cade.ai` and `cade.harness.execution_env`.
-- Credentials are Cade's `~/.cade/auth.json`; there is no separate Mini login.
-- Copying only `src/cade/mini/` will not run without the `cade` package.
-
-So "standalone" means a separate entry point and runtime surface, not a separate
-wheel or repository.
-
-## Module layout
-
-The package is grouped by layer. `cade.mini` has no public re-exports and no
-`cade.mini.cli` compatibility module; import the owning submodule directly.
-
-```text
-src/cade/mini/
-  core/        types, log, projection, request, loop, compaction, window
-  tools/       workspace, history
-  safety/      policy, shell, grants, approval, review
-  extensions/  skills, memory, hooks, mcp, subagents, snapshots, goal
-  hosts/       cli, web
-  app/         config, provider, auth, prompts, instructions, note
-  docs.py
-  __main__.py
-```
-
-| Group | Approx. lines |
-| --- | ---: |
-| Core pipeline | 1,741 |
-| Tools and history | 615 |
-| Safety | 415 |
-| Extensions | 966 |
-| Hosts and docs | 1,957 |
-| App plumbing | 353 |
-
-The largest files are `hosts/cli.py`, `docs.py`, `core/loop.py`, and
-`tools/workspace.py`.
+The console script and Python module call `cade_mini.hosts.cli:main`. Login
+is handled by `cade_mini.hosts.auth`. Credentials and user skills live under
+`~/.cade-mini/`. Project sessions and other state live under `.cade-mini/`.
+No old Cade directories or commands are used.
 
 ## Import direction
 
-- `core` imports only `core` and `cade.ai`.
-- `tools` imports `core`, `safety.shell`, and `extensions.snapshots`.
-- `safety` imports `core`, `app.config`, and `tools.workspace`.
-- `extensions` imports `core`, `app`, `tools`, and `safety`.
-- `hosts` imports every layer; nothing imports `hosts`.
-- `app` imports provider/auth only; it does not import the loop.
+- `ai` and `execution_env` do not import application or host modules.
+- `core` imports core types and AI protocols.
+- `tools`, `safety`, and `extensions` connect actions and policies to the core.
+- `app` owns startup settings, credential persistence, and request context.
+- `hosts` assemble these components and own user interaction.
 
-The entry point is `hosts.cli`, not a compatibility module. Tests import the
-owning module, for example `cade.mini.core.log.SessionLog` or
-`cade.mini.tools.workspace.build_tools`.
+`tests/test_mini_boundary.py` rejects imports from the old `cade` namespace
+and application imports in the lower layers. The package root has no public
+re-exports; import the owning submodule directly.
 
-## Reading order
-
-Start with [How Cade Mini works](how-it-works.md), then
-[Architecture](../architecture.md), then [Capability
-seams](capability-seams.md). The [subsystems](../subsystems/README.md) pages are
-the implementation reference. [Cade comparison](cade-comparison.md) explains
-what Mini intentionally does not include.
+See [Architecture](../architecture.md),
+[How Cade Mini works](how-it-works.md), and
+[Capability seams](capability-seams.md) for runtime contracts.

@@ -11,17 +11,25 @@ From the repository root:
 uv sync --locked
 ```
 
-Cade Mini reuses Cade's credential store. Configure a provider once with the
-Cade login command, or set the provider's API key environment variable:
+Cade Mini owns its credential store at `~/.cade-mini/auth.json`. Log in to
+Codex with a browser or device code:
 
 ```bash
-cade login
-# or
-export DEEPSEEK_API_KEY=...
+uv run --locked cade-mini login
+uv run --locked cade-mini login --method device_code
 ```
 
-Codex uses the stored Codex OAuth credential. `--provider codex` selects it; no
-separate Mini login command exists.
+For an API-key provider, use a hidden key prompt or set its environment variable:
+
+```bash
+uv run --locked cade-mini login --provider deepseek
+export DEEPSEEK_API_KEY=...
+uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review this project."
+```
+
+The default provider is `openai-codex`. Set `provider` and `model` in
+`cade-mini.json` to choose other startup defaults. Mini does not read Cade's
+credentials, skills, or settings.
 
 ## Run one task
 
@@ -82,8 +90,8 @@ host serves one durable session for its lifetime.
 
 ```bash
 uv sync --locked --extra docs
-uv run --locked python -m cade.mini.docs check
-uv run --locked python -m cade.mini.docs build
+uv run --locked python -m cade_mini.docs check
+uv run --locked python -m cade_mini.docs build
 ```
 
-Open `docs/mini/index.html`. The docs source is under `docs/cade-mini/`.
+Open `docs/index.html`. The docs source is under `docs/cade-mini/`.

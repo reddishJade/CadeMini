@@ -12,10 +12,10 @@ narrower jobs.
 | Working note | `NOTE.md` | Project | Project | Markdown |
 | Memory | `MEMORY.md` | `MemoryTool` | Project | Markdown |
 | Instructions | `AGENTS.md`, `CLAUDE.md`, overrides | Project | Project | Markdown |
-| Skills | `~/.cade/skills`, `.cade/skills`, `.cade-mini/skills` | Discovery | User or project | `SKILL.md` |
+| Skills | `~/.cade-mini/skills`, `.cade-mini/skills` | Discovery | User or project | `SKILL.md` |
 | Config | `cade-mini.json` | `MiniConfig` | Project | Pydantic, strict |
-| Credentials | Cade auth store | Cade auth | User | Cade-owned |
-| Docs site | `docs/mini/index.html` | Docs tool | Repository | Generated |
+| Credentials | `~/.cade-mini/auth.json` | `JsonCredentialStore` | User | Provider credentials |
+| Docs site | `docs/index.html` | Docs tool | Repository | Generated |
 | LLM catalogs | `docs/cade-mini/llms*.txt` | Docs tool | Repository | Generated |
 
 ## The session log

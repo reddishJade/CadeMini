@@ -1,7 +1,7 @@
 # Cade Mini
 
-Cade Mini is the small coding agent in the Cade repository. It keeps one rule at
-the center of the design:
+Cade Mini is a standalone coding agent. It keeps one rule at the center of the
+design:
 
 > The session log is the source of truth. The model-visible history is a
 > deterministic projection. Request construction only produces the current
@@ -31,9 +31,8 @@ process restarts without inventing history.
 ## Design
 
 - [How Cade Mini works](design/how-it-works.md) is the short end-to-end model.
-- [Code map and relationship to Cade](design/code-map.md) explains the package
-  boundary and the entry points.
-- [Cade comparison](design/cade-comparison.md) gives scale and capability gaps.
+- [Code map](design/code-map.md) explains package boundaries and entry points.
+- [Relationship to Cade](design/cade-comparison.md) explains independent ownership.
 - [Capability seams](design/capability-seams.md) lists the replaceable
   contracts.
 - [Event model](design/event-model.md) separates facts from audits.
@@ -85,12 +84,12 @@ The docs are Markdown-first. A small tool validates links and anchors, builds a
 single-page site, and generates an `llms.txt` catalog for agents:
 
 ```bash
-python -m cade.mini.docs check
-python -m cade.mini.docs build
-python -m cade.mini.docs llms --write
-python -m cade.mini.docs catalogs --write
+python -m cade_mini.docs check
+python -m cade_mini.docs build
+python -m cade_mini.docs llms --write
+python -m cade_mini.docs catalogs --write
 ```
 
-The generated site is [docs/mini/index.html](../mini/index.html); the generated
+The generated site is [docs/index.html](../index.html); the generated
 catalogs are `docs/cade-mini/llms.txt`, `docs/cade-mini/llms-full.txt`, and the
 config, event, and module pages under `design/`.

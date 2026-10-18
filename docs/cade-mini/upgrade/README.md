@@ -3,10 +3,15 @@
 This page records changes that require action from an existing user or
 automation.
 
-## Current status
+## Standalone project
 
-Cade Mini is on session schema v1. There are no breaking upgrades yet. Existing
-sessions, `cade-mini.json` files, and snapshots remain readable.
+Cade Mini now installs as `cade-mini`, with Python imports under `cade_mini`.
+The old `cade` command and `cade.mini` namespace are removed. No compatibility
+or migration tools are provided.
+
+Authenticate again with `cade-mini login`. Credentials and skills use
+`~/.cade-mini/`; project skills use `.cade-mini/skills/`. Mini no longer
+reads `.cade` directories. Session schema v1 remains the current format.
 
 ## When an upgrade is needed
 

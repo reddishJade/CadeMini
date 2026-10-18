@@ -6,12 +6,13 @@ a change, then the full suite before a release.
 ## Commands
 
 ```bash
-uv run --locked pytest -q src/cade/tests
-uv run --locked pytest -q src/cade/tests/test_mini_loop.py
-uv run --locked ruff check src/cade/
-uv run --locked ruff format --check src/cade/
-uv run --locked pyright src/cade/
-uv run --locked python -m cade.mini.docs check
+mkdir -p e2e-results
+uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests/test_mini_loop.py --basetemp=e2e-results/pytest
+uv run --locked ruff check src/cade_mini/ tests/
+uv run --locked ruff format --check src/cade_mini/ tests/
+uv run --locked pyright src/cade_mini/
+uv run --locked python -m cade_mini.docs check
 ```
 
 ## Coverage map
@@ -22,7 +23,7 @@ uv run --locked python -m cade.mini.docs check
 | Projection and pairing | `test_mini_projection.py` |
 | Budget, pruning, wire format | `test_mini_request.py` |
 | Loop, approvals, retries, windows | `test_mini_loop.py` |
-| Provider and auth | `test_mini_provider.py` |
+| Provider and auth | `test_mini_provider.py`, `test_mini_auth.py`, `test_responses_codex_cache_contract.py` |
 | Workspace tools | `test_mini_tools.py` |
 | Compaction and windows | `test_mini_compaction.py`, `test_mini_window.py` |
 | CLI and config | `test_mini_cli.py`, `test_mini_config.py` |
@@ -43,11 +44,12 @@ that adds a new acceptance.
 
 ## Docs checks
 
-`test_mini_docs.py` and `python -m cade.mini.docs check` validate the manifest,
+`test_mini_docs.py` and `python -m cade_mini.docs check` validate the manifest,
 links, anchors, and generated catalogs. The docs job runs in CI.
 
-## Known noise
+## Standalone distribution
 
-The full suite has three pre-existing Windows-only failures in untouched Cade
-modules: two working-directory assertions and one shell line-ending assertion.
-Treat them as unrelated until that module is changed.
+Build the wheel and source archive with `uv build --no-sources`. Install the
+wheel in a clean virtual environment and check both `cade-mini --help` and
+`python -m cade_mini --help` outside the source tree. No Cade package or command
+should be present. See the [validation guidelines](../../testing.md).

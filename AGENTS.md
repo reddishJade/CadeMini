@@ -24,21 +24,21 @@ Read [HUMAN.md](HUMAN.md) at the start of each task. It defines reporting, progr
 
 ## Project structure and architecture
 
-Cade is a Python 3.12+ coding-agent harness. Package code lives in `src/cade/`; the CLI entry point is `src/cade/main.py`. The layers, from highest to lowest, are `server/` (web host), `coding_agent/` (product assembly, tools, interaction services, TUI, and exec mode), `harness/` (runtime, sessions, policies, and MCP), `agent/` (loop and context), and `ai/` (provider adapters). Each layer imports only from lower layers. Documentation and examples live in `docs/` and `examples/`.
+Cade Mini is a standalone Python 3.12+ coding agent. Package code lives in `src/cade_mini/`; the CLI entry point is `src/cade_mini/hosts/cli.py`. Hosts assemble the application, core pipeline, tools, safety policies, and extensions. `ai/` owns provider protocols and adapters; `execution_env/` owns local process execution. These lower layers do not import application or host modules. Regression tests live in `tests/`, and documentation lives in `docs/`. Do not add dependencies on the separate Cade project or compatibility layers for its interfaces and state.
 
 ## Commands
 
 Run commands from the repository root. Install development dependencies as described in the environment setup section of the [development guide](docs/development.md).
 
-After code changes, run lint, format, and type checks. If imports or entry points change, also check startup for affected entry points. Run regression tests when `src/cade/tests/` contains `test_*.py` files. For behavior changes, select the smallest sufficient checks using the [validation guidelines](docs/testing.md). Choose E2E based on concrete risk and coverage gaps, not module ownership. For documentation-only changes, check content, links, commands, and the diff.
+After code changes, run lint, format, and type checks. If imports or entry points change, also check startup for affected entry points. Run regression tests from `tests/`. For behavior changes, select the smallest sufficient checks using the [validation guidelines](docs/testing.md). Choose E2E based on concrete risk and coverage gaps, not module ownership. For documentation-only changes, check content, links, commands, and the diff.
 
-- Lint: `uv run --locked ruff check src/cade/`
-- Format: `uv run --locked ruff format src/cade/`
-- Check formatting: `uv run --locked ruff format --check src/cade/`
-- Check types: `uv run --locked pyright src/cade/`
-- Run regression tests: `uv run --locked pytest -q src/cade/tests`
-- Check startup: `uv run --locked cade --help`
-- Run exec E2E when selected by the validation guidelines: `uv run --locked cade exec "<TASK>"`
+- Lint: `uv run --locked ruff check src/cade_mini/ tests/`
+- Format: `uv run --locked ruff format src/cade_mini/ tests/`
+- Check formatting: `uv run --locked ruff format --check src/cade_mini/ tests/`
+- Check types: `uv run --locked pyright src/cade_mini/`
+- Run regression tests: `uv run --locked pytest -q tests --basetemp=e2e-results/pytest`
+- Check startup: `uv run --locked cade-mini --help`
+- Run exec E2E when selected by the validation guidelines: `uv run --locked cade-mini exec "<TASK>"`
 
 ## Code style and naming
 

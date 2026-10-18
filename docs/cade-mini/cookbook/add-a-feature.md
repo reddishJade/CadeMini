@@ -39,4 +39,4 @@ another attempt. Undo restores one recorded file change at a time.
 ## Keep
 
 Update the guide or decision record when the feature changes a public contract.
-Tests belong in `src/cade/tests/`; docs belong under `docs/cade-mini/`.
+Tests belong in `tests/`; docs belong under `docs/cade-mini/`.
