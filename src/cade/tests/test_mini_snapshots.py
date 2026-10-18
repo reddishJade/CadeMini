@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from cade.mini import SnapshotStore, ToolCallBlock, WriteTool
+from cade.mini import BashTool, SnapshotStore, ToolCallBlock, WriteTool
 
 
 def _call(path: str, content: str) -> ToolCallBlock:
@@ -67,3 +67,21 @@ def test_snapshot_rejects_paths_outside_workspace(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         store.capture(tmp_path / ".." / "outside.txt")
+
+
+def test_bash_rm_snapshots_before_change(tmp_path: Path) -> None:
+    target = tmp_path / "a.txt"
+    target.write_text("old", encoding="utf-8")
+    store = SnapshotStore(tmp_path)
+    tool = BashTool(tmp_path, snapshots=store)
+
+    asyncio.run(
+        tool.execute(
+            ToolCallBlock(id="b1", name="bash", args={"command": "rm a.txt"}),
+            None,
+        )
+    )
+
+    assert not target.exists()
+    store.undo_last()
+    assert target.read_text(encoding="utf-8") == "old"

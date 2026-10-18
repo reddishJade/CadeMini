@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from cade.mini import classify_command
+from cade.mini.shell import mutation_targets
 
 
 @pytest.mark.parametrize(
@@ -28,3 +29,20 @@ from cade.mini import classify_command
 )
 def test_classify_command(command: str, expected: str) -> None:
     assert classify_command(command) == expected
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("rm a.txt", ("a.txt",)),
+        ("echo hi > a.txt", ("a.txt",)),
+        ("cp a.txt b.txt", ("b.txt",)),
+        ("ls", ()),
+        ("rm a; rm b", ()),
+    ],
+)
+def test_mutation_targets(
+    command: str,
+    expected: tuple[str, ...],
+) -> None:
+    assert mutation_targets(command) == expected

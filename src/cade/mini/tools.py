@@ -12,6 +12,7 @@ from typing import Any
 from cade.harness.execution_env import CommandSandbox, SubprocessShell
 
 from .loop import CancellationToken, ToolResult
+from .shell import mutation_targets
 from .snapshots import SnapshotStore
 from .types import JsonValue, ToolCallBlock
 
@@ -326,9 +327,11 @@ class BashTool(WorkspaceTool):
         self,
         workspace: Path,
         sandbox: CommandSandbox | None = None,
+        snapshots: SnapshotStore | None = None,
     ) -> None:
         super().__init__(workspace)
         self.sandbox = sandbox
+        self.snapshots = snapshots
 
     def _parameters(self) -> dict[str, Any]:
         return {
@@ -356,6 +359,15 @@ class BashTool(WorkspaceTool):
             raise ValueError(
                 f"workdir is not a directory: {display_path(self.workspace, workdir)}"
             )
+        if self.snapshots is not None:
+            for raw in mutation_targets(command):
+                try:
+                    target = resolve_workspace_path(workdir, raw)
+                except ValueError:
+                    continue
+                if target.is_dir():
+                    continue
+                self.snapshots.capture(target)
         result = SubprocessShell(sandbox=self.sandbox).run(
             _shell_argv(command),
             cwd=workdir,
@@ -392,7 +404,7 @@ def build_tools(
         EditTool(workspace, snapshots),
         GlobTool(workspace),
         GrepTool(workspace),
-        BashTool(workspace, sandbox),
+        BashTool(workspace, sandbox, snapshots),
     )
 
 

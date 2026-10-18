@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -86,3 +87,55 @@ def classify_command(command: str) -> CommandKind:
     if tool in _MUTATING:
         return "mutating"
     return "unknown"
+
+
+_REDIRECT = re.compile(r"(?:^|\s)(?:>>?|1>)\s*([^\s|;&]+)")
+_SIMPLE_MUTATORS = frozenset(
+    {
+        "rm",
+        "del",
+        "erase",
+        "remove-item",
+        "rmdir",
+        "mv",
+        "move",
+        "move-item",
+        "cp",
+        "copy",
+        "copy-item",
+        "touch",
+        "mkdir",
+        "md",
+    }
+)
+
+
+def mutation_targets(command: str) -> tuple[str, ...]:
+    """保守提取可能被单条 shell 命令改写的路径，用于变更前快照。"""
+    text = command.strip()
+    if not text:
+        return ()
+    if any(marker in text for marker in (";", "&&", "||", "|", "`", "$(")):
+        return ()
+    tokens = text.split()
+    tool = Path(tokens[0].strip("\"'")).name.lower()
+    targets: list[str] = []
+    if tool == "echo" or ">" in text:
+        targets.extend(
+            match.group(1).strip("\"'") for match in _REDIRECT.finditer(text)
+        )
+    if tool in _SIMPLE_MUTATORS:
+        args = [token.strip("\"'") for token in tokens[1:]]
+        positional = [arg for arg in args if arg and not arg.startswith("-")]
+        if tool in {"cp", "copy", "copy-item"}:
+            if positional:
+                targets.append(positional[-1])
+        else:
+            targets.extend(positional)
+    elif tool == "sed":
+        args = [token.strip("\"'") for token in tokens[1:]]
+        if "-i" in args:
+            positional = [arg for arg in args if not arg.startswith("-")]
+            if positional:
+                targets.append(positional[-1])
+    return tuple(dict.fromkeys(target for target in targets if target))
