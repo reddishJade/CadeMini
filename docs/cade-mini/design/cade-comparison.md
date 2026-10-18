@@ -11,10 +11,10 @@ Measured from the current checkout:
 | Measure | Cade | Cade Mini |
 | --- | ---: | ---: |
 | Python files | 221 | 38 |
-| Product lines | 41,810 | 5,833 |
+| Product lines | 41,810 | 6,050 |
 | Test files | 33 | 30 |
-| Test lines | 6,115 | 3,683 |
-| Mini share of product code | — | 14.0% |
+| Test lines | 6,115 | 3,877 |
+| Mini share of product code | — | 14.5% |
 
 Cade's product code is concentrated in `coding_agent` (15.3k) and `harness`
 (16.5k), with `agent` (4.7k), `ai` (3.9k), and `server` (1.0k). Mini's core
@@ -48,7 +48,7 @@ subagents, snapshots, goals, docs, CLI, and web host.
 | Permissions | Rule DSL, permanent/session grants, TUI approvals, sandbox | Modes, static rules, session grants, shell analysis; no OS sandbox | Difference |
 | Extensions | MCP lifecycle, skills, memory, hooks, subagents | Persistent stdio MCP, skills, memory, hooks, subagents, delegate | Difference |
 | Automation | exec JSONL, RPC, SDK, web | `--json` events, web JSON API | Gap |
-| Input | TUI steering, queue, @ references, `!` shell, `$` skills | REPL @ files, `!` shell, `$` skills; no mid-run queue | Gap |
+| Input | TUI steering, queue, @ references, `!` shell, `$` skills | REPL steering/queue while a task runs, @ files, `!` shell, `$` skills | Difference |
 | TUI | Full terminal workbench | REPL only | Difference |
 | Docs | Product and developer docs | Design, subsystem, cookbook, history, generated catalogs | Comparable |
 
@@ -79,9 +79,9 @@ These are behaviors Cade users may rely on:
   prefixes.
 - MCP resources, prompts, and server-initiated requests. Mini implements
   initialize, list, and call.
-- Mid-run steering and queueing. Mini has a loop steering hook and `--steer` /
-  `/steer` and `--queue` / `/queue`; the terminal host does not yet read input
-  concurrently while a task is running.
+- Mid-run steering and queueing. Mini reads input on a separate thread and
+  applies `/steer` at the next model step; tools in flight are not interrupted.
+  Cade's TUI has richer line editing and status rendering.
 
 ## How to choose
 

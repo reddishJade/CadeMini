@@ -39,13 +39,14 @@ Committed on `experiment/cade-mini`:
   iterative compaction, automatic window fallback, skills, composable prompt
   modules, NOTE working state, plan/build/act modes, static rules, session
   grants, shell command classification (no OS sandbox), fork/clone/tree/rewind
-  and undo-N, independent subagents and delegate, @/!/$ REPL input, durable
-  project memory, tool lifecycle hooks, a persistent stdio MCP bridge, file
-  snapshots/undo covering common shell mutation targets, workspace goals,
-  automatic approval review, a local web host, a documentation system with
-  design, subsystem, cookbook, postmortem, persistence, and upgrade pages,
-  generated config/event/module/tool catalogs, a link/anchor checker, generated
-  site, `llms.txt`, and `llms-full.txt`, and 213 tests.
+  and undo-N, independent subagents and delegate, @/!/$ REPL input, concurrent
+  REPL steering/queue with routed approvals, durable project memory, tool
+  lifecycle hooks, a persistent stdio MCP bridge, file snapshots/undo covering
+  common shell mutation targets, workspace goals, automatic approval review, a
+  local web host, a documentation system with design, subsystem, cookbook,
+  postmortem, persistence, and upgrade pages, generated
+  config/event/module/tool catalogs, a link/anchor checker, generated site,
+  `llms.txt`, and `llms-full.txt`, and 219 tests.
 - A real CLI acceptance run through the configured DeepSeek account passed: the
   model used the write and read tools, `hello.txt` contained `mini`, and a
   resumed run on the same session read the file and answered `mini`.

@@ -51,6 +51,8 @@ process restarts without inventing history.
 - [Tool catalog](design/tool-catalog.md) lists the built-in tools.
 - [MCP reference servers](design/mcp-reference.md) lists the supported server
   pattern.
+- [Steering and queueing](design/steering-queue.md) explains the concurrent
+  REPL host.
 - [Module graph](design/module-graph.md) is generated from imports.
 - [Persistence catalog](design/persistence-catalog.md) maps every artifact.
 - [Glossary](design/glossary.md) defines the vocabulary.
@@ -266,6 +268,7 @@ starts the interactive REPL.
 - `/context` prints the session ID, provider, budget, and event count.
 - `/steer TEXT` queues guidance for the next model step.
 - `/queue TEXT` queues a task to run after the current one.
+- `/stop` cancels the current task at the next safe point.
 - `/help` prints the command list.
 - `/exit` or `/quit` exits.
 
@@ -280,6 +283,16 @@ starts the interactive REPL.
 Review @src/cade/mini/core/loop.py and use $review-only
 !git status
 ```
+
+During a task, the REPL keeps reading input:
+
+- `/steer TEXT` appends guidance at the next model step.
+- `/queue TEXT` runs TEXT after the current task.
+- `/stop` cancels at the next safe point.
+- Other text is queued as a follow-up task.
+
+Steering is applied between steps, not inside a provider stream or a running
+tool. See [Steering and queueing](design/steering-queue.md).
 
 ## Exit codes
 
@@ -747,7 +760,7 @@ src/cade/mini/
 | Tools and history | 615 |
 | Safety | 415 |
 | Extensions | 966 |
-| Hosts and docs | 1,693 |
+| Hosts and docs | 1,957 |
 | App plumbing | 353 |
 
 The largest files are `hosts/cli.py`, `docs.py`, `core/loop.py`, and
@@ -791,10 +804,10 @@ Measured from the current checkout:
 | Measure | Cade | Cade Mini |
 | --- | ---: | ---: |
 | Python files | 221 | 38 |
-| Product lines | 41,810 | 5,833 |
+| Product lines | 41,810 | 6,050 |
 | Test files | 33 | 30 |
-| Test lines | 6,115 | 3,683 |
-| Mini share of product code | — | 14.0% |
+| Test lines | 6,115 | 3,877 |
+| Mini share of product code | — | 14.5% |
 
 Cade's product code is concentrated in `coding_agent` (15.3k) and `harness`
 (16.5k), with `agent` (4.7k), `ai` (3.9k), and `server` (1.0k). Mini's core
@@ -828,7 +841,7 @@ subagents, snapshots, goals, docs, CLI, and web host.
 | Permissions | Rule DSL, permanent/session grants, TUI approvals, sandbox | Modes, static rules, session grants, shell analysis; no OS sandbox | Difference |
 | Extensions | MCP lifecycle, skills, memory, hooks, subagents | Persistent stdio MCP, skills, memory, hooks, subagents, delegate | Difference |
 | Automation | exec JSONL, RPC, SDK, web | `--json` events, web JSON API | Gap |
-| Input | TUI steering, queue, @ references, `!` shell, `$` skills | REPL @ files, `!` shell, `$` skills; no mid-run queue | Gap |
+| Input | TUI steering, queue, @ references, `!` shell, `$` skills | REPL steering/queue while a task runs, @ files, `!` shell, `$` skills | Difference |
 | TUI | Full terminal workbench | REPL only | Difference |
 | Docs | Product and developer docs | Design, subsystem, cookbook, history, generated catalogs | Comparable |
 
@@ -859,9 +872,9 @@ These are behaviors Cade users may rely on:
   prefixes.
 - MCP resources, prompts, and server-initiated requests. Mini implements
   initialize, list, and call.
-- Mid-run steering and queueing. Mini has a loop steering hook and `--steer` /
-  `/steer` and `--queue` / `/queue`; the terminal host does not yet read input
-  concurrently while a task is running.
+- Mid-run steering and queueing. Mini reads input on a separate thread and
+  applies `/steer` at the next model step; tools in flight are not interrupted.
+  Cade's TUI has richer line editing and status rendering.
 
 ## How to choose
 
@@ -1377,6 +1390,92 @@ is closed when Cade Mini exits.
 - [Configuration](../configuration.md)
 - [Hooks, MCP, and subagents](../hooks-mcp-subagents.md)
 - [Custom MCP server](../cookbook/custom-mcp.md)
+
+# Steering and queueing
+
+<!-- source: design/steering-queue.md -->
+
+# Steering and queueing
+
+Cade Mini's REPL can read input while a task is running. The host does not block
+the terminal on `_run_task`.
+
+## Why the old REPL blocked
+
+The first REPL called `input()` in the main thread and then ran the async loop
+with `asyncio.run`. While that call was active, the terminal was not read, so
+`/steer` and `/queue` could only affect the next task.
+
+## Current design
+
+```text
+stdin
+  |
+  v
+_InputPump thread  -- _Line -->  event queue
+                                  |
+task thread  -- _ApprovalRequest / _TaskDone --> event queue
+                                  |
+                                  v
+                         REPL main thread
+```
+
+- `_InputPump` reads one line at a time and never calls the model.
+- `_run_task` runs in a worker thread with its own `asyncio` event loop.
+- The REPL main thread owns the event queue and the session state.
+- `_HostApprover` sends `_ApprovalRequest` to the main thread and waits. The
+  main thread reads the answer from the same input pump, so approvals do not
+  compete with a second `input()`.
+- `!command` runs in the main thread and uses `_ConsoleApprover`, which reads
+  the answer directly from the event queue.
+
+## Commands during a run
+
+| Input | Effect |
+| --- | --- |
+| `/steer TEXT` | Append guidance at the next model step |
+| `/queue TEXT` | Run TEXT as a new task after the current task |
+| `/stop` or `/cancel` | Cancel the current task at the next safe point |
+| other text | Same as `/queue`: run it after the current task |
+| `/exit` | Cancel, wait for the task to settle, then exit |
+
+`/steer` is not a prompt injection into a running provider request. The loop
+checks the steering queue before each step, appends a `user` fact with
+`source: runtime`, and builds the next request from the projection. This keeps
+the session log as the source of truth.
+
+## Queue semantics
+
+- A queued task starts automatically when the current task reaches a terminal
+  state.
+- Queue order is FIFO.
+- A queued task runs in the same session; it is not a fork.
+- `/fork`, `/clone`, `/rewind`, and session commands are main-thread commands.
+  They are only handled when no task is active. During a run they are treated as
+  queued text; finish or stop the run first.
+
+## Limits
+
+- Tools already executing are not killed. `/stop` takes effect at the next
+  cancellation check.
+- The input pump uses plain `input()`, not a full line editor. Editing,
+  history, and completion are terminal features.
+- Approval answers are read as the next line. Do not type a task while an
+  approval prompt is waiting; it is consumed as the answer.
+- The one-shot `--steer` flag seeds guidance before the first step. It is not a
+  substitute for `/steer` during a run.
+
+## Tests
+
+- `test_live_input_handles_steer_and_queue`
+- `test_live_input_is_read_while_worker_is_running`
+- `test_mid_run_steer_reaches_the_next_provider_request`
+- `test_repl_reads_steer_while_a_bash_tool_is_running`
+- `test_host_approver_routes_through_events`
+- `test_live_input_can_stop_the_task`
+
+The end-to-end test blocks a tool until the host delivers `/steer`, then checks
+that the next provider request contains the steering fact.
 
 # Persistence catalog
 

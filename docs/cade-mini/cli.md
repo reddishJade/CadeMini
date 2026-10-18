@@ -65,6 +65,7 @@ starts the interactive REPL.
 - `/context` prints the session ID, provider, budget, and event count.
 - `/steer TEXT` queues guidance for the next model step.
 - `/queue TEXT` queues a task to run after the current one.
+- `/stop` cancels the current task at the next safe point.
 - `/help` prints the command list.
 - `/exit` or `/quit` exits.
 
@@ -79,6 +80,16 @@ starts the interactive REPL.
 Review @src/cade/mini/core/loop.py and use $review-only
 !git status
 ```
+
+During a task, the REPL keeps reading input:
+
+- `/steer TEXT` appends guidance at the next model step.
+- `/queue TEXT` runs TEXT after the current task.
+- `/stop` cancels at the next safe point.
+- Other text is queued as a follow-up task.
+
+Steering is applied between steps, not inside a provider stream or a running
+tool. See [Steering and queueing](design/steering-queue.md).
 
 ## Exit codes
 

@@ -73,7 +73,7 @@ src/cade/mini/
 | Tools and history | 615 |
 | Safety | 415 |
 | Extensions | 966 |
-| Hosts and docs | 1,693 |
+| Hosts and docs | 1,957 |
 | App plumbing | 353 |
 
 The largest files are `hosts/cli.py`, `docs.py`, `core/loop.py`, and

@@ -26,6 +26,7 @@
 - [Module graph](design/module-graph.md)
 - [Tool catalog](design/tool-catalog.md)
 - [MCP reference servers](design/mcp-reference.md)
+- [Steering and queueing](design/steering-queue.md)
 - [Persistence catalog](design/persistence-catalog.md)
 - [Glossary](design/glossary.md)
 - [Testing](design/testing.md)

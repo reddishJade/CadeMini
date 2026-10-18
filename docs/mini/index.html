@@ -59,6 +59,7 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <a href="#page-module-graph">Module graph</a>
 <a href="#page-tool-catalog">Tool catalog</a>
 <a href="#page-mcp-reference">MCP reference servers</a>
+<a href="#page-steering-queue">Steering and queueing</a>
 <a href="#page-persistence-catalog">Persistence catalog</a>
 <a href="#page-glossary">Glossary</a>
 <a href="#page-testing">Testing</a>
@@ -144,6 +145,8 @@ contracts.</li>
 <li><a href="#page-tool-catalog">Tool catalog</a> lists the built-in tools.</li>
 <li><a href="#page-mcp-reference">MCP reference servers</a> lists the supported server
 pattern.</li>
+<li><a href="#page-steering-queue">Steering and queueing</a> explains the concurrent
+REPL host.</li>
 <li><a href="#page-module-graph">Module graph</a> is generated from imports.</li>
 <li><a href="#page-persistence-catalog">Persistence catalog</a> maps every artifact.</li>
 <li><a href="#page-glossary">Glossary</a> defines the vocabulary.</li>
@@ -308,6 +311,7 @@ provider.</li>
 <li><code>/context</code> prints the session ID, provider, budget, and event count.</li>
 <li><code>/steer TEXT</code> queues guidance for the next model step.</li>
 <li><code>/queue TEXT</code> queues a task to run after the current one.</li>
+<li><code>/stop</code> cancels the current task at the next safe point.</li>
 <li><code>/help</code> prints the command list.</li>
 <li><code>/exit</code> or <code>/quit</code> exits.</li>
 </ul>
@@ -321,6 +325,15 @@ checks still apply.</li>
 <pre><code class="language-text">Review @src/cade/mini/core/loop.py and use $review-only
 !git status
 </code></pre>
+<p>During a task, the REPL keeps reading input:</p>
+<ul>
+<li><code>/steer TEXT</code> appends guidance at the next model step.</li>
+<li><code>/queue TEXT</code> runs TEXT after the current task.</li>
+<li><code>/stop</code> cancels at the next safe point.</li>
+<li>Other text is queued as a follow-up task.</li>
+</ul>
+<p>Steering is applied between steps, not inside a provider stream or a running
+tool. See <a href="#page-steering-queue">Steering and queueing</a>.</p>
 <h2>Exit codes</h2>
 <ul>
 <li><code>0</code>: the run completed.</li>
@@ -709,7 +722,7 @@ wheel or repository.</p>
 </tr>
 <tr>
 <td>Hosts and docs</td>
-<td style="text-align:right">1,693</td>
+<td style="text-align:right">1,957</td>
 </tr>
 <tr>
 <td>App plumbing</td>
@@ -763,7 +776,7 @@ execution layers. The rest is independent.</p>
 <tr>
 <td>Product lines</td>
 <td style="text-align:right">41,810</td>
-<td style="text-align:right">5,833</td>
+<td style="text-align:right">6,050</td>
 </tr>
 <tr>
 <td>Test files</td>
@@ -773,12 +786,12 @@ execution layers. The rest is independent.</p>
 <tr>
 <td>Test lines</td>
 <td style="text-align:right">6,115</td>
-<td style="text-align:right">3,683</td>
+<td style="text-align:right">3,877</td>
 </tr>
 <tr>
 <td>Mini share of product code</td>
 <td style="text-align:right">—</td>
-<td style="text-align:right">14.0%</td>
+<td style="text-align:right">14.5%</td>
 </tr>
 </tbody>
 </table>
@@ -870,8 +883,8 @@ subagents, snapshots, goals, docs, CLI, and web host.</p>
 <tr>
 <td>Input</td>
 <td>TUI steering, queue, @ references, <code>!</code> shell, <code>$</code> skills</td>
-<td>REPL @ files, <code>!</code> shell, <code>$</code> skills; no mid-run queue</td>
-<td>Gap</td>
+<td>REPL steering/queue while a task runs, @ files, <code>!</code> shell, <code>$</code> skills</td>
+<td>Difference</td>
 </tr>
 <tr>
 <td>TUI</td>
@@ -912,9 +925,9 @@ capable.</li>
 prefixes.</li>
 <li>MCP resources, prompts, and server-initiated requests. Mini implements
 initialize, list, and call.</li>
-<li>Mid-run steering and queueing. Mini has a loop steering hook and <code>--steer</code> /
-<code>/steer</code> and <code>--queue</code> / <code>/queue</code>; the terminal host does not yet read input
-concurrently while a task is running.</li>
+<li>Mid-run steering and queueing. Mini reads input on a separate thread and
+applies <code>/steer</code> at the next model step; tools in flight are not interrupted.
+Cade's TUI has richer line editing and status rendering.</li>
 </ul>
 <h2>How to choose</h2>
 <p>Use Cade when you need the full terminal product, branching, web research,
@@ -1736,6 +1749,104 @@ is closed when Cade Mini exits.</p>
 <li><a href="../hooks-mcp-subagents.md">Hooks, MCP, and subagents</a></li>
 <li><a href="../cookbook/custom-mcp.md">Custom MCP server</a></li>
 </ul>
+
+</section>
+<section class="page" id="page-steering-queue" data-title="Steering and queueing">
+<h1>Steering and queueing</h1>
+<p>Cade Mini's REPL can read input while a task is running. The host does not block
+the terminal on <code>_run_task</code>.</p>
+<h2>Why the old REPL blocked</h2>
+<p>The first REPL called <code>input()</code> in the main thread and then ran the async loop
+with <code>asyncio.run</code>. While that call was active, the terminal was not read, so
+<code>/steer</code> and <code>/queue</code> could only affect the next task.</p>
+<h2>Current design</h2>
+<pre><code class="language-text">stdin
+  |
+  v
+_InputPump thread  -- _Line --&gt;  event queue
+                                  |
+task thread  -- _ApprovalRequest / _TaskDone --&gt; event queue
+                                  |
+                                  v
+                         REPL main thread
+</code></pre>
+<ul>
+<li><code>_InputPump</code> reads one line at a time and never calls the model.</li>
+<li><code>_run_task</code> runs in a worker thread with its own <code>asyncio</code> event loop.</li>
+<li>The REPL main thread owns the event queue and the session state.</li>
+<li><code>_HostApprover</code> sends <code>_ApprovalRequest</code> to the main thread and waits. The
+main thread reads the answer from the same input pump, so approvals do not
+compete with a second <code>input()</code>.</li>
+<li><code>!command</code> runs in the main thread and uses <code>_ConsoleApprover</code>, which reads
+the answer directly from the event queue.</li>
+</ul>
+<h2>Commands during a run</h2>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/steer TEXT</code></td>
+<td>Append guidance at the next model step</td>
+</tr>
+<tr>
+<td><code>/queue TEXT</code></td>
+<td>Run TEXT as a new task after the current task</td>
+</tr>
+<tr>
+<td><code>/stop</code> or <code>/cancel</code></td>
+<td>Cancel the current task at the next safe point</td>
+</tr>
+<tr>
+<td>other text</td>
+<td>Same as <code>/queue</code>: run it after the current task</td>
+</tr>
+<tr>
+<td><code>/exit</code></td>
+<td>Cancel, wait for the task to settle, then exit</td>
+</tr>
+</tbody>
+</table>
+<p><code>/steer</code> is not a prompt injection into a running provider request. The loop
+checks the steering queue before each step, appends a <code>user</code> fact with
+<code>source: runtime</code>, and builds the next request from the projection. This keeps
+the session log as the source of truth.</p>
+<h2>Queue semantics</h2>
+<ul>
+<li>A queued task starts automatically when the current task reaches a terminal
+state.</li>
+<li>Queue order is FIFO.</li>
+<li>A queued task runs in the same session; it is not a fork.</li>
+<li><code>/fork</code>, <code>/clone</code>, <code>/rewind</code>, and session commands are main-thread commands.
+They are only handled when no task is active. During a run they are treated as
+queued text; finish or stop the run first.</li>
+</ul>
+<h2>Limits</h2>
+<ul>
+<li>Tools already executing are not killed. <code>/stop</code> takes effect at the next
+cancellation check.</li>
+<li>The input pump uses plain <code>input()</code>, not a full line editor. Editing,
+history, and completion are terminal features.</li>
+<li>Approval answers are read as the next line. Do not type a task while an
+approval prompt is waiting; it is consumed as the answer.</li>
+<li>The one-shot <code>--steer</code> flag seeds guidance before the first step. It is not a
+substitute for <code>/steer</code> during a run.</li>
+</ul>
+<h2>Tests</h2>
+<ul>
+<li><code>test_live_input_handles_steer_and_queue</code></li>
+<li><code>test_live_input_is_read_while_worker_is_running</code></li>
+<li><code>test_mid_run_steer_reaches_the_next_provider_request</code></li>
+<li><code>test_repl_reads_steer_while_a_bash_tool_is_running</code></li>
+<li><code>test_host_approver_routes_through_events</code></li>
+<li><code>test_live_input_can_stop_the_task</code></li>
+</ul>
+<p>The end-to-end test blocks a tool until the host delivers <code>/steer</code>, then checks
+that the next provider request contains the steering fact.</p>
 
 </section>
 <section class="page" id="page-persistence-catalog" data-title="Persistence catalog">

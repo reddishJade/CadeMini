@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import queue
+import sys
+import threading
+import time
+from collections import deque
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -19,10 +25,24 @@ from cade.ai.events import (
 )
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.mini.core.log import SessionLog
+from cade.mini.core.loop import CancellationToken, RunResult, ToolResult
+from cade.mini.core.request import Budget
+from cade.mini.core.types import ToolCallBlock
 from cade.mini.extensions.goal import GoalStore
 from cade.mini.extensions.skills import Skill
 from cade.mini.extensions.snapshots import SnapshotStore
-from cade.mini.hosts.cli import _expand_input, _run_shell_input, main
+from cade.mini.hosts.cli import (
+    _ApprovalRequest,
+    _expand_input,
+    _HostApprover,
+    _Line,
+    _run_shell_input,
+    _run_task,
+    _run_task_live,
+    _TaskDone,
+    main,
+)
+from cade.mini.safety.grants import GrantStore
 from cade.mini.safety.policy import WorkspacePolicy
 from cade.mini.tools.workspace import BashTool
 
@@ -996,6 +1016,7 @@ def test_expand_file_and_skill_references(tmp_path: Path) -> None:
     assert "Say HELLO." in expanded
     assert "Review" in expanded
 
+
 def test_shell_input_runs_with_policy(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -1011,3 +1032,207 @@ def test_shell_input_runs_with_policy(
     )
 
     assert "hello-shell" in capsys.readouterr().out
+
+
+def test_live_input_handles_steer_and_queue() -> None:
+    events: queue.Queue[object] = queue.Queue()
+    pending: deque[str] = deque()
+    steering: deque[str] = deque()
+    cancel = CancellationToken()
+
+    def worker() -> None:
+        events.put(_TaskDone(RunResult("", 1, "completed")))
+
+    events.put(_Line("/steer focus on the parser"))
+    events.put(_Line("/queue add a test"))
+    result, exit_requested = _run_task_live(
+        events,
+        pending,
+        steering,
+        cancel,
+        threading.Thread(target=worker),
+    )
+
+    assert result.termination == "completed"
+    assert exit_requested is False
+    assert list(steering) == ["focus on the parser"]
+    assert list(pending) == ["add a test"]
+
+
+def test_host_approver_routes_through_events() -> None:
+    events: queue.Queue[object] = queue.Queue()
+    grants = GrantStore()
+    approver = _HostApprover(events, grants)
+
+    def answer() -> None:
+        request = events.get()
+        assert isinstance(request, _ApprovalRequest)
+        request.answer = "y"
+        request.done.set()
+
+    threading.Thread(target=answer, daemon=True).start()
+    assert (
+        approver(ToolCallBlock(id="c1", name="write", args={"path": "a.txt"})) is True
+    )
+
+
+def test_live_input_can_stop_the_task() -> None:
+    events: queue.Queue[object] = queue.Queue()
+    cancel = CancellationToken()
+
+    def worker() -> None:
+        cancel.cancel("stopped")
+        events.put(_TaskDone(RunResult("", 1, "aborted")))
+
+    events.put(_Line("/stop"))
+    result, exit_requested = _run_task_live(
+        events,
+        deque(),
+        deque(),
+        cancel,
+        threading.Thread(target=worker),
+    )
+
+    assert result.termination == "aborted"
+    assert exit_requested is False
+
+
+def test_live_input_is_read_while_worker_is_running() -> None:
+    events: queue.Queue[object] = queue.Queue()
+    steering: deque[str] = deque()
+    started = threading.Event()
+
+    def worker() -> None:
+        started.set()
+        deadline = time.monotonic() + 2
+        while not steering and time.monotonic() < deadline:
+            time.sleep(0.01)
+        events.put(_TaskDone(RunResult("", 1, "completed")))
+
+    def feed() -> None:
+        started.wait(timeout=1)
+        events.put(_Line("/steer focus from the host"))
+
+    threading.Thread(target=feed, daemon=True).start()
+    result, _ = _run_task_live(
+        events,
+        deque(),
+        steering,
+        CancellationToken(),
+        threading.Thread(target=worker),
+    )
+
+    assert result.termination == "completed"
+    assert list(steering) == ["focus from the host"]
+
+
+def test_mid_run_steer_reaches_the_next_provider_request(tmp_path: Path) -> None:
+    events: queue.Queue[object] = queue.Queue()
+    steering: deque[str] = deque()
+    started = threading.Event()
+
+    class SlowTool:
+        name = "read"
+        description = "slow read"
+        parameters: ClassVar[dict[str, Any]] = {
+            "type": "object",
+            "properties": {},
+        }
+
+        async def execute(self, call, signal=None) -> ToolResult:
+            started.set()
+            deadline = time.monotonic() + 2
+            while not steering and time.monotonic() < deadline:
+                await asyncio.sleep(0.01)
+            return ToolResult(content="ok")
+
+    provider = FakeProvider(
+        [
+            [ToolCallEvent([ToolCall(id="r1", name="read", input={"path": "a.txt"})])],
+            _text("finished"),
+        ]
+    )
+    log = SessionLog.create(tmp_path / "sessions")
+
+    def worker() -> None:
+        result = _run_task(
+            log,
+            "inspect the code",
+            provider,
+            (SlowTool(),),
+            WorkspacePolicy(tmp_path),
+            lambda call: True,
+            Budget(100_000),
+            (),
+            4,
+            lambda event: None,
+            None,  # type: ignore[arg-type]
+            None,
+            None,
+            lambda: steering.popleft() if steering else None,
+            CancellationToken(),
+        )
+        events.put(_TaskDone(result))
+
+    def feed() -> None:
+        started.wait(timeout=1)
+        events.put(_Line("/steer focus on the parser"))
+
+    threading.Thread(target=feed, daemon=True).start()
+    result, _ = _run_task_live(
+        events,
+        deque(),
+        steering,
+        CancellationToken(),
+        threading.Thread(target=worker),
+    )
+
+    assert result.termination == "completed"
+    users = [entry.data.get("text") for entry in log.branch() if entry.type == "user"]
+    assert users == ["inspect the code", "focus on the parser"]
+    assert "focus on the parser" in json.dumps(provider.requests[1][0])
+
+
+def test_repl_reads_steer_while_a_bash_tool_is_running(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    command = f'"{sys.executable}" -c "import time; time.sleep(0.2)"'
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [ToolCall(id="b1", name="bash", input={"command": command})]
+                )
+            ],
+            _text("finished"),
+        ]
+    )
+    lines = iter(["inspect", "/steer focus on the parser", "/exit"])
+
+    def fake_input(_prompt: str = "") -> str:
+        value = next(lines, "/exit")
+        if value == "/exit":
+            time.sleep(0.5)
+        return value
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    code = main(
+        [
+            "--project-root",
+            str(tmp_path),
+            "--sessions-dir",
+            str(tmp_path / "sessions"),
+            "--yes",
+            "--max-steps",
+            "4",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    paths = _session_files(tmp_path / "sessions")
+    assert len(paths) == 1
+    log = SessionLog.open(paths[0])
+    users = [entry.data.get("text") for entry in log.branch() if entry.type == "user"]
+    assert users == ["inspect", "focus on the parser"]

@@ -38,6 +38,7 @@ def test_mini_imports_stay_inside_allowed_layers() -> None:
 
     assert not violations, violations
 
+
 def test_package_has_no_public_reexports() -> None:
     import cade.mini as package
 

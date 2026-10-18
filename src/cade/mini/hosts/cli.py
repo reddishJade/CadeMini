@@ -6,10 +6,13 @@ import argparse
 import asyncio
 import inspect
 import json
+import queue
 import re
 import sys
+import threading
 from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
@@ -22,6 +25,7 @@ from cade.mini.app.provider import ProviderConfig, build_provider
 from cade.mini.core.compaction import Compactor
 from cade.mini.core.log import SessionLog, list_sessions
 from cade.mini.core.loop import (
+    CancellationToken,
     LoopEvent,
     Provider,
     RunResult,
@@ -82,6 +86,7 @@ Commands:
   /context             Show session and budget information
   /steer TEXT          Queue guidance for the next model step
   /queue TEXT          Queue a task to run after the current one
+  /stop                Cancel the current task
   /help                Show this help
   /exit                Exit
 
@@ -234,6 +239,7 @@ def main(
     hooks = HookRunner(config.hooks, project_root)
     if use_auto_review and not args.yes:
         approve = AutoReviewer(selected, workspace=project_root)
+    approval_router = _ApprovalRouter(approve)
 
     def note_context() -> str | None:
         return load_working_note(project_root) if use_note else None
@@ -271,7 +277,7 @@ def main(
         sessions_dir=sessions_dir,
         system_prompt=system_prompt,
         policy=policy,
-        approve=approve,
+        approve=approval_router,
         context=context,
         max_steps=min(max_steps, 20),
         hooks=hooks,
@@ -312,6 +318,7 @@ def main(
                 fallback_window,
             )
 
+        approval_router.target = web_approve
         WebHost(
             runner=web_runner,
             log=log,
@@ -358,6 +365,7 @@ def main(
         goals,
         policy,
         approve,
+        approval_router,
         budget,
         context,
         max_steps,
@@ -535,6 +543,7 @@ def _run_task(
     hooks: HookRunner | None,
     window: Callable[[SessionLog], bool] | None,
     steering: Callable[[], str | None] | None = None,
+    cancel: CancellationToken | None = None,
 ) -> RunResult:
     tools = filter_tools(tools, policy.mode)
     return asyncio.run(
@@ -553,8 +562,194 @@ def _run_task(
             window=window,
             hooks=hooks,
             steering=steering,
+            cancel=cancel,
         )
     )
+
+
+@dataclass(frozen=True)
+class _Line:
+    text: str
+    eof: bool = False
+
+
+@dataclass
+class _ApprovalRequest:
+    call: ToolCallBlock
+    answer: str | None = None
+    done: threading.Event = field(default_factory=threading.Event)
+
+
+@dataclass(frozen=True)
+class _TaskDone:
+    result: RunResult
+
+
+class _InputPump(threading.Thread):
+    """把 stdin 行转成事件，让主线程可以在任务运行时继续处理输入。"""
+
+    def __init__(self, events: queue.Queue[object]) -> None:
+        super().__init__(name="cade-mini-input", daemon=True)
+        self.events = events
+
+    def run(self) -> None:
+        while True:
+            try:
+                line = input()
+            except (EOFError, KeyboardInterrupt, OSError):
+                self.events.put(_Line("", eof=True))
+                return
+            self.events.put(_Line(line))
+
+
+class _ApprovalRouter:
+    """让子代理在 REPL 和 one-shot 模式之间复用同一个审批入口。"""
+
+    def __init__(
+        self,
+        target: Callable[[ToolCallBlock], bool | Awaitable[bool]],
+    ) -> None:
+        self.target = target
+
+    def __call__(self, call: ToolCallBlock) -> bool | Awaitable[bool]:
+        return self.target(call)
+
+
+class _HostApprover:
+    """任务线程通过事件队列请求主线程完成审批。"""
+
+    def __init__(
+        self,
+        events: queue.Queue[object],
+        grants: GrantStore,
+        *,
+        auto_approve: bool = False,
+    ) -> None:
+        self.events = events
+        self.grants = grants
+        self.auto_approve = auto_approve
+
+    def __call__(self, call: ToolCallBlock) -> bool:
+        if self.auto_approve or self.grants.match(call):
+            return True
+        request = _ApprovalRequest(call)
+        self.events.put(request)
+        request.done.wait()
+        answer = (request.answer or "").strip().lower()
+        if answer in {"a", "always"}:
+            self.grants.add(call)
+        return answer in {"y", "yes", "a", "always"}
+
+
+class _ConsoleApprover:
+    """主线程执行 ! 命令时直接读取审批答案。"""
+
+    def __init__(
+        self,
+        events: queue.Queue[object],
+        grants: GrantStore,
+        *,
+        auto_approve: bool = False,
+    ) -> None:
+        self.events = events
+        self.grants = grants
+        self.auto_approve = auto_approve
+
+    def __call__(self, call: ToolCallBlock) -> bool:
+        if self.auto_approve or self.grants.match(call):
+            return True
+        request = _ApprovalRequest(call)
+        _answer_approval(self.events, request)
+        answer = (request.answer or "").strip().lower()
+        if answer in {"a", "always"}:
+            self.grants.add(call)
+        return answer in {"y", "yes", "a", "always"}
+
+
+def _answer_approval(
+    events: queue.Queue[object],
+    request: _ApprovalRequest,
+) -> None:
+    detail = json.dumps(
+        request.call.args,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    if len(detail) > 500:
+        detail = detail[:500] + "..."
+    print(
+        f"\nApprove {request.call.name} {detail}? [y]es/[n]o/[a]lways: ",
+        file=sys.stderr,
+        end="",
+        flush=True,
+    )
+    event = events.get()
+    answer = event.text if isinstance(event, _Line) else ""
+    request.answer = answer
+    request.done.set()
+
+
+def _handle_live_input(
+    text: str,
+    pending: deque[str],
+    steering: deque[str],
+    cancel: CancellationToken,
+) -> bool:
+    """处理任务运行中的输入；返回是否请求退出。"""
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if stripped.startswith("/steer"):
+        value = stripped[len("/steer") :].strip()
+        if value:
+            steering.append(value)
+            print("guidance queued", file=sys.stderr)
+        return False
+    if stripped.startswith("/queue"):
+        value = stripped[len("/queue") :].strip()
+        if value:
+            pending.append(value)
+            print("task queued", file=sys.stderr)
+        return False
+    if stripped in {"/stop", "/cancel"}:
+        cancel.cancel("user stopped the task")
+        print("stopping the current task", file=sys.stderr)
+        return False
+    if stripped in {"/exit", "/quit"}:
+        cancel.cancel("user exited")
+        return True
+    pending.append(stripped)
+    print("task queued", file=sys.stderr)
+    return False
+
+
+def _run_task_live(
+    events: queue.Queue[object],
+    pending: deque[str],
+    steering: deque[str],
+    cancel: CancellationToken,
+    worker: threading.Thread,
+) -> tuple[RunResult, bool]:
+    worker.start()
+    exit_requested = False
+    while True:
+        event = events.get()
+        if isinstance(event, _TaskDone):
+            return event.result, exit_requested
+        if isinstance(event, _ApprovalRequest):
+            _answer_approval(events, event)
+            continue
+        if isinstance(event, _Line):
+            if event.eof:
+                exit_requested = True
+                cancel.cancel("input closed")
+            else:
+                exit_requested = (
+                    _handle_live_input(event.text, pending, steering, cancel)
+                    or exit_requested
+                )
+                if not exit_requested:
+                    print("cade-mini> ", end="", flush=True)
 
 
 def _entry_preview(entry: LogEntry) -> str:
@@ -668,6 +863,7 @@ def _repl(
     goals: GoalStore,
     policy: WorkspacePolicy,
     approve: Callable[[ToolCallBlock], bool | Awaitable[bool]],
+    approval_router: _ApprovalRouter,
     budget: Budget,
     context_provider: Callable[[], tuple[str, ...]],
     max_steps: int,
@@ -679,15 +875,44 @@ def _repl(
     pending: deque[str],
 ) -> int:
     tools = _tools_for(base_tools, workspace, log)
+    events: queue.Queue[object] = queue.Queue()
+    pump = _InputPump(events)
+    pump.start()
+    if isinstance(approve, AutoReviewer):
+        live_approve: Callable[[ToolCallBlock], bool | Awaitable[bool]] = approve
+        shell_approve: Callable[[ToolCallBlock], bool | Awaitable[bool]] = approve
+    else:
+        auto_approve = getattr(approve, "auto_approve", False)
+        live_approve = _HostApprover(
+            events,
+            policy.grants,
+            auto_approve=auto_approve,
+        )
+        shell_approve = _ConsoleApprover(
+            events,
+            policy.grants,
+            auto_approve=auto_approve,
+        )
+    approval_router.target = live_approve
+
+    def read_line() -> str | None:
+        print("cade-mini> ", end="", flush=True)
+        while True:
+            event = events.get()
+            if isinstance(event, _Line):
+                return None if event.eof else event.text
+            if isinstance(event, _ApprovalRequest):
+                event.answer = "n"
+                event.done.set()
+
     print(f"Cade Mini session {log.session_id}. Enter a task, /help, or /exit.")
     while True:
         if pending:
             line = pending.popleft()
             print(f"cade-mini> {line}")
         else:
-            try:
-                line = input("cade-mini> ")
-            except (EOFError, KeyboardInterrupt):
+            line = read_line()
+            if line is None:
                 print()
                 return 0
         text = line.strip()
@@ -870,33 +1095,57 @@ def _repl(
             continue
 
         if text.startswith("!"):
-            _run_shell_input(text[1:].strip(), tools, policy, approve)
+            _run_shell_input(text[1:].strip(), tools, policy, shell_approve)
             continue
         expanded = _expand_input(text, workspace, skills)
         if expanded is None:
             continue
         text = expanded
 
-        try:
-            result = _run_task(
-                log,
-                text,
-                provider,
-                tools,
-                policy,
-                approve,
-                budget,
-                context_provider(),
-                max_steps,
-                on_event,
-                compactor,
-                hooks,
-                window,
-                lambda: steering.popleft() if steering else None,
-            )
-        except KeyboardInterrupt:
-            print("\n[interrupted]")
-            continue
+        cancel = CancellationToken()
+
+        def worker(
+            _log: SessionLog = log,
+            _text: str = text,
+            _tools: Sequence[Tool] = tools,
+            _cancel: CancellationToken = cancel,
+        ) -> None:
+            try:
+                result = _run_task(
+                    _log,
+                    _text,
+                    provider,
+                    _tools,
+                    policy,
+                    live_approve,
+                    budget,
+                    context_provider(),
+                    max_steps,
+                    on_event,
+                    compactor,
+                    hooks,
+                    window,
+                    lambda: steering.popleft() if steering else None,
+                    _cancel,
+                )
+            except Exception as exc:  # noqa: BLE001
+                result = RunResult(
+                    answer="",
+                    steps=0,
+                    termination="provider_error",
+                    error=str(exc),
+                )
+            events.put(_TaskDone(result))
+
+        result, exit_requested = _run_task_live(
+            events,
+            pending,
+            steering,
+            cancel,
+            threading.Thread(target=worker, daemon=True),
+        )
+        if exit_requested:
+            return 0
         print()
         if result.error:
             print(f"[{result.termination}] {result.error}", file=sys.stderr)

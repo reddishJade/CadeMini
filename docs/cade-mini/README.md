@@ -43,6 +43,8 @@ process restarts without inventing history.
 - [Tool catalog](design/tool-catalog.md) lists the built-in tools.
 - [MCP reference servers](design/mcp-reference.md) lists the supported server
   pattern.
+- [Steering and queueing](design/steering-queue.md) explains the concurrent
+  REPL host.
 - [Module graph](design/module-graph.md) is generated from imports.
 - [Persistence catalog](design/persistence-catalog.md) maps every artifact.
 - [Glossary](design/glossary.md) defines the vocabulary.

@@ -27,6 +27,7 @@
         "design/module-graph.md",
         "design/tool-catalog.md",
         "design/mcp-reference.md",
+        "design/steering-queue.md",
         "design/persistence-catalog.md",
         "design/glossary.md",
         "design/testing.md"
