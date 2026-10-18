@@ -32,9 +32,14 @@ Three corrections from the first draft:
 Committed on `experiment/cade-mini`:
 
 - Done: session schema, types, append-only log, deterministic projection, pure
-  request admission, agent loop with a fake provider, and 47 tests.
-- Next: Codex adapter, six tools and policy, CLI and resume, then a real
-  end-to-end task and compaction.
+  request admission, agent loop, Codex provider and credential store, six
+  workspace tools with a policy, compaction and window reset, CLI/REPL with
+  resume, and 81 tests.
+- Live Codex smoke reached the API but the account returned HTTP 429 "usage
+  limit has been reached". The loop recorded `request` and `attempt` facts and
+  terminated with `provider_error`; the provider and error paths are verified.
+- Pending: rerun the live Codex acceptance task when the account quota is
+  available, then the first-increment acceptance review.
 
 ## 1. What Cade is today
 
