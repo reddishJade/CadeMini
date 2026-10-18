@@ -49,6 +49,8 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <a href="#page-how-it-works">How Cade Mini works</a>
 </div>
 <div class="nav-group"><p>Design</p>
+<a href="#page-code-map">Code map and relationship to Cade</a>
+<a href="#page-cade-comparison">Cade comparison</a>
 <a href="#page-capability-seams">Capability seams</a>
 <a href="#page-event-model">Event model</a>
 <a href="#page-tool-execution">Tool execution</a>
@@ -129,6 +131,9 @@ analysis, and the sandbox.</li>
 <h2>Design</h2>
 <ul>
 <li><a href="#page-how-it-works">How Cade Mini works</a> is the short end-to-end model.</li>
+<li><a href="#page-code-map">Code map and relationship to Cade</a> explains the package
+boundary and the entry points.</li>
+<li><a href="#page-cade-comparison">Cade comparison</a> gives scale and capability gaps.</li>
 <li><a href="#page-capability-seams">Capability seams</a> lists the replaceable
 contracts.</li>
 <li><a href="#page-event-model">Event model</a> separates facts from audits.</li>
@@ -589,6 +594,307 @@ bubblewrap sandbox can confine shell commands; on other hosts the path boundary,
 mode, shell classification, and approvals remain active.</p>
 <p>See <a href="../architecture.md">Architecture</a> for the invariant and
 <a href="capability-seams.md">Capability seams</a> for the contracts.</p>
+
+</section>
+<section class="page" id="page-code-map" data-title="Code map and relationship to Cade">
+<h1>Code map and relationship to Cade</h1>
+<h2>Where Cade Mini lives</h2>
+<p>Cade Mini is the <code>cade.mini</code> subpackage in the <code>cade-agent</code> distribution:</p>
+<pre><code class="language-text">src/cade/
+  ai/                    shared provider adapters, events, auth, models
+  harness/               shared execution environment, sessions, policies
+  agent/                 Cade's own agent loop
+  coding_agent/          Cade's product assembly, TUI, tools, modes
+  server/                Cade's browser server
+  mini/                  Cade Mini (this package)
+</code></pre>
+<p>Cade Mini is not a copied-out project. It is a parallel implementation that
+shares only two lower layers with Cade:</p>
+<ul>
+<li><code>cade.ai</code>: provider streaming, model resolution, credentials, usage.</li>
+<li><code>cade.harness.execution_env</code>: subprocess execution and the optional
+bubblewrap sandbox.</li>
+</ul>
+<p><code>test_mini_boundary.py</code> enforces that Mini does not import <code>cade.agent</code>,
+<code>cade.harness</code> session/policy modules, <code>cade.coding_agent</code>, or <code>cade.server</code>.
+Mini owns its own log, projection, request builder, loop, tools, policy, and
+hosts.</p>
+<h2>Can it start on its own?</h2>
+<p>Yes, at runtime:</p>
+<pre><code class="language-bash">uv run --locked cade-mini
+uv run --locked cade-mini &quot;Fix the failing test.&quot;
+uv run --locked python -m cade.mini
+uv run --locked cade-mini --web --port 8765
+</code></pre>
+<p>The <code>cade-mini</code> console script and <code>python -m cade.mini</code> both call
+<code>cade.mini.cli:main</code>. The terminal, web, sessions, snapshots, goals, and
+extensions are Mini code.</p>
+<p>It is <strong>not</strong> a standalone distribution:</p>
+<ul>
+<li>Installing <code>cade-agent</code> installs both <code>cade</code> and <code>cade-mini</code>.</li>
+<li>Mini still imports <code>cade.ai</code> and <code>cade.harness.execution_env</code>.</li>
+<li>Credentials are Cade's <code>~/.cade/auth.json</code>; there is no separate Mini login.</li>
+<li>Copying only <code>src/cade/mini/</code> will not run without the <code>cade</code> package.</li>
+</ul>
+<p>So &quot;standalone&quot; means a separate entry point and runtime surface, not a separate
+wheel or repository.</p>
+<h2>Current module layout</h2>
+<p>The package is deliberately flat. Each module owns one responsibility, but the
+layer is not visible in the filename.</p>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Modules</th>
+<th style="text-align:right">Approx. lines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core pipeline</td>
+<td><code>types</code>, <code>log</code>, <code>projection</code>, <code>request</code>, <code>loop</code>, <code>compaction</code>, <code>window</code></td>
+<td style="text-align:right">1,680</td>
+</tr>
+<tr>
+<td>Workspace tools</td>
+<td><code>tools</code>, <code>history</code></td>
+<td style="text-align:right">617</td>
+</tr>
+<tr>
+<td>Safety</td>
+<td><code>policy</code>, <code>shell</code>, <code>grants</code>, <code>approval</code>, <code>review</code>, <code>sandbox</code></td>
+<td style="text-align:right">444</td>
+</tr>
+<tr>
+<td>Extensions</td>
+<td><code>skills</code>, <code>memory</code>, <code>hooks</code>, <code>mcp</code>, <code>subagents</code>, <code>snapshots</code>, <code>goal</code></td>
+<td style="text-align:right">852</td>
+</tr>
+<tr>
+<td>Hosts and docs</td>
+<td><code>cli</code>, <code>web</code>, <code>docs</code></td>
+<td style="text-align:right">1,493</td>
+</tr>
+<tr>
+<td>App plumbing</td>
+<td><code>config</code>, <code>provider</code>, <code>auth</code>, <code>prompts</code>, <code>instructions</code>, <code>note</code></td>
+<td style="text-align:right">353</td>
+</tr>
+<tr>
+<td>Entry</td>
+<td><code>__init__</code>, <code>__main__</code></td>
+<td style="text-align:right">146</td>
+</tr>
+</tbody>
+</table>
+<p>The largest files are <code>docs.py</code> (27 KB), <code>cli.py</code> (22 KB), <code>loop.py</code> (19 KB), and
+<code>tools.py</code> (18 KB). The core pipeline is about 1,700 lines.</p>
+<h2>Why it is flat</h2>
+<ul>
+<li>The package is small enough to inspect in one directory.</li>
+<li>Cross-layer imports are easy to see and the import firewall is explicit.</li>
+<li>Moving modules changes public import paths, the console script target, and
+tests. That should be a dedicated refactor, not a side effect of a feature
+change.</li>
+</ul>
+<p>The cost is that a reader cannot tell core from extensions without opening
+files. A documented map, not a filesystem move, fixes that for now.</p>
+<h2>Target layout if we group it</h2>
+<pre><code class="language-text">src/cade/mini/
+  core/        types, log, projection, request, loop, compaction, window
+  tools/       tools, history
+  safety/      policy, shell, grants, approval, review, sandbox
+  extensions/  skills, memory, hooks, mcp, subagents, snapshots, goal
+  hosts/       cli, web
+  app/         config, provider, auth, prompts, instructions, note
+  docs.py
+</code></pre>
+<p>A pure move would keep <code>cade.mini.__init__</code> re-exports and a <code>cade.mini.cli</code>
+compatibility module so <code>cade-mini</code> and existing imports keep working. It would
+update relative imports, tests that import implementation modules directly, and
+the entry point. Behavior would not change.</p>
+<h2>Reading order</h2>
+<p>Start with <a href="how-it-works.md">How Cade Mini works</a>, then
+<a href="../architecture.md">Architecture</a>, then <a href="capability-seams.md">Capability
+seams</a>. The <a href="../subsystems/README.md">subsystems</a> pages are
+the implementation reference. <a href="cade-comparison.md">Cade comparison</a> explains
+what Mini intentionally does not include.</p>
+
+</section>
+<section class="page" id="page-cade-comparison" data-title="Cade comparison">
+<h1>Cade comparison</h1>
+<p>Cade Mini is a smaller implementation of the same idea, not a fork with features
+removed one by one. It keeps the log-first core and reuses Cade's provider and
+execution layers. The rest is independent.</p>
+<h2>Scale</h2>
+<p>Measured from the current checkout:</p>
+<table>
+<thead>
+<tr>
+<th>Measure</th>
+<th style="text-align:right">Cade</th>
+<th style="text-align:right">Cade Mini</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python files</td>
+<td style="text-align:right">221</td>
+<td style="text-align:right">33</td>
+</tr>
+<tr>
+<td>Product lines</td>
+<td style="text-align:right">41,810</td>
+<td style="text-align:right">5,585</td>
+</tr>
+<tr>
+<td>Test files</td>
+<td style="text-align:right">33</td>
+<td style="text-align:right">31</td>
+</tr>
+<tr>
+<td>Test lines</td>
+<td style="text-align:right">6,115</td>
+<td style="text-align:right">3,584</td>
+</tr>
+<tr>
+<td>Mini share of product code</td>
+<td style="text-align:right">—</td>
+<td style="text-align:right">13.4%</td>
+</tr>
+</tbody>
+</table>
+<p>Cade's product code is concentrated in <code>coding_agent</code> (15.3k) and <code>harness</code>
+(16.5k), with <code>agent</code> (4.7k), <code>ai</code> (3.9k), and <code>server</code> (1.0k). Mini's core
+pipeline is about 1.7k lines; hosts, docs, and extensions make up the rest.</p>
+<p>Line count is not a quality score. Cade carries a full product surface; Mini
+carries a small, inspectable surface.</p>
+<h2>Shared layers</h2>
+<p>Mini imports only:</p>
+<ul>
+<li><code>cade.ai</code>: provider streaming, model resolution, credentials, usage.</li>
+<li><code>cade.harness.execution_env</code>: subprocess execution and bubblewrap.</li>
+</ul>
+<p>Everything above those layers is Mini code: <code>SessionLog</code>, projection, request
+builder, loop, tools, policy, compaction, history, skills, memory, hooks, MCP,
+subagents, snapshots, goals, docs, CLI, and web host.</p>
+<h2>Capability comparison</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Cade</th>
+<th>Cade Mini</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hosts</td>
+<td>TUI, exec, browser, Python integration</td>
+<td>CLI one-shot/REPL, local web host</td>
+<td>Difference</td>
+</tr>
+<tr>
+<td>Providers</td>
+<td>Cade <code>ai</code> adapters, model picker, roles, effort</td>
+<td>Same adapters; one configured model per run</td>
+<td>Difference</td>
+</tr>
+<tr>
+<td>Sessions</td>
+<td>Tree, fork, clone, rewind, artifacts, inbox, steering</td>
+<td>Append-only tree, resume/list, active branch</td>
+<td>Gap</td>
+</tr>
+<tr>
+<td>Context</td>
+<td>Full context policy, artifact previews, memory catalog, rollover, goal judge</td>
+<td>Budget, pruning, history, compaction, window fallback</td>
+<td>Difference</td>
+</tr>
+<tr>
+<td>Tools</td>
+<td>read/edit/write/grep/glob/find/ls/bash, websearch/webfetch, question, delegate, history, save_memory</td>
+<td>Six workspace tools plus history, skill, memory, goal, subagent, MCP</td>
+<td>Gap</td>
+</tr>
+<tr>
+<td>Parallel tools</td>
+<td>Parallel read batches with serial barriers</td>
+<td>Sequential tool calls</td>
+<td>Difference</td>
+</tr>
+<tr>
+<td>Edit safety</td>
+<td>Stale-write check, multi-edit, read-before-edit</td>
+<td>One exact replacement, read-before-edit by convention</td>
+<td>Gap</td>
+</tr>
+<tr>
+<td>Permissions</td>
+<td>Rule DSL, permanent/session grants, TUI approvals, sandbox</td>
+<td>Modes, static rules, session grants, shell analysis, Linux sandbox</td>
+<td>Difference</td>
+</tr>
+<tr>
+<td>Extensions</td>
+<td>MCP lifecycle, skills, memory, hooks, subagents</td>
+<td>Persistent stdio MCP, skills, memory, hooks, subagents</td>
+<td>Difference</td>
+</tr>
+<tr>
+<td>Automation</td>
+<td>exec JSONL, RPC, SDK, web</td>
+<td><code>--json</code> events, web JSON API</td>
+<td>Gap</td>
+</tr>
+<tr>
+<td>TUI</td>
+<td>Full terminal workbench</td>
+<td>REPL only</td>
+<td>Difference</td>
+</tr>
+<tr>
+<td>Docs</td>
+<td>Product and developer docs</td>
+<td>Design, subsystem, cookbook, history, generated catalogs</td>
+<td>Comparable</td>
+</tr>
+</tbody>
+</table>
+<h2>Intentional differences</h2>
+<p>These are design choices, not unfinished code:</p>
+<ul>
+<li>No plugin system or dynamic composition. Mini's seams are fixed contracts.</li>
+<li>No separate TUI. The CLI REPL is the terminal host.</li>
+<li>No RPC or SDK. <code>--json</code> and the web API are the automation surfaces.</li>
+<li>No artifact store. Tool results are capped and recoverable through history.</li>
+<li>No permanent grants. Durable policy belongs in config rules.</li>
+<li>No parallel tool scheduler. Calls run sequentially to keep policy and logging
+simple.</li>
+</ul>
+<h2>Gaps that matter for parity</h2>
+<p>These are behaviors Cade users may rely on:</p>
+<ul>
+<li>Fork, clone, tree navigation, rewind, and multi-turn undo. Mini has the tree
+data but only an active-branch CLI.</li>
+<li>Web search and fetch, structured questions, and the <code>find</code>/<code>ls</code> tools.</li>
+<li>Stale-write detection and multi-edit. Mini's one-match edit is safe but less
+capable.</li>
+<li>Full rule DSL and permanent grants. Mini's rules cover common path and command
+prefixes.</li>
+<li>MCP resources, prompts, and server-initiated requests. Mini implements
+initialize, list, and call.</li>
+<li>Non-Linux OS sandbox. Mini relies on policy and approvals there.</li>
+</ul>
+<h2>How to choose</h2>
+<p>Use Cade when you need the full terminal product, branching, web research,
+parallel tools, or the existing session ecosystem. Use Cade Mini when you want a
+small, deterministic core that is easy to audit, embed, extend, or teach.</p>
+<p>The parity acceptance covers a bug fix, a feature addition, and resume. It does
+not claim feature-for-feature equality. See <a href="../parity.md">Parity</a> for the
+workflow evidence and <a href="code-map.md">Code map</a> for the package relationship.</p>
 
 </section>
 <section class="page" id="page-capability-seams" data-title="Capability seams">
