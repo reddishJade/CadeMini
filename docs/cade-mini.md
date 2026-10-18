@@ -40,7 +40,8 @@ Committed on `experiment/cade-mini`:
   modules, NOTE working state, plan/build/act modes, static rules, session
   grants, shell command classification, an optional Linux bubblewrap sandbox,
   independent subagents, durable project memory, tool lifecycle hooks, a stdio
-  MCP bridge, and 179 tests.
+  MCP bridge, file snapshots/undo, workspace goals, automatic approval review,
+  a local web host, and 191 tests.
 - A real CLI acceptance run through the configured DeepSeek account passed: the
   model used the write and read tools, `hello.txt` contained `mini`, and a
   resumed run on the same session read the file and answered `mini`.
@@ -54,6 +55,8 @@ Committed on `experiment/cade-mini`:
   `orange` skill, and answered `ORANGE`; NOTE.md and AGENTS.md were in context.
 - A real build-mode run passed: without `--yes`, the model used the write tool
   and created `build.txt` with content `build-mode`.
+- A real web-host run passed: an HTTP POST to `/api/task` returned
+  `{"answer":"WEB-OK","termination":"completed"}` from DeepSeek.
 - A real MCP subprocess test discovers an `echo` tool, calls it, and receives
   `echo:hi`; subagent, memory, and hook paths are covered by CLI and async tests.
 - A live Codex smoke reached the API but the account returned HTTP 429 "usage
@@ -61,8 +64,9 @@ Committed on `experiment/cade-mini`:
   terminated with `provider_error`; the provider and error paths are verified.
 - On non-Linux hosts the OS sandbox is unavailable; path boundaries, mode
   policy, shell classification, and approvals remain the active safety layer.
-- Next: TUI/web hosts, undo/snapshots, goals, and automatic approval review. The
-  live Codex acceptance is pending account quota.
+- Snapshots cover write/edit changes only; shell mutations are not snapshotted.
+- Next: parity acceptance against Cade on real repository workflows. The live
+  Codex acceptance is pending account quota.
 
 ## 1. What Cade is today
 
