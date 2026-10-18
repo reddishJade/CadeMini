@@ -76,7 +76,7 @@ class WorkspacePolicy:
         return self._mode_decision(call)
 
     def _base_decision(self, call: ToolCallBlock) -> Decision:
-        if call.name in {"glob", "grep", "history", "skill"}:
+        if call.name in {"glob", "grep", "history", "skill", "subagent"}:
             return "allow"
         if call.name == "read":
             return "allow" if self._inside(call.args.get("path")) else "deny"

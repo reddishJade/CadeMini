@@ -768,3 +768,47 @@ def test_cli_rule_allows_write_without_approval(tmp_path: Path) -> None:
 
     assert code == 0
     assert (workspace / "docs" / "a.txt").read_text(encoding="utf-8") == "x"
+
+
+def test_cli_runs_a_subagent(tmp_path: Path) -> None:
+    sessions = tmp_path / "sessions"
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="s1",
+                            name="subagent",
+                            input={"prompt": "child task"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("child answer"),
+            _text("done"),
+        ]
+    )
+
+    code = main(
+        [
+            "exec",
+            "parent task",
+            "--project-root",
+            str(tmp_path),
+            "--sessions-dir",
+            str(sessions),
+            "--yes",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    log = SessionLog.open(_session_files(sessions)[0])
+    tool_result = next(entry for entry in log.branch() if entry.type == "tool_result")
+    assert "child answer" in str(tool_result.data["content"])
+    child_files = list((sessions / "subagents").glob("session-*.jsonl"))
+    assert len(child_files) == 1
+    child_names = {tool.name for tool in provider.requests[1][1]}
+    assert "subagent" not in child_names

@@ -34,6 +34,7 @@ from .provider import ProviderConfig, build_provider
 from .request import Budget
 from .sandbox import MiniSandboxMode, build_sandbox
 from .skills import LoadSkillTool, discover_skills, render_skill_catalog
+from .subagents import SubagentTool
 from .tools import build_tools
 from .types import LogError, ToolCallBlock
 from .window import reset_window
@@ -158,7 +159,7 @@ def main(
     skills = discover_skills(project_root)
     skill_catalog = render_skill_catalog(skills)
     sandbox = build_sandbox(sandbox_mode, project_root)
-    base_tools = (
+    core_tools = (
         *build_tools(project_root, sandbox=sandbox),
         LoadSkillTool(project_root, skills),
     )
@@ -193,6 +194,20 @@ def main(
         if note:
             parts.append(note)
         return tuple(parts)
+
+    subagent = SubagentTool(
+        workspace=project_root,
+        provider=selected,
+        tools=core_tools,
+        budget=budget,
+        sessions_dir=sessions_dir,
+        system_prompt=system_prompt,
+        policy=policy,
+        approve=approve,
+        context=context,
+        max_steps=min(max_steps, 20),
+    )
+    base_tools = (*core_tools, subagent)
 
     try:
         log = _open_log(sessions_dir, resume, system_prompt)

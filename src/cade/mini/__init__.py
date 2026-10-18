@@ -28,6 +28,7 @@ from .request import Budget, BuildReport, Request, RequestTooLarge, build, estim
 from .sandbox import build_sandbox
 from .shell import classify_command
 from .skills import LoadSkillTool, Skill, discover_skills, render_skill_catalog
+from .subagents import SubagentTool
 from .tools import (
     BashTool,
     EditTool,
@@ -88,6 +89,7 @@ __all__ = [
     "SessionInfo",
     "SessionLog",
     "Skill",
+    "SubagentTool",
     "SummaryMessage",
     "SystemMessage",
     "TextBlock",
