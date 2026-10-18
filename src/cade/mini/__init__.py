@@ -1,7 +1,8 @@
 """Cade Mini：会话日志、确定性投影、请求与循环的独立实现。"""
 
 from .compaction import CompactionConfig, Compactor
-from .log import SessionLog
+from .instructions import load_project_instructions
+from .log import SessionInfo, SessionLog, list_sessions, session_title
 from .loop import (
     CancellationToken,
     LoopEvent,
@@ -67,6 +68,7 @@ __all__ = [
     "Request",
     "RequestTooLarge",
     "RunResult",
+    "SessionInfo",
     "SessionLog",
     "SummaryMessage",
     "SystemMessage",
@@ -85,8 +87,11 @@ __all__ = [
     "build_provider",
     "build_tools",
     "estimate",
+    "list_sessions",
+    "load_project_instructions",
     "project",
     "reset_window",
     "resolve_workspace_path",
     "run",
+    "session_title",
 ]

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
 
-from cade.mini import LogError, SessionLog
+from cade.mini import LogError, SessionLog, list_sessions, session_title
 
 
 def _sessions(tmp_path: Path) -> Path:
@@ -121,3 +122,34 @@ def test_open_empty_session_file_starts_without_head(tmp_path: Path) -> None:
     entries = log.entries()
     assert [entry.type for entry in entries] == ["user"]
     assert entries[0].parent is None
+
+
+def test_list_sessions_titles_and_order(tmp_path: Path) -> None:
+    sessions = _sessions(tmp_path)
+    first = SessionLog.create(sessions, session_id="first")
+    first.append("user", {"text": "first task", "source": "user"})
+    second = SessionLog.create(sessions, session_id="second")
+    second.append("user", {"text": "second task\nwith lines", "source": "user"})
+    os.utime(first.path, (1, 1))
+    os.utime(second.path, (2, 2))
+
+    infos = list_sessions(sessions)
+
+    assert [info.id for info in infos] == ["second", "first"]
+    assert infos[0].title == "second task with lines"
+    assert infos[1].title == "first task"
+    assert session_title(first.branch()) == "first task"
+
+
+def test_list_sessions_skips_corrupt_files(tmp_path: Path) -> None:
+    sessions = _sessions(tmp_path)
+    valid = SessionLog.create(sessions, session_id="valid")
+    valid.append("user", {"text": "kept", "source": "user"})
+    (sessions / "session-bad.jsonl").write_text(
+        '{"v":1,"id":"broken"}\n',
+        encoding="utf-8",
+    )
+
+    infos = list_sessions(sessions)
+
+    assert [info.id for info in infos] == ["valid"]

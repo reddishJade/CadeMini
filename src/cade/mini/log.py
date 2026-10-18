@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -14,6 +16,17 @@ from .types import EventType, JsonValue, LogEntry, LogError
 
 _SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _SESSION_FILE = re.compile(r"^session-([A-Za-z0-9][A-Za-z0-9_-]*)\.jsonl$")
+
+
+@dataclass(frozen=True)
+class SessionInfo:
+    """会话列表的展示投影；标题来自第一条用户输入。"""
+
+    id: str
+    path: Path
+    title: str
+    created_at: str
+    updated_at: str
 
 
 class SessionLog:
@@ -187,3 +200,58 @@ def _validate_entries(entries: list[LogEntry], path: Path) -> None:
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def session_title(entries: Sequence[LogEntry]) -> str:
+    """取第一条非空用户输入作为会话标题。"""
+    for entry in entries:
+        if entry.type != "user":
+            continue
+        text = entry.data.get("text")
+        if not isinstance(text, str):
+            continue
+        collapsed = " ".join(text.split())
+        if collapsed:
+            return collapsed[:70] + ("..." if len(collapsed) > 70 else "")
+    return "(untitled)"
+
+
+def list_sessions(sessions_dir: Path) -> list[SessionInfo]:
+    """按最近活动排序列出可读会话；损坏文件跳过。"""
+    root = sessions_dir.resolve()
+    if not root.is_dir():
+        return []
+    infos: list[SessionInfo] = []
+    for path in root.glob("session-*.jsonl"):
+        try:
+            log = SessionLog.open(path)
+            entries = log.branch()
+        except (LogError, OSError, ValueError):
+            continue
+        if not entries:
+            continue
+        meta = next((entry for entry in entries if entry.type == "meta"), None)
+        created_at = (
+            str(meta.data.get("created", entries[0].ts))
+            if meta is not None
+            else entries[0].ts
+        )
+        infos.append(
+            SessionInfo(
+                id=log.session_id,
+                path=path,
+                title=session_title(entries),
+                created_at=created_at,
+                updated_at=entries[-1].ts,
+            )
+        )
+
+    def _sort_key(info: SessionInfo) -> tuple[int, str]:
+        try:
+            mtime = info.path.stat().st_mtime_ns
+        except OSError:
+            mtime = 0
+        return mtime, info.updated_at
+
+    infos.sort(key=_sort_key, reverse=True)
+    return infos

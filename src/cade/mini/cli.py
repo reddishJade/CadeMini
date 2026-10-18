@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from .compaction import Compactor
-from .log import SessionLog
+from .instructions import load_project_instructions
+from .log import SessionLog, list_sessions
 from .loop import (
     LoopEvent,
     Provider,
@@ -75,6 +76,22 @@ def main(
         )
         return 2
 
+    sessions_dir = (
+        args.sessions_dir.resolve()
+        if args.sessions_dir is not None
+        else project_root / ".cade-mini" / "sessions"
+    )
+    if args.list_sessions:
+        _print_sessions(sessions_dir)
+        return 0
+    if args.continue_ and args.resume is not None:
+        print(
+            "cade-mini: --continue and --resume cannot be combined",
+            file=sys.stderr,
+        )
+        return 2
+    resume = "" if args.continue_ else args.resume
+
     try:
         selected = provider or build_provider(
             ProviderConfig(
@@ -91,19 +108,20 @@ def main(
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2
 
-    sessions_dir = (
-        args.sessions_dir.resolve()
-        if args.sessions_dir is not None
-        else project_root / ".cade-mini" / "sessions"
-    )
     tools = build_tools(project_root)
     policy = WorkspacePolicy(project_root, read_only=args.read_only)
     approve = _approver(args.yes)
     compactor = Compactor(selected)
     on_event: Callable[[LoopEvent], None] = _json_event if args.json else _human_event
 
+    def context() -> tuple[str, ...]:
+        if args.no_instructions:
+            return ()
+        text = load_project_instructions(project_root)
+        return (text,) if text else ()
+
     try:
-        log = _open_log(sessions_dir, args.resume)
+        log = _open_log(sessions_dir, resume)
     except (OSError, ValueError, LogError) as exc:
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2
@@ -117,6 +135,7 @@ def main(
             policy,
             approve,
             budget,
+            context(),
             args.max_steps,
             on_event,
             compactor,
@@ -137,6 +156,7 @@ def main(
         policy,
         approve,
         budget,
+        context,
         args.max_steps,
         on_event,
         compactor,
@@ -161,6 +181,22 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="Resume a session by ID; omit the ID for the latest session",
     )
+    parser.add_argument(
+        "--continue",
+        dest="continue_",
+        action="store_true",
+        help="Resume the latest session",
+    )
+    parser.add_argument(
+        "--list-sessions",
+        action="store_true",
+        help="List sessions and exit",
+    )
+    parser.add_argument(
+        "--no-instructions",
+        action="store_true",
+        help="Do not load AGENTS.md or CLAUDE.md",
+    )
     parser.add_argument("--yes", action="store_true", help="Approve writes and shell")
     parser.add_argument(
         "--read-only",
@@ -171,6 +207,16 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--context-window", type=int, default=None)
     parser.add_argument("--json", action="store_true", help="Emit JSONL events")
     return parser
+
+
+def _print_sessions(sessions_dir: Path) -> None:
+    infos = list_sessions(sessions_dir)
+    if not infos:
+        print("No sessions.")
+        return
+    print(f"{'ID':<12} {'UPDATED':<25} TITLE")
+    for info in infos:
+        print(f"{info.id:<12} {info.updated_at:<25} {info.title}")
 
 
 def _open_log(sessions_dir: Path, resume: str | None) -> SessionLog:
@@ -211,6 +257,7 @@ def _run_task(
     policy: WorkspacePolicy,
     approve: Callable[[ToolCallBlock], bool],
     budget: Budget,
+    context: Sequence[str],
     max_steps: int,
     on_event: Callable[[LoopEvent], None],
     compactor: Compactor,
@@ -224,6 +271,7 @@ def _run_task(
             budget=budget,
             policy=policy,
             approve=approve,
+            context=context,
             max_steps=max_steps,
             on_event=on_event,
             compact=compactor,
@@ -239,6 +287,7 @@ def _repl(
     policy: WorkspacePolicy,
     approve: Callable[[ToolCallBlock], bool],
     budget: Budget,
+    context_provider: Callable[[], tuple[str, ...]],
     max_steps: int,
     on_event: Callable[[LoopEvent], None],
     compactor: Compactor,
@@ -298,6 +347,7 @@ def _repl(
                 policy,
                 approve,
                 budget,
+                context_provider(),
                 max_steps,
                 on_event,
                 compactor,

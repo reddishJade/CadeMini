@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -226,3 +227,150 @@ def test_cli_rejects_json_in_repl(
 
     assert code == 2
     assert "--json requires" in capsys.readouterr().err
+
+
+def test_cli_includes_project_instructions(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "AGENTS.md").write_text(
+        "PROJECT RULE 42: read before edit",
+        encoding="utf-8",
+    )
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        [
+            "exec",
+            "hi",
+            "--project-root",
+            str(workspace),
+            "--sessions-dir",
+            str(tmp_path / "sessions"),
+            "--yes",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "PROJECT RULE 42" in system_text
+
+
+def test_cli_no_instructions_flag(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "AGENTS.md").write_text("PROJECT RULE 42", encoding="utf-8")
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        [
+            "exec",
+            "hi",
+            "--project-root",
+            str(workspace),
+            "--sessions-dir",
+            str(tmp_path / "sessions"),
+            "--yes",
+            "--no-instructions",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "PROJECT RULE 42" not in system_text
+
+
+def test_cli_list_sessions(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    sessions = tmp_path / "sessions"
+    first = SessionLog.create(sessions, session_id="first")
+    first.append("user", {"text": "first task", "source": "user"})
+    second = SessionLog.create(sessions, session_id="second")
+    second.append("user", {"text": "second task", "source": "user"})
+    os.utime(first.path, (1, 1))
+    os.utime(second.path, (2, 2))
+
+    code = main(
+        [
+            "--project-root",
+            str(tmp_path),
+            "--sessions-dir",
+            str(sessions),
+            "--list-sessions",
+        ],
+        provider=FakeProvider([]),
+    )
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "first task" in captured.out
+    assert "second task" in captured.out
+    assert captured.out.index("second task") < captured.out.index("first task")
+
+
+def test_cli_continue_uses_latest_session(tmp_path: Path) -> None:
+    sessions = tmp_path / "sessions"
+    first = SessionLog.create(sessions, session_id="first")
+    first.append("user", {"text": "old task", "source": "user"})
+    second = SessionLog.create(sessions, session_id="second")
+    second.append("user", {"text": "latest task", "source": "user"})
+    os.utime(first.path, (1, 1))
+    os.utime(second.path, (2, 2))
+
+    code = main(
+        [
+            "exec",
+            "third",
+            "--project-root",
+            str(tmp_path),
+            "--sessions-dir",
+            str(sessions),
+            "--continue",
+            "--yes",
+        ],
+        provider=FakeProvider([_text("ok")]),
+    )
+
+    assert code == 0
+    first_users = [
+        entry for entry in SessionLog.open(first.path).branch() if entry.type == "user"
+    ]
+    second_users = [
+        entry for entry in SessionLog.open(second.path).branch() if entry.type == "user"
+    ]
+    assert len(first_users) == 1
+    assert len(second_users) == 2
+
+
+def test_cli_rejects_continue_and_resume(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = main(
+        [
+            "exec",
+            "hi",
+            "--project-root",
+            str(tmp_path),
+            "--sessions-dir",
+            str(tmp_path / "sessions"),
+            "--continue",
+            "--resume",
+            "abc",
+        ],
+        provider=FakeProvider([]),
+    )
+
+    assert code == 2
+    assert "cannot be combined" in capsys.readouterr().err
