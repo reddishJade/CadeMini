@@ -21,7 +21,7 @@ from cade_mini.ai.types import StreamOptions, ToolDefinition
 from cade_mini.core.log import SessionLog
 from cade_mini.core.projection import project
 from cade_mini.core.request import Budget, Request, build, estimate
-from cade_mini.core.types import JsonValue, ToolCallBlock
+from cade_mini.core.types import JsonValue, ToolCallBlock, ToolResultMessage
 
 type Decision = Literal["allow", "deny", "ask"]
 type Termination = Literal[
@@ -187,6 +187,7 @@ async def run(
         for tool in tools
     )
 
+    _recover_tool_calls(log)
     log.append("user", {"text": text, "source": "user"})
     total_usage = {"input": 0, "output": 0}
     has_usage = False
@@ -366,6 +367,31 @@ async def run(
         last_answer,
         _usage(total_usage, has_usage),
     )
+
+
+def _recover_tool_calls(log: SessionLog) -> None:
+    """在新输入前持久化末尾的中断结果，不重试未知副作用。"""
+    branch = log.branch()
+    messages = project(branch)
+    completed = {
+        call_id
+        for entry in branch
+        if entry.type == "tool_result"
+        and isinstance(call_id := entry.data.get("call_id"), str)
+    }
+    for message in messages:
+        if isinstance(message, ToolResultMessage) and message.call_id not in completed:
+            log.append(
+                "tool_result",
+                {
+                    "call_id": message.call_id,
+                    "status": "interrupted",
+                    "content": (
+                        "Execution outcome unknown after process interruption. "
+                        "Inspect workspace before retrying."
+                    ),
+                },
+            )
 
 
 async def _execute_tool(

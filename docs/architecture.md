@@ -55,9 +55,11 @@ that still exceeds the budget is rejected rather than silently truncated.
 
 ## Run
 
-`run()` appends the user fact, calls the provider, appends assistant and
-tool-result facts, and executes tools. It is the only stage that writes during a
-turn. Compaction and window fallback are decisions expressed as new log facts.
+Before appending a new user fact, `run()` persists interrupted results for
+unfinished tool calls. It does not repeat tools whose outcome is unknown.
+It then calls the provider, appends assistant and tool-result facts, and executes
+tools. It is the only stage that writes during a turn. Compaction and window
+fallback are decisions expressed as new log facts.
 
 ## Package map
 

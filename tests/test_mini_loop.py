@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Literal
+
+import pytest
 
 from cade_mini.ai.events import (
     FinalMessage,
@@ -135,6 +138,87 @@ async def test_run_completes_without_tools(tmp_path: Path) -> None:
         "user",
         "assistant",
     ]
+
+
+@pytest.mark.parametrize("completed_count", [0, 1, 2])
+async def test_resume_persists_only_missing_tool_results(
+    tmp_path: Path, completed_count: int
+) -> None:
+    log = _log(tmp_path)
+    log.append("user", {"text": "old task"})
+    log.append(
+        "assistant",
+        {
+            "blocks": [
+                {"type": "tool_call", "id": call_id, "name": "echo", "args": {}}
+                for call_id in ("c1", "c2")
+            ]
+        },
+    )
+    for call_id in ("c1", "c2")[:completed_count]:
+        log.append(
+            "tool_result", {"call_id": call_id, "status": "ok", "content": "done"}
+        )
+    tool = EchoTool()
+    provider = FakeProvider([_text_response("resumed"), _text_response("again")])
+
+    for text in ("next task", "another task"):
+        result = await run(
+            SessionLog.open(log.path),
+            text,
+            provider=provider,
+            tools=(tool,),
+            budget=Budget(100_000),
+        )
+        assert result.termination == "completed"
+
+    branch = log.branch()
+    results = [entry for entry in branch if entry.type == "tool_result"]
+    assert [entry.data["call_id"] for entry in results] == ["c1", "c2"]
+    assert [entry.data["status"] for entry in results] == (
+        ["ok"] * completed_count + ["interrupted"] * (2 - completed_count)
+    )
+    next_user = next(entry for entry in branch if entry.data.get("text") == "next task")
+    assert branch.index(results[-1]) < branch.index(next_user)
+    assert tool.calls == []
+    project(branch)
+
+
+async def test_resume_does_not_repeat_unknown_tool_effect(tmp_path: Path) -> None:
+    class InterruptedTool(EchoTool):
+        async def execute(
+            self, call: ToolCallBlock, signal: CancellationToken | None = None
+        ) -> ToolResult:
+            self.calls.append(call)
+            (tmp_path / "effect.txt").write_text("effect happened", encoding="utf-8")
+            raise asyncio.CancelledError
+
+    log = _log(tmp_path)
+    tool = InterruptedTool()
+    with pytest.raises(asyncio.CancelledError):
+        await run(
+            log,
+            "do work",
+            provider=FakeProvider([_tool_response("c1")]),
+            tools=(tool,),
+            budget=Budget(100_000),
+        )
+
+    result = await run(
+        SessionLog.open(log.path),
+        "inspect work",
+        provider=FakeProvider([_text_response("resumed")]),
+        tools=(tool,),
+        budget=Budget(100_000),
+    )
+
+    assert result.termination == "completed"
+    assert len(tool.calls) == 1
+    assert (tmp_path / "effect.txt").read_text(encoding="utf-8") == "effect happened"
+    results = [entry for entry in log.branch() if entry.type == "tool_result"]
+    assert len(results) == 1
+    assert results[0].data["status"] == "interrupted"
+    project(log.branch())
 
 
 async def test_run_executes_tool_and_continues(tmp_path: Path) -> None:
