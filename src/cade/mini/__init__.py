@@ -14,6 +14,7 @@ from .loop import (
     run,
 )
 from .projection import project
+from .provider import ProviderConfig, build_provider
 from .request import Budget, BuildReport, Request, RequestTooLarge, build, estimate
 from .types import (
     AssistantMessage,
@@ -42,6 +43,7 @@ __all__ = [
     "MiniError",
     "Policy",
     "ProjectionError",
+    "ProviderConfig",
     "Request",
     "RequestTooLarge",
     "RunResult",
@@ -58,6 +60,7 @@ __all__ = [
     "ToolStartEvent",
     "UserMessage",
     "build",
+    "build_provider",
     "estimate",
     "project",
     "run",
