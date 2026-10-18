@@ -12,7 +12,7 @@ from uuid import uuid4
 
 import filelock
 
-from .types import EventType, JsonValue, LogEntry, LogError
+from cade.mini.core.types import EventType, JsonValue, LogEntry, LogError
 
 _SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _SESSION_FILE = re.compile(r"^session-([A-Za-z0-9][A-Za-z0-9_-]*)\.jsonl$")
@@ -110,6 +110,56 @@ class SessionLog:
                 os.fsync(stream.fileno())
             self._head = entry
             return entry
+
+    def copy_branch(
+        self,
+        sessions_dir: Path,
+        *,
+        before_entry_id: str | None = None,
+        drop_recent_users: int = 0,
+        project_root: Path | None = None,
+    ) -> SessionLog:
+        """把当前分支复制成新会话，可截断到某个 entry 或最近用户轮次之前。"""
+        branch = self.branch()
+        if before_entry_id is not None:
+            index = next(
+                (
+                    position
+                    for position, entry in enumerate(branch)
+                    if entry.id == before_entry_id
+                ),
+                None,
+            )
+            if index is None:
+                raise LogError(f"entry not found on branch: {before_entry_id}")
+            branch = branch[:index]
+        elif drop_recent_users > 0:
+            user_indices = [
+                position
+                for position, entry in enumerate(branch)
+                if entry.type == "user"
+            ]
+            if drop_recent_users >= len(user_indices):
+                branch = []
+            else:
+                branch = branch[: user_indices[-drop_recent_users]]
+        target = SessionLog.create(
+            sessions_dir,
+            project_root=project_root,
+        )
+        id_map: dict[str, str] = {}
+        for entry in branch:
+            if entry.type == "meta":
+                id_map[entry.id] = target.entries()[0].id
+                continue
+            data = dict(entry.data)
+            for key in ("first_kept_id", "start_id"):
+                value = data.get(key)
+                if isinstance(value, str) and value in id_map:
+                    data[key] = id_map[value]
+            copied = target.append(entry.type, data)
+            id_map[entry.id] = copied.id
+        return target
 
     def entries(self) -> list[LogEntry]:
         """读取全部已提交条目；忽略未换行的末尾残片。"""

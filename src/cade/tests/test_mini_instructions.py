@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cade.mini import load_project_instructions
+from cade.mini.app.instructions import load_project_instructions
 
 
 def test_agents_override_wins(tmp_path: Path) -> None:

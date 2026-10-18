@@ -9,8 +9,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from cade.ai.types import StreamOptions, ToolDefinition
-
-from .types import (
+from cade.mini.core.types import (
     AssistantMessage,
     Message,
     SummaryMessage,

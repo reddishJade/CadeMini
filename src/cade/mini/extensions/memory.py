@@ -6,9 +6,9 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from .loop import CancellationToken, ToolResult
-from .tools import _text_arg
-from .types import ToolCallBlock
+from cade.mini.core.loop import CancellationToken, ToolResult
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.tools.workspace import _text_arg
 
 MEMORY_NAME = "MEMORY.md"
 MAX_MEMORY_BYTES = 32 * 1024

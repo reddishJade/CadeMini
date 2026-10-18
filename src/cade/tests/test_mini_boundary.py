@@ -37,3 +37,10 @@ def test_mini_imports_stay_inside_allowed_layers() -> None:
                     violations.append((path.as_posix(), name))
 
     assert not violations, violations
+
+def test_package_has_no_public_reexports() -> None:
+    import cade.mini as package
+
+    assert not hasattr(package, "__all__")
+    assert not hasattr(package, "SessionLog")
+    assert not hasattr(package, "build_tools")

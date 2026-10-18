@@ -19,8 +19,8 @@ process restarts without inventing history.
   pipeline.
 - [Sessions and context](sessions-context.md) covers resume, compaction,
   pruning, and history retrieval.
-- [Tools and security](tools-security.md) covers modes, rules, grants, shell
-  analysis, and the sandbox.
+- [Tools and security](tools-security.md) covers modes, rules, grants, and shell
+  analysis.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
 - [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
 - [Hooks, MCP, and subagents](hooks-mcp-subagents.md) covers extensions.
@@ -41,6 +41,8 @@ process restarts without inventing history.
 - [Configuration catalog](design/config-catalog.md) and
   [event catalog](design/event-catalog.md) are generated references.
 - [Tool catalog](design/tool-catalog.md) lists the built-in tools.
+- [MCP reference servers](design/mcp-reference.md) lists the supported server
+  pattern.
 - [Module graph](design/module-graph.md) is generated from imports.
 - [Persistence catalog](design/persistence-catalog.md) maps every artifact.
 - [Glossary](design/glossary.md) defines the vocabulary.

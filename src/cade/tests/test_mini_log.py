@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from cade.mini import LogError, SessionLog, list_sessions, session_title
+from cade.mini.core.log import SessionLog, list_sessions, session_title
+from cade.mini.core.types import LogError
 
 
 def _sessions(tmp_path: Path) -> Path:
@@ -153,3 +154,57 @@ def test_list_sessions_skips_corrupt_files(tmp_path: Path) -> None:
     infos = list_sessions(sessions)
 
     assert [info.id for info in infos] == ["valid"]
+
+
+def test_copy_branch_fork_clone_and_rewind(tmp_path: Path) -> None:
+    log = SessionLog.create(
+        _sessions(tmp_path), session_id="source", project_root=tmp_path
+    )
+    log.append("system", {"text": "sys"})
+    log.append("user", {"text": "one", "source": "user"})
+    log.append(
+        "assistant",
+        {
+            "blocks": [{"type": "text", "text": "a1"}],
+            "model": "m",
+            "provider": "p",
+            "usage": None,
+            "provider_state": None,
+        },
+    )
+    second = log.append("user", {"text": "two", "source": "user"})
+    log.append(
+        "assistant",
+        {
+            "blocks": [{"type": "text", "text": "a2"}],
+            "model": "m",
+            "provider": "p",
+            "usage": None,
+            "provider_state": None,
+        },
+    )
+
+    forked = log.copy_branch(
+        _sessions(tmp_path), before_entry_id=second.id, project_root=tmp_path
+    )
+    assert [entry.type for entry in forked.branch()] == [
+        "meta",
+        "system",
+        "user",
+        "assistant",
+    ]
+    assert "two" not in [entry.data.get("text") for entry in forked.branch()]
+
+    cloned = log.copy_branch(_sessions(tmp_path), project_root=tmp_path)
+    assert [entry.type for entry in cloned.branch()][-1] == "assistant"
+    assert cloned.session_id != log.session_id
+
+    rewound = log.copy_branch(
+        _sessions(tmp_path), drop_recent_users=1, project_root=tmp_path
+    )
+    assert [entry.type for entry in rewound.branch()] == [
+        "meta",
+        "system",
+        "user",
+        "assistant",
+    ]

@@ -8,7 +8,9 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from cade.mini import RunResult, SessionLog, WebHost
+from cade.mini.core.log import SessionLog
+from cade.mini.core.loop import RunResult
+from cade.mini.hosts.web import WebHost
 
 
 def _run(host: WebHost) -> tuple[ThreadingHTTPServer, threading.Thread]:

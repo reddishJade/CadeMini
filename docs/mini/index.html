@@ -58,6 +58,7 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <a href="#page-event-catalog">Event catalog</a>
 <a href="#page-module-graph">Module graph</a>
 <a href="#page-tool-catalog">Tool catalog</a>
+<a href="#page-mcp-reference">MCP reference servers</a>
 <a href="#page-persistence-catalog">Persistence catalog</a>
 <a href="#page-glossary">Glossary</a>
 <a href="#page-testing">Testing</a>
@@ -119,8 +120,8 @@ process restarts without inventing history.</p>
 pipeline.</li>
 <li><a href="#page-sessions-context">Sessions and context</a> covers resume, compaction,
 pruning, and history retrieval.</li>
-<li><a href="#page-tools-security">Tools and security</a> covers modes, rules, grants, shell
-analysis, and the sandbox.</li>
+<li><a href="#page-tools-security">Tools and security</a> covers modes, rules, grants, and shell
+analysis.</li>
 <li><a href="#page-snapshots-goals">Snapshots and goals</a> covers undo and durable objectives.</li>
 <li><a href="#page-skills-memory">Skills and memory</a> covers <code>SKILL.md</code> and <code>MEMORY.md</code>.</li>
 <li><a href="#page-hooks-mcp-subagents">Hooks, MCP, and subagents</a> covers extensions.</li>
@@ -141,6 +142,8 @@ contracts.</li>
 <li><a href="#page-config-catalog">Configuration catalog</a> and
 <a href="#page-event-catalog">event catalog</a> are generated references.</li>
 <li><a href="#page-tool-catalog">Tool catalog</a> lists the built-in tools.</li>
+<li><a href="#page-mcp-reference">MCP reference servers</a> lists the supported server
+pattern.</li>
 <li><a href="#page-module-graph">Module graph</a> is generated from imports.</li>
 <li><a href="#page-persistence-catalog">Persistence catalog</a> maps every artifact.</li>
 <li><a href="#page-glossary">Glossary</a> defines the vocabulary.</li>
@@ -266,8 +269,9 @@ defaults.</li>
 <li><code>--auto-review</code> / <code>--no-auto-review</code> lets the model review ask-level calls.</li>
 <li><code>--max-steps N</code> bounds model steps.</li>
 <li><code>--context-window N</code> overrides the model context window.</li>
-<li><code>--sandbox off|workspace|strict</code> selects the Linux bubblewrap policy.</li>
 <li><code>--json</code> emits JSONL events for a one-shot task.</li>
+<li><code>--steer TEXT</code> injects guidance at the next model step; repeatable.</li>
+<li><code>--queue TEXT</code> queues a task to run after the current task; repeatable.</li>
 </ul>
 <h2>Sessions</h2>
 <ul>
@@ -290,16 +294,33 @@ provider.</li>
 <ul>
 <li><code>/new</code> starts a new session.</li>
 <li><code>/resume [ID]</code> resumes the latest or a specific session.</li>
+<li><code>/sessions</code> lists project sessions.</li>
+<li><code>/fork [N|ENTRY]</code> forks before a recent user turn or entry. <code>N=1</code> is the latest.</li>
+<li><code>/clone</code> copies the current branch to a new session.</li>
+<li><code>/tree</code> shows entries; <code>*</code> marks the active branch.</li>
+<li><code>/rewind [N]</code> creates a session without the latest N user turns.</li>
 <li><code>/compact</code> summarizes older turns.</li>
 <li><code>/new-context [NOTE]</code> starts a new window, optionally with a handoff note.</li>
 <li><code>/mode [MODE]</code> shows or switches the execution mode.</li>
 <li><code>/permissions [clear]</code> shows or clears session grants.</li>
-<li><code>/undo</code> restores the latest snapshot.</li>
+<li><code>/undo [N]</code> restores the latest N snapshots.</li>
 <li><code>/goal [TEXT|done|clear]</code> shows, sets, completes, or clears the goal.</li>
 <li><code>/context</code> prints the session ID, provider, budget, and event count.</li>
+<li><code>/steer TEXT</code> queues guidance for the next model step.</li>
+<li><code>/queue TEXT</code> queues a task to run after the current one.</li>
 <li><code>/help</code> prints the command list.</li>
 <li><code>/exit</code> or <code>/quit</code> exits.</li>
 </ul>
+<h2>REPL input</h2>
+<ul>
+<li><code>@path</code> attaches a workspace file to the task.</li>
+<li><code>$skill</code> loads a skill body into the task.</li>
+<li><code>!command</code> runs a shell command without contacting the model. Permission
+checks still apply.</li>
+</ul>
+<pre><code class="language-text">Review @src/cade/mini/core/loop.py and use $review-only
+!git status
+</code></pre>
 <h2>Exit codes</h2>
 <ul>
 <li><code>0</code>: the run completed.</li>
@@ -339,7 +360,6 @@ silently ignored.</p>
   &quot;memory&quot;: true,
   &quot;auto_review&quot;: false,
   &quot;prompt_modules&quot;: [&quot;identity&quot;, &quot;tool_discipline&quot;, &quot;working_note&quot;, &quot;environment&quot;],
-  &quot;sandbox&quot;: &quot;workspace&quot;,
   &quot;rules&quot;: [
     {
       &quot;tool&quot;: &quot;bash&quot;,
@@ -366,9 +386,6 @@ root.</li>
 <li><code>auto_review</code>: let the model review ask-level tool calls. Default is false.</li>
 <li><code>prompt_modules</code>: system prompt modules. Available names are <code>identity</code>,
 <code>tool_discipline</code>, <code>working_note</code>, and <code>environment</code>.</li>
-<li><code>sandbox</code>: <code>off</code>, <code>workspace</code>, or <code>strict</code>. The OS sandbox is implemented on
-Linux with bubblewrap; other hosts keep path, mode, shell, and approval
-checks.</li>
 </ul>
 <h2>Rules</h2>
 <p>Rules are evaluated last match first. A rule matches a tool name or <code>*</code>, and
@@ -469,22 +486,27 @@ tool-result facts, and executes tools. It is the only stage that writes during a
 turn. Compaction and window fallback are decisions expressed as new log facts.</p>
 <h2>Package map</h2>
 <ul>
-<li><code>types.py</code>: log, message, block, and error types.</li>
-<li><code>log.py</code>: append, lock, tail repair, session listing.</li>
-<li><code>projection.py</code>: deterministic conversation projection.</li>
-<li><code>request.py</code>: budget, admission, wire conversion.</li>
-<li><code>loop.py</code>: provider stream, tool execution, retries, facts.</li>
-<li><code>compaction.py</code> and <code>window.py</code>: context reduction decisions.</li>
-<li><code>tools.py</code>, <code>policy.py</code>, <code>shell.py</code>, <code>sandbox.py</code>: workspace tools and safety.</li>
-<li><code>skills.py</code>, <code>memory.py</code>, <code>note.py</code>, <code>instructions.py</code>, <code>goal.py</code>: request
-context and durable state.</li>
-<li><code>hooks.py</code>, <code>mcp.py</code>, <code>subagents.py</code>: extension mechanisms.</li>
-<li><code>snapshots.py</code>, <code>approval.py</code>, <code>review.py</code>: recovery and approvals.</li>
-<li><code>cli.py</code>, <code>web.py</code>, <code>docs.py</code>: hosts and documentation.</li>
+<li><code>core/types.py</code>: log, message, block, and error types.</li>
+<li><code>core/log.py</code>: append, lock, tail repair, session listing, copy/fork.</li>
+<li><code>core/projection.py</code>: deterministic conversation projection.</li>
+<li><code>core/request.py</code>: budget, admission, wire conversion.</li>
+<li><code>core/loop.py</code>: provider stream, tool execution, retries, facts.</li>
+<li><code>core/compaction.py</code> and <code>core/window.py</code>: context reduction decisions.</li>
+<li><code>tools/workspace.py</code>, <code>tools/history.py</code>: workspace tools and evidence
+retrieval.</li>
+<li><code>safety/policy.py</code>, <code>safety/shell.py</code>, <code>safety/grants.py</code>,
+<code>safety/approval.py</code>, <code>safety/review.py</code>: permissions and approvals.</li>
+<li><code>extensions/skills.py</code>, <code>extensions/memory.py</code>, <code>extensions/hooks.py</code>,
+<code>extensions/mcp.py</code>, <code>extensions/subagents.py</code>, <code>extensions/snapshots.py</code>,
+<code>extensions/goal.py</code>: add-ons and durable host state.</li>
+<li><code>app/config.py</code>, <code>app/provider.py</code>, <code>app/auth.py</code>, <code>app/prompts.py</code>,
+<code>app/instructions.py</code>, <code>app/note.py</code>: startup and request context.</li>
+<li><code>hosts/cli.py</code>, <code>hosts/web.py</code>, <code>docs.py</code>: hosts and documentation.</li>
 </ul>
 <p>The Mini package imports only <code>cade.ai</code> and
 <code>cade.harness.execution_env</code> from the rest of Cade. It does not import the Cade
-agent, product, or server layers. <code>test_mini_boundary.py</code> enforces this firewall.</p>
+agent, product, or server layers. <code>test_mini_boundary.py</code> enforces this firewall.
+There are no top-level re-exports; import the owning submodule directly.</p>
 <h2>Why the split</h2>
 <p>The split prevents a common failure: the request builder starts hiding
 messages, then the history rewrite becomes the only copy of what happened. Mini
@@ -505,6 +527,17 @@ cade-mini --resume SESSION_ID &quot;Explain the current state.&quot;
 <p><code>--continue</code> and <code>--resume</code> open the latest or a specific session. Existing
 sessions keep their original system fact; a new <code>cade-mini.json</code> does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.</p>
+<h2>Fork, clone, tree, and rewind</h2>
+<ul>
+<li><code>/clone</code> copies the active branch into a new session.</li>
+<li><code>/fork [N|ENTRY]</code> copies history before a user turn (default: latest) into a
+new session and prints the forked input.</li>
+<li><code>/tree</code> lists entries; <code>*</code> marks the active branch.</li>
+<li><code>/rewind [N]</code> creates a new session without the latest N user turns.</li>
+<li><code>/undo [N]</code> restores the latest N file snapshots.</li>
+</ul>
+<p>These operations create new sessions; they do not rewrite the original file.
+Compaction and window references are remapped when entries are copied.</p>
 <h2>Compaction</h2>
 <p>When the full conversation exceeds the input budget, <code>Compactor</code>:</p>
 <ol>
@@ -589,9 +622,9 @@ session. Each extension is a narrow adapter over the loop, not a change to the
 session schema.</p>
 <h2>Trust and permissions</h2>
 <p>Every tool call passes through a policy. Modes, static rules, session grants,
-shell classification, and approvals decide whether a call runs. On Linux a
-bubblewrap sandbox can confine shell commands; on other hosts the path boundary,
-mode, shell classification, and approvals remain active.</p>
+shell classification, and approvals decide whether a call runs. Cade Mini has
+no OS sandbox; the path boundary, mode, shell classification, and approvals are
+the active safety layer.</p>
 <p>See <a href="../architecture.md">Architecture</a> for the invariant and
 <a href="capability-seams.md">Capability seams</a> for the contracts.</p>
 
@@ -612,13 +645,12 @@ mode, shell classification, and approvals remain active.</p>
 shares only two lower layers with Cade:</p>
 <ul>
 <li><code>cade.ai</code>: provider streaming, model resolution, credentials, usage.</li>
-<li><code>cade.harness.execution_env</code>: subprocess execution and the optional
-bubblewrap sandbox.</li>
+<li><code>cade.harness.execution_env</code>: subprocess execution.</li>
 </ul>
-<p><code>test_mini_boundary.py</code> enforces that Mini does not import <code>cade.agent</code>,
-<code>cade.harness</code> session/policy modules, <code>cade.coding_agent</code>, or <code>cade.server</code>.
-Mini owns its own log, projection, request builder, loop, tools, policy, and
-hosts.</p>
+<p>There is no OS sandbox in Mini. <code>test_mini_boundary.py</code> enforces that Mini does
+not import <code>cade.agent</code>, <code>cade.harness</code> session/policy modules,
+<code>cade.coding_agent</code>, or <code>cade.server</code>. Mini owns its own log, projection, request
+builder, loop, tools, policy, and hosts.</p>
 <h2>Can it start on its own?</h2>
 <p>Yes, at runtime:</p>
 <pre><code class="language-bash">uv run --locked cade-mini
@@ -627,7 +659,7 @@ uv run --locked python -m cade.mini
 uv run --locked cade-mini --web --port 8765
 </code></pre>
 <p>The <code>cade-mini</code> console script and <code>python -m cade.mini</code> both call
-<code>cade.mini.cli:main</code>. The terminal, web, sessions, snapshots, goals, and
+<code>cade.mini.hosts.cli:main</code>. The terminal, web, sessions, snapshots, goals, and
 extensions are Mini code.</p>
 <p>It is <strong>not</strong> a standalone distribution:</p>
 <ul>
@@ -638,81 +670,67 @@ extensions are Mini code.</p>
 </ul>
 <p>So &quot;standalone&quot; means a separate entry point and runtime surface, not a separate
 wheel or repository.</p>
-<h2>Current module layout</h2>
-<p>The package is deliberately flat. Each module owns one responsibility, but the
-layer is not visible in the filename.</p>
+<h2>Module layout</h2>
+<p>The package is grouped by layer. <code>cade.mini</code> has no public re-exports and no
+<code>cade.mini.cli</code> compatibility module; import the owning submodule directly.</p>
+<pre><code class="language-text">src/cade/mini/
+  core/        types, log, projection, request, loop, compaction, window
+  tools/       workspace, history
+  safety/      policy, shell, grants, approval, review
+  extensions/  skills, memory, hooks, mcp, subagents, snapshots, goal
+  hosts/       cli, web
+  app/         config, provider, auth, prompts, instructions, note
+  docs.py
+  __main__.py
+</code></pre>
 <table>
 <thead>
 <tr>
 <th>Group</th>
-<th>Modules</th>
 <th style="text-align:right">Approx. lines</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Core pipeline</td>
-<td><code>types</code>, <code>log</code>, <code>projection</code>, <code>request</code>, <code>loop</code>, <code>compaction</code>, <code>window</code></td>
-<td style="text-align:right">1,680</td>
+<td style="text-align:right">1,741</td>
 </tr>
 <tr>
-<td>Workspace tools</td>
-<td><code>tools</code>, <code>history</code></td>
-<td style="text-align:right">617</td>
+<td>Tools and history</td>
+<td style="text-align:right">615</td>
 </tr>
 <tr>
 <td>Safety</td>
-<td><code>policy</code>, <code>shell</code>, <code>grants</code>, <code>approval</code>, <code>review</code>, <code>sandbox</code></td>
-<td style="text-align:right">444</td>
+<td style="text-align:right">415</td>
 </tr>
 <tr>
 <td>Extensions</td>
-<td><code>skills</code>, <code>memory</code>, <code>hooks</code>, <code>mcp</code>, <code>subagents</code>, <code>snapshots</code>, <code>goal</code></td>
-<td style="text-align:right">852</td>
+<td style="text-align:right">966</td>
 </tr>
 <tr>
 <td>Hosts and docs</td>
-<td><code>cli</code>, <code>web</code>, <code>docs</code></td>
-<td style="text-align:right">1,493</td>
+<td style="text-align:right">1,693</td>
 </tr>
 <tr>
 <td>App plumbing</td>
-<td><code>config</code>, <code>provider</code>, <code>auth</code>, <code>prompts</code>, <code>instructions</code>, <code>note</code></td>
 <td style="text-align:right">353</td>
-</tr>
-<tr>
-<td>Entry</td>
-<td><code>__init__</code>, <code>__main__</code></td>
-<td style="text-align:right">146</td>
 </tr>
 </tbody>
 </table>
-<p>The largest files are <code>docs.py</code> (27 KB), <code>cli.py</code> (22 KB), <code>loop.py</code> (19 KB), and
-<code>tools.py</code> (18 KB). The core pipeline is about 1,700 lines.</p>
-<h2>Why it is flat</h2>
+<p>The largest files are <code>hosts/cli.py</code>, <code>docs.py</code>, <code>core/loop.py</code>, and
+<code>tools/workspace.py</code>.</p>
+<h2>Import direction</h2>
 <ul>
-<li>The package is small enough to inspect in one directory.</li>
-<li>Cross-layer imports are easy to see and the import firewall is explicit.</li>
-<li>Moving modules changes public import paths, the console script target, and
-tests. That should be a dedicated refactor, not a side effect of a feature
-change.</li>
+<li><code>core</code> imports only <code>core</code> and <code>cade.ai</code>.</li>
+<li><code>tools</code> imports <code>core</code>, <code>safety.shell</code>, and <code>extensions.snapshots</code>.</li>
+<li><code>safety</code> imports <code>core</code>, <code>app.config</code>, and <code>tools.workspace</code>.</li>
+<li><code>extensions</code> imports <code>core</code>, <code>app</code>, <code>tools</code>, and <code>safety</code>.</li>
+<li><code>hosts</code> imports every layer; nothing imports <code>hosts</code>.</li>
+<li><code>app</code> imports provider/auth only; it does not import the loop.</li>
 </ul>
-<p>The cost is that a reader cannot tell core from extensions without opening
-files. A documented map, not a filesystem move, fixes that for now.</p>
-<h2>Target layout if we group it</h2>
-<pre><code class="language-text">src/cade/mini/
-  core/        types, log, projection, request, loop, compaction, window
-  tools/       tools, history
-  safety/      policy, shell, grants, approval, review, sandbox
-  extensions/  skills, memory, hooks, mcp, subagents, snapshots, goal
-  hosts/       cli, web
-  app/         config, provider, auth, prompts, instructions, note
-  docs.py
-</code></pre>
-<p>A pure move would keep <code>cade.mini.__init__</code> re-exports and a <code>cade.mini.cli</code>
-compatibility module so <code>cade-mini</code> and existing imports keep working. It would
-update relative imports, tests that import implementation modules directly, and
-the entry point. Behavior would not change.</p>
+<p>The entry point is <code>hosts.cli</code>, not a compatibility module. Tests import the
+owning module, for example <code>cade.mini.core.log.SessionLog</code> or
+<code>cade.mini.tools.workspace.build_tools</code>.</p>
 <h2>Reading order</h2>
 <p>Start with <a href="how-it-works.md">How Cade Mini works</a>, then
 <a href="../architecture.md">Architecture</a>, then <a href="capability-seams.md">Capability
@@ -740,27 +758,27 @@ execution layers. The rest is independent.</p>
 <tr>
 <td>Python files</td>
 <td style="text-align:right">221</td>
-<td style="text-align:right">33</td>
+<td style="text-align:right">38</td>
 </tr>
 <tr>
 <td>Product lines</td>
 <td style="text-align:right">41,810</td>
-<td style="text-align:right">5,585</td>
+<td style="text-align:right">5,833</td>
 </tr>
 <tr>
 <td>Test files</td>
 <td style="text-align:right">33</td>
-<td style="text-align:right">31</td>
+<td style="text-align:right">30</td>
 </tr>
 <tr>
 <td>Test lines</td>
 <td style="text-align:right">6,115</td>
-<td style="text-align:right">3,584</td>
+<td style="text-align:right">3,683</td>
 </tr>
 <tr>
 <td>Mini share of product code</td>
 <td style="text-align:right">—</td>
-<td style="text-align:right">13.4%</td>
+<td style="text-align:right">14.0%</td>
 </tr>
 </tbody>
 </table>
@@ -804,8 +822,8 @@ subagents, snapshots, goals, docs, CLI, and web host.</p>
 <tr>
 <td>Sessions</td>
 <td>Tree, fork, clone, rewind, artifacts, inbox, steering</td>
-<td>Append-only tree, resume/list, active branch</td>
-<td>Gap</td>
+<td>Tree, fork, clone, rewind, resume/list, undo-N; no artifacts or steering</td>
+<td>Difference</td>
 </tr>
 <tr>
 <td>Context</td>
@@ -816,7 +834,7 @@ subagents, snapshots, goals, docs, CLI, and web host.</p>
 <tr>
 <td>Tools</td>
 <td>read/edit/write/grep/glob/find/ls/bash, websearch/webfetch, question, delegate, history, save_memory</td>
-<td>Six workspace tools plus history, skill, memory, goal, subagent, MCP</td>
+<td>Six workspace tools plus history, skill, memory, goal, subagent, delegate, MCP</td>
 <td>Gap</td>
 </tr>
 <tr>
@@ -834,19 +852,25 @@ subagents, snapshots, goals, docs, CLI, and web host.</p>
 <tr>
 <td>Permissions</td>
 <td>Rule DSL, permanent/session grants, TUI approvals, sandbox</td>
-<td>Modes, static rules, session grants, shell analysis, Linux sandbox</td>
+<td>Modes, static rules, session grants, shell analysis; no OS sandbox</td>
 <td>Difference</td>
 </tr>
 <tr>
 <td>Extensions</td>
 <td>MCP lifecycle, skills, memory, hooks, subagents</td>
-<td>Persistent stdio MCP, skills, memory, hooks, subagents</td>
+<td>Persistent stdio MCP, skills, memory, hooks, subagents, delegate</td>
 <td>Difference</td>
 </tr>
 <tr>
 <td>Automation</td>
 <td>exec JSONL, RPC, SDK, web</td>
 <td><code>--json</code> events, web JSON API</td>
+<td>Gap</td>
+</tr>
+<tr>
+<td>Input</td>
+<td>TUI steering, queue, @ references, <code>!</code> shell, <code>$</code> skills</td>
+<td>REPL @ files, <code>!</code> shell, <code>$</code> skills; no mid-run queue</td>
 <td>Gap</td>
 </tr>
 <tr>
@@ -873,6 +897,8 @@ subagents, snapshots, goals, docs, CLI, and web host.</p>
 <li>No permanent grants. Durable policy belongs in config rules.</li>
 <li>No parallel tool scheduler. Calls run sequentially to keep policy and logging
 simple.</li>
+<li>No OS sandbox. Mini relies on path boundaries, modes, shell classification,
+and approvals.</li>
 </ul>
 <h2>Gaps that matter for parity</h2>
 <p>These are behaviors Cade users may rely on:</p>
@@ -886,7 +912,9 @@ capable.</li>
 prefixes.</li>
 <li>MCP resources, prompts, and server-initiated requests. Mini implements
 initialize, list, and call.</li>
-<li>Non-Linux OS sandbox. Mini relies on policy and approvals there.</li>
+<li>Mid-run steering and queueing. Mini has a loop steering hook and <code>--steer</code> /
+<code>/steer</code> and <code>--queue</code> / <code>/queue</code>; the terminal host does not yet read input
+concurrently while a task is running.</li>
 </ul>
 <h2>How to choose</h2>
 <p>Use Cade when you need the full terminal product, branching, web research,
@@ -1248,11 +1276,6 @@ and window fallback.</li>
 <td><code>dict[str, McpServerConfig]</code></td>
 <td><code>required</code></td>
 </tr>
-<tr>
-<td><code>sandbox</code></td>
-<td><code>off | workspace | strict</code></td>
-<td><code>&quot;workspace&quot;</code></td>
-</tr>
 </tbody>
 </table>
 <h2>HookConfig</h2>
@@ -1428,90 +1451,89 @@ and window fallback.</li>
 <section class="page" id="page-module-graph" data-title="Module graph">
 <p>&lt;!-- Generated by <code>python -m cade.mini.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
 <h1>Module graph</h1>
-<p>Relative imports inside <code>src/cade/mini/</code>.</p>
+<p>Absolute imports inside <code>src/cade/mini/</code>.</p>
 <pre><code class="language-mermaid">flowchart LR
-  __main__ --&gt; cli
-  approval --&gt; grants
-  approval --&gt; types
-  cli --&gt; approval
-  cli --&gt; compaction
-  cli --&gt; config
-  cli --&gt; goal
-  cli --&gt; grants
-  cli --&gt; history
-  cli --&gt; hooks
-  cli --&gt; instructions
-  cli --&gt; log
-  cli --&gt; loop
-  cli --&gt; mcp
-  cli --&gt; memory
-  cli --&gt; note
-  cli --&gt; policy
-  cli --&gt; projection
-  cli --&gt; prompts
-  cli --&gt; provider
-  cli --&gt; request
-  cli --&gt; review
-  cli --&gt; sandbox
-  cli --&gt; skills
-  cli --&gt; snapshots
-  cli --&gt; subagents
-  cli --&gt; tools
-  cli --&gt; types
-  cli --&gt; web
-  cli --&gt; window
-  compaction --&gt; log
-  compaction --&gt; loop
-  compaction --&gt; projection
-  compaction --&gt; request
-  compaction --&gt; types
-  goal --&gt; loop
-  goal --&gt; tools
-  goal --&gt; types
-  grants --&gt; types
-  history --&gt; log
-  history --&gt; loop
-  history --&gt; tools
-  history --&gt; types
-  hooks --&gt; config
-  hooks --&gt; types
-  log --&gt; types
-  loop --&gt; log
-  loop --&gt; projection
-  loop --&gt; request
-  loop --&gt; types
-  mcp --&gt; config
-  mcp --&gt; loop
-  mcp --&gt; types
-  memory --&gt; loop
-  memory --&gt; tools
-  memory --&gt; types
-  policy --&gt; config
-  policy --&gt; grants
-  policy --&gt; loop
-  policy --&gt; shell
-  policy --&gt; tools
-  policy --&gt; types
-  projection --&gt; types
-  provider --&gt; auth
-  request --&gt; types
-  review --&gt; loop
-  skills --&gt; loop
-  skills --&gt; tools
-  skills --&gt; types
-  subagents --&gt; history
-  subagents --&gt; log
-  subagents --&gt; loop
-  subagents --&gt; request
-  subagents --&gt; tools
-  subagents --&gt; types
-  tools --&gt; loop
-  tools --&gt; shell
-  tools --&gt; snapshots
-  tools --&gt; types
-  web --&gt; log
-  web --&gt; loop
-  window --&gt; log
+  app_provider --&gt; app_auth
+  core_compaction --&gt; core_log
+  core_compaction --&gt; core_loop
+  core_compaction --&gt; core_projection
+  core_compaction --&gt; core_request
+  core_compaction --&gt; core_types
+  core_log --&gt; core_types
+  core_loop --&gt; core_log
+  core_loop --&gt; core_projection
+  core_loop --&gt; core_request
+  core_loop --&gt; core_types
+  core_projection --&gt; core_types
+  core_request --&gt; core_types
+  core_window --&gt; core_log
+  extensions_goal --&gt; core_loop
+  extensions_goal --&gt; core_types
+  extensions_goal --&gt; tools_workspace
+  extensions_hooks --&gt; app_config
+  extensions_hooks --&gt; core_types
+  extensions_mcp --&gt; app_config
+  extensions_mcp --&gt; core_loop
+  extensions_mcp --&gt; core_types
+  extensions_memory --&gt; core_loop
+  extensions_memory --&gt; core_types
+  extensions_memory --&gt; tools_workspace
+  extensions_skills --&gt; core_loop
+  extensions_skills --&gt; core_types
+  extensions_skills --&gt; tools_workspace
+  extensions_subagents --&gt; core_log
+  extensions_subagents --&gt; core_loop
+  extensions_subagents --&gt; core_request
+  extensions_subagents --&gt; core_types
+  extensions_subagents --&gt; safety_policy
+  extensions_subagents --&gt; tools_history
+  extensions_subagents --&gt; tools_workspace
+  hosts_cli --&gt; app_config
+  hosts_cli --&gt; app_instructions
+  hosts_cli --&gt; app_note
+  hosts_cli --&gt; app_prompts
+  hosts_cli --&gt; app_provider
+  hosts_cli --&gt; core_compaction
+  hosts_cli --&gt; core_log
+  hosts_cli --&gt; core_loop
+  hosts_cli --&gt; core_projection
+  hosts_cli --&gt; core_request
+  hosts_cli --&gt; core_types
+  hosts_cli --&gt; core_window
+  hosts_cli --&gt; extensions_goal
+  hosts_cli --&gt; extensions_hooks
+  hosts_cli --&gt; extensions_mcp
+  hosts_cli --&gt; extensions_memory
+  hosts_cli --&gt; extensions_skills
+  hosts_cli --&gt; extensions_snapshots
+  hosts_cli --&gt; extensions_subagents
+  hosts_cli --&gt; hosts_web
+  hosts_cli --&gt; safety_approval
+  hosts_cli --&gt; safety_grants
+  hosts_cli --&gt; safety_policy
+  hosts_cli --&gt; safety_review
+  hosts_cli --&gt; tools_history
+  hosts_cli --&gt; tools_workspace
+  hosts_web --&gt; core_log
+  hosts_web --&gt; core_loop
+  safety_approval --&gt; core_types
+  safety_approval --&gt; safety_grants
+  safety_grants --&gt; core_types
+  safety_policy --&gt; app_config
+  safety_policy --&gt; core_loop
+  safety_policy --&gt; core_types
+  safety_policy --&gt; safety_grants
+  safety_policy --&gt; safety_shell
+  safety_policy --&gt; tools_workspace
+  safety_review --&gt; core_loop
+  tools_history --&gt; core_log
+  tools_history --&gt; core_loop
+  tools_history --&gt; core_types
+  tools_history --&gt; tools_workspace
+  tools_workspace --&gt; core_loop
+  tools_workspace --&gt; core_types
+  tools_workspace --&gt; extensions_snapshots
+  tools_workspace --&gt; safety_shell
 </code></pre>
 
 </section>
@@ -1596,6 +1618,12 @@ and window fallback.</li>
 <td>Allow; hidden in plan</td>
 </tr>
 <tr>
+<td><code>delegate</code></td>
+<td><code>prompt</code> or <code>tasks</code>, <code>mode</code>, <code>description</code></td>
+<td>Creates one or more child sessions</td>
+<td>Allow</td>
+</tr>
+<tr>
 <td><code>mcp__*</code></td>
 <td>Server-defined</td>
 <td>Remote side effects</td>
@@ -1619,6 +1647,94 @@ navigation aid; when it disagrees with the tool schema, the schema wins.</p>
 <li><a href="../tools-security.md">Tools and security</a></li>
 <li><a href="../design/tool-execution.md">Tool execution</a></li>
 <li><a href="config-catalog.md">Configuration catalog</a></li>
+</ul>
+
+</section>
+<section class="page" id="page-mcp-reference" data-title="MCP reference servers">
+<h1>MCP reference servers</h1>
+<p>Cade Mini implements stdio <code>initialize</code>, <code>tools/list</code>, and <code>tools/call</code> with a
+persistent connection per server. That is enough for the reference servers that
+expose tools.</p>
+<h2>Verified servers</h2>
+<table>
+<thead>
+<tr>
+<th>Server</th>
+<th>Command</th>
+<th>Verified</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Filesystem</td>
+<td><code>npx -y @modelcontextprotocol/server-filesystem &lt;dir&gt;</code></td>
+<td>Discovery and <code>read_text_file</code></td>
+</tr>
+<tr>
+<td>Memory</td>
+<td><code>npx -y @modelcontextprotocol/server-memory</code></td>
+<td>Discovery of entity tools</td>
+</tr>
+<tr>
+<td>Sequential Thinking</td>
+<td><code>npx -y @modelcontextprotocol/server-sequential-thinking</code></td>
+<td>Discovery of <code>sequentialthinking</code></td>
+</tr>
+<tr>
+<td>Time</td>
+<td><code>uvx mcp-server-time</code></td>
+<td>Discovery and <code>get_current_time</code></td>
+</tr>
+<tr>
+<td>Fetch</td>
+<td><code>uvx mcp-server-fetch</code></td>
+<td>Server starts and lists tools</td>
+</tr>
+</tbody>
+</table>
+<p>On Windows, run npm servers through <code>cmd /c</code>:</p>
+<pre><code class="language-json">{
+  &quot;mcp_servers&quot;: {
+    &quot;time&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [&quot;mcp-server-time&quot;]
+    },
+    &quot;fs&quot;: {
+      &quot;command&quot;: &quot;cmd&quot;,
+      &quot;args&quot;: [
+        &quot;/c&quot;, &quot;npx&quot;, &quot;-y&quot;,
+        &quot;@modelcontextprotocol/server-filesystem&quot;,
+        &quot;C:/path/to/workspace&quot;
+      ]
+    }
+  }
+}
+</code></pre>
+<p>On POSIX use <code>npx</code> directly. The Git server needs its repository flag, for
+example <code>--repository &lt;path&gt;</code>; pass the exact arguments the server expects.</p>
+<h2>Capability boundary</h2>
+<p>The reference servers above are tool servers. Cade Mini does not implement MCP
+resources, prompts, sampling, or server-initiated requests. A server that relies
+on those features will start but expose only its tools.</p>
+<h2>Policy</h2>
+<p>MCP tools are named <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>. They ask by default, are denied in
+plan mode and with <code>--read-only</code>, and can be allowed by a rule:</p>
+<pre><code class="language-json">{
+  &quot;rules&quot;: [
+    {&quot;tool&quot;: &quot;mcp__time__get_current_time&quot;, &quot;decision&quot;: &quot;allow&quot;}
+  ]
+}
+</code></pre>
+<h2>Verify</h2>
+<pre><code class="language-bash">cade-mini --mode build &quot;Use the time MCP tool to get the current time in Asia/Singapore.&quot;
+</code></pre>
+<p>The log records a <code>tool_result</code> with the server's text content. A server process
+is closed when Cade Mini exits.</p>
+<h2>Related</h2>
+<ul>
+<li><a href="../configuration.md">Configuration</a></li>
+<li><a href="../hooks-mcp-subagents.md">Hooks, MCP, and subagents</a></li>
+<li><a href="../cookbook/custom-mcp.md">Custom MCP server</a></li>
 </ul>
 
 </section>
@@ -1827,7 +1943,7 @@ uv run --locked python -m cade.mini.docs check
 </thead>
 <tbody>
 <tr>
-<td>Log, tail repair, sessions</td>
+<td>Sessions</td>
 <td><code>test_mini_log.py</code></td>
 </tr>
 <tr>
@@ -1864,7 +1980,7 @@ uv run --locked python -m cade.mini.docs check
 </tr>
 <tr>
 <td>Safety and modes</td>
-<td><code>test_mini_policy.py</code>, <code>test_mini_shell.py</code>, <code>test_mini_grants.py</code>, <code>test_mini_sandbox.py</code></td>
+<td><code>test_mini_policy.py</code>, <code>test_mini_shell.py</code>, <code>test_mini_grants.py</code></td>
 </tr>
 <tr>
 <td>Extensions</td>
@@ -1912,7 +2028,7 @@ Treat them as unrelated until that module is changed.</p>
 budget admission.</li>
 <li><a href="loop.md">Loop</a>: provider calls, tools, approvals, retries, and facts.</li>
 <li><a href="tools-policy.md">Tools and policy</a>: workspace tools, modes, rules, grants,
-shell classification, and sandbox.</li>
+shell classification, approvals.</li>
 <li><a href="context-compaction.md">Context and compaction</a>: summaries, windows, history,
 and request context.</li>
 <li><a href="extensions.md">Extensions</a>: skills, memory, hooks, MCP, subagents, snapshots,
@@ -2101,12 +2217,13 @@ rules.</p>
 <p>The host resolves ask. <code>SessionApprover</code> prompts a TTY with yes/no/always.
 <code>AutoReviewer</code> makes one tool-free model call and requires an <code>ALLOW</code> prefix.
 Non-interactive hosts deny unless <code>--yes</code> or a rule allows.</p>
-<h2>Sandbox</h2>
-<p>On Linux, bubblewrap can confine shell commands and deny network access. Other
-hosts rely on the path boundary, mode, shell classification, and approvals.</p>
+<h2>Process isolation</h2>
+<p>There is no OS sandbox. Shell commands run with the Cade Mini process
+permissions. The path boundary, mode, shell classification, and approvals are
+the safety layer.</p>
 <h2>Tests</h2>
-<p><code>test_mini_tools.py</code>, <code>test_mini_policy.py</code>, <code>test_mini_grants.py</code>,
-<code>test_mini_shell.py</code>, and <code>test_mini_sandbox.py</code>.</p>
+<p><code>test_mini_tools.py</code>, <code>test_mini_policy.py</code>, <code>test_mini_grants.py</code>, and
+<code>test_mini_shell.py</code>.</p>
 
 </section>
 <section class="page" id="page-context-compaction" data-title="Context and compaction">
@@ -2176,7 +2293,8 @@ that cannot start is reported and skipped.</p>
 <p><code>SubagentTool</code> creates a child session under <code>&lt;sessions&gt;/subagents</code>. The child
 gets the parent provider, budget, policy, approver, hooks, context, and base
 tools plus its own history. It cannot spawn another subagent and is limited to
-20 steps. The parent records only the call and summary.</p>
+20 steps. The parent records only the call and summary. <code>DelegateTool</code> runs one
+or more child tasks sequentially and optionally applies a child mode.</p>
 <h2>Snapshots</h2>
 <p><code>SnapshotStore</code> captures <code>write</code>, <code>edit</code>, and common single-command shell
 mutations. <code>--undo</code> and <code>/undo</code> restore the latest snapshot. Snapshots are project
@@ -2215,6 +2333,7 @@ Subagents are sequential and share the parent approval context.</p>
 <li><code>memory</code>: append a durable fact to <code>MEMORY.md</code>.</li>
 <li><code>goal</code>: read, set, complete, or clear the workspace goal.</li>
 <li><code>subagent</code>: run one child task in its own session.</li>
+<li><code>delegate</code>: run one or more child tasks sequentially, optionally in a mode.</li>
 <li><code>mcp__&lt;server&gt;__&lt;tool&gt;</code>: tools discovered from a configured MCP server.</li>
 </ul>
 <h2>Modes</h2>
@@ -2253,11 +2372,11 @@ are unknown.</li>
 <li>Otherwise a TTY prompt: <code>y</code> once, <code>n</code> deny, <code>a</code> always for this exact call.</li>
 <li>Non-TTY without <code>--yes</code> or auto-review: deny.</li>
 </ul>
-<h2>Sandbox</h2>
-<p>On Linux, <code>--sandbox workspace</code> or <code>--sandbox strict</code> wraps shell commands with
-bubblewrap. The sandbox confines the workspace and denies network access by
-default. On other hosts the sandbox is unavailable and Cade Mini keeps path
-boundaries, mode policy, shell classification, and approvals.</p>
+<h2>Process isolation</h2>
+<p>Cade Mini does not implement an OS sandbox. <code>bash</code> runs with the permissions of
+the Cade Mini process. The path boundary, modes, shell classification, and
+approvals are the safety layer; do not run untrusted commands or repositories
+with <code>--yes</code>.</p>
 <h2>Best practices</h2>
 <ul>
 <li>Use <code>plan</code> for review and <code>build</code> for scoped edits.</li>
@@ -2427,6 +2546,11 @@ context;</li>
 </ul>
 <p>The parent records only the tool call and the returned summary. The child log
 keeps the detailed evidence.</p>
+<p><code>delegate</code> uses the same runner for one or more tasks:</p>
+<pre><code class="language-json">{&quot;tasks&quot;: [&quot;Inspect the parser&quot;, &quot;Add a regression test&quot;], &quot;mode&quot;: &quot;build&quot;}
+</code></pre>
+<p>Tasks run sequentially in separate child sessions. Each result includes the
+child session ID; the parent gets one combined tool result.</p>
 <h2>Limits</h2>
 <p>MCP is a small stdio client, not a full capability negotiation implementation.
 Hooks are shell commands, not in-process callbacks. Subagents are sequential and
@@ -2789,8 +2913,8 @@ progress and appends request/run facts to its session log.</li>
 complex pipelines are not covered.</li>
 <li>Mini's MCP client is persistent per server but has a narrower capability
 surface than Cade's.</li>
-<li>The OS sandbox is Linux-only; Windows keeps path boundaries, modes, shell
-classification, and approvals.</li>
+<li>The OS sandbox is not implemented; Mini relies on path boundaries, modes,
+shell classification, and approvals.</li>
 <li>The live Codex acceptance passed: write created <code>codex.txt</code>, and a resumed
 Codex session read it back.</li>
 </ul>

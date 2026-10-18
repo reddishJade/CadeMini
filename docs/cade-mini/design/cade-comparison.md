@@ -10,11 +10,11 @@ Measured from the current checkout:
 
 | Measure | Cade | Cade Mini |
 | --- | ---: | ---: |
-| Python files | 221 | 33 |
-| Product lines | 41,810 | 5,585 |
-| Test files | 33 | 31 |
-| Test lines | 6,115 | 3,584 |
-| Mini share of product code | — | 13.4% |
+| Python files | 221 | 38 |
+| Product lines | 41,810 | 5,833 |
+| Test files | 33 | 30 |
+| Test lines | 6,115 | 3,683 |
+| Mini share of product code | — | 14.0% |
 
 Cade's product code is concentrated in `coding_agent` (15.3k) and `harness`
 (16.5k), with `agent` (4.7k), `ai` (3.9k), and `server` (1.0k). Mini's core
@@ -40,14 +40,15 @@ subagents, snapshots, goals, docs, CLI, and web host.
 | --- | --- | --- | --- |
 | Hosts | TUI, exec, browser, Python integration | CLI one-shot/REPL, local web host | Difference |
 | Providers | Cade `ai` adapters, model picker, roles, effort | Same adapters; one configured model per run | Difference |
-| Sessions | Tree, fork, clone, rewind, artifacts, inbox, steering | Append-only tree, resume/list, active branch | Gap |
+| Sessions | Tree, fork, clone, rewind, artifacts, inbox, steering | Tree, fork, clone, rewind, resume/list, undo-N; no artifacts or steering | Difference |
 | Context | Full context policy, artifact previews, memory catalog, rollover, goal judge | Budget, pruning, history, compaction, window fallback | Difference |
-| Tools | read/edit/write/grep/glob/find/ls/bash, websearch/webfetch, question, delegate, history, save_memory | Six workspace tools plus history, skill, memory, goal, subagent, MCP | Gap |
+| Tools | read/edit/write/grep/glob/find/ls/bash, websearch/webfetch, question, delegate, history, save_memory | Six workspace tools plus history, skill, memory, goal, subagent, delegate, MCP | Gap |
 | Parallel tools | Parallel read batches with serial barriers | Sequential tool calls | Difference |
 | Edit safety | Stale-write check, multi-edit, read-before-edit | One exact replacement, read-before-edit by convention | Gap |
-| Permissions | Rule DSL, permanent/session grants, TUI approvals, sandbox | Modes, static rules, session grants, shell analysis, Linux sandbox | Difference |
-| Extensions | MCP lifecycle, skills, memory, hooks, subagents | Persistent stdio MCP, skills, memory, hooks, subagents | Difference |
+| Permissions | Rule DSL, permanent/session grants, TUI approvals, sandbox | Modes, static rules, session grants, shell analysis; no OS sandbox | Difference |
+| Extensions | MCP lifecycle, skills, memory, hooks, subagents | Persistent stdio MCP, skills, memory, hooks, subagents, delegate | Difference |
 | Automation | exec JSONL, RPC, SDK, web | `--json` events, web JSON API | Gap |
+| Input | TUI steering, queue, @ references, `!` shell, `$` skills | REPL @ files, `!` shell, `$` skills; no mid-run queue | Gap |
 | TUI | Full terminal workbench | REPL only | Difference |
 | Docs | Product and developer docs | Design, subsystem, cookbook, history, generated catalogs | Comparable |
 
@@ -62,6 +63,8 @@ These are design choices, not unfinished code:
 - No permanent grants. Durable policy belongs in config rules.
 - No parallel tool scheduler. Calls run sequentially to keep policy and logging
   simple.
+- No OS sandbox. Mini relies on path boundaries, modes, shell classification,
+  and approvals.
 
 ## Gaps that matter for parity
 
@@ -76,7 +79,9 @@ These are behaviors Cade users may rely on:
   prefixes.
 - MCP resources, prompts, and server-initiated requests. Mini implements
   initialize, list, and call.
-- Non-Linux OS sandbox. Mini relies on policy and approvals there.
+- Mid-run steering and queueing. Mini has a loop steering hook and `--steer` /
+  `/steer` and `--queue` / `/queue`; the terminal host does not yet read input
+  concurrently while a task is running.
 
 ## How to choose
 

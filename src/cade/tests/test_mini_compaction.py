@@ -15,15 +15,12 @@ from cade.ai.events import (
     TextDelta,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.mini import (
-    Budget,
-    CompactionConfig,
-    Compactor,
-    SessionLog,
-    SummaryMessage,
-    project,
-    run,
-)
+from cade.mini.core.compaction import CompactionConfig, Compactor
+from cade.mini.core.log import SessionLog
+from cade.mini.core.loop import run
+from cade.mini.core.projection import project
+from cade.mini.core.request import Budget
+from cade.mini.core.types import SummaryMessage
 
 
 class FakeProvider:

@@ -14,8 +14,7 @@ from cade.ai.providers.registry import (
     get_environment_api_key,
 )
 from cade.ai.resolver import ModelResolver
-
-from .auth import JsonCredentialStore, resolve_codex_credential
+from cade.mini.app.auth import JsonCredentialStore, resolve_codex_credential
 
 DEFAULT_PROVIDER = "openai-codex"
 DEFAULT_MODEL = "gpt-5.6-luna"

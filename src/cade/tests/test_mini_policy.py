@@ -6,15 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from cade.mini import (
-    GrantStore,
-    RuleConfig,
-    ToolCallBlock,
-    WorkspacePolicy,
-    build_tools,
-    filter_tools,
-)
-from cade.mini.types import JsonValue
+from cade.mini.app.config import RuleConfig
+from cade.mini.core.types import JsonValue, ToolCallBlock
+from cade.mini.safety.grants import GrantStore
+from cade.mini.safety.policy import WorkspacePolicy, filter_tools
+from cade.mini.tools.workspace import build_tools
 
 
 def _call(name: str, **args: JsonValue) -> ToolCallBlock:

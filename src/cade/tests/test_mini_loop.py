@@ -16,21 +16,21 @@ from cade.ai.events import (
     UsageUpdate,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.mini import (
-    Budget,
+from cade.mini.core.log import SessionLog
+from cade.mini.core.loop import (
     CancellationToken,
-    SessionLog,
     TextDeltaEvent,
-    ToolCallBlock,
     ToolEndEvent,
     ToolResult,
     ToolStartEvent,
-    WorkspacePolicy,
-    build_tools,
-    project,
-    reset_window,
     run,
 )
+from cade.mini.core.projection import project
+from cade.mini.core.request import Budget
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.core.window import reset_window
+from cade.mini.safety.policy import WorkspacePolicy
+from cade.mini.tools.workspace import build_tools
 
 
 class FakeProvider:
@@ -520,3 +520,25 @@ async def test_run_falls_back_to_window_when_over_budget(
     assert result.termination == "completed"
     assert result.answer == "done"
     assert any(entry.type == "window" for entry in log.branch())
+
+
+async def test_run_appends_steering_at_step_boundary(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+    provider = FakeProvider([_text_response("done")])
+    messages = iter(["focus on the parser"])
+
+    result = await run(
+        log,
+        "inspect the code",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+        steering=lambda: next(messages, None),
+    )
+
+    assert result.termination == "completed"
+    users = [entry for entry in log.branch() if entry.type == "user"]
+    assert [entry.data["text"] for entry in users] == [
+        "inspect the code",
+        "focus on the parser",
+    ]

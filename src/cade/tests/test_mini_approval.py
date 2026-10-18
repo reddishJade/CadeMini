@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from cade.mini import SessionApprover, ToolCallBlock
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.safety.approval import SessionApprover
 
 
 def _call(name: str = "write") -> ToolCallBlock:

@@ -16,6 +16,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `memory` | `text` | Appends to `MEMORY.md` | Allow; denied read-only |
 | `goal` | `action`, `objective` | Updates `.cade-mini/goal.json` | Allow |
 | `subagent` | `prompt`, `description` | Creates a child session | Allow; hidden in plan |
+| `delegate` | `prompt` or `tasks`, `mode`, `description` | Creates one or more child sessions | Allow |
 | `mcp__*` | Server-defined | Remote side effects | Ask; denied plan and read-only |
 
 ## Reading the table

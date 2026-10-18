@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .log import SessionLog
-from .loop import ToolResult
-from .tools import WorkspaceTool, _int_arg
-from .types import JsonValue, LogEntry
+from cade.mini.core.log import SessionLog
+from cade.mini.core.loop import ToolResult
+from cade.mini.core.types import JsonValue, LogEntry
+from cade.mini.tools.workspace import WorkspaceTool, _int_arg
 
 _MAX_EXACT_CHARS = 64_000
 _MAX_SNIPPET_CHARS = 200

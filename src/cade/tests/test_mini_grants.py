@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from cade.mini import GrantStore, SessionApprover, ToolCallBlock
-from cade.mini.types import JsonValue
+from cade.mini.core.types import JsonValue, ToolCallBlock
+from cade.mini.safety.approval import SessionApprover
+from cade.mini.safety.grants import GrantStore
 
 
 def _call(name: str, **args: JsonValue) -> ToolCallBlock:

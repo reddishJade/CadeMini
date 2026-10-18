@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .types import ToolCallBlock
+from cade.mini.core.types import ToolCallBlock
 
 
 @dataclass(frozen=True)

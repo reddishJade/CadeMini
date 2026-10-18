@@ -25,8 +25,9 @@ starts the interactive REPL.
 - `--auto-review` / `--no-auto-review` lets the model review ask-level calls.
 - `--max-steps N` bounds model steps.
 - `--context-window N` overrides the model context window.
-- `--sandbox off|workspace|strict` selects the Linux bubblewrap policy.
 - `--json` emits JSONL events for a one-shot task.
+- `--steer TEXT` injects guidance at the next model step; repeatable.
+- `--queue TEXT` queues a task to run after the current task; repeatable.
 
 ## Sessions
 
@@ -50,15 +51,34 @@ starts the interactive REPL.
 
 - `/new` starts a new session.
 - `/resume [ID]` resumes the latest or a specific session.
+- `/sessions` lists project sessions.
+- `/fork [N|ENTRY]` forks before a recent user turn or entry. `N=1` is the latest.
+- `/clone` copies the current branch to a new session.
+- `/tree` shows entries; `*` marks the active branch.
+- `/rewind [N]` creates a session without the latest N user turns.
 - `/compact` summarizes older turns.
 - `/new-context [NOTE]` starts a new window, optionally with a handoff note.
 - `/mode [MODE]` shows or switches the execution mode.
 - `/permissions [clear]` shows or clears session grants.
-- `/undo` restores the latest snapshot.
+- `/undo [N]` restores the latest N snapshots.
 - `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
 - `/context` prints the session ID, provider, budget, and event count.
+- `/steer TEXT` queues guidance for the next model step.
+- `/queue TEXT` queues a task to run after the current one.
 - `/help` prints the command list.
 - `/exit` or `/quit` exits.
+
+## REPL input
+
+- `@path` attaches a workspace file to the task.
+- `$skill` loads a skill body into the task.
+- `!command` runs a shell command without contacting the model. Permission
+  checks still apply.
+
+```text
+Review @src/cade/mini/core/loop.py and use $review-only
+!git status
+```
 
 ## Exit codes
 

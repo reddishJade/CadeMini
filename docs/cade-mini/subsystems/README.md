@@ -8,7 +8,7 @@ Each page owns one subsystem's types, behavior, and failure modes. The
   budget admission.
 - [Loop](loop.md): provider calls, tools, approvals, retries, and facts.
 - [Tools and policy](tools-policy.md): workspace tools, modes, rules, grants,
-  shell classification, and sandbox.
+  shell classification, approvals.
 - [Context and compaction](context-compaction.md): summaries, windows, history,
   and request context.
 - [Extensions](extensions.md): skills, memory, hooks, MCP, subagents, snapshots,

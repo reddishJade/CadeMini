@@ -7,7 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from cade.mini import BashTool, SnapshotStore, ToolCallBlock, WriteTool
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.extensions.snapshots import SnapshotStore
+from cade.mini.tools.workspace import BashTool, WriteTool
 
 
 def _call(path: str, content: str) -> ToolCallBlock:

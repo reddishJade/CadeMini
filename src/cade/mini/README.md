@@ -2,7 +2,7 @@
 
 Cade Mini is a parallel implementation inside the `cade-agent` distribution. It
 shares only `cade.ai` (providers, auth, models) and
-`cade.harness.execution_env` (subprocess and sandbox) with Cade. Everything else
+`cade.harness.execution_env` (subprocess execution) with Cade. Everything else
 here is independent.
 
 ## Entry points
@@ -13,20 +13,24 @@ python -m cade.mini
 cade-mini --web --port 8765
 ```
 
-`cade.mini.cli:main` is the console script target. Mini is not a separate wheel;
-installing `cade-agent` installs both `cade` and `cade-mini`.
+`cade.mini.hosts.cli:main` is the console script target. There is no
+`cade.mini.cli` compatibility module and `cade.mini.__init__` has no public
+re-exports; import the owning submodule directly.
 
-## Module groups
+## Package layout
 
-| Group | Modules |
-| --- | --- |
-| Core pipeline | `types`, `log`, `projection`, `request`, `loop`, `compaction`, `window` |
-| Tools | `tools`, `history` |
-| Safety | `policy`, `shell`, `grants`, `approval`, `review`, `sandbox` |
-| Extensions | `skills`, `memory`, `hooks`, `mcp`, `subagents`, `snapshots`, `goal` |
-| Hosts and docs | `cli`, `web`, `docs` |
-| App plumbing | `config`, `provider`, `auth`, `prompts`, `instructions`, `note` |
+```text
+mini/
+  core/        types, log, projection, request, loop, compaction, window
+  tools/       workspace, history
+  safety/      policy, shell, grants, approval, review
+  extensions/  skills, memory, hooks, mcp, subagents, snapshots, goal
+  hosts/       cli, web
+  app/         config, provider, auth, prompts, instructions, note
+  docs.py
+  __main__.py
+```
 
-The directory is flat. Read [the code map](../../../docs/cade-mini/design/code-map.md)
-for the layer view and [the comparison with
+Read [the code map](../../../docs/cade-mini/design/code-map.md) for the layer
+view and [the comparison with
 Cade](../../../docs/cade-mini/design/cade-comparison.md) for the capability gap.

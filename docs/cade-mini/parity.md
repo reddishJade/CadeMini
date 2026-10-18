@@ -41,8 +41,8 @@ Resume:
   complex pipelines are not covered.
 - Mini's MCP client is persistent per server but has a narrower capability
   surface than Cade's.
-- The OS sandbox is Linux-only; Windows keeps path boundaries, modes, shell
-  classification, and approvals.
+- The OS sandbox is not implemented; Mini relies on path boundaries, modes,
+  shell classification, and approvals.
 - The live Codex acceptance passed: write created `codex.txt`, and a resumed
   Codex session read it back.
 

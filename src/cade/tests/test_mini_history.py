@@ -6,14 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from cade.mini import (
-    HistoryTool,
-    SessionLog,
-    ToolCallBlock,
-    WorkspacePolicy,
-    project,
-)
-from cade.mini.types import JsonValue
+from cade.mini.core.log import SessionLog
+from cade.mini.core.projection import project
+from cade.mini.core.types import JsonValue, ToolCallBlock
+from cade.mini.safety.policy import WorkspacePolicy
+from cade.mini.tools.history import HistoryTool
 
 
 def _call(args: dict[str, JsonValue]) -> ToolCallBlock:

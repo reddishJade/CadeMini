@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import cast
 
-from .types import (
+from cade.mini.core.types import (
     AssistantMessage,
     EventType,
     JsonValue,

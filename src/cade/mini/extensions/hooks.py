@@ -9,8 +9,8 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
-from .config import HookConfig
-from .types import ToolCallBlock
+from cade.mini.app.config import HookConfig
+from cade.mini.core.types import ToolCallBlock
 
 _RESULT_LIMIT = 4_000
 

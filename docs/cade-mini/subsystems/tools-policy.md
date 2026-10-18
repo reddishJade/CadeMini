@@ -57,12 +57,13 @@ The host resolves ask. `SessionApprover` prompts a TTY with yes/no/always.
 `AutoReviewer` makes one tool-free model call and requires an `ALLOW` prefix.
 Non-interactive hosts deny unless `--yes` or a rule allows.
 
-## Sandbox
+## Process isolation
 
-On Linux, bubblewrap can confine shell commands and deny network access. Other
-hosts rely on the path boundary, mode, shell classification, and approvals.
+There is no OS sandbox. Shell commands run with the Cade Mini process
+permissions. The path boundary, mode, shell classification, and approvals are
+the safety layer.
 
 ## Tests
 
-`test_mini_tools.py`, `test_mini_policy.py`, `test_mini_grants.py`,
-`test_mini_shell.py`, and `test_mini_sandbox.py`.
+`test_mini_tools.py`, `test_mini_policy.py`, `test_mini_grants.py`, and
+`test_mini_shell.py`.

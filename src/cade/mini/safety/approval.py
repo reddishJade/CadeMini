@@ -6,8 +6,8 @@ import json
 import sys
 from collections.abc import Callable
 
-from .grants import GrantStore
-from .types import ToolCallBlock
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.safety.grants import GrantStore
 
 _PROMPT_LIMIT = 500
 

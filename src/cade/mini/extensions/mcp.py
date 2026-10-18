@@ -13,9 +13,9 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from .config import McpServerConfig
-from .loop import CancellationToken, ToolResult
-from .types import JsonValue, ToolCallBlock
+from cade.mini.app.config import McpServerConfig
+from cade.mini.core.loop import CancellationToken, ToolResult
+from cade.mini.core.types import JsonValue, ToolCallBlock
 
 _PROTOCOL_VERSION = "2024-11-05"
 _MAX_TOOL_NAME = 96

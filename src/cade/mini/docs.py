@@ -284,7 +284,7 @@ def write_catalogs(root: Path = _DOCS_ROOT) -> list[Path]:
 
 def render_config_catalog() -> str:
     """从 MiniConfig 生成配置字段目录。"""
-    from .config import MiniConfig
+    from cade.mini.app.config import MiniConfig
 
     schema = MiniConfig.model_json_schema()
     properties = schema.get("properties", {})
@@ -333,7 +333,7 @@ def render_config_catalog() -> str:
 
 def render_event_catalog() -> str:
     """从 EventType 生成会话事件目录。"""
-    from .types import EventType
+    from cade.mini.core.types import EventType
 
     purposes = {
         "meta": ("No", "Session creation"),
@@ -366,31 +366,43 @@ def render_event_catalog() -> str:
 
 
 def render_module_graph() -> str:
-    """按 Mini 包内的相对导入生成模块图。"""
+    """按 Mini 包内的绝对导入生成模块图。"""
     package = Path(__file__).resolve().parent
     edges: set[tuple[str, str]] = set()
-    for path in sorted(package.glob("*.py")):
-        if path.name in {"__init__.py", "docs.py"}:
+    for path in sorted(package.rglob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        relative = path.relative_to(package).with_suffix("")
+        source = ".".join(relative.parts)
+        if source == "docs":
             continue
         text = path.read_text(encoding="utf-8")
-        for match in re.finditer(r"^from \.(\w+)", text, re.MULTILINE):
+        for match in re.finditer(
+            r"^from cade\.mini\.([\w.]+) import",
+            text,
+            re.MULTILINE,
+        ):
             target = match.group(1)
-            if target != path.stem:
-                edges.add((path.stem, target))
+            if target != source:
+                edges.add((source, target))
     lines = [
         _GENERATED_HEADER,
         "",
         "# Module graph",
         "",
-        "Relative imports inside `src/cade/mini/`.",
+        "Absolute imports inside `src/cade/mini/`.",
         "",
         "```mermaid",
         "flowchart LR",
     ]
     for source, target in sorted(edges):
-        lines.append(f"  {source} --> {target}")
+        lines.append(f"  {_node(source)} --> {_node(target)}")
     lines.extend(["```", ""])
     return "\n".join(lines)
+
+
+def _node(module: str) -> str:
+    return module.replace(".", "_")
 
 
 def _type_label(prop: dict[str, Any]) -> str:

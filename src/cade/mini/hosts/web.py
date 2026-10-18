@@ -10,8 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from .log import SessionLog, list_sessions
-from .loop import RunResult
+from cade.mini.core.log import SessionLog, list_sessions
+from cade.mini.core.loop import RunResult
 
 _INDEX = """<!doctype html>
 <html lang="en">

@@ -24,7 +24,6 @@ silently ignored.
   "memory": true,
   "auto_review": false,
   "prompt_modules": ["identity", "tool_discipline", "working_note", "environment"],
-  "sandbox": "workspace",
   "rules": [
     {
       "tool": "bash",
@@ -52,9 +51,6 @@ silently ignored.
 - `auto_review`: let the model review ask-level tool calls. Default is false.
 - `prompt_modules`: system prompt modules. Available names are `identity`,
   `tool_discipline`, `working_note`, and `environment`.
-- `sandbox`: `off`, `workspace`, or `strict`. The OS sandbox is implemented on
-  Linux with bubblewrap; other hosts keep path, mode, shell, and approval
-  checks.
 
 ## Rules
 

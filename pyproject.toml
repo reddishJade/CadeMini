@@ -56,7 +56,7 @@ markers = [
 
 [project.scripts]
 cade = "cade.main:main"
-cade-mini = "cade.mini.cli:main"
+cade-mini = "cade.mini.hosts.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

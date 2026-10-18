@@ -6,16 +6,17 @@ from typing import cast
 
 import pytest
 
-from cade.mini import (
+from cade.mini.core.projection import project
+from cade.mini.core.types import (
     AssistantMessage,
+    EventType,
+    JsonValue,
     LogEntry,
     ProjectionError,
     SummaryMessage,
     ToolResultMessage,
     UserMessage,
-    project,
 )
-from cade.mini.types import EventType, JsonValue
 
 
 def _entry(

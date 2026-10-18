@@ -38,14 +38,14 @@ Committed on `experiment/cade-mini`:
   configuration, session approval, history retrieval, tool-result pruning,
   iterative compaction, automatic window fallback, skills, composable prompt
   modules, NOTE working state, plan/build/act modes, static rules, session
-  grants, shell command classification, an optional Linux bubblewrap sandbox,
-  independent subagents, durable project memory, tool lifecycle hooks, a
-  persistent stdio MCP bridge, file snapshots/undo covering common shell
-  mutation targets, workspace goals, automatic approval review, a local web
-  host, a documentation system with design, subsystem, cookbook, postmortem,
-  persistence, and upgrade pages, generated config/event/module/tool catalogs,
-  a link/anchor checker, generated site, `llms.txt`, and `llms-full.txt`, and
-  209 tests.
+  grants, shell command classification (no OS sandbox), fork/clone/tree/rewind
+  and undo-N, independent subagents and delegate, @/!/$ REPL input, durable
+  project memory, tool lifecycle hooks, a persistent stdio MCP bridge, file
+  snapshots/undo covering common shell mutation targets, workspace goals,
+  automatic approval review, a local web host, a documentation system with
+  design, subsystem, cookbook, postmortem, persistence, and upgrade pages,
+  generated config/event/module/tool catalogs, a link/anchor checker, generated
+  site, `llms.txt`, and `llms-full.txt`, and 213 tests.
 - A real CLI acceptance run through the configured DeepSeek account passed: the
   model used the write and read tools, `hello.txt` contained `mini`, and a
   resumed run on the same session read the file and answered `mini`.
@@ -73,8 +73,8 @@ Committed on `experiment/cade-mini`:
   created `codex.txt` with `codex-ok`, and a resumed Codex session used the read
   tool and returned `codex-ok`; both runs completed. Earlier attempts during
   quota exhaustion returned HTTP 429 and were recorded as `provider_error`.
-- On non-Linux hosts the OS sandbox is unavailable; path boundaries, mode
-  policy, shell classification, and approvals remain the active safety layer.
+- Cade Mini has no OS sandbox; path boundaries, mode policy, shell
+  classification, and approvals remain the active safety layer.
 - Snapshots cover write/edit and common single-command shell mutations; complex
   pipelines are not snapshotted.
 - Milestone acceptance is complete; the remaining items are the platform and
@@ -487,8 +487,8 @@ is dependency-driven:
    events, a second provider, an explicit config file.
 3. **Project awareness.** `AGENTS.md` and instruction files, prompt modules,
    skills.
-4. **Safety and modes.** Plan/build/act, grants, shell analysis, sandbox,
-   approval UI.
+4. **Safety and modes.** Plan/build/act, grants, shell analysis, approval UI.
+   No OS sandbox; policy is the boundary.
 5. **Isolation and integrations.** Subagents (separate logs), memory, MCP,
    external hooks.
 6. **Hosts and advanced product.** TUI, web, snapshot undo, goal judge, approval

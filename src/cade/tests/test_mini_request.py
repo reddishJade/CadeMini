@@ -7,20 +7,17 @@ import copy
 import pytest
 
 from cade.ai.types import ToolDefinition
-from cade.mini import (
+from cade.mini.core.request import Budget, RequestTooLarge, build, estimate
+from cade.mini.core.types import (
     AssistantMessage,
-    Budget,
-    RequestTooLarge,
+    Message,
     SummaryMessage,
     SystemMessage,
     TextBlock,
     ToolCallBlock,
     ToolResultMessage,
     UserMessage,
-    build,
-    estimate,
 )
-from cade.mini.types import Message
 
 
 def _user(text: str) -> UserMessage:

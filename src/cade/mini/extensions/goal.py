@@ -8,9 +8,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from .loop import CancellationToken, ToolResult
-from .tools import _text_arg
-from .types import ToolCallBlock
+from cade.mini.core.loop import CancellationToken, ToolResult
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.tools.workspace import _text_arg
 
 _GOAL_PATH = Path(".cade-mini") / "goal.json"
 

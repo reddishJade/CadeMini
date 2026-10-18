@@ -5,13 +5,9 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from cade.mini import (
-    GoalStore,
-    GoalTool,
-    ToolCallBlock,
-    WorkspacePolicy,
-)
-from cade.mini.types import JsonValue
+from cade.mini.core.types import JsonValue, ToolCallBlock
+from cade.mini.extensions.goal import GoalStore, GoalTool
+from cade.mini.safety.policy import WorkspacePolicy
 
 
 def _call(action: str, objective: str | None = None) -> ToolCallBlock:

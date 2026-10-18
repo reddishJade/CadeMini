@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cade.mini import load_working_note
+from cade.mini.app.note import load_working_note
 
 
 def test_loads_working_note(tmp_path: Path) -> None:

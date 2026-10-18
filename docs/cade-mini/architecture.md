@@ -61,22 +61,27 @@ turn. Compaction and window fallback are decisions expressed as new log facts.
 
 ## Package map
 
-- `types.py`: log, message, block, and error types.
-- `log.py`: append, lock, tail repair, session listing.
-- `projection.py`: deterministic conversation projection.
-- `request.py`: budget, admission, wire conversion.
-- `loop.py`: provider stream, tool execution, retries, facts.
-- `compaction.py` and `window.py`: context reduction decisions.
-- `tools.py`, `policy.py`, `shell.py`, `sandbox.py`: workspace tools and safety.
-- `skills.py`, `memory.py`, `note.py`, `instructions.py`, `goal.py`: request
-  context and durable state.
-- `hooks.py`, `mcp.py`, `subagents.py`: extension mechanisms.
-- `snapshots.py`, `approval.py`, `review.py`: recovery and approvals.
-- `cli.py`, `web.py`, `docs.py`: hosts and documentation.
+- `core/types.py`: log, message, block, and error types.
+- `core/log.py`: append, lock, tail repair, session listing, copy/fork.
+- `core/projection.py`: deterministic conversation projection.
+- `core/request.py`: budget, admission, wire conversion.
+- `core/loop.py`: provider stream, tool execution, retries, facts.
+- `core/compaction.py` and `core/window.py`: context reduction decisions.
+- `tools/workspace.py`, `tools/history.py`: workspace tools and evidence
+  retrieval.
+- `safety/policy.py`, `safety/shell.py`, `safety/grants.py`,
+  `safety/approval.py`, `safety/review.py`: permissions and approvals.
+- `extensions/skills.py`, `extensions/memory.py`, `extensions/hooks.py`,
+  `extensions/mcp.py`, `extensions/subagents.py`, `extensions/snapshots.py`,
+  `extensions/goal.py`: add-ons and durable host state.
+- `app/config.py`, `app/provider.py`, `app/auth.py`, `app/prompts.py`,
+  `app/instructions.py`, `app/note.py`: startup and request context.
+- `hosts/cli.py`, `hosts/web.py`, `docs.py`: hosts and documentation.
 
 The Mini package imports only `cade.ai` and
 `cade.harness.execution_env` from the rest of Cade. It does not import the Cade
 agent, product, or server layers. `test_mini_boundary.py` enforces this firewall.
+There are no top-level re-exports; import the owning submodule directly.
 
 ## Why the split
 

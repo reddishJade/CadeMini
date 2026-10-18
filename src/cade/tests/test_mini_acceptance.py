@@ -8,7 +8,10 @@ from typing import Any
 
 from cade.ai.events import FinalMessage, ProviderEvent
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.mini import Budget, SessionLog, project, run
+from cade.mini.core.log import SessionLog
+from cade.mini.core.loop import run
+from cade.mini.core.projection import project
+from cade.mini.core.request import Budget
 
 
 class OneShotProvider:

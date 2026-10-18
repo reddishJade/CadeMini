@@ -18,11 +18,10 @@ from cade.ai.events import (
     UsageUpdate,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
-
-from .log import SessionLog
-from .projection import project
-from .request import Budget, Request, build, estimate
-from .types import JsonValue, ToolCallBlock
+from cade.mini.core.log import SessionLog
+from cade.mini.core.projection import project
+from cade.mini.core.request import Budget, Request, build, estimate
+from cade.mini.core.types import JsonValue, ToolCallBlock
 
 type Decision = Literal["allow", "deny", "ask"]
 type Termination = Literal[
@@ -168,6 +167,7 @@ async def run(
     compact: Callable[[SessionLog, Budget], Awaitable[bool]] | None = None,
     window: Callable[[SessionLog], bool] | None = None,
     hooks: Hooks | None = None,
+    steering: Callable[[], str | None] | None = None,
 ) -> RunResult:
     """追加用户输入并驱动模型/工具循环，直到完成或终止。
 
@@ -196,6 +196,17 @@ async def run(
     for step in range(1, max_steps + 1):
         if cancel is not None and cancel.cancelled:
             return _finish(log, "aborted", step, last_answer, None, cancel.reason)
+
+        if steering is not None:
+            while True:
+                message = steering()
+                if message is None:
+                    break
+                if message.strip():
+                    log.append(
+                        "user",
+                        {"text": message.strip(), "source": "runtime"},
+                    )
 
         conversation = project(log.branch())
         full_tokens = estimate(conversation, tools=definitions, context=context)

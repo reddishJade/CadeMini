@@ -79,6 +79,15 @@ The child:
 The parent records only the tool call and the returned summary. The child log
 keeps the detailed evidence.
 
+`delegate` uses the same runner for one or more tasks:
+
+```json
+{"tasks": ["Inspect the parser", "Add a regression test"], "mode": "build"}
+```
+
+Tasks run sequentially in separate child sessions. Each result includes the
+child session ID; the parent gets one combined tool result.
+
 ## Limits
 
 MCP is a small stdio client, not a full capability negotiation implementation.

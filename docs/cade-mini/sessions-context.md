@@ -16,6 +16,18 @@ cade-mini --resume SESSION_ID "Explain the current state."
 sessions keep their original system fact; a new `cade-mini.json` does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.
 
+## Fork, clone, tree, and rewind
+
+- `/clone` copies the active branch into a new session.
+- `/fork [N|ENTRY]` copies history before a user turn (default: latest) into a
+  new session and prints the forked input.
+- `/tree` lists entries; `*` marks the active branch.
+- `/rewind [N]` creates a new session without the latest N user turns.
+- `/undo [N]` restores the latest N file snapshots.
+
+These operations create new sessions; they do not rewrite the original file.
+Compaction and window references are remapped when entries are copied.
+
 ## Compaction
 
 When the full conversation exceeds the input budget, `Compactor`:

@@ -4,22 +4,24 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 import json
+import re
 import sys
+from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
-from .approval import SessionApprover
-from .compaction import Compactor
-from .config import MiniConfig
-from .goal import GoalStore, GoalTool
-from .grants import GrantStore
-from .history import HistoryTool
-from .hooks import HookRunner
-from .instructions import load_project_instructions
-from .log import SessionLog, list_sessions
-from .loop import (
+from cade.mini.app.config import MiniConfig
+from cade.mini.app.instructions import load_project_instructions
+from cade.mini.app.note import load_working_note
+from cade.mini.app.prompts import render_system_prompt
+from cade.mini.app.provider import ProviderConfig, build_provider
+from cade.mini.core.compaction import Compactor
+from cade.mini.core.log import SessionLog, list_sessions
+from cade.mini.core.loop import (
     LoopEvent,
     Provider,
     RunResult,
@@ -28,23 +30,33 @@ from .loop import (
     ToolStartEvent,
     run,
 )
-from .mcp import discover_mcp_tools
-from .memory import MemoryTool, load_memory
-from .note import load_working_note
-from .policy import Mode, WorkspacePolicy, filter_tools
-from .projection import project
-from .prompts import render_system_prompt
-from .provider import ProviderConfig, build_provider
-from .request import Budget
-from .review import AutoReviewer
-from .sandbox import MiniSandboxMode, build_sandbox
-from .skills import LoadSkillTool, discover_skills, render_skill_catalog
-from .snapshots import SnapshotStore
-from .subagents import SubagentTool
-from .tools import build_tools
-from .types import LogError, ToolCallBlock
-from .web import WebHost
-from .window import reset_window
+from cade.mini.core.projection import project
+from cade.mini.core.request import Budget
+from cade.mini.core.types import LogEntry, LogError, ToolCallBlock
+from cade.mini.core.window import reset_window
+from cade.mini.extensions.goal import GoalStore, GoalTool
+from cade.mini.extensions.hooks import HookRunner
+from cade.mini.extensions.mcp import discover_mcp_tools
+from cade.mini.extensions.memory import MemoryTool, load_memory
+from cade.mini.extensions.skills import (
+    LoadSkillTool,
+    Skill,
+    discover_skills,
+    render_skill_catalog,
+)
+from cade.mini.extensions.snapshots import SnapshotStore
+from cade.mini.extensions.subagents import (
+    DelegateTool,
+    SubagentRunner,
+    SubagentTool,
+)
+from cade.mini.hosts.web import WebHost
+from cade.mini.safety.approval import SessionApprover
+from cade.mini.safety.grants import GrantStore
+from cade.mini.safety.policy import Mode, WorkspacePolicy, filter_tools
+from cade.mini.safety.review import AutoReviewer
+from cade.mini.tools.history import HistoryTool
+from cade.mini.tools.workspace import build_tools, resolve_workspace_path
 
 WINDOW_HANDOFF = (
     "Earlier history was discarded to fit the model window. "
@@ -56,15 +68,27 @@ _HELP = """\
 Commands:
   /new                 Start a new session
   /resume [ID]         Resume a session (default: latest)
+  /sessions            List project sessions
+  /fork [N|ENTRY]      Fork before a recent user turn or entry; N=1 is latest
+  /clone               Copy the current branch to a new session
+  /tree                Show session entries; * marks the active branch
+  /rewind [N]          Create a new session without the latest N user turns
   /compact             Summarize older turns and keep recent work
   /new-context [NOTE]  Start a new window, optionally with a handoff note
   /mode [MODE]         Show or switch plan/build/act
   /permissions [clear] Show or clear session grants
-  /undo                Restore the latest file snapshot
+  /undo [N]            Restore the latest N file snapshots
   /goal [TEXT|done]    Show, set, complete, or clear the goal
   /context             Show session and budget information
+  /steer TEXT          Queue guidance for the next model step
+  /queue TEXT          Queue a task to run after the current one
   /help                Show this help
   /exit                Exit
+
+Input:
+  @path                Attach a workspace file to the task
+  $skill               Load a skill body into the task
+  !command             Run a shell command without contacting the model
 """
 
 
@@ -103,6 +127,11 @@ def main(
     goals = GoalStore(project_root)
     if args.goal:
         goals.set(args.goal)
+    steering = deque(args.steer or [])
+    pending = deque(args.queue or [])
+
+    def next_steering() -> str | None:
+        return steering.popleft() if steering else None
 
     provider_name = args.provider or config.provider or ProviderConfig().provider
     model_name = args.model or config.model or ProviderConfig().model
@@ -123,10 +152,6 @@ def main(
         args.auto_review if args.auto_review is not None else config.auto_review
     )
     mode = cast(Mode, args.mode or config.mode)
-    sandbox_mode = cast(
-        MiniSandboxMode,
-        args.sandbox or config.sandbox,
-    )
 
     raw_sessions = args.sessions_dir or (
         Path(config.sessions_dir) if config.sessions_dir else None
@@ -186,12 +211,10 @@ def main(
     )
     for error in mcp_errors:
         print(f"cade-mini: mcp: {error}", file=sys.stderr)
-    sandbox = build_sandbox(sandbox_mode, project_root)
     snapshots = SnapshotStore(project_root)
     core_tools = (
         *build_tools(
             project_root,
-            sandbox=sandbox,
             snapshots=snapshots,
         ),
         LoadSkillTool(project_root, skills),
@@ -240,7 +263,7 @@ def main(
             parts.append(f"<goal>\n{goal.objective}\n</goal>")
         return tuple(parts)
 
-    subagent = SubagentTool(
+    subagent_runner = SubagentRunner(
         workspace=project_root,
         provider=selected,
         tools=core_tools,
@@ -253,7 +276,11 @@ def main(
         max_steps=min(max_steps, 20),
         hooks=hooks,
     )
-    base_tools = (*core_tools, subagent)
+    base_tools = (
+        *core_tools,
+        SubagentTool(runner=subagent_runner),
+        DelegateTool(runner=subagent_runner),
+    )
 
     try:
         log = _open_log(sessions_dir, resume, system_prompt)
@@ -309,6 +336,7 @@ def main(
             compactor,
             hooks,
             fallback_window,
+            next_steering,
         )
         if args.json:
             _final_json(result)
@@ -324,6 +352,7 @@ def main(
         system_prompt,
         selected,
         base_tools,
+        skills,
         project_root,
         snapshots,
         goals,
@@ -336,6 +365,8 @@ def main(
         compactor,
         hooks,
         fallback_window,
+        steering,
+        pending,
     )
 
 
@@ -348,6 +379,18 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     parser.add_argument("--config", type=Path, default=None, help="Config file")
     parser.add_argument("--goal", default=None, help="Set the workspace goal")
+    parser.add_argument(
+        "--steer",
+        action="append",
+        default=None,
+        help="Inject guidance at the next model step",
+    )
+    parser.add_argument(
+        "--queue",
+        action="append",
+        default=None,
+        help="Queue a task after the current task",
+    )
     parser.add_argument("--sessions-dir", type=Path, default=None)
     parser.add_argument("--provider", default=None)
     parser.add_argument("--model", default=None)
@@ -418,12 +461,6 @@ def _parser() -> argparse.ArgumentParser:
         choices=("plan", "build", "act"),
         default=None,
         help="Execution mode (default: act)",
-    )
-    parser.add_argument(
-        "--sandbox",
-        choices=("off", "workspace", "strict"),
-        default=None,
-        help="OS sandbox mode on Linux (default: workspace)",
     )
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--context-window", type=int, default=None)
@@ -497,6 +534,7 @@ def _run_task(
     compactor: Compactor,
     hooks: HookRunner | None,
     window: Callable[[SessionLog], bool] | None,
+    steering: Callable[[], str | None] | None = None,
 ) -> RunResult:
     tools = filter_tools(tools, policy.mode)
     return asyncio.run(
@@ -514,8 +552,108 @@ def _run_task(
             compact=compactor,
             window=window,
             hooks=hooks,
+            steering=steering,
         )
     )
+
+
+def _entry_preview(entry: LogEntry) -> str:
+    data = entry.data
+    for key in ("text", "content", "summary", "handoff"):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            text = " ".join(value.split())
+            return text[:80]
+    if entry.type == "assistant":
+        blocks = data.get("blocks")
+        if isinstance(blocks, list):
+            for block in blocks:
+                if not isinstance(block, dict):
+                    continue
+                block_text = block.get("text")
+                if isinstance(block_text, str):
+                    text = " ".join(block_text.split())
+                    if text:
+                        return text[:80]
+    return ""
+
+
+def _expand_input(
+    text: str,
+    workspace: Path,
+    skills: Sequence[Skill],
+) -> str | None:
+    attachments: list[str] = []
+    skill_tokens = re.findall(r"(?<!\S)\$([A-Za-z0-9_.-]+)", text)
+    for name in skill_tokens:
+        skill = next((item for item in skills if item.name == name), None)
+        if skill is None:
+            print(f"cade-mini: unknown skill: {name}", file=sys.stderr)
+            return None
+        attachments.append(f'<skill name="{skill.name}">\n{skill.body}\n</skill>')
+    text = re.sub(r"(?<!\S)\$[A-Za-z0-9_.-]+", "", text)
+    for raw in re.findall(r"(?<!\S)@(\S+)", text):
+        try:
+            path = resolve_workspace_path(workspace, raw)
+        except ValueError as exc:
+            print(f"cade-mini: {exc}", file=sys.stderr)
+            return None
+        if not path.is_file():
+            print(f"cade-mini: file not found: {raw}", file=sys.stderr)
+            return None
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            print(f"cade-mini: cannot read {raw}: {exc}", file=sys.stderr)
+            return None
+        if len(content) > 50_000:
+            content = content[:50_000] + "\n[file truncated]"
+        attachments.append(f'<file path="{raw}">\n{content}\n</file>')
+    text = re.sub(r"(?<!\S)@\S+", "", text)
+    task = " ".join(text.split())
+    if attachments:
+        block = "\n\n".join(attachments)
+        return f"{block}\n\n{task or 'Use the attached context.'}"
+    return task
+
+
+def _run_shell_input(
+    command: str,
+    tools: Sequence[Tool],
+    policy: WorkspacePolicy,
+    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]],
+) -> None:
+    if not command:
+        print("usage: !command", file=sys.stderr)
+        return
+    tool = next((item for item in tools if item.name == "bash"), None)
+    if tool is None:
+        print("cade-mini: bash tool is unavailable", file=sys.stderr)
+        return
+    call = ToolCallBlock(
+        id=uuid4().hex[:12],
+        name="bash",
+        args={"command": command},
+    )
+    decision = policy.check(call)
+    if decision == "deny":
+        print("permission denied: bash", file=sys.stderr)
+        return
+    if decision == "ask":
+        allowed = approve(call)
+        if inspect.isawaitable(allowed):
+            allowed = asyncio.run(_await_approval(allowed))
+        if not allowed:
+            print("permission denied: bash", file=sys.stderr)
+            return
+    result = asyncio.run(tool.execute(call, None))
+    print(result.content)
+    if result.is_error:
+        print("command failed", file=sys.stderr)
+
+
+async def _await_approval(value: Awaitable[bool]) -> bool:
+    return await value
 
 
 def _repl(
@@ -524,6 +662,7 @@ def _repl(
     system_prompt: str,
     provider: Provider,
     base_tools: Sequence[Tool],
+    skills: Sequence[Skill],
     workspace: Path,
     snapshots: SnapshotStore,
     goals: GoalStore,
@@ -536,15 +675,21 @@ def _repl(
     compactor: Compactor,
     hooks: HookRunner | None,
     window: Callable[[SessionLog], bool] | None,
+    steering: deque[str],
+    pending: deque[str],
 ) -> int:
     tools = _tools_for(base_tools, workspace, log)
     print(f"Cade Mini session {log.session_id}. Enter a task, /help, or /exit.")
     while True:
-        try:
-            line = input("cade-mini> ")
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return 0
+        if pending:
+            line = pending.popleft()
+            print(f"cade-mini> {line}")
+        else:
+            try:
+                line = input("cade-mini> ")
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 0
         text = line.strip()
         if not text:
             continue
@@ -576,6 +721,73 @@ def _repl(
             tools = _tools_for(base_tools, workspace, log)
             print(f"session {log.session_id}")
             continue
+        if text == "/sessions":
+            _print_sessions(sessions_dir)
+            continue
+        if text.startswith("/fork"):
+            argument = text[len("/fork") :].strip()
+            branch = log.branch()
+            users = [entry for entry in branch if entry.type == "user"]
+            target = None
+            if argument.isdigit():
+                index = int(argument)
+                if 1 <= index <= len(users):
+                    target = users[-index]
+            elif argument:
+                target = next(
+                    (entry for entry in branch if entry.id == argument),
+                    None,
+                )
+            elif users:
+                target = users[-1]
+            if target is None:
+                print("cade-mini: no user turn to fork", file=sys.stderr)
+                continue
+            try:
+                log = log.copy_branch(
+                    sessions_dir,
+                    before_entry_id=target.id,
+                    project_root=workspace,
+                )
+            except LogError as exc:
+                print(f"cade-mini: {exc}", file=sys.stderr)
+                continue
+            tools = _tools_for(base_tools, workspace, log)
+            print(f"session {log.session_id}")
+            print(f"forked before: {_entry_preview(target)}")
+            continue
+        if text == "/clone":
+            log = log.copy_branch(
+                sessions_dir,
+                project_root=workspace,
+            )
+            tools = _tools_for(base_tools, workspace, log)
+            print(f"session {log.session_id}")
+            continue
+        if text == "/tree":
+            active = {entry.id for entry in log.branch()}
+            for entry in log.entries():
+                mark = "*" if entry.id in active else " "
+                print(f"{mark} {entry.id} {entry.type:<12} {_entry_preview(entry)}")
+            continue
+        if text.startswith("/rewind"):
+            argument = text[len("/rewind") :].strip() or "1"
+            try:
+                count = int(argument)
+            except ValueError:
+                print("usage: /rewind [N]", file=sys.stderr)
+                continue
+            if count <= 0:
+                print("usage: /rewind [N]", file=sys.stderr)
+                continue
+            log = log.copy_branch(
+                sessions_dir,
+                drop_recent_users=count,
+                project_root=workspace,
+            )
+            tools = _tools_for(base_tools, workspace, log)
+            print(f"session {log.session_id}")
+            continue
         if text.startswith("/mode"):
             value = text[len("/mode") :].strip()
             if not value:
@@ -599,12 +811,38 @@ def _repl(
                 grants = policy.grants.describe()
                 print("\n".join(grants) if grants else "no session grants")
             continue
-        if text == "/undo":
-            snapshot = snapshots.undo_last()
-            if snapshot is None:
-                print("no snapshots to undo")
-            else:
+        if text.startswith("/undo"):
+            argument = text[len("/undo") :].strip() or "1"
+            try:
+                count = int(argument)
+            except ValueError:
+                print("usage: /undo [N]", file=sys.stderr)
+                continue
+            if count <= 0:
+                print("usage: /undo [N]", file=sys.stderr)
+                continue
+            for _ in range(count):
+                snapshot = snapshots.undo_last()
+                if snapshot is None:
+                    print("no snapshots to undo")
+                    break
                 print(f"restored {snapshot.path}")
+            continue
+        if text.startswith("/steer"):
+            value = text[len("/steer") :].strip()
+            if not value:
+                print("usage: /steer TEXT", file=sys.stderr)
+            else:
+                steering.append(value)
+                print("guidance queued for the next model step")
+            continue
+        if text.startswith("/queue"):
+            value = text[len("/queue") :].strip()
+            if not value:
+                print("usage: /queue TEXT", file=sys.stderr)
+            else:
+                pending.append(value)
+                print("task queued")
             continue
         if text.startswith("/goal"):
             value = text[len("/goal") :].strip()
@@ -631,6 +869,14 @@ def _repl(
             print("window started" if started else "no task to reset")
             continue
 
+        if text.startswith("!"):
+            _run_shell_input(text[1:].strip(), tools, policy, approve)
+            continue
+        expanded = _expand_input(text, workspace, skills)
+        if expanded is None:
+            continue
+        text = expanded
+
         try:
             result = _run_task(
                 log,
@@ -646,6 +892,7 @@ def _repl(
                 compactor,
                 hooks,
                 window,
+                lambda: steering.popleft() if steering else None,
             )
         except KeyboardInterrupt:
             print("\n[interrupted]")

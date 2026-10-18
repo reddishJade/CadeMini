@@ -18,7 +18,7 @@ uv run --locked python -m cade.mini.docs check
 
 | Area | Tests |
 | --- | --- |
-| Log, tail repair, sessions | `test_mini_log.py` |
+| Sessions | `test_mini_log.py` |
 | Projection and pairing | `test_mini_projection.py` |
 | Budget, pruning, wire format | `test_mini_request.py` |
 | Loop, approvals, retries, windows | `test_mini_loop.py` |
@@ -27,7 +27,7 @@ uv run --locked python -m cade.mini.docs check
 | Compaction and windows | `test_mini_compaction.py`, `test_mini_window.py` |
 | CLI and config | `test_mini_cli.py`, `test_mini_config.py` |
 | Instructions, skills, memory, NOTE | `test_mini_instructions.py`, `test_mini_skills.py`, `test_mini_memory.py`, `test_mini_note.py` |
-| Safety and modes | `test_mini_policy.py`, `test_mini_shell.py`, `test_mini_grants.py`, `test_mini_sandbox.py` |
+| Safety and modes | `test_mini_policy.py`, `test_mini_shell.py`, `test_mini_grants.py` |
 | Extensions | `test_mini_hooks.py`, `test_mini_mcp.py`, `test_mini_subagents.py` |
 | Recovery | `test_mini_snapshots.py`, `test_mini_goal.py` |
 | Hosts | `test_mini_web.py` |

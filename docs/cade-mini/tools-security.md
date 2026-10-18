@@ -16,6 +16,7 @@
 - `memory`: append a durable fact to `MEMORY.md`.
 - `goal`: read, set, complete, or clear the workspace goal.
 - `subagent`: run one child task in its own session.
+- `delegate`: run one or more child tasks sequentially, optionally in a mode.
 - `mcp__<server>__<tool>`: tools discovered from a configured MCP server.
 
 ## Modes
@@ -65,12 +66,12 @@ An ask is answered by:
 - Otherwise a TTY prompt: `y` once, `n` deny, `a` always for this exact call.
 - Non-TTY without `--yes` or auto-review: deny.
 
-## Sandbox
+## Process isolation
 
-On Linux, `--sandbox workspace` or `--sandbox strict` wraps shell commands with
-bubblewrap. The sandbox confines the workspace and denies network access by
-default. On other hosts the sandbox is unavailable and Cade Mini keeps path
-boundaries, mode policy, shell classification, and approvals.
+Cade Mini does not implement an OS sandbox. `bash` runs with the permissions of
+the Cade Mini process. The path boundary, modes, shell classification, and
+approvals are the safety layer; do not run untrusted commands or repositories
+with `--yes`.
 
 ## Best practices
 

@@ -7,12 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from cade.mini import (
-    MemoryTool,
-    ToolCallBlock,
-    WorkspacePolicy,
-    load_memory,
-)
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.extensions.memory import MemoryTool, load_memory
+from cade.mini.safety.policy import WorkspacePolicy
 
 
 def _call(text: str) -> ToolCallBlock:

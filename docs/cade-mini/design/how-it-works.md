@@ -48,9 +48,9 @@ session schema.
 ## Trust and permissions
 
 Every tool call passes through a policy. Modes, static rules, session grants,
-shell classification, and approvals decide whether a call runs. On Linux a
-bubblewrap sandbox can confine shell commands; on other hosts the path boundary,
-mode, shell classification, and approvals remain active.
+shell classification, and approvals decide whether a call runs. Cade Mini has
+no OS sandbox; the path boundary, mode, shell classification, and approvals are
+the active safety layer.
 
 See [Architecture](../architecture.md) for the invariant and
 [Capability seams](capability-seams.md) for the contracts.

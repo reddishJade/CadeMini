@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .log import SessionLog
+from cade.mini.core.log import SessionLog
 
 
 def reset_window(

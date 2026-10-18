@@ -37,8 +37,8 @@ command. The second workflow used the same settings.
   mutations; complex pipelines are not snapshotted.
 - Mini keeps one persistent MCP connection per server; Cade's MCP lifecycle and
   capability surface are still broader.
-- The OS sandbox is available only on Linux; on Windows Mini relies on path
-  boundaries, modes, shell classification, and approvals.
+- Mini has no OS sandbox; it relies on path boundaries, modes, shell
+  classification, and approvals.
 - The live Codex acceptance remains pending because the account returned HTTP
   429.
 

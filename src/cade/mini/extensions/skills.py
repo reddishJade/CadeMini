@@ -9,9 +9,9 @@ from typing import Any
 
 import yaml
 
-from .loop import ToolResult
-from .tools import WorkspaceTool, _text_arg
-from .types import JsonValue
+from cade.mini.core.loop import ToolResult
+from cade.mini.core.types import JsonValue
+from cade.mini.tools.workspace import WorkspaceTool, _text_arg
 
 MAX_SKILL_BYTES = 64 * 1024
 MAX_SKILLS = 50

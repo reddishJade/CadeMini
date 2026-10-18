@@ -8,13 +8,15 @@ from typing import Any
 
 from cade.ai.events import FinalMessage, ProviderEvent, TextDelta
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.mini import (
-    Budget,
-    SessionLog,
+from cade.mini.core.log import SessionLog
+from cade.mini.core.request import Budget
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.extensions.subagents import (
+    DelegateTool,
+    SubagentRunner,
     SubagentTool,
-    ToolCallBlock,
-    WorkspacePolicy,
 )
+from cade.mini.safety.policy import WorkspacePolicy
 
 
 class FakeProvider:
@@ -49,7 +51,7 @@ def _text(text: str) -> list[ProviderEvent]:
 
 async def test_subagent_runs_in_its_own_session(tmp_path: Path) -> None:
     provider = FakeProvider([_text("child answer")])
-    tool = SubagentTool(
+    runner = SubagentRunner(
         workspace=tmp_path,
         provider=provider,
         tools=(),
@@ -60,6 +62,7 @@ async def test_subagent_runs_in_its_own_session(tmp_path: Path) -> None:
         approve=lambda call: True,
         context=lambda: ("context",),
     )
+    tool = SubagentTool(runner=runner)
 
     result = await tool.execute(
         ToolCallBlock(
@@ -84,3 +87,34 @@ async def test_subagent_runs_in_its_own_session(tmp_path: Path) -> None:
     )
     names = {definition.name for definition in provider.requests[0][1]}
     assert "subagent" not in names
+
+
+async def test_delegate_runs_multiple_child_tasks(tmp_path: Path) -> None:
+    provider = FakeProvider([_text("first"), _text("second")])
+    runner = SubagentRunner(
+        workspace=tmp_path,
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+        sessions_dir=tmp_path / "sessions",
+        system_prompt="system",
+        policy=WorkspacePolicy(tmp_path),
+        approve=lambda call: True,
+    )
+    tool = DelegateTool(runner=runner)
+
+    result = await tool.execute(
+        ToolCallBlock(
+            id="d1",
+            name="delegate",
+            args={"tasks": ["task one", "task two"]},
+        )
+    )
+
+    assert result.is_error is False
+    assert "first" in result.content
+    assert "second" in result.content
+    assert result.metadata is not None
+    assert result.metadata["tasks"] == 2
+    paths = list((tmp_path / "sessions" / "subagents").glob("session-*.jsonl"))
+    assert len(paths) == 2

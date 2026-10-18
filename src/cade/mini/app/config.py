@@ -66,7 +66,6 @@ class MiniConfig(BaseModel):
     rules: list[RuleConfig] = Field(default_factory=list)
     hooks: list[HookConfig] = Field(default_factory=list)
     mcp_servers: dict[str, McpServerConfig] = Field(default_factory=dict)
-    sandbox: Literal["off", "workspace", "strict"] = "workspace"
 
     @classmethod
     def load(

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from cade.mini import MiniConfig
+from cade.mini.app.config import MiniConfig
 
 
 def test_defaults_when_config_is_missing(tmp_path: Path) -> None:
@@ -35,7 +35,6 @@ def test_loads_values(tmp_path: Path) -> None:
                 "auto_review": True,
                 "prompt_modules": ["identity"],
                 "mode": "plan",
-                "sandbox": "strict",
                 "rules": [
                     {
                         "tool": "bash",
@@ -50,9 +49,7 @@ def test_loads_values(tmp_path: Path) -> None:
                         "matcher": "bash",
                     }
                 ],
-                "mcp_servers": {
-                    "fake": {"command": "python", "args": ["server.py"]}
-                },
+                "mcp_servers": {"fake": {"command": "python", "args": ["server.py"]}},
             }
         ),
         encoding="utf-8",
@@ -71,7 +68,6 @@ def test_loads_values(tmp_path: Path) -> None:
     assert config.auto_review is True
     assert config.prompt_modules == ["identity"]
     assert config.mode == "plan"
-    assert config.sandbox == "strict"
     assert config.rules[0].tool == "bash"
     assert config.rules[0].decision == "allow"
     assert config.hooks[0].event == "before_tool"

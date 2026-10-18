@@ -6,16 +6,18 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
-from .config import RuleConfig
-from .grants import GrantStore
-from .loop import Decision, Tool
-from .shell import classify_command
-from .tools import resolve_workspace_path
-from .types import ToolCallBlock
+from cade.mini.app.config import RuleConfig
+from cade.mini.core.loop import Decision, Tool
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.safety.grants import GrantStore
+from cade.mini.safety.shell import classify_command
+from cade.mini.tools.workspace import resolve_workspace_path
 
 type Mode = Literal["plan", "build", "act"]
 
-_PLAN_TOOLS = frozenset({"read", "glob", "grep", "history", "skill", "bash"})
+_PLAN_TOOLS = frozenset(
+    {"read", "glob", "grep", "history", "skill", "delegate", "bash"}
+)
 
 
 def filter_tools(tools: Sequence[Tool], mode: Mode) -> tuple[Tool, ...]:
@@ -89,6 +91,7 @@ class WorkspacePolicy:
             "memory",
             "skill",
             "subagent",
+            "delegate",
         }:
             return "allow"
         if call.name == "read":

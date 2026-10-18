@@ -9,12 +9,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from cade.harness.execution_env import CommandSandbox, SubprocessShell
-
-from .loop import CancellationToken, ToolResult
-from .shell import mutation_targets
-from .snapshots import SnapshotStore
-from .types import JsonValue, ToolCallBlock
+from cade.harness.execution_env import SubprocessShell
+from cade.mini.core.loop import CancellationToken, ToolResult
+from cade.mini.core.types import JsonValue, ToolCallBlock
+from cade.mini.extensions.snapshots import SnapshotStore
+from cade.mini.safety.shell import mutation_targets
 
 MAX_READ_BYTES = 50 * 1024
 MAX_READ_LINES = 2_000
@@ -326,11 +325,9 @@ class BashTool(WorkspaceTool):
     def __init__(
         self,
         workspace: Path,
-        sandbox: CommandSandbox | None = None,
         snapshots: SnapshotStore | None = None,
     ) -> None:
         super().__init__(workspace)
-        self.sandbox = sandbox
         self.snapshots = snapshots
 
     def _parameters(self) -> dict[str, Any]:
@@ -368,7 +365,7 @@ class BashTool(WorkspaceTool):
                 if target.is_dir():
                     continue
                 self.snapshots.capture(target)
-        result = SubprocessShell(sandbox=self.sandbox).run(
+        result = SubprocessShell().run(
             _shell_argv(command),
             cwd=workdir,
             timeout=timeout_ms,
@@ -394,7 +391,6 @@ class BashTool(WorkspaceTool):
 def build_tools(
     workspace: Path,
     *,
-    sandbox: CommandSandbox | None = None,
     snapshots: SnapshotStore | None = None,
 ) -> tuple[WorkspaceTool, ...]:
     """构造绑定同一工作区的六个工具。"""
@@ -404,7 +400,7 @@ def build_tools(
         EditTool(workspace, snapshots),
         GlobTool(workspace),
         GrepTool(workspace),
-        BashTool(workspace, sandbox, snapshots),
+        BashTool(workspace, snapshots),
     )
 
 

@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from cade.ai.auth import AuthCredential
-from cade.mini.auth import JsonCredentialStore, resolve_codex_credential
-from cade.mini.provider import ProviderConfig, build_provider
+from cade.mini.app.auth import JsonCredentialStore, resolve_codex_credential
+from cade.mini.app.provider import ProviderConfig, build_provider
 
 
 def _credential(access: str = "token") -> AuthCredential:

@@ -7,8 +7,7 @@ import json
 from pathlib import Path
 
 from cade.ai.events import FinalMessage, ProviderFailure, TextDelta
-
-from .loop import Provider, ToolCallBlock
+from cade.mini.core.loop import Provider, ToolCallBlock
 
 _SYSTEM = (
     "You are a conservative safety reviewer for a coding agent. Approve only "

@@ -9,7 +9,8 @@ from typing import Any
 
 from cade.ai.events import FinalMessage, ProviderEvent, TextDelta
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.mini import AutoReviewer, ToolCallBlock
+from cade.mini.core.types import ToolCallBlock
+from cade.mini.safety.review import AutoReviewer
 
 
 class FakeProvider:

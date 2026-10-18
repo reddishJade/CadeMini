@@ -6,14 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from cade.mini import (
-    ToolCallBlock,
-    WorkspacePolicy,
-    build_tools,
-    resolve_workspace_path,
-)
-from cade.mini.tools import WorkspaceTool
-from cade.mini.types import JsonValue
+from cade.mini.core.types import JsonValue, ToolCallBlock
+from cade.mini.safety.policy import WorkspacePolicy
+from cade.mini.tools.workspace import WorkspaceTool, build_tools, resolve_workspace_path
 
 
 def _workspace(tmp_path: Path) -> Path:

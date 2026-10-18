@@ -18,10 +18,13 @@ from cade.ai.events import (
     ToolCallEvent,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.mini.cli import main
-from cade.mini.goal import GoalStore
-from cade.mini.log import SessionLog
-from cade.mini.snapshots import SnapshotStore
+from cade.mini.core.log import SessionLog
+from cade.mini.extensions.goal import GoalStore
+from cade.mini.extensions.skills import Skill
+from cade.mini.extensions.snapshots import SnapshotStore
+from cade.mini.hosts.cli import _expand_input, _run_shell_input, main
+from cade.mini.safety.policy import WorkspacePolicy
+from cade.mini.tools.workspace import BashTool
 
 
 class FakeProvider:
@@ -890,9 +893,7 @@ def test_cli_memory_tool_appends(tmp_path: Path) -> None:
     )
 
     assert code == 0
-    assert "new durable fact" in (workspace / "MEMORY.md").read_text(
-        encoding="utf-8"
-    )
+    assert "new durable fact" in (workspace / "MEMORY.md").read_text(encoding="utf-8")
 
 
 def test_cli_undo_restores_latest_snapshot(tmp_path: Path) -> None:
@@ -972,3 +973,41 @@ def test_cli_auto_review_allows_write(tmp_path: Path) -> None:
 
     assert code == 0
     assert (workspace / "a.txt").read_text(encoding="utf-8") == "x"
+
+
+def test_expand_file_and_skill_references(tmp_path: Path) -> None:
+    target = tmp_path / "notes.txt"
+    target.write_text("file body", encoding="utf-8")
+    skill = Skill(
+        name="greeter",
+        description="Say hello",
+        body="Say HELLO.",
+        path=tmp_path / "SKILL.md",
+    )
+
+    expanded = _expand_input(
+        "Review @notes.txt and use $greeter",
+        tmp_path,
+        [skill],
+    )
+
+    assert expanded is not None
+    assert "file body" in expanded
+    assert "Say HELLO." in expanded
+    assert "Review" in expanded
+
+def test_shell_input_runs_with_policy(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tool = BashTool(tmp_path)
+    policy = WorkspacePolicy(tmp_path, mode="build")
+
+    _run_shell_input(
+        "echo hello-shell",
+        [tool],
+        policy,
+        lambda call: True,
+    )
+
+    assert "hello-shell" in capsys.readouterr().out

@@ -22,7 +22,6 @@ Top-level fields. Nested types follow the table.
 | `rules` | `list[RuleConfig]` | `required` |
 | `hooks` | `list[HookConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
-| `sandbox` | `off \| workspace \| strict` | `"workspace"` |
 
 ## HookConfig
 
