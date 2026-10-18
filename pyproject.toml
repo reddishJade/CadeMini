@@ -38,6 +38,9 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
 ]
+docs = [
+    "markdown-it-py>=3.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["src/cade/tests"]

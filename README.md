@@ -91,6 +91,13 @@ finally:
     app.close()
 ```
 
+## Cade Mini
+
+Cade Mini is the small, log-first implementation in this repository. Start with
+the [Mini guides](docs/cade-mini/README.md) or the [generated docs
+site](docs/mini/index.html). The detailed design is in
+[docs/cade-mini.md](docs/cade-mini.md).
+
 ## License
 
 MIT

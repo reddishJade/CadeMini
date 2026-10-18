@@ -1,0 +1,495 @@
+"""Cade Mini 文档基建：清单、链接检查、站点构建与 llms.txt。"""
+
+from __future__ import annotations
+
+import argparse
+import fnmatch
+import html
+import json
+import re
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_DOCS_ROOT = _REPO_ROOT / "docs" / "cade-mini"
+_SITE_OUT = _REPO_ROOT / "docs" / "mini" / "index.html"
+_LLMS_NAME = "llms.txt"
+_LINK = re.compile(r"\[[^\]]+\]\(([^)\s]+)")
+_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
+_FENCE = re.compile(r"^\s*(```|~~~)")
+_INLINE_CODE = re.compile(r"`[^`]*`")
+_SCHEMES = ("http://", "https://", "mailto:", "tel:")
+
+
+class DocsError(RuntimeError):
+    """文档清单或构建失败。"""
+
+
+@dataclass(frozen=True)
+class Page:
+    """一个已发布的文档页。"""
+
+    path: Path
+    relative: str
+    title: str
+    section: str
+
+
+def load_manifest(root: Path) -> tuple[dict[str, Any], list[str]]:
+    """读取 docs.json；返回清单与错误列表。"""
+    path = root / "docs.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {}, [f"{path}: cannot read manifest: {exc}"]
+    if not isinstance(raw, dict):
+        return {}, [f"{path}: manifest must be a JSON object"]
+    errors: list[str] = []
+    sections = raw.get("sections")
+    if not isinstance(sections, list) or not sections:
+        errors.append(f"{path}: sections must be a non-empty list")
+        return raw, errors
+    seen: set[str] = set()
+    for section in sections:
+        if not isinstance(section, dict):
+            errors.append(f"{path}: section must be an object")
+            continue
+        title = section.get("title")
+        pages = section.get("pages")
+        if not isinstance(title, str) or not title.strip():
+            errors.append(f"{path}: section title is required")
+        if not isinstance(pages, list) or not pages:
+            errors.append(f"{path}: section pages must be a non-empty list")
+            continue
+        for page in pages:
+            if not isinstance(page, str) or not page.endswith(".md"):
+                errors.append(f"{path}: page must be a .md path: {page!r}")
+                continue
+            if page in seen:
+                errors.append(f"{path}: duplicate page: {page}")
+            seen.add(page)
+    return raw, errors
+
+
+def list_pages(root: Path) -> tuple[list[Page], list[str]]:
+    """按清单顺序返回页面，并检查缺失、重复和未登记页面。"""
+    manifest, errors = load_manifest(root)
+    pages: list[Page] = []
+    seen: set[str] = set()
+    sections = manifest.get("sections", [])
+    if not isinstance(sections, list):
+        return pages, errors
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        section_title = str(section.get("title", ""))
+        raw_pages = section.get("pages", [])
+        if not isinstance(raw_pages, list):
+            continue
+        for relative in raw_pages:
+            if not isinstance(relative, str):
+                continue
+            path = (root / relative).resolve()
+            if not _inside(path, root):
+                errors.append(f"{relative}: page escapes docs root")
+                continue
+            if not path.is_file():
+                errors.append(f"{relative}: page does not exist")
+                continue
+            if relative in seen:
+                continue
+            seen.add(relative)
+            pages.append(
+                Page(
+                    path=path,
+                    relative=relative,
+                    title=_title(path),
+                    section=section_title,
+                )
+            )
+    excluded = _excluded_patterns(manifest)
+    for path in sorted(root.rglob("*.md")):
+        relative = path.relative_to(root).as_posix()
+        if _excluded(relative, excluded):
+            continue
+        if relative not in seen:
+            errors.append(f"{relative}: markdown file is not listed in docs.json")
+    return pages, errors
+
+
+def check(root: Path = _DOCS_ROOT) -> list[str]:
+    """检查清单、链接、锚点和 llms.txt 是否一致。"""
+    pages, errors = list_pages(root)
+    anchors: dict[str, set[str]] = {}
+    for page in pages:
+        headings, heading_errors = _headings(page.path)
+        anchors[page.relative] = headings
+        errors.extend(f"{page.relative}: {message}" for message in heading_errors)
+    for page in pages:
+        for line, target in _links(page.path):
+            errors.extend(
+                _check_link(
+                    root,
+                    page,
+                    target,
+                    anchors,
+                    line,
+                )
+            )
+    if errors:
+        return errors
+    expected = render_llms(root)
+    llms_path = root / _LLMS_NAME
+    if not llms_path.is_file():
+        errors.append(f"{_LLMS_NAME}: generated catalog is missing")
+    else:
+        actual = llms_path.read_text(encoding="utf-8")
+        if actual != expected:
+            errors.append(
+                f"{_LLMS_NAME}: out of date; run "
+                "`python -m cade.mini.docs llms --write`"
+            )
+    return errors
+
+
+def render_llms(root: Path = _DOCS_ROOT) -> str:
+    """生成 llms.txt 目录。"""
+    manifest, errors = load_manifest(root)
+    if errors:
+        raise DocsError("; ".join(errors))
+    lines = [
+        f"# {manifest.get('title', 'Cade Mini')}",
+        "",
+        f"> {manifest.get('description', '')}",
+        "",
+    ]
+    sections = manifest.get("sections", [])
+    if isinstance(sections, list):
+        for section in sections:
+            if not isinstance(section, dict):
+                continue
+            title = str(section.get("title", ""))
+            pages = section.get("pages", [])
+            if not isinstance(pages, list):
+                continue
+            lines.append(f"## {title}")
+            for relative in pages:
+                if not isinstance(relative, str):
+                    continue
+                path = root / relative
+                lines.append(f"- [{_title(path)}]({relative})")
+            lines.append("")
+    lines.extend(
+        [
+            "## Design references",
+            "",
+            "- [Cade Mini design](../cade-mini.md)",
+            "- [Session log schema](../cade-mini-schema.md)",
+            "- [Harvest notes](../cade-mini-harvest.md)",
+            "- [Parity acceptance](../cade-mini-parity.md)",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def write_llms(root: Path = _DOCS_ROOT) -> Path:
+    """把生成结果写入 llms.txt。"""
+    path = root / _LLMS_NAME
+    path.write_text(render_llms(root), encoding="utf-8")
+    return path
+
+
+def build(root: Path = _DOCS_ROOT, out: Path = _SITE_OUT) -> Path:
+    """把清单中的页面渲染成一个单页站点。"""
+    try:
+        from markdown_it import MarkdownIt
+    except ImportError as exc:
+        raise DocsError(
+            "build requires markdown-it-py; install the docs extra"
+        ) from exc
+    pages, errors = list_pages(root)
+    if errors:
+        raise DocsError("; ".join(errors))
+    renderer = MarkdownIt("commonmark", {"html": False})
+    page_ids = {page.relative: _slug(page.path.stem) for page in pages}
+    sections: list[str] = []
+    for page in pages:
+        body = renderer.render(page.path.read_text(encoding="utf-8"))
+        body = _rewrite_internal_links(body, page_ids)
+        sections.append(
+            f'<section class="page" id="page-{page_ids[page.relative]}" '
+            f'data-title="{html.escape(page.title)}">\n'
+            f"{body}\n"
+            "</section>"
+        )
+    sidebar: list[str] = []
+    current_section = ""
+    for page in pages:
+        if page.section != current_section:
+            if current_section:
+                sidebar.append("</div>")
+            sidebar.append(f'<div class="nav-group"><p>{html.escape(page.section)}</p>')
+            current_section = page.section
+        sidebar.append(
+            f'<a href="#page-{_slug(page.path.stem)}">{html.escape(page.title)}</a>'
+        )
+    if current_section:
+        sidebar.append("</div>")
+    manifest, _ = load_manifest(root)
+    title = str(manifest.get("title", "Cade Mini"))
+    description = str(manifest.get("description", ""))
+    document = _TEMPLATE.replace("__TITLE__", html.escape(title))
+    document = document.replace("__DESCRIPTION__", html.escape(description))
+    document = document.replace("__NAV__", "\n".join(sidebar))
+    document = document.replace("__CONTENT__", "\n".join(sections))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(document, encoding="utf-8")
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="cade-mini-docs")
+    parser.add_argument("--root", type=Path, default=_DOCS_ROOT)
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("check", help="Validate manifest, links, and llms.txt")
+    build_parser = sub.add_parser("build", help="Render the docs site")
+    build_parser.add_argument("--out", type=Path, default=_SITE_OUT)
+    llms_parser = sub.add_parser("llms", help="Print or write llms.txt")
+    llms_parser.add_argument("--write", action="store_true")
+    args = parser.parse_args(argv)
+
+    if args.command == "check":
+        issues = check(args.root)
+        if issues:
+            for issue in issues:
+                print(f"docs: {issue}", file=sys.stderr)
+            print(f"docs check failed: {len(issues)} issue(s)", file=sys.stderr)
+            return 1
+        print("docs check passed")
+        return 0
+    if args.command == "build":
+        try:
+            path = build(args.root, args.out)
+        except DocsError as exc:
+            print(f"docs: {exc}", file=sys.stderr)
+            return 1
+        print(path)
+        return 0
+    if args.command == "llms":
+        if args.write:
+            print(write_llms(args.root))
+        else:
+            print(render_llms(args.root), end="")
+        return 0
+    return 2
+
+
+def _title(path: Path) -> str:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return path.stem
+    for line in text.splitlines():
+        match = _HEADING.match(line)
+        if match and len(match.group(1)) == 1:
+            return _plain(match.group(2))
+    return path.stem
+
+
+def _plain(text: str) -> str:
+    text = re.sub(r"`([^`]*)`", r"\1", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    text = re.sub(r"[*_~]", "", text)
+    return " ".join(text.split())
+
+
+def _headings(path: Path) -> tuple[set[str], list[str]]:
+    anchors: set[str] = set()
+    errors: list[str] = []
+    fence = ""
+    for number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        marker = _FENCE.match(line)
+        if marker:
+            fence = "" if fence == marker.group(1) else marker.group(1)
+            continue
+        if fence:
+            continue
+        match = _HEADING.match(line)
+        if not match:
+            continue
+        slug = _slug(match.group(2))
+        if slug in anchors:
+            errors.append(f"line {number}: duplicate heading anchor #{slug}")
+        anchors.add(slug)
+    return anchors, errors
+
+
+def _links(path: Path) -> list[tuple[int, str]]:
+    result: list[tuple[int, str]] = []
+    fence = ""
+    for number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        marker = _FENCE.match(line)
+        if marker:
+            fence = "" if fence == marker.group(1) else marker.group(1)
+            continue
+        if fence:
+            continue
+        cleaned = _INLINE_CODE.sub("", line)
+        for match in _LINK.finditer(cleaned):
+            result.append((number, match.group(1)))
+    return result
+
+
+def _check_link(
+    root: Path,
+    page: Page,
+    target: str,
+    anchors: dict[str, set[str]],
+    line: int,
+) -> list[str]:
+    if target.startswith(_SCHEMES):
+        return []
+    path_part, _, anchor = target.partition("#")
+    if not path_part:
+        if anchor and anchor not in anchors.get(page.relative, set()):
+            return [f"{page.relative}:{line}: unknown anchor #{anchor}"]
+        return []
+    resolved = (page.path.parent / path_part).resolve()
+    if not resolved.exists():
+        return [f"{page.relative}:{line}: missing link target: {path_part}"]
+    if anchor and resolved.suffix == ".md":
+        try:
+            relative = resolved.relative_to(root.resolve()).as_posix()
+        except ValueError:
+            relative = ""
+        known = anchors.get(relative)
+        if known is not None and anchor not in known:
+            return [f"{page.relative}:{line}: unknown anchor #{anchor} in {relative}"]
+    return []
+
+
+def _rewrite_internal_links(
+    body: str,
+    page_ids: dict[str, str],
+) -> str:
+    for relative, page_id in page_ids.items():
+        body = re.sub(
+            rf'href="{re.escape(relative)}(?:#[^"]*)?"',
+            f'href="#page-{page_id}"',
+            body,
+        )
+    return body
+
+
+def _excluded_patterns(manifest: dict[str, Any]) -> list[str]:
+    raw = manifest.get("exclude", [])
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, str)]
+
+
+def _excluded(relative: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatch(relative, pattern) for pattern in patterns)
+
+
+def _slug(value: str) -> str:
+    text = _plain(value).lower()
+    text = re.sub(r"[^\w\s-]", "", text, flags=re.UNICODE)
+    text = re.sub(r"[\s_]+", "-", text).strip("-")
+    return text or "section"
+
+
+def _inside(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+_TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<meta name="description" content="__DESCRIPTION__">
+<style>
+:root { --ink:#1d1c19; --paper:#faf9f5; --muted:#6b6961; --line:#ddd9ce; --accent:#b85c3d; --code:#f1efe8; }
+html[data-theme="dark"] { --ink:#ece9df; --paper:#171613; --muted:#aaa69a; --line:#35322b; --accent:#e08a6d; --code:#211f1a; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
+header { position:sticky; top:0; z-index:2; display:flex; gap:1rem; align-items:center; padding:.8rem 1.2rem; border-bottom:1px solid var(--line); background:var(--paper); }
+header strong { font-size:1rem; }
+header input { flex:1; max-width:28rem; padding:.45rem .7rem; border:1px solid var(--line); border-radius:.4rem; background:transparent; color:var(--ink); }
+header button { padding:.4rem .7rem; border:1px solid var(--line); border-radius:.4rem; background:transparent; color:var(--ink); cursor:pointer; }
+main { display:grid; grid-template-columns:18rem minmax(0,1fr); gap:2rem; max-width:76rem; margin:0 auto; padding:1.5rem; }
+nav { position:sticky; top:4rem; align-self:start; max-height:calc(100vh - 5rem); overflow:auto; font-size:.92rem; }
+nav p { margin:1rem 0 .3rem; color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.08em; }
+nav a { display:block; padding:.18rem 0; color:var(--ink); text-decoration:none; }
+nav a:hover { color:var(--accent); }
+.page { padding-bottom:3rem; border-bottom:1px solid var(--line); }
+.page:last-child { border-bottom:0; }
+h1,h2,h3 { line-height:1.2; }
+h1 { font-size:2rem; margin-top:0; }
+h2 { margin-top:2rem; font-size:1.35rem; }
+a { color:var(--accent); }
+pre { background:var(--code); padding:1rem; overflow:auto; border-radius:.4rem; }
+code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em; }
+pre code { padding:0; }
+blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line); color:var(--muted); }
+@media (max-width: 760px) { main { grid-template-columns:1fr; } nav { position:static; max-height:none; order:2; } }
+</style>
+</head>
+<body>
+<header><strong>__TITLE__</strong><input id="search" placeholder="Search docs" aria-label="Search docs"><button id="theme" type="button">Theme</button></header>
+<main><nav>__NAV__</nav><article>__CONTENT__</article></main>
+<script>
+const search = document.getElementById('search');
+search.addEventListener('input', () => {
+  const q = search.value.toLowerCase();
+  document.querySelectorAll('.page').forEach((page) => {
+    page.style.display = page.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  document.querySelectorAll('nav a').forEach((link) => {
+    link.style.display = link.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+const theme = document.getElementById('theme');
+theme.addEventListener('click', () => {
+  const root = document.documentElement;
+  const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  root.dataset.theme = next;
+  try { localStorage.setItem('cade-mini-theme', next); } catch (e) {}
+});
+try {
+  const saved = localStorage.getItem('cade-mini-theme');
+  if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved;
+} catch (e) {}
+document.querySelectorAll('pre').forEach((pre) => {
+  const button = document.createElement('button');
+  button.textContent = 'Copy';
+  button.style.cssText = 'float:right;font:inherit;font-size:.75rem;cursor:pointer';
+  button.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(pre.innerText); button.textContent = 'Copied'; }
+    catch (e) { button.textContent = 'Failed'; }
+  });
+  pre.prepend(button);
+});
+</script>
+</body>
+</html>
+"""
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

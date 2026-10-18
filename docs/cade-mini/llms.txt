@@ -1,0 +1,35 @@
+# Cade Mini
+
+> A small, durable coding agent built on one append-only session log.
+
+## Overview
+- [Cade Mini](README.md)
+
+## Start
+- [Quickstart](quickstart.md)
+- [CLI](cli.md)
+- [Configuration](configuration.md)
+
+## Concepts
+- [Architecture](architecture.md)
+- [Sessions and context](sessions-context.md)
+
+## Safety
+- [Tools and security](tools-security.md)
+- [Snapshots and goals](snapshots-goals.md)
+
+## Extensions
+- [Skills and memory](skills-memory.md)
+- [Hooks, MCP, and subagents](hooks-mcp-subagents.md)
+
+## Operations
+- [Hosts](hosts.md)
+- [Development](development.md)
+- [Parity](parity.md)
+
+## Design references
+
+- [Cade Mini design](../cade-mini.md)
+- [Session log schema](../cade-mini-schema.md)
+- [Harvest notes](../cade-mini-harvest.md)
+- [Parity acceptance](../cade-mini-parity.md)

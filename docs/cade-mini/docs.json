@@ -1,0 +1,31 @@
+{
+  "title": "Cade Mini",
+  "description": "A small, durable coding agent built on one append-only session log.",
+  "sections": [
+    {
+      "title": "Overview",
+      "pages": ["README.md"]
+    },
+    {
+      "title": "Start",
+      "pages": ["quickstart.md", "cli.md", "configuration.md"]
+    },
+    {
+      "title": "Concepts",
+      "pages": ["architecture.md", "sessions-context.md"]
+    },
+    {
+      "title": "Safety",
+      "pages": ["tools-security.md", "snapshots-goals.md"]
+    },
+    {
+      "title": "Extensions",
+      "pages": ["skills-memory.md", "hooks-mcp-subagents.md"]
+    },
+    {
+      "title": "Operations",
+      "pages": ["hosts.md", "development.md", "parity.md"]
+    }
+  ],
+  "exclude": ["decisions/**"]
+}

@@ -50,6 +50,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y bubblewrap
       - name: Install development dependencies
         run: uv sync --locked --extra dev
+      - name: Docs check
+        run: uv run --locked python -m cade.mini.docs check
       - name: Ruff lint check
         run: uv run --locked ruff check src/cade/
       - name: Ruff format check
