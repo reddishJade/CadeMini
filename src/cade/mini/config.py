@@ -4,10 +4,22 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 DEFAULT_CONFIG_NAME = "cade-mini.json"
+
+
+class RuleConfig(BaseModel):
+    """一条静态权限规则；最后匹配的规则生效。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tool: str
+    decision: Literal["allow", "deny", "ask"]
+    path_prefix: str | None = None
+    command_prefix: str | None = None
 
 
 class MiniConfig(BaseModel):
@@ -25,6 +37,9 @@ class MiniConfig(BaseModel):
     instructions: bool = True
     note: bool = True
     prompt_modules: list[str] | None = None
+    mode: Literal["plan", "build", "act"] = "act"
+    rules: list[RuleConfig] = Field(default_factory=list)
+    sandbox: Literal["off", "workspace", "strict"] = "workspace"
 
     @classmethod
     def load(

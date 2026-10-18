@@ -661,3 +661,110 @@ def test_cli_can_disable_note(tmp_path: Path) -> None:
         if message.get("role") == "system"
     )
     assert "NOTE STATE" not in system_text
+
+
+def test_cli_plan_mode_hides_write_tools(tmp_path: Path) -> None:
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        [
+            "exec",
+            "hi",
+            "--mode",
+            "plan",
+            "--project-root",
+            str(tmp_path),
+            "--sessions-dir",
+            str(tmp_path / "sessions"),
+            "--yes",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    names = {tool.name for tool in provider.requests[0][1]}
+    assert "read" in names
+    assert "bash" in names
+    assert "write" not in names
+    assert "edit" not in names
+
+
+def test_cli_build_mode_allows_write_without_approval(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="w1",
+                            name="write",
+                            input={"path": "a.txt", "content": "x"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("done"),
+        ]
+    )
+
+    code = main(
+        [
+            "exec",
+            "write",
+            "--mode",
+            "build",
+            "--project-root",
+            str(workspace),
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    assert (workspace / "a.txt").read_text(encoding="utf-8") == "x"
+
+
+def test_cli_rule_allows_write_without_approval(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "cade-mini.json").write_text(
+        json.dumps(
+            {
+                "rules": [
+                    {
+                        "tool": "write",
+                        "path_prefix": "docs/",
+                        "decision": "allow",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="w1",
+                            name="write",
+                            input={"path": "docs/a.txt", "content": "x"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("done"),
+        ]
+    )
+
+    code = main(
+        ["exec", "write", "--project-root", str(workspace)],
+        provider=provider,
+    )
+
+    assert code == 0
+    assert (workspace / "docs" / "a.txt").read_text(encoding="utf-8") == "x"

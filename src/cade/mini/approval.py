@@ -6,13 +6,14 @@ import json
 import sys
 from collections.abc import Callable
 
+from .grants import GrantStore
 from .types import ToolCallBlock
 
 _PROMPT_LIMIT = 500
 
 
 class SessionApprover:
-    """把 policy 的 ask 决议交给用户；always 只记住工具名。"""
+    """把 policy 的 ask 决议交给用户；always 记录为会话 grant。"""
 
     def __init__(
         self,
@@ -20,16 +21,17 @@ class SessionApprover:
         auto_approve: bool = False,
         ask: Callable[[str], str] | None = None,
         is_tty: Callable[[], bool] | None = None,
+        grants: GrantStore | None = None,
     ) -> None:
         self.auto_approve = auto_approve
         self._ask = ask or input
         self._is_tty = is_tty or sys.stdin.isatty
-        self._always: set[str] = set()
+        self.grants = grants or GrantStore()
 
     def __call__(self, call: ToolCallBlock) -> bool:
         if self.auto_approve:
             return True
-        if call.name in self._always:
+        if self.grants.match(call):
             return True
         if not self._is_tty():
             return False
@@ -47,6 +49,6 @@ class SessionApprover:
         except (EOFError, KeyboardInterrupt):
             return False
         if answer in {"a", "always"}:
-            self._always.add(call.name)
+            self.grants.add(call)
             return True
         return answer in {"y", "yes"}

@@ -8,11 +8,12 @@ import json
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .approval import SessionApprover
 from .compaction import Compactor
 from .config import MiniConfig
+from .grants import GrantStore
 from .history import HistoryTool
 from .instructions import load_project_instructions
 from .log import SessionLog, list_sessions
@@ -26,11 +27,12 @@ from .loop import (
     run,
 )
 from .note import load_working_note
-from .policy import WorkspacePolicy
+from .policy import Mode, WorkspacePolicy, filter_tools
 from .projection import project
 from .prompts import render_system_prompt
 from .provider import ProviderConfig, build_provider
 from .request import Budget
+from .sandbox import MiniSandboxMode, build_sandbox
 from .skills import LoadSkillTool, discover_skills, render_skill_catalog
 from .tools import build_tools
 from .types import LogError, ToolCallBlock
@@ -48,6 +50,8 @@ Commands:
   /resume [ID]         Resume a session (default: latest)
   /compact             Summarize older turns and keep recent work
   /new-context [NOTE]  Start a new window, optionally with a handoff note
+  /mode [MODE]         Show or switch plan/build/act
+  /permissions [clear] Show or clear session grants
   /context             Show session and budget information
   /help                Show this help
   /exit                Exit
@@ -101,6 +105,11 @@ def main(
         args.instructions if args.instructions is not None else config.instructions
     )
     use_note = args.note if args.note is not None else config.note
+    mode = cast(Mode, args.mode or config.mode)
+    sandbox_mode = cast(
+        MiniSandboxMode,
+        args.sandbox or config.sandbox,
+    )
 
     raw_sessions = args.sessions_dir or (
         Path(config.sessions_dir) if config.sessions_dir else None
@@ -148,9 +157,20 @@ def main(
 
     skills = discover_skills(project_root)
     skill_catalog = render_skill_catalog(skills)
-    base_tools = (*build_tools(project_root), LoadSkillTool(project_root, skills))
-    policy = WorkspacePolicy(project_root, read_only=read_only)
-    approve = SessionApprover(auto_approve=args.yes)
+    sandbox = build_sandbox(sandbox_mode, project_root)
+    base_tools = (
+        *build_tools(project_root, sandbox=sandbox),
+        LoadSkillTool(project_root, skills),
+    )
+    grants = GrantStore()
+    policy = WorkspacePolicy(
+        project_root,
+        read_only=read_only,
+        mode=mode,
+        rules=config.rules,
+        grants=grants,
+    )
+    approve = SessionApprover(auto_approve=args.yes, grants=grants)
 
     def note_context() -> str | None:
         return load_working_note(project_root) if use_note else None
@@ -271,6 +291,18 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="Deny writes and shell commands",
     )
+    parser.add_argument(
+        "--mode",
+        choices=("plan", "build", "act"),
+        default=None,
+        help="Execution mode (default: act)",
+    )
+    parser.add_argument(
+        "--sandbox",
+        choices=("off", "workspace", "strict"),
+        default=None,
+        help="OS sandbox mode on Linux (default: workspace)",
+    )
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--context-window", type=int, default=None)
     parser.add_argument("--json", action="store_true", help="Emit JSONL events")
@@ -343,6 +375,7 @@ def _run_task(
     compactor: Compactor,
     window: Callable[[SessionLog], bool] | None,
 ) -> RunResult:
+    tools = filter_tools(tools, policy.mode)
     return asyncio.run(
         run(
             log,
@@ -415,6 +448,29 @@ def _repl(
                 continue
             tools = _tools_for(base_tools, workspace, log)
             print(f"session {log.session_id}")
+            continue
+        if text.startswith("/mode"):
+            value = text[len("/mode") :].strip()
+            if not value:
+                print(f"mode={policy.mode}")
+                continue
+            try:
+                policy.set_mode(value)
+            except ValueError as exc:
+                print(f"cade-mini: {exc}", file=sys.stderr)
+                continue
+            print(f"mode={policy.mode}")
+            continue
+        if text.startswith("/permissions"):
+            value = text[len("/permissions") :].strip()
+            if value == "clear":
+                policy.grants.clear()
+                print("permissions cleared")
+            elif value:
+                print("usage: /permissions [clear]", file=sys.stderr)
+            else:
+                grants = policy.grants.describe()
+                print("\n".join(grants) if grants else "no session grants")
             continue
         if text == "/compact":
             compacted = asyncio.run(compactor(log, budget))

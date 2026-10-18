@@ -33,6 +33,15 @@ def test_loads_values(tmp_path: Path) -> None:
                 "read_only": True,
                 "instructions": False,
                 "prompt_modules": ["identity"],
+                "mode": "plan",
+                "sandbox": "strict",
+                "rules": [
+                    {
+                        "tool": "bash",
+                        "command_prefix": "git status",
+                        "decision": "allow",
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -49,6 +58,10 @@ def test_loads_values(tmp_path: Path) -> None:
     assert config.read_only is True
     assert config.instructions is False
     assert config.prompt_modules == ["identity"]
+    assert config.mode == "plan"
+    assert config.sandbox == "strict"
+    assert config.rules[0].tool == "bash"
+    assert config.rules[0].decision == "allow"
 
 
 def test_explicit_missing_config_raises(tmp_path: Path) -> None:

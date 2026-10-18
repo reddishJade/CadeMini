@@ -2,7 +2,8 @@
 
 from .approval import SessionApprover
 from .compaction import CompactionConfig, Compactor
-from .config import MiniConfig
+from .config import MiniConfig, RuleConfig
+from .grants import Grant, GrantStore
 from .history import HistoryTool
 from .instructions import load_project_instructions
 from .log import SessionInfo, SessionLog, list_sessions, session_title
@@ -19,11 +20,13 @@ from .loop import (
     run,
 )
 from .note import load_working_note
-from .policy import WorkspacePolicy
+from .policy import WorkspacePolicy, filter_tools
 from .projection import project
 from .prompts import DEFAULT_MODULES, render_system_prompt
 from .provider import ProviderConfig, build_provider
 from .request import Budget, BuildReport, Request, RequestTooLarge, build, estimate
+from .sandbox import build_sandbox
+from .shell import classify_command
 from .skills import LoadSkillTool, Skill, discover_skills, render_skill_catalog
 from .tools import (
     BashTool,
@@ -62,6 +65,8 @@ __all__ = [
     "Compactor",
     "EditTool",
     "GlobTool",
+    "Grant",
+    "GrantStore",
     "GrepTool",
     "HistoryTool",
     "LoadSkillTool",
@@ -77,6 +82,7 @@ __all__ = [
     "ReadTool",
     "Request",
     "RequestTooLarge",
+    "RuleConfig",
     "RunResult",
     "SessionApprover",
     "SessionInfo",
@@ -97,9 +103,12 @@ __all__ = [
     "WriteTool",
     "build",
     "build_provider",
+    "build_sandbox",
     "build_tools",
+    "classify_command",
     "discover_skills",
     "estimate",
+    "filter_tools",
     "list_sessions",
     "load_project_instructions",
     "load_working_note",

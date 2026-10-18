@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from cade.harness.execution_env import SubprocessShell
+from cade.harness.execution_env import CommandSandbox, SubprocessShell
 
 from .loop import CancellationToken, ToolResult
 from .types import JsonValue, ToolCallBlock
@@ -301,6 +301,14 @@ class BashTool(WorkspaceTool):
         "PowerShell on Windows and /bin/sh on POSIX."
     )
 
+    def __init__(
+        self,
+        workspace: Path,
+        sandbox: CommandSandbox | None = None,
+    ) -> None:
+        super().__init__(workspace)
+        self.sandbox = sandbox
+
     def _parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
@@ -327,7 +335,7 @@ class BashTool(WorkspaceTool):
             raise ValueError(
                 f"workdir is not a directory: {display_path(self.workspace, workdir)}"
             )
-        result = SubprocessShell().run(
+        result = SubprocessShell(sandbox=self.sandbox).run(
             _shell_argv(command),
             cwd=workdir,
             timeout=timeout_ms,
@@ -350,7 +358,11 @@ class BashTool(WorkspaceTool):
         )
 
 
-def build_tools(workspace: Path) -> tuple[WorkspaceTool, ...]:
+def build_tools(
+    workspace: Path,
+    *,
+    sandbox: CommandSandbox | None = None,
+) -> tuple[WorkspaceTool, ...]:
     """构造绑定同一工作区的六个工具。"""
     return (
         ReadTool(workspace),
@@ -358,7 +370,7 @@ def build_tools(workspace: Path) -> tuple[WorkspaceTool, ...]:
         EditTool(workspace),
         GlobTool(workspace),
         GrepTool(workspace),
-        BashTool(workspace),
+        BashTool(workspace, sandbox),
     )
 
 

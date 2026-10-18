@@ -1,0 +1,46 @@
+"""Cade Mini 会话 grants 的回归测试。"""
+
+from __future__ import annotations
+
+from cade.mini import GrantStore, SessionApprover, ToolCallBlock
+from cade.mini.types import JsonValue
+
+
+def _call(name: str, **args: JsonValue) -> ToolCallBlock:
+    return ToolCallBlock(id="c1", name=name, args=args)
+
+
+def test_add_match_and_clear() -> None:
+    store = GrantStore()
+    write = _call("write", path="a.txt", content="x")
+
+    assert store.match(write) is False
+    store.add(write)
+    assert store.match(write) is True
+    assert store.match(_call("write", path="b.txt", content="x")) is False
+    assert store.describe() == ["write: a.txt"]
+
+    store.clear()
+    assert store.match(write) is False
+
+
+def test_command_grant_matches_exact_command() -> None:
+    store = GrantStore()
+    command = _call("bash", command="echo hi")
+    store.add(command)
+
+    assert store.match(_call("bash", command="echo hi")) is True
+    assert store.match(_call("bash", command="echo bye")) is False
+
+
+def test_always_adds_a_grant() -> None:
+    store = GrantStore()
+    approver = SessionApprover(
+        grants=store,
+        is_tty=lambda: True,
+        ask=lambda _: "a",
+    )
+    command = _call("bash", command="echo hi")
+
+    assert approver(command) is True
+    assert store.match(command) is True
