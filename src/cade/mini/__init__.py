@@ -2,7 +2,7 @@
 
 from .approval import SessionApprover
 from .compaction import CompactionConfig, Compactor
-from .config import HookConfig, MiniConfig, RuleConfig
+from .config import HookConfig, McpServerConfig, MiniConfig, RuleConfig
 from .grants import Grant, GrantStore
 from .history import HistoryTool
 from .hooks import HookRunner
@@ -20,6 +20,7 @@ from .loop import (
     ToolStartEvent,
     run,
 )
+from .mcp import McpTool, discover_mcp_tools
 from .memory import MemoryTool, load_memory
 from .note import load_working_note
 from .policy import WorkspacePolicy, filter_tools
@@ -78,6 +79,8 @@ __all__ = [
     "LogEntry",
     "LogError",
     "LoopEvent",
+    "McpServerConfig",
+    "McpTool",
     "MemoryTool",
     "Message",
     "MiniConfig",
@@ -113,6 +116,7 @@ __all__ = [
     "build_sandbox",
     "build_tools",
     "classify_command",
+    "discover_mcp_tools",
     "discover_skills",
     "estimate",
     "filter_tools",

@@ -49,6 +49,9 @@ def test_loads_values(tmp_path: Path) -> None:
                         "matcher": "bash",
                     }
                 ],
+                "mcp_servers": {
+                    "fake": {"command": "python", "args": ["server.py"]}
+                },
             }
         ),
         encoding="utf-8",
@@ -71,6 +74,7 @@ def test_loads_values(tmp_path: Path) -> None:
     assert config.rules[0].decision == "allow"
     assert config.hooks[0].event == "before_tool"
     assert config.hooks[0].matcher == "bash"
+    assert config.mcp_servers["fake"].command == "python"
 
 
 def test_explicit_missing_config_raises(tmp_path: Path) -> None:

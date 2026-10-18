@@ -33,6 +33,18 @@ class HookConfig(BaseModel):
     timeout_ms: int = Field(default=10_000, gt=0, le=120_000)
 
 
+class McpServerConfig(BaseModel):
+    """一个 stdio MCP server 的启动配置。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    command: str
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] | None = None
+    cwd: str | None = None
+    timeout_ms: int = Field(default=30_000, gt=0, le=300_000)
+
+
 class MiniConfig(BaseModel):
     """项目级默认值；命令行参数优先于配置文件。"""
 
@@ -52,6 +64,7 @@ class MiniConfig(BaseModel):
     mode: Literal["plan", "build", "act"] = "act"
     rules: list[RuleConfig] = Field(default_factory=list)
     hooks: list[HookConfig] = Field(default_factory=list)
+    mcp_servers: dict[str, McpServerConfig] = Field(default_factory=dict)
     sandbox: Literal["off", "workspace", "strict"] = "workspace"
 
     @classmethod

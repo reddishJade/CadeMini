@@ -62,7 +62,10 @@ class WorkspacePolicy:
         base = self._base_decision(call)
         if base == "deny":
             return "deny"
-        if self.read_only and call.name in {"write", "edit", "bash", "memory"}:
+        if self.read_only and (
+            call.name in {"write", "edit", "bash", "memory"}
+            or call.name.startswith("mcp__")
+        ):
             return "deny"
         rule = _match_rule(call, self.rules)
         if rule == "deny":
@@ -76,6 +79,8 @@ class WorkspacePolicy:
         return self._mode_decision(call)
 
     def _base_decision(self, call: ToolCallBlock) -> Decision:
+        if call.name.startswith("mcp__"):
+            return "allow"
         if call.name in {
             "glob",
             "grep",
@@ -94,6 +99,8 @@ class WorkspacePolicy:
         return "deny"
 
     def _mode_decision(self, call: ToolCallBlock) -> Decision:
+        if call.name.startswith("mcp__"):
+            return "deny" if self._mode == "plan" else "ask"
         if call.name in {"write", "edit"}:
             if self._mode == "plan":
                 return "deny"

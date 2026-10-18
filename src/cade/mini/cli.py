@@ -27,6 +27,7 @@ from .loop import (
     ToolStartEvent,
     run,
 )
+from .mcp import discover_mcp_tools
 from .memory import MemoryTool, load_memory
 from .note import load_working_note
 from .policy import Mode, WorkspacePolicy, filter_tools
@@ -161,11 +162,17 @@ def main(
 
     skills = discover_skills(project_root)
     skill_catalog = render_skill_catalog(skills)
+    mcp_tools, mcp_errors = asyncio.run(
+        discover_mcp_tools(config.mcp_servers, project_root)
+    )
+    for error in mcp_errors:
+        print(f"cade-mini: mcp: {error}", file=sys.stderr)
     sandbox = build_sandbox(sandbox_mode, project_root)
     core_tools = (
         *build_tools(project_root, sandbox=sandbox),
         LoadSkillTool(project_root, skills),
         MemoryTool(project_root),
+        *mcp_tools,
     )
     grants = GrantStore()
     policy = WorkspacePolicy(
