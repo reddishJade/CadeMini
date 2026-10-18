@@ -374,3 +374,131 @@ def test_cli_rejects_continue_and_resume(
 
     assert code == 2
     assert "cannot be combined" in capsys.readouterr().err
+
+
+def test_cli_config_sets_sessions_dir_and_max_steps(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "cade-mini.json").write_text(
+        json.dumps({"sessions_dir": "data/sessions", "max_steps": 1}),
+        encoding="utf-8",
+    )
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="r1",
+                            name="read",
+                            input={"path": "missing.txt"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ]
+        ]
+    )
+
+    code = main(
+        ["exec", "hi", "--project-root", str(workspace), "--yes"],
+        provider=provider,
+    )
+
+    assert code == 1
+    files = list((workspace / "data" / "sessions").glob("session-*.jsonl"))
+    assert len(files) == 1
+    run_entry = SessionLog.open(files[0]).branch()[-1]
+    assert run_entry.data["termination"] == "step_limit"
+
+
+def test_cli_config_can_disable_instructions(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "AGENTS.md").write_text("PROJECT RULE 42", encoding="utf-8")
+    (workspace / "cade-mini.json").write_text(
+        json.dumps({"instructions": False}),
+        encoding="utf-8",
+    )
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        ["exec", "hi", "--project-root", str(workspace), "--yes"],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "PROJECT RULE 42" not in system_text
+
+
+def test_cli_config_read_only_can_be_overridden(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "cade-mini.json").write_text(
+        json.dumps({"read_only": True}),
+        encoding="utf-8",
+    )
+
+    def write_provider() -> FakeProvider:
+        return FakeProvider(
+            [
+                [
+                    ToolCallEvent(
+                        [
+                            ToolCall(
+                                id="w1",
+                                name="write",
+                                input={"path": "a.txt", "content": "x"},
+                            )
+                        ]
+                    ),
+                    FinalMessage("", "tool_use"),
+                ],
+                _text("done"),
+            ]
+        )
+
+    assert (
+        main(
+            ["exec", "write", "--project-root", str(workspace), "--yes"],
+            provider=write_provider(),
+        )
+        == 0
+    )
+    assert not (workspace / "a.txt").exists()
+
+    assert (
+        main(
+            [
+                "exec",
+                "write",
+                "--project-root",
+                str(workspace),
+                "--yes",
+                "--no-read-only",
+            ],
+            provider=write_provider(),
+        )
+        == 0
+    )
+    assert (workspace / "a.txt").read_text(encoding="utf-8") == "x"
+
+
+def test_cli_invalid_config_returns_two(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (tmp_path / "cade-mini.json").write_text("{bad", encoding="utf-8")
+
+    code = main(
+        ["exec", "hi", "--project-root", str(tmp_path)],
+        provider=FakeProvider([]),
+    )
+
+    assert code == 2
+    assert "config" in capsys.readouterr().err

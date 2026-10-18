@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .compaction import Compactor
+from .config import MiniConfig
 from .instructions import load_project_instructions
 from .log import SessionLog, list_sessions
 from .loop import (
@@ -75,12 +76,37 @@ def main(
             file=sys.stderr,
         )
         return 2
+    try:
+        config = MiniConfig.load(project_root, args.config)
+    except ValueError as exc:
+        print(f"cade-mini: {exc}", file=sys.stderr)
+        return 2
 
-    sessions_dir = (
-        args.sessions_dir.resolve()
-        if args.sessions_dir is not None
-        else project_root / ".cade-mini" / "sessions"
+    provider_name = args.provider or config.provider or ProviderConfig().provider
+    model_name = args.model or config.model or ProviderConfig().model
+    if args.effort is not None:
+        effort = args.effort
+    elif config.reasoning_effort is not None:
+        effort = config.reasoning_effort
+    else:
+        effort = ProviderConfig().reasoning_effort
+    max_steps = args.max_steps or config.max_steps or 50
+    read_only = args.read_only if args.read_only is not None else config.read_only
+    use_instructions = (
+        args.instructions if args.instructions is not None else config.instructions
     )
+
+    raw_sessions = args.sessions_dir or (
+        Path(config.sessions_dir) if config.sessions_dir else None
+    )
+    if raw_sessions is None:
+        sessions_dir = project_root / ".cade-mini" / "sessions"
+    elif raw_sessions.is_absolute():
+        sessions_dir = raw_sessions
+    else:
+        sessions_dir = project_root / raw_sessions
+    sessions_dir = sessions_dir.resolve()
+
     if args.list_sessions:
         _print_sessions(sessions_dir)
         return 0
@@ -95,13 +121,14 @@ def main(
     try:
         selected = provider or build_provider(
             ProviderConfig(
-                provider=args.provider,
-                model=args.model,
-                reasoning_effort=args.effort,
+                provider=provider_name,
+                model=model_name,
+                reasoning_effort=effort,
             )
         )
         budget = Budget(
             context_window=args.context_window
+            or config.context_window
             or (getattr(selected, "context_window", None) or 200_000)
         )
     except (RuntimeError, ValueError) as exc:
@@ -109,13 +136,13 @@ def main(
         return 2
 
     tools = build_tools(project_root)
-    policy = WorkspacePolicy(project_root, read_only=args.read_only)
+    policy = WorkspacePolicy(project_root, read_only=read_only)
     approve = _approver(args.yes)
     compactor = Compactor(selected)
     on_event: Callable[[LoopEvent], None] = _json_event if args.json else _human_event
 
     def context() -> tuple[str, ...]:
-        if args.no_instructions:
+        if not use_instructions:
             return ()
         text = load_project_instructions(project_root)
         return (text,) if text else ()
@@ -136,7 +163,7 @@ def main(
             approve,
             budget,
             context(),
-            args.max_steps,
+            max_steps,
             on_event,
             compactor,
         )
@@ -157,7 +184,7 @@ def main(
         approve,
         budget,
         context,
-        args.max_steps,
+        max_steps,
         on_event,
         compactor,
     )
@@ -170,10 +197,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("task", nargs="?", help="Task to run once; omit for REPL")
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
+    parser.add_argument("--config", type=Path, default=None, help="Config file")
     parser.add_argument("--sessions-dir", type=Path, default=None)
-    parser.add_argument("--provider", default=ProviderConfig().provider)
-    parser.add_argument("--model", default=ProviderConfig().model)
-    parser.add_argument("--effort", default=ProviderConfig().reasoning_effort)
+    parser.add_argument("--provider", default=None)
+    parser.add_argument("--model", default=None)
+    parser.add_argument("--effort", default=None)
     parser.add_argument(
         "--resume",
         nargs="?",
@@ -193,17 +221,19 @@ def _parser() -> argparse.ArgumentParser:
         help="List sessions and exit",
     )
     parser.add_argument(
-        "--no-instructions",
-        action="store_true",
-        help="Do not load AGENTS.md or CLAUDE.md",
+        "--instructions",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Load AGENTS.md or CLAUDE.md (default: on)",
     )
     parser.add_argument("--yes", action="store_true", help="Approve writes and shell")
     parser.add_argument(
         "--read-only",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="Deny writes and shell commands",
     )
-    parser.add_argument("--max-steps", type=int, default=50)
+    parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--context-window", type=int, default=None)
     parser.add_argument("--json", action="store_true", help="Emit JSONL events")
     return parser
