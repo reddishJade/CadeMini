@@ -63,14 +63,16 @@ Committed on `experiment/cade-mini`:
   and both recalled the earlier fix. See [cade-mini-parity.md](cade-mini-parity.md).
 - A persistent MCP subprocess test discovers `echo` and `counter` tools, calls
   them across event loops, and gets `echo:hi` plus stateful `count:1`/`count:2`.
-- A live Codex smoke reached the API but the account returned HTTP 429 "usage
-  limit has been reached". The loop recorded `request` and `attempt` facts and
-  terminated with `provider_error`; the provider and error paths are verified.
+- A live Codex acceptance passed after the quota recovered: the write tool
+  created `codex.txt` with `codex-ok`, and a resumed Codex session used the read
+  tool and returned `codex-ok`; both runs completed. Earlier attempts during
+  quota exhaustion returned HTTP 429 and were recorded as `provider_error`.
 - On non-Linux hosts the OS sandbox is unavailable; path boundaries, mode
   policy, shell classification, and approvals remain the active safety layer.
 - Snapshots cover write/edit and common single-command shell mutations; complex
   pipelines are not snapshotted.
-- Remaining: live Codex acceptance when quota returns.
+- Milestone acceptance is complete; the remaining items are the platform and
+  capability limits listed above, not blockers.
 
 ## 1. What Cade is today
 
