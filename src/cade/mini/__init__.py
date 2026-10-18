@@ -1,5 +1,6 @@
 """Cade Mini：会话日志、确定性投影、请求与循环的独立实现。"""
 
+from .compaction import CompactionConfig, Compactor
 from .log import SessionLog
 from .loop import (
     CancellationToken,
@@ -41,6 +42,7 @@ from .types import (
     ToolResultMessage,
     UserMessage,
 )
+from .window import reset_window
 
 __all__ = [
     "AssistantMessage",
@@ -48,6 +50,8 @@ __all__ = [
     "Budget",
     "BuildReport",
     "CancellationToken",
+    "CompactionConfig",
+    "Compactor",
     "EditTool",
     "GlobTool",
     "GrepTool",
@@ -82,6 +86,7 @@ __all__ = [
     "build_tools",
     "estimate",
     "project",
+    "reset_window",
     "resolve_workspace_path",
     "run",
 ]
