@@ -403,6 +403,7 @@ async def _call_provider(
                 replay = event.replay_payload
                 if not text_parts and event.content:
                     text_parts.append(event.content)
+                    _emit(on_event, TextDeltaEvent(event.content))
             elif isinstance(event, ProviderFailure):
                 failure = event
     except Exception as exc:  # noqa: BLE001
