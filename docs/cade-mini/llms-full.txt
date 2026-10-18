@@ -230,7 +230,7 @@ starts the interactive REPL.
 - `--context-window N` overrides the model context window.
 - `--json` emits JSONL events for a one-shot task.
 - `--steer TEXT` injects guidance at the next model step; repeatable.
-- `--queue TEXT` queues a task to run after the current task; repeatable.
+- `--queue TEXT` queues a REPL task to run after the current task; repeatable.
 
 ## Sessions
 

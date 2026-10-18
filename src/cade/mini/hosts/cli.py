@@ -134,6 +134,9 @@ def main(
         goals.set(args.goal)
     steering = deque(args.steer or [])
     pending = deque(args.queue or [])
+    if one_shot and pending:
+        print("cade-mini: --queue requires the REPL", file=sys.stderr)
+        return 2
 
     def next_steering() -> str | None:
         return steering.popleft() if steering else None
