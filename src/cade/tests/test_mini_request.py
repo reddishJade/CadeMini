@@ -99,6 +99,26 @@ def test_build_prunes_old_tool_evidence_but_keeps_recent() -> None:
     assert tool_messages[1]["content"] == "small"
 
 
+def test_build_prunes_a_single_huge_tool_result() -> None:
+    conversation = [
+        _user("run"),
+        AssistantMessage(blocks=(ToolCallBlock(id="c1", name="read"),)),
+        _tool_result("c1", "x" * 20_000),
+    ]
+
+    request = build(
+        conversation,
+        budget=Budget(context_window=5_000, output_reserve=0, headroom_tokens=0),
+    )
+
+    assert request.report.over_budget is False
+    assert request.report.dropped_tool_calls == ("c1",)
+    tool_message = next(
+        message for message in request.messages if message["role"] == "tool"
+    )
+    assert tool_message["content"].startswith("[tool output omitted")
+
+
 def test_build_drops_oldest_turn_when_no_tool_evidence() -> None:
     conversation = [
         _user("old " * 5_000),

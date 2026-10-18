@@ -185,7 +185,7 @@ def _drop_tool_evidence(
     messages: list[Message],
     budget: int,
 ) -> tuple[list[Message], tuple[str, ...]]:
-    """从旧到新替换工具正文，保留最近几次工具结果。"""
+    """先替换旧工具结果；仍超预算时再动最近结果和最末一条。"""
     if budget <= 0:
         return messages, ()
     candidates = [
@@ -196,18 +196,32 @@ def _drop_tool_evidence(
     protected = set(candidates[-_KEEP_RECENT_TOOL_RESULTS:])
     projected = list(messages)
     dropped: list[str] = []
-    for index in candidates:
-        if index in protected:
-            continue
-        if _estimate_messages(projected) <= budget:
-            break
+    pruned: set[int] = set()
+
+    def prune(index: int) -> None:
         message = projected[index]
-        if not isinstance(message, ToolResultMessage):
-            continue
+        if not isinstance(message, ToolResultMessage) or index in pruned:
+            return
         projected[index] = message.model_copy(
             update={"content": _TOOL_REFERENCE.format(call_id=message.call_id)}
         )
         dropped.append(message.call_id)
+        pruned.add(index)
+
+    for index in candidates:
+        if index in protected:
+            continue
+        if _estimate_messages(projected) <= budget:
+            return projected, tuple(dropped)
+        prune(index)
+    for index in candidates:
+        if index not in protected or index == candidates[-1]:
+            continue
+        if _estimate_messages(projected) <= budget:
+            return projected, tuple(dropped)
+        prune(index)
+    if _estimate_messages(projected) > budget and candidates:
+        prune(candidates[-1])
     return projected, tuple(dropped)
 
 
