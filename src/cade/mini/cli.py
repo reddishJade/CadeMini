@@ -25,6 +25,7 @@ from .loop import (
     ToolStartEvent,
     run,
 )
+from .note import load_working_note
 from .policy import WorkspacePolicy
 from .projection import project
 from .prompts import render_system_prompt
@@ -37,7 +38,8 @@ from .window import reset_window
 
 WINDOW_HANDOFF = (
     "Earlier history was discarded to fit the model window. "
-    "Use the history tool with an entry_id or call_id to retrieve exact details."
+    "Consult NOTE.md and use the history tool with an entry_id or call_id "
+    "to retrieve exact details."
 )
 
 _HELP = """\
@@ -98,6 +100,7 @@ def main(
     use_instructions = (
         args.instructions if args.instructions is not None else config.instructions
     )
+    use_note = args.note if args.note is not None else config.note
 
     raw_sessions = args.sessions_dir or (
         Path(config.sessions_dir) if config.sessions_dir else None
@@ -148,7 +151,11 @@ def main(
     base_tools = (*build_tools(project_root), LoadSkillTool(project_root, skills))
     policy = WorkspacePolicy(project_root, read_only=read_only)
     approve = SessionApprover(auto_approve=args.yes)
-    compactor = Compactor(selected)
+
+    def note_context() -> str | None:
+        return load_working_note(project_root) if use_note else None
+
+    compactor = Compactor(selected, extra_context=note_context)
     on_event: Callable[[LoopEvent], None] = _json_event if args.json else _human_event
 
     def fallback_window(log: SessionLog) -> bool:
@@ -162,6 +169,9 @@ def main(
                 parts.append(text)
         if skill_catalog:
             parts.append(skill_catalog)
+        note = note_context()
+        if note:
+            parts.append(note)
         return tuple(parts)
 
     try:
@@ -247,6 +257,12 @@ def _parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Load AGENTS.md or CLAUDE.md (default: on)",
+    )
+    parser.add_argument(
+        "--note",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Load NOTE.md working state (default: on)",
     )
     parser.add_argument("--yes", action="store_true", help="Approve writes and shell")
     parser.add_argument(

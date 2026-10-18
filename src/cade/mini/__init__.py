@@ -18,6 +18,7 @@ from .loop import (
     ToolStartEvent,
     run,
 )
+from .note import load_working_note
 from .policy import WorkspacePolicy
 from .projection import project
 from .prompts import DEFAULT_MODULES, render_system_prompt
@@ -101,6 +102,7 @@ __all__ = [
     "estimate",
     "list_sessions",
     "load_project_instructions",
+    "load_working_note",
     "project",
     "render_skill_catalog",
     "render_system_prompt",

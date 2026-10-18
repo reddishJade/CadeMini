@@ -202,6 +202,20 @@ async def test_iterative_compaction_includes_prior_summary(
     ]
 
 
+async def test_compactor_includes_working_note(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+    log.append("user", {"text": "old task", "source": "user"})
+    log.append("assistant", _assistant("old answer"))
+    log.append("user", {"text": "new task", "source": "user"})
+    provider = FakeProvider([_summary_response("summary")])
+    compactor = Compactor(provider, extra_context=lambda: "NOTE STATE")
+
+    compacted = await compactor(log, Budget(100_000))
+
+    assert compacted is True
+    assert "NOTE STATE" in str(provider.requests[0][0])
+
+
 async def test_compaction_config_rejects_bad_values() -> None:
     with pytest.raises(ValueError):
         CompactionConfig(keep_recent_tokens=0)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import cast
 
@@ -69,9 +69,11 @@ class Compactor:
         provider: Provider,
         *,
         config: CompactionConfig | None = None,
+        extra_context: Callable[[], str | None] | None = None,
     ) -> None:
         self.provider = provider
         self.config = config or CompactionConfig()
+        self.extra_context = extra_context
 
     async def __call__(self, log: SessionLog, budget: Budget) -> bool:
         entries = log.branch()
@@ -92,7 +94,8 @@ class Compactor:
         if not serialized.strip():
             return False
         text = _truncate(serialized, self.config.max_summary_chars)
-        summary, usage, failure = await self._summarize(text)
+        extra = self.extra_context() if self.extra_context is not None else None
+        summary, usage, failure = await self._summarize(text, extra)
         if failure is not None:
             log.append(
                 "attempt",
@@ -132,17 +135,23 @@ class Compactor:
     async def _summarize(
         self,
         serialized: str,
+        extra_context: str | None,
     ) -> tuple[str, dict[str, int] | None, ProviderFailure | None]:
         text_parts: list[str] = []
         usage: dict[str, int] | None = None
         failure: ProviderFailure | None = None
         stop_reason = "end_turn"
+        extra = (
+            f"<working-note>\n{extra_context}\n</working-note>\n\n"
+            if extra_context
+            else ""
+        )
         messages = [
             {"role": "system", "content": _SUMMARY_SYSTEM},
             {
                 "role": "user",
                 "content": (
-                    f"<conversation>\n{serialized}\n</conversation>\n\n"
+                    f"{extra}<conversation>\n{serialized}\n</conversation>\n\n"
                     f"{_SUMMARY_INSTRUCTIONS}"
                 ),
             },

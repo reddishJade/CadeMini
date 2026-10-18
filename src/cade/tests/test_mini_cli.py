@@ -614,3 +614,50 @@ def test_cli_uses_configured_prompt_modules(tmp_path: Path) -> None:
     )
     assert "Cade Mini" in system_text
     assert "Platform:" not in system_text
+
+
+def test_cli_includes_working_note(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "NOTE.md").write_text("NOTE STATE: continue", encoding="utf-8")
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        ["exec", "hi", "--project-root", str(workspace), "--yes"],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "NOTE STATE" in system_text
+
+
+def test_cli_can_disable_note(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "NOTE.md").write_text("NOTE STATE: continue", encoding="utf-8")
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        [
+            "exec",
+            "hi",
+            "--project-root",
+            str(workspace),
+            "--yes",
+            "--no-note",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "NOTE STATE" not in system_text
