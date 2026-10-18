@@ -1,0 +1,766 @@
+"""AgentHarness — 通用 agent 运行时，领域无关。
+
+与 Agent 核心循环的关系：负责 agent 生命周期管理（创建、配置、运行、
+清理），但本身不包含任何编码领域概念。编码特定行为通过 protected
+方法覆盖由子类 CodingAgentHarness 提供。
+"""
+
+from __future__ import annotations
+
+import platform
+from collections.abc import AsyncIterator, Callable, Iterator
+from copy import deepcopy
+from dataclasses import replace
+from pathlib import Path
+from threading import Lock
+from uuid import uuid4
+
+from cade.agent.config import AfterToolCallContext, AgentContext, BeforeToolCallContext
+from cade.agent.events import AgentEvent
+from cade.agent.messages import AssistantMessage
+from cade.agent.types import AgentToolResult, TextContent, ToolCallContent, ToolInput
+from cade.ai.events import ToolCall
+from cade.ai.providers.base import ModelProvider
+
+from ...agent.agent_loop import run_agent_loop
+from ...agent.context_manager import ContextManager
+from ...agent.messages import (
+    AgentMessage,
+    SystemMessage,
+    UserMessage,
+)
+from ...agent.request import RequestAssembly
+from ...agent.results import AgentLoopResult
+from ...agent.types import ApprovalCallback, ToolSpec
+from ..observability import HookRecord, RuntimeCorrelation, hook_correlation_fields
+from ..security.approval import ApprovalPolicy, ApprovalsReviewer
+from ..security.permission_model import GrantStore
+from ..security.permissions import PermissionDecision, PermissionPolicy
+from ._mode_protocol import ToolGateMode
+from .agent_helpers import aiter_to_sync_iter, run_coro_sync
+from .cancellation import CancellationToken
+from .composition import AgentComposition
+from .config import (
+    AgentRuntimeConfig,
+    build_loop_config,
+    build_turn_context_messages,
+    resolve_context_policy,
+)
+from .events import (
+    AgentHarnessEvent,
+    _StreamTranslationState,
+    is_model_fact_event,
+    translate_event,
+)
+from .message_codec import messages_from_run_state
+from .result import (
+    AgentHarnessResult,
+    RunState,
+    build_structured_result,
+    final_event,
+)
+from .run_control import (
+    ActiveRunHandle,
+    BusyMessageMode,
+    SessionRunController,
+    SubmitOutcome,
+)
+from .tool_gate import ToolGate
+
+_PROMPT_VERSION_CACHE: str | None = None
+
+
+def _get_prompt_version() -> str:
+    global _PROMPT_VERSION_CACHE
+    if _PROMPT_VERSION_CACHE is None:
+        from .prompting.identity import prompt_version
+
+        _PROMPT_VERSION_CACHE = prompt_version()
+    return _PROMPT_VERSION_CACHE or "runtime"
+
+
+__all__ = ["AgentHarness"]
+
+
+class _DefaultToolGateMode:
+    """AgentHarness 默认 mode：始终为 "act"，check_call 返回 "ask"。"""
+
+    @property
+    def current_mode(self) -> str:
+        return "act"
+
+    @property
+    def approvals_reviewer(self) -> ApprovalsReviewer:
+        return "user"
+
+    def check_call(self, call: ToolCall) -> PermissionDecision:
+        return "ask"
+
+    def filter_tools(self, registry: tuple[ToolSpec, ...]) -> tuple[ToolSpec, ...]:
+        return registry
+
+
+class AgentHarness:
+    """通用 agent 运行时包装。
+
+    不感知执行模式（plan/build/act）、技能系统、记忆反馈等编码领域概念。
+    这些由子类 CodingAgentHarness 提供。
+    """
+
+    def __init__(
+        self,
+        composition: AgentComposition,
+        runtime: AgentRuntimeConfig,
+    ) -> None:
+        self._composition_lock = Lock()
+        self._composition = composition
+        self._provider = composition.primary_provider
+        gate = composition.gate
+        gate_runtime = runtime.gate
+        self.project_root = runtime.project_root
+        self._runtime = runtime
+        self.context_rollover = runtime.context_rollover
+        self._context_window_controller = runtime.context_window_controller
+        self.cancellation_token = runtime.cancellation_token or CancellationToken()
+        supplied_gate = runtime.gate_instance
+        self._correlation = (
+            supplied_gate.correlation
+            if supplied_gate is not None
+            else gate_runtime.correlation or RuntimeCorrelation(gate_runtime.session_id)
+        )
+        self._hook_manager = gate_runtime.hook_manager
+        self.external_directories = gate.external_directories
+        self.sensitive_path_overrides = gate.sensitive_path_overrides
+        self.hook_constraint_providers = gate.hook_constraint_providers
+        self._gate = supplied_gate or ToolGate(
+            mode_state=self._build_gate_mode(),
+            user_approval_callback=gate_runtime.user_approval_callback,
+            auto_approval_callback=gate_runtime.auto_approval_callback,
+            permission_policy=gate.permission_policy,
+            approval_policy=gate.approval_policy,
+            hook_manager=gate_runtime.hook_manager,
+            external_hook_runner=gate_runtime.external_hook_runner,
+            external_hooks_subagent=gate_runtime.external_hooks_subagent,
+            external_hooks_cwd=gate_runtime.external_hooks_cwd,
+            correlation=self._correlation,
+            audit_logger=gate_runtime.audit_logger,
+            session_id=gate_runtime.session_id,
+            restricted_dirs=gate.restricted_dirs,
+            hook_constraint_providers=gate.hook_constraint_providers,
+            project_root=runtime.project_root,
+            external_directories=gate.external_directories,
+            sensitive_path_overrides=gate.sensitive_path_overrides,
+            session_grant_store=gate_runtime.session_grant_store,
+            session_grant_store_provider=gate_runtime.session_grant_store_provider,
+            permanent_grant_store=gate_runtime.permanent_grant_store,
+            user_rulesets=gate.user_rulesets,
+            default_mode_rulesets=gate.default_mode_rulesets,
+            mode_fallbacks=gate.mode_fallbacks,
+            shell_unresolved_policies=gate.shell_unresolved_policies,
+            shell_mutation_policies=gate.shell_mutation_policies,
+            tool_path_extractors=gate.tool_path_extractors,
+        )
+        self.audit_logger = gate_runtime.audit_logger
+        self._context_manager = ContextManager()
+        self._history = self._context_manager.history
+        self._resumed_notice: str | None = None
+        self._run_controller = SessionRunController(runtime.session_inbox)
+
+    # ── 可被子类覆盖的扩展点 ──
+
+    def _build_gate_mode(self) -> ToolGateMode:
+        """返回实现 ToolGateMode 协议的 mode 对象。
+
+        子类可返回一个带有 current_mode 和 check_call() 的 mode state。
+        基类返回一个提供 mode 名称为 "act" 的简单对象。
+        """
+        return _DefaultToolGateMode()
+
+    def _build_active_registry(
+        self, registry: tuple[ToolSpec, ...]
+    ) -> tuple[ToolSpec, ...]:
+        """返回当前 turn 使用的工具集，由 gate 的 mode authority 过滤。"""
+        return self._gate.filter_tools(registry)
+
+    def _build_context_messages(
+        self,
+        composition: AgentComposition,
+        registry: tuple[ToolSpec, ...],
+    ) -> list[AgentMessage]:
+        """构建 turn 上下文消息。子类可添加模式通知、记忆概览等。"""
+        return build_turn_context_messages(composition, registry, self._resumed_notice)
+
+    def _build_context_snapshot_state(self) -> dict[str, object]:
+        """构建供动态 section 使用的环境、权限和模式快照。"""
+        permission_policy = self.permission_policy
+        policy_payload = (
+            {
+                "global_default": permission_policy.global_default,
+                "rules": tuple(repr(rule) for rule in permission_policy.rules),
+            }
+            if permission_policy is not None
+            else None
+        )
+        mode = self._build_gate_mode()
+        return {
+            "environment": {
+                "cwd": str(self._effective_working_directory()),
+                "project_root": str(self.project_root)
+                if self.project_root is not None
+                else None,
+                "platform": platform.platform(),
+            },
+            "permissions": {
+                "approval_policy": self.approval_policy,
+                "restricted_dirs": tuple(self.restricted_dirs),
+                "permission_policy": policy_payload,
+            },
+            "mode": {"current_mode": mode.current_mode},
+        }
+
+    def _effective_working_directory(self) -> Path:
+        """返回模型和上下文收集器使用的工作目录。"""
+        return self.project_root if self.project_root is not None else Path.cwd()
+
+    def _build_loop_config_extras(self) -> dict:
+        """子类可返回额外的 build_loop_config 参数。"""
+        return {}
+
+    def _build_result(self, visible_result: AgentLoopResult) -> AgentHarnessResult:
+        """构建 turn 结果。子类可覆盖以注入 current_mode 等。"""
+        return build_structured_result(visible_result)
+
+    def _post_run(self, final: AgentHarnessResult) -> None:
+        """turn 完成后的子类钩子。例如记忆反馈。"""
+
+    # ── 公共 API ──
+
+    @property
+    def composition(self) -> AgentComposition:
+        """返回当前已发布的不可变 composition generation。"""
+        with self._composition_lock:
+            return self._composition
+
+    @property
+    def provider(self) -> ModelProvider:
+        """返回当前 composition 对应的有效 provider。"""
+        with self._composition_lock:
+            return self._provider
+
+    @property
+    def registry(self) -> tuple[ToolSpec, ...]:
+        """返回当前工具注册表快照。"""
+        return self.composition.registry
+
+    @property
+    def permission_policy(self) -> PermissionPolicy | None:
+        return self.composition.gate.permission_policy
+
+    @property
+    def approval_policy(self) -> ApprovalPolicy:
+        """返回 ask 是否可提交审批。"""
+        return self._gate.approval_policy
+
+    @property
+    def approvals_reviewer(self) -> ApprovalsReviewer:
+        """返回 ask 当前交给人还是独立 reviewer。"""
+        return self._gate.approvals_reviewer
+
+    @property
+    def restricted_dirs(self) -> tuple[str, ...]:
+        return self.composition.gate.restricted_dirs
+
+    @property
+    def tool_map(self) -> dict[str, ToolSpec]:
+        """按名称返回当前工具映射。"""
+        return {tool.name: tool for tool in self.registry}
+
+    @property
+    def enabled_tools(self) -> tuple[ToolSpec, ...]:
+        """返回当前模式允许展示和执行的工具。"""
+        return self._build_active_registry(self.registry)
+
+    def execute_tool(self, tool: ToolSpec, arguments: ToolInput) -> AgentToolResult:
+        """通过当前会话门控执行宿主显式提交的工具，并记录钩子和审计。"""
+        if self.active_run() is not None:
+            raise RuntimeError("finish the active run before executing a manual tool")
+        if tool.name not in {item.name for item in self.enabled_tools}:
+            return AgentToolResult(
+                content=[
+                    TextContent(text=f"Tool unavailable in current mode: {tool.name}")
+                ],
+                is_error=True,
+            )
+        tool_call = ToolCallContent(
+            id=f"manual-{uuid4().hex}", name=tool.name, arguments=arguments
+        )
+        assistant_message = AssistantMessage(content=[tool_call])
+        context = AgentContext(messages=deepcopy(self._history))
+        snapshot = self._gate.snapshot_for((tool,))
+        before = self._gate.build_before_tool_hook(snapshot)(
+            BeforeToolCallContext(
+                assistant_message=assistant_message,
+                tool_call=tool_call,
+                args=arguments,
+                context=context,
+            ),
+            None,
+        )
+        if before is not None and before.block:
+            return AgentToolResult(
+                content=[TextContent(text=before.reason or "Tool execution blocked")],
+                is_error=True,
+            )
+        if before is not None and before.args is not None:
+            arguments = before.args
+        try:
+            result = run_coro_sync(
+                self._gate.adapt_tools((tool,))[0].execute(
+                    tool_call.id, arguments, None
+                )
+            )
+        except (LookupError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            result = AgentToolResult(
+                content=[TextContent(text=f"{type(exc).__name__}: {exc}")],
+                is_error=True,
+            )
+        after = self._gate.build_after_tool_hook()(
+            AfterToolCallContext(
+                assistant_message=assistant_message,
+                tool_call=tool_call,
+                args=arguments,
+                result=result,
+                is_error=result.is_error,
+                context=context,
+            ),
+            None,
+        )
+        if after is not None:
+            if after.content is not None:
+                result.content = after.content
+            if after.details is not None:
+                result.details = after.details
+            if after.is_error is not None:
+                result.is_error = after.is_error
+        return result
+
+    def replace_primary_provider(self, provider: ModelProvider) -> str:
+        """原子发布使用新主 provider 的 composition generation。"""
+        with self._composition_lock:
+            if self.active_run() is not None:
+                raise RuntimeError("cannot replace composition during an active run")
+            composition = self._composition.with_primary_provider(provider)
+            self._composition = composition
+            self._provider = composition.primary_provider
+        return composition.generation_id
+
+    def replace_permission_policy(self, policy: PermissionPolicy | None) -> str:
+        """原子发布使用新静态权限策略的 composition generation。"""
+        with self._composition_lock:
+            if self.active_run() is not None:
+                raise RuntimeError("cannot replace composition during an active run")
+            composition = self._composition.with_permission_policy(policy)
+            self._composition = composition
+            self._gate.set_permission_policy(composition.gate.permission_policy)
+        return composition.generation_id
+
+    def inject(self, msg: AgentMessage) -> SubmitOutcome:
+        """注入运行时内部消息，包括 reminder 和 SystemMessage。"""
+        return self._run_controller.inject_runtime(msg)
+
+    def steer(
+        self,
+        msg: UserMessage,
+        *,
+        display_text: str | None = None,
+    ) -> SubmitOutcome:
+        """把用户输入调度到当前 run 的下一模型边界。"""
+        return self._run_controller.submit(
+            msg,
+            BusyMessageMode.STEER,
+            display_text=display_text,
+        )
+
+    def followup(
+        self,
+        msg: UserMessage,
+        *,
+        display_text: str | None = None,
+    ) -> SubmitOutcome:
+        """把用户输入排入独立的后续 turn。"""
+        return self._run_controller.submit(
+            msg,
+            BusyMessageMode.FOLLOW_UP,
+            display_text=display_text,
+        )
+
+    def submit_busy_message(
+        self,
+        msg: UserMessage,
+        mode: BusyMessageMode = BusyMessageMode.STEER,
+        *,
+        display_text: str | None = None,
+    ) -> SubmitOutcome:
+        """按照指定 busy policy 提交运行时用户消息。"""
+        return self._run_controller.submit(msg, mode, display_text=display_text)
+
+    def active_run(self) -> ActiveRunHandle | None:
+        """返回当前 session 的 active run handle。"""
+        return self._run_controller.active_run()
+
+    def interrupt(self, reason: str = "interrupted by user") -> bool:
+        """请求取消当前 run，并尽力中止在途模型流。
+
+        返回 True 表示本次打断被接受（run 进入取消流程）；
+        对已处于取消中的 run 重复打断返回 False。
+        """
+        handle = self.active_run()
+        if handle is None:
+            return False
+        outcome = handle.interrupt(reason)
+        if outcome is None:
+            return False
+        abort = getattr(self._provider, "abort_active_stream", None)
+        if callable(abort):
+            abort()
+        return True
+
+    def has_pending_input(self) -> bool:
+        """返回 durable inbox 是否存在需要启动的新输入。"""
+        return self._run_controller.has_waking_input()
+
+    def request_context_window(self) -> bool:
+        if self._context_window_controller is None:
+            return False
+        return self._context_window_controller.request("manual")
+
+    def clear_history(self) -> None:
+        self._context_manager.clear()
+        self._gate.clear_session_grants()
+        self._reset_provider_conversation_state()
+
+    @property
+    def context_manager(self) -> ContextManager:
+        """返回当前 session 的统一上下文状态管理器。"""
+        return self._context_manager
+
+    @property
+    def current_approval_callback(self) -> ApprovalCallback | None:
+        """返回当前 execution mode 实际使用的审批回调。"""
+        return self._gate.current_approval_callback
+
+    @property
+    def user_approval_callback(self) -> ApprovalCallback | None:
+        return self._gate.user_approval_callback
+
+    @user_approval_callback.setter
+    def user_approval_callback(self, value: ApprovalCallback | None) -> None:
+        """更新 Act 等人工审批模式使用的回调。"""
+        self._gate.set_user_approval_callback(value)
+
+    @property
+    def auto_approval_callback(self) -> ApprovalCallback | None:
+        return self._gate.auto_approval_callback
+
+    def set_session_grant_store_provider(
+        self,
+        provider: Callable[[], GrantStore | None] | None,
+    ) -> None:
+        """设置当前会话的 session grant store provider。"""
+        self._gate.set_session_grant_store_provider(provider)
+
+    def set_permanent_grant_store(self, store: GrantStore | None) -> None:
+        """设置 permanent grant store。"""
+        self._gate.set_permanent_grant_store(store)
+
+    @property
+    def session_id(self) -> str:
+        return self._gate.session_id
+
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self._gate.session_id = value
+        self._correlation.session_id = value
+        self._run_controller.reload()
+
+    def load_history(self, messages: list[AgentMessage]) -> None:
+        self._context_manager.replace_history(deepcopy(messages))
+        self._context_manager.invalidate_token_anchor()
+        self._post_load_history(messages)
+        if not messages:
+            self._gate.clear_session_grants()
+        self._reset_provider_conversation_state()
+
+    def _post_load_history(self, messages: list[AgentMessage]) -> None:
+        """load_history 的子类钩子，例如恢复技能激活。"""
+
+    def set_resumed_notice(self, notice: str) -> None:
+        self._resumed_notice = notice
+
+    def load_run_state(self, run_state: RunState) -> None:
+        self._context_manager.replace_history(messages_from_run_state(run_state))
+        self._context_manager.invalidate_token_anchor()
+        self._reset_provider_conversation_state()
+
+    def history_messages(self) -> list[AgentMessage]:
+        return list(self._history)
+
+    def preview_request(self) -> RequestAssembly:
+        """投影当前上下文供宿主观测，不执行模型、工具或会话写入。"""
+        with self._composition_lock:
+            composition = self._composition
+            provider = self._provider
+        registry = self._build_active_registry(composition.registry)
+        manager = replace(
+            self._context_manager, history=deepcopy(self.history_messages())
+        )
+        manager.bind_provider(provider)
+        context = AgentContext(
+            messages=manager.history,
+            context_manager=manager,
+            request_prefix=self._build_context_messages(composition, registry),
+            tools=self._gate.adapt_tools(registry),
+            state=self._build_context_snapshot_state(),
+            project_root=self.project_root,
+            cwd=self._effective_working_directory(),
+            context_policy=resolve_context_policy(provider, composition.config),
+        )
+        return composition.request_assembler.assemble(
+            context, current_step=0, options=None
+        )
+
+    def prepare_read_only_request(self, question: str) -> RequestAssembly:
+        """从会话副本组装一次工具集为空的请求，供宿主独立查询。"""
+        composition = self.composition
+        manager = ContextManager(
+            history=deepcopy(self.history_messages()),
+        )
+        manager.append([UserMessage(content=question)])
+        context = AgentContext(
+            messages=manager.history,
+            context_manager=manager,
+            request_prefix=[
+                *self._build_context_messages(composition, ()),
+                SystemMessage(
+                    content="Answer this side question from the supplied context. Tools are unavailable."
+                ),
+            ],
+            project_root=self.project_root,
+            cwd=self._effective_working_directory(),
+            context_policy=resolve_context_policy(self.provider, composition.config),
+        )
+        return composition.request_assembler.assemble(
+            context, current_step=0, options=None
+        )
+
+    def run(self, question: str) -> AgentHarnessResult:
+        return run_coro_sync(self.arun(question))
+
+    async def run_async(self, question: str) -> AgentHarnessResult:
+        return await self.arun(question)
+
+    async def arun(self, question: str) -> AgentHarnessResult:
+        result: AgentHarnessResult | None = None
+        async for event in self.arun_stream(question):
+            if event.type == "final":
+                result = event.data
+        if result is None:
+            raise RuntimeError("agent stream completed without a final result")
+        return result
+
+    def run_stream(self, question: str) -> Iterator[AgentHarnessEvent]:
+        yield from aiter_to_sync_iter(
+            self.arun_stream(question), self.cancellation_token
+        )
+
+    async def arun_stream(
+        self,
+        question: str | None,
+        *,
+        display_question: str | None = None,
+    ) -> AsyncIterator[AgentHarnessEvent]:
+        if question is not None:
+            self.followup(
+                UserMessage(content=question),
+                display_text=display_question,
+            )
+
+        if not self._run_controller.has_waking_input():
+            return
+        with self._composition_lock:
+            run_handle = self._run_controller.begin_run(self.cancellation_token)
+        try:
+            turn_messages = self._run_controller.claim_initial(run_handle)
+            if not turn_messages:
+                return
+            question_text = _turn_text(turn_messages)
+            async for event in self._arun_claimed_turn(
+                question_text,
+                turn_messages,
+                run_handle,
+            ):
+                yield event
+        finally:
+            if self._run_controller.active_run() is run_handle:
+                run_handle.begin_finishing()
+                self._run_controller.complete_run(run_handle)
+
+    async def _arun_claimed_turn(
+        self,
+        question: str,
+        turn_messages: list[AgentMessage],
+        run_handle: ActiveRunHandle,
+    ) -> AsyncIterator[AgentHarnessEvent]:
+        from .tool_hooks import emit_hook as _emit_hook
+
+        with self._composition_lock:
+            composition = self._composition
+            provider = self._provider
+        registry_snapshot = composition.registry
+        active_registry = self._build_active_registry(registry_snapshot)
+        context_messages = self._build_context_messages(composition, active_registry)
+        context_snapshot_state = self._build_context_snapshot_state()
+        self._resumed_notice = None
+        tools = self._gate.adapt_tools(active_registry)
+
+        def inject_runtime(message: AgentMessage) -> None:
+            self.inject(message)
+
+        loop_config = build_loop_config(
+            composition=composition,
+            provider=provider,
+            gate=self._gate,
+            registry=active_registry,
+            context_rollover=self.context_rollover,
+            requested_rollover=(
+                self._context_window_controller.consume
+                if self._context_window_controller
+                else None
+            ),
+            last_prompt_tokens=self._context_manager.last_prompt_tokens,
+            get_last_prompt_tokens=lambda: self._context_manager.last_prompt_tokens,
+            steer=inject_runtime,
+            emit_hook=lambda rec: _emit_hook(self._hook_manager, rec),
+            get_prompt_version=_get_prompt_version,
+            correlation=self._correlation,
+            **self._build_loop_config_extras(),
+        )
+        loop_config.refresh_request_prefix = lambda: self._build_context_messages(
+            composition, active_registry
+        )
+
+        try:
+            self.cancellation_token.reset()
+            self._correlation.reset(self.session_id)
+
+            current = self._correlation.snapshot()
+            _emit_hook(
+                self._hook_manager,
+                HookRecord(
+                    "before_agent_start",
+                    metadata={"question": question},
+                    timestamp=current.timestamp,
+                    session_id=current.session_id,
+                    turn_id=current.turn_id,
+                    request_id=current.request_id,
+                ),
+            )
+
+            translation_state = _StreamTranslationState(correlation=self._correlation)
+            translated_events: dict[
+                int, AgentHarnessEvent | list[AgentHarnessEvent] | None
+            ] = {}
+
+            def on_event(event: AgentEvent) -> None:
+                translated = translate_event(event, translation_state)
+                translated_events[id(event)] = translated
+                if translated is None:
+                    return
+                for fact in (
+                    translated if isinstance(translated, list) else [translated]
+                ):
+                    if is_model_fact_event(fact):
+                        _emit_hook(
+                            self._hook_manager,
+                            HookRecord(
+                                "on_agent_event",
+                                metadata={"event": fact},
+                                **hook_correlation_fields(fact.correlation),
+                            ),
+                        )
+
+            loop_config.on_event = on_event
+            context = AgentContext(
+                messages=self._context_manager.history_messages(),
+                request_prefix=context_messages,
+                tools=tools,
+                context_manager=self._context_manager,
+                state=context_snapshot_state,
+                project_root=self.project_root,
+                cwd=self._effective_working_directory(),
+            )
+            result: AgentLoopResult | None = None
+            async for event in run_agent_loop(
+                turn_messages,
+                context,
+                loop_config,
+                signal=self.cancellation_token,
+                steer_queue=run_handle.claim_step_input,
+                finish_steering=run_handle.finish_step_input,
+                reopen_steering=run_handle.reopen_step_input,
+            ):
+                if isinstance(event, AgentLoopResult):
+                    result = event
+                    continue
+                translated = translated_events.pop(id(event))
+                if translated is not None:
+                    for te in (
+                        translated if isinstance(translated, list) else [translated]
+                    ):
+                        yield te
+
+            if result is None:
+                raise RuntimeError("agent loop completed without a result")
+
+            visible_result = (
+                result.model_copy(
+                    update={"messages": context_messages + result.messages}
+                )
+                if context_messages
+                else result
+            )
+            final = self._build_result(visible_result)
+            self._post_run(final)
+            yield final_event(
+                result.steps,
+                final,
+                self._correlation.snapshot(),
+            )
+        finally:
+            run_handle.begin_finishing()
+            self._run_controller.complete_run(run_handle)
+
+    # ── 内部 ──
+
+    def _reset_provider_conversation_state(self) -> None:
+        reset = getattr(self.provider, "reset_conversation_state", None)
+        if callable(reset):
+            reset()
+
+
+def _turn_text(messages: list[AgentMessage]) -> str:
+    """为上下文收集器提取本次 claim 的文本查询。"""
+    from ...agent.types import TextContent
+
+    parts: list[str] = []
+    for message in messages:
+        content = getattr(message, "content", None)
+        if isinstance(content, str):
+            parts.append(content)
+            continue
+        parts.extend(
+            block.text
+            for block in content or []
+            if isinstance(block, TextContent) and block.text
+        )
+    return "\n\n".join(parts)

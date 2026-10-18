@@ -1,0 +1,32 @@
+{
+  "extraPaths": ["src"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": ["src", "benchmarks"],
+  "exclude": [
+    "**/.*",
+    "**/.venv",
+    "**/venv",
+    "**/__pycache__",
+    "**/tests",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+  ],
+
+  "pythonVersion": "3.12",
+
+  "typeCheckingMode": "standard",
+
+  "reportUnusedImport": "warning",
+  "reportDuplicateImport": "warning",
+  "reportUnusedVariable": "warning",
+  "reportUnusedClass": "warning",
+  "reportUnusedFunction": "warning",
+
+  "reportUnreachable": "warning",
+  "reportUnnecessaryCast": "warning",
+  "reportUnnecessaryComparison": "warning",
+  "reportUnnecessaryIsInstance": "warning",
+  "reportUnnecessaryTypeIgnoreComment": "warning"
+}

@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cade-agent"
+version = "0.3.0"
+description = "A lightweight Python coding agent harness."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=1.0.0",
+    "prompt-toolkit>=3.0.0",
+    "rich>=13.0.0",
+    "tiktoken>=0.7.0",
+    "tenacity>=8.0.0",
+    "filelock>=3.0.0",
+    "python-dotenv>=1.2.2",
+    "orjson>=3.11.9",
+    "pillow==12.2.0",
+    "jsonschema>=4.0.0",
+    "blinker>=1.7.0",
+    "questionary>=2.0.0",
+    "filetype>=1.2.0",
+    "pathspec>=0.12.0",
+    "pyyaml>=6.0",
+    "mcp>=1.27,<2",
+    "pydantic>=2.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pyright>=1.1.410",
+    "ruff>=0.15.15",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["src/cade/tests"]
+pythonpath = [".", "src"]
+python_files = ["test_*.py"]
+python_classes = ["Test*", "*Test", "*Tests"]
+asyncio_mode = "auto"
+addopts = "-m 'not mcp_external and not e2e'"
+markers = [
+    "mcp_external: requires npx and network access to run a pinned official MCP server",
+    "e2e: runs a real Cade workflow and writes a trace under e2e-results/",
+]
+
+[project.scripts]
+cade = "cade.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cade*"]
+exclude = ["cade.tests", "cade.tests.*"]
+
+[tool.ruff.lint]
+extend-select = ["B", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/cade/tests/**" = ["S101"]

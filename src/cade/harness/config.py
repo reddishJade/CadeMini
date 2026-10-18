@@ -1,0 +1,541 @@
+from __future__ import annotations
+
+import json
+import os
+from collections.abc import Callable
+from pathlib import Path
+from typing import Annotated, Any, Final, Literal
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    ValidationError,
+    field_validator,
+)
+
+from .execution_env.sandbox import NetworkAccess, SandboxMode
+from .security.approval import ApprovalPolicy
+
+DirAccess = Literal["read", "write", "read_write"]
+
+ProviderTransport = Literal[
+    "openai_chat",
+    "openai_responses",
+    "openai_codex",
+    "chatglm_chat",
+    "deepseek_chat",
+    "mimo_chat",
+    "custom",
+]
+HookEventName = Literal[
+    "pre_tool",
+    "post_tool",
+    "on_error",
+    "on_context_window_reset",
+    "before_agent_start",
+    "before_provider_request",
+]
+HookFailurePolicy = Literal["ignore", "warn", "fail"]
+
+PROFILE_MAIN = "main"
+PROFILE_SUBAGENT = "subagent"
+DEFAULT_PROMPT_MODULES: tuple[str, ...] = (
+    "identity",
+    "tool_discipline",
+    "citations",
+    "tools",
+    "search_strategy",
+    "environment",
+    "cwd",
+)
+
+
+class AgentConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    max_steps: Annotated[StrictInt, Field(gt=0)] | None = None
+    max_llm_calls: Annotated[StrictInt, Field(gt=0)] | None = None
+    rollover_token_threshold: StrictInt = 0
+    automatic_rollover: StrictBool = True
+    reserve_tokens: StrictInt = 16384
+    headroom_tokens: Annotated[StrictInt, Field(ge=0)] | None = None
+    evidence_token_budget: Annotated[StrictInt, Field(ge=0)] | None = None
+    working_set_token_budget: Annotated[StrictInt, Field(ge=0)] | None = None
+    next_turn_input_tokens: Annotated[StrictInt, Field(ge=0)] = 1024
+    rollover_trigger_ratio: StrictFloat = Field(default=0.95, gt=0, le=1)
+    tool_workers: StrictInt = 4
+    tool_timeout_seconds: StrictFloat | StrictInt = 120.0
+    watchdog_repeated_tool_limit: StrictInt = 3
+
+
+# 未显式配置模型时使用 Codex 账户的 GPT-5.6 Luna。
+DEFAULT_CHAT_MODEL: Final[str] = "gpt-5.6-luna"
+
+
+class ModelOptionsRuntimeConfig(BaseModel):
+    """与连接和认证无关的模型请求选项。"""
+
+    model_config = ConfigDict(extra="forbid")
+    context_window: StrictInt | None = Field(default=None, gt=0)
+    thinking: StrictBool = True
+    clear_thinking: StrictBool = False
+    tool_stream: StrictBool = True
+    response_format: dict[str, Any] | None = None
+
+
+class ModelProfileRuntimeConfig(ModelOptionsRuntimeConfig):
+    """辅助模型角色的显式覆盖，未提供的字段继承主模型。"""
+
+    provider: str | None = None
+    model: str | None = None
+    reasoning_effort: str | None = None
+
+
+class ProviderConnectionRuntimeConfig(BaseModel):
+    """按 provider 保存的连接参数，不包含凭据和默认模型。"""
+
+    model_config = ConfigDict(extra="forbid")
+    transport: ProviderTransport
+    base_url: str = ""
+    api_key_env: str | None = None
+
+
+class ProviderRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    connections: dict[str, ProviderConnectionRuntimeConfig] = Field(
+        default_factory=dict
+    )
+    options: ModelOptionsRuntimeConfig = Field(
+        default_factory=ModelOptionsRuntimeConfig
+    )
+    model_profiles: dict[
+        Literal["subagent", "reviewer", "judge", "refiner"],
+        ModelProfileRuntimeConfig,
+    ] = Field(default_factory=dict)
+
+
+class SecurityExternalDirectory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    path: str = Field(min_length=1)
+    access: DirAccess = "read"
+
+
+class SecuritySensitivePathOverride(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    path: str = Field(min_length=1)
+    access: DirAccess = "read"
+
+    @field_validator("path")
+    @classmethod
+    def _require_exact_path(cls, value: str) -> str:
+        """拒绝通配符，避免用户误以为例外会覆盖一组敏感文件。"""
+        if any(character in value for character in "*?[]"):
+            raise ValueError("sensitive path override must be an exact path")
+        return value
+
+
+class ModeRuleRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: str = Field(min_length=1)
+    effect: Literal["allow", "ask", "deny"]
+    command: str | None = None
+    subcommand: str | None = None
+    subcommand_in: tuple[str, ...] | None = None
+    flags_any: tuple[str, ...] | None = None
+    flags_all: tuple[str, ...] | None = None
+    resource_pattern: str | None = None
+
+
+class ModeRulesetRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    rules: tuple[ModeRuleRuntimeConfig, ...] = ()
+
+
+class ExecutionModesRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    default_mode: Literal["plan", "build", "act"] = "act"
+    plan: ModeRulesetRuntimeConfig = Field(default_factory=ModeRulesetRuntimeConfig)
+    build: ModeRulesetRuntimeConfig = Field(default_factory=ModeRulesetRuntimeConfig)
+    act: ModeRulesetRuntimeConfig = Field(default_factory=ModeRulesetRuntimeConfig)
+
+
+class SandboxRuntimeConfig(BaseModel):
+    """Linux Agent shell 的 OS sandbox 配置。"""
+
+    model_config = ConfigDict(extra="forbid")
+    mode: SandboxMode = SandboxMode.WORKSPACE_WRITE
+    network_access: NetworkAccess = NetworkAccess.DENY
+
+
+class SecurityRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    approval_policy: ApprovalPolicy = "on-request"
+    approval_router: Literal["mode", "user", "auto"] = "mode"
+    non_workspace_access: StrictBool = True
+    auto_review_timeout_seconds: StrictFloat | StrictInt = Field(
+        default=90.0,
+        gt=0,
+        le=300,
+    )
+    sandbox: SandboxRuntimeConfig = Field(default_factory=SandboxRuntimeConfig)
+    restricted_dirs: tuple[str, ...] = ()
+    permissions: dict[str, Literal["allow", "ask", "deny"]] = Field(
+        default_factory=dict,
+        description="User-facing permission names mapped to decisions, such as read or edit.",
+    )
+    tools: dict[str, Literal["allow", "ask", "deny"]] = Field(
+        default_factory=dict,
+        description="Concrete tool names mapped to decisions, such as bash or edit.",
+    )
+    global_default: str | None = None
+    external_directories: tuple[SecurityExternalDirectory, ...] = ()
+    sensitive_path_overrides: tuple[SecuritySensitivePathOverride, ...] = ()
+
+
+_INSTRUCTION_PRIORITIES: frozenset[str] = frozenset({"instruction", "context"})
+
+
+class FileInstructionSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["file"] = "file"
+    path: str
+    priority: str | None = None
+
+    @field_validator("path")
+    @classmethod
+    def _validate_path(cls, v: str) -> str:
+        norm = v.replace("\\", "/")
+        if norm.startswith("/"):
+            raise ValueError(f"absolute path not allowed: {v}")
+        if len(norm) >= 2 and norm[1] == ":":
+            raise ValueError(f"absolute path not allowed: {v}")
+        if norm.startswith("~"):
+            raise ValueError(f"home-relative path not allowed: {v}")
+        for segment in norm.split("/"):
+            if segment == "..":
+                raise ValueError(f"traversal path not allowed: {v}")
+        return v
+
+    @field_validator("priority")
+    @classmethod
+    def _validate_priority(cls, v: str | None) -> str | None:
+        if v is not None and v.lower() not in _INSTRUCTION_PRIORITIES:
+            raise ValueError(
+                f"invalid priority '{v}'. Must be one of: instruction, context"
+            )
+        return v
+
+
+class InlineInstructionSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["inline"] = "inline"
+    content: str = Field(min_length=1)
+    priority: str | None = None
+
+    @field_validator("priority")
+    @classmethod
+    def _validate_priority(cls, v: str | None) -> str | None:
+        if v is not None and v.lower() not in _INSTRUCTION_PRIORITIES:
+            raise ValueError(
+                f"invalid priority '{v}'. Must be one of: instruction, context"
+            )
+        return v
+
+
+InstructionSource = FileInstructionSource | InlineInstructionSource
+
+
+class ToolsRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    subagent_extra_tools: tuple[str, ...] = ()
+    shell: str = "auto"
+
+
+class SkillsRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    trust_project_skills: bool = False
+
+
+class PromptRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    modules: tuple[str, ...] = DEFAULT_PROMPT_MODULES
+    instructions: tuple[InstructionSource, ...] = ()
+
+
+class PathsRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sessions_dir: Path | None = None
+    skills_dir: Path | None = None
+
+
+class ObservabilityRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    audit_path: Path | None = None
+
+
+class ExternalHookRuntimeConfig(BaseModel):
+    """单个受信任外部命令 hook 声明。"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    event: HookEventName
+    command: tuple[str, ...]
+    matcher: str | None = None
+    timeout: StrictFloat | StrictInt = 10.0
+    enabled: StrictBool = True
+    failure_policy: HookFailurePolicy = "warn"
+    inherit_to_subagents: StrictBool = False
+    source: str = ""
+
+    @field_validator("command")
+    @classmethod
+    def _validate_command(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        if not v or not v[0].strip():
+            raise ValueError("command must be a non-empty argv array")
+        return v
+
+    @field_validator("matcher")
+    @classmethod
+    def _validate_matcher(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("matcher must be a non-empty string")
+        return v
+
+    @field_validator("timeout")
+    @classmethod
+    def _validate_timeout(cls, v: float) -> float | int:
+        if v <= 0:
+            raise ValueError("timeout must be positive")
+        return v
+
+
+class HooksRuntimeConfig(BaseModel):
+    """外部命令 hook 配置集合。"""
+
+    model_config = ConfigDict(extra="forbid")
+    entries: tuple[ExternalHookRuntimeConfig, ...] = ()
+
+
+class CadeRuntimeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    default_provider: str = "openai-codex"
+    default_model: str = DEFAULT_CHAT_MODEL
+    default_reasoning_effort: str | None = "high"
+    provider: ProviderRuntimeConfig = Field(default_factory=ProviderRuntimeConfig)
+    agent: AgentConfig = Field(default_factory=AgentConfig)
+    tools: ToolsRuntimeConfig = Field(default_factory=ToolsRuntimeConfig)
+    skills: SkillsRuntimeConfig = Field(default_factory=SkillsRuntimeConfig)
+    prompt: PromptRuntimeConfig = Field(default_factory=PromptRuntimeConfig)
+    paths: PathsRuntimeConfig = Field(default_factory=PathsRuntimeConfig)
+    observability: ObservabilityRuntimeConfig = Field(
+        default_factory=ObservabilityRuntimeConfig
+    )
+    hooks: HooksRuntimeConfig = Field(default_factory=HooksRuntimeConfig)
+    security: SecurityRuntimeConfig = Field(default_factory=SecurityRuntimeConfig)
+    execution_modes: ExecutionModesRuntimeConfig = Field(
+        default_factory=ExecutionModesRuntimeConfig
+    )
+
+
+# ── 序列化 / 反序列化 ──
+
+
+def _config_from_dict(
+    data: dict[str, Any],
+    *,
+    source_hint: Callable[[tuple[str | int, ...]], str | None] | None = None,
+) -> CadeRuntimeConfig:
+    """从 dict 使用 Pydantic 模型校验构建 CadeRuntimeConfig。
+
+    Pydantic 自动校验类型、枚举值、嵌套结构，并拒绝未知字段。
+    """
+    try:
+        return CadeRuntimeConfig.model_validate(data)
+    except ValidationError as e:
+        lines = [
+            "Configuration validation failed; check the field paths and configuration sources:"
+        ]
+        for err in e.errors():
+            path = ".".join(str(p) for p in err["loc"])
+            line = f"  {path}: {err['msg']} (type={err['type']})"
+            if source_hint is not None:
+                hint = source_hint(tuple(err["loc"]))
+                if hint:
+                    line += f" [source: {hint}]"
+            lines.append(line)
+        raise ValueError("\n".join(lines)) from e
+
+
+# ── 配置发现（基于 raw dict 合并，仅覆盖显式指定的键）──
+
+
+def discover_runtime_config(
+    project_root: Path, explicit_path: Path | None = None
+) -> CadeRuntimeConfig:
+    global_path = Path.home() / ".cade" / "settings.json"
+    project_path = explicit_path or project_root / "cade.config.json"
+    local_path = project_root / ".cade" / "settings.json"
+    global_raw = _load_raw_config(global_path)
+    project_raw = _load_raw_config(project_path)
+    local_raw = _load_raw_config(local_path)
+
+    global_raw = _annotate_hook_sources(global_raw, global_path)
+    project_raw = _annotate_hook_sources(project_raw, project_path)
+    local_raw = _annotate_hook_sources(local_raw, local_path)
+
+    merged = _deep_merge_raw(global_raw, project_raw)
+    merged = _deep_merge_raw(merged, local_raw)
+    env_raw, env_sources = _build_env_override_raw()
+    merged = _deep_merge_raw(merged, env_raw)
+
+    return _config_from_dict(
+        merged,
+        source_hint=lambda loc: _resolve_config_source_hint(
+            loc,
+            (
+                ("environment", env_raw, env_sources),
+                (f"local config {local_path}", local_raw, {}),
+                (f"project config {project_path}", project_raw, {}),
+                (f"global config {global_path}", global_raw, {}),
+            ),
+        ),
+    )
+
+
+def _load_raw_config(path: Path | None) -> dict[str, Any]:
+    """读取 JSON 配置为原始 dict；文件不存在返回空 dict。"""
+    if path is None or not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise TypeError(f"runtime config must be a JSON object: {path}")
+    return data
+
+
+def _annotate_hook_sources(
+    data: dict[str, Any],
+    source_path: Path,
+) -> dict[str, Any]:
+    """为当前配置层的 hook 声明附加来源路径。"""
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return data
+    entries = hooks.get("entries")
+    if not isinstance(entries, list):
+        return data
+
+    annotated_entries: list[object] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            annotated_entries.append(entry)
+            continue
+        annotated = dict(entry)
+        annotated["source"] = str(source_path)
+        annotated_entries.append(annotated)
+
+    result = dict(data)
+    result["hooks"] = dict(hooks)
+    result["hooks"]["entries"] = annotated_entries
+    return result
+
+
+def _deep_merge_raw(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """递归合并 override 到 base；仅在 override 中显式存在的键覆盖 base。
+
+    与旧 _merge_non_default 的区别：不比较 dataclass 默认值，
+    仅依据键是否在 override dict 中出现。用户显式设回默认值的键也会正确保留。
+    """
+    if not override:
+        return dict(base)
+    result = dict(base)
+    for key, val in override.items():
+        if isinstance(val, dict) and isinstance(result.get(key), dict):
+            result[key] = _deep_merge_raw(result[key], val)
+        else:
+            result[key] = val
+    return result
+
+
+def _build_env_override_raw() -> tuple[
+    dict[str, Any], dict[tuple[str | int, ...], str]
+]:
+    raw: dict[str, Any] = {}
+    sources: dict[tuple[str | int, ...], str] = {}
+    security: dict[str, Any] = {}
+
+    approval_policy = os.getenv("CADE_APPROVAL_POLICY")
+    if approval_policy is not None:
+        security["approval_policy"] = approval_policy
+        sources[("security", "approval_policy")] = (
+            "environment variable CADE_APPROVAL_POLICY"
+        )
+
+    if security:
+        raw["security"] = security
+        sources[("security",)] = "environment overrides"
+    return raw, sources
+
+
+def load_runtime_config(path: Path | None) -> CadeRuntimeConfig:
+    raw = _load_raw_config(path)
+    if path is not None:
+        raw = _annotate_hook_sources(raw, path)
+    env_raw, env_sources = _build_env_override_raw()
+    raw = _deep_merge_raw(raw, env_raw)
+    file_source = f"config {path}" if path is not None else "in-memory defaults"
+    return _config_from_dict(
+        raw,
+        source_hint=lambda loc: _resolve_config_source_hint(
+            loc,
+            (
+                ("environment", env_raw, env_sources),
+                (file_source, raw, {}),
+            ),
+        ),
+    )
+
+
+def _resolve_config_source_hint(
+    loc: tuple[str | int, ...],
+    layers: tuple[tuple[str, dict[str, Any], dict[tuple[str | int, ...], str]], ...],
+) -> str | None:
+    for default_label, raw, path_labels in layers:
+        if not raw:
+            continue
+        for size in range(len(loc), 0, -1):
+            prefix = loc[:size]
+            if not _path_exists(raw, prefix):
+                continue
+            for label_size in range(size, -1, -1):
+                label = path_labels.get(prefix[:label_size])
+                if label is not None:
+                    return label
+            return default_label
+    return None
+
+
+def _path_exists(data: object, path: tuple[str | int, ...]) -> bool:
+    cursor = data
+    for part in path:
+        if isinstance(cursor, dict) and isinstance(part, str) and part in cursor:
+            cursor = cursor[part]
+            continue
+        if (
+            isinstance(cursor, list)
+            and isinstance(part, int)
+            and 0 <= part < len(cursor)
+        ):
+            cursor = cursor[part]
+            continue
+        return False
+    return True
+
+
+def resolve_config_path(project_root: Path, path: Path | None) -> Path | None:
+    if path is None:
+        return None
+    if path.is_absolute():
+        return path
+    return project_root / path

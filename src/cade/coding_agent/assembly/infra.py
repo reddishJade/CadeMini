@@ -1,0 +1,70 @@
+"""共享基础设施构建。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from cade.harness.agent_runtime import CancellationToken
+from cade.harness.agent_runtime.context_window import (
+    ContextWindowController,
+    ContextWindowRollover,
+)
+from cade.harness.config import CadeRuntimeConfig, resolve_config_path
+from cade.harness.session import SessionHistory, SessionInbox, SessionStore
+from cade.harness.session.recorder import SessionRecorder
+
+from ..working_note import capture_working_note
+
+
+@dataclass(frozen=True)
+class SharedInfra:
+    cancellation_token: CancellationToken
+    context_window_controller: ContextWindowController
+    context_rollover: ContextWindowRollover
+    session_history: SessionHistory
+    session_inbox: SessionInbox
+    session_recorder: SessionRecorder
+
+
+def build_shared_infra(
+    project_root: Path,
+    runtime_config: CadeRuntimeConfig,
+    sessions_dir: Path | None = None,
+) -> SharedInfra:
+    cancellation_token = CancellationToken()
+    context_window_controller = ContextWindowController()
+
+    configured_sessions_dir = runtime_config.paths.sessions_dir
+    if sessions_dir is not None:
+        transcript_dir = sessions_dir.resolve()
+    elif configured_sessions_dir:
+        resolved_sessions_dir = resolve_config_path(
+            project_root,
+            configured_sessions_dir,
+        )
+        if resolved_sessions_dir is None:
+            raise RuntimeError("configured sessions directory could not be resolved")
+        transcript_dir = resolved_sessions_dir
+    else:
+        transcript_dir = project_root / ".cade" / "sessions"
+
+    context_rollover = ContextWindowRollover()
+    session_recorder = SessionRecorder(
+        SessionStore(transcript_dir, project_root=project_root),
+        context_window_state_provider=lambda: capture_working_note(project_root),
+    )
+    session_history = SessionHistory(
+        transcript_dir,
+        artifacts_dir=session_recorder.store.artifacts_dir,
+        project_root=project_root,
+    )
+    session_inbox = SessionInbox(session_recorder.store)
+    return SharedInfra(
+        cancellation_token=cancellation_token,
+        context_window_controller=context_window_controller,
+        context_rollover=context_rollover,
+        session_history=session_history,
+        session_inbox=session_inbox,
+        session_recorder=session_recorder,
+    )

@@ -1,0 +1,148 @@
+"""向用户提问的交互工具。"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
+
+from cade.agent.types import ToolInput, ToolSpec
+
+QuestionPromptHandler = Callable[[list[dict[str, Any]]], list[list[str]]]
+
+CUSTOM_OPTION_LABEL = "Type your own answer"
+"""当 LLM 提供了选项列表时，额外追加的「自定义输入」选项的显示文本。"""
+
+
+class _QuestionToolHandler:
+    """在不同前端之间路由问题交互。"""
+
+    def __init__(self) -> None:
+        self.prompt_handler: QuestionPromptHandler | None = None
+
+    def __call__(
+        self, data: ToolInput, _on_update: Callable[[str], None] | None = None
+    ) -> str:
+        prompt_handler = self.prompt_handler
+        if prompt_handler is None:
+            return (
+                "Cannot ask questions without an interactive prompt handler. "
+                "Please rephrase the request or use an interactive frontend."
+            )
+        questions = _questions(data.get("questions"))
+        return _format_answers(questions, prompt_handler(questions))
+
+
+def build_question_tool() -> ToolSpec:
+    """构建向用户收集选择的工具。"""
+    return ToolSpec(
+        name="question",
+        description=(
+            "Ask the user one or more questions during execution. Options are "
+            "optional; without options the user can enter free text."
+        ),
+        input_hint='JSON: {"questions":[{"question":"Proceed?","options":[{"label":"Yes"}]}]}',
+        handler=_QuestionToolHandler(),
+        schema={
+            "type": "object",
+            "properties": {
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "header": {"type": "string", "maxLength": 30},
+                            "question": {"type": "string"},
+                            "multiple": {"type": "boolean"},
+                            "options": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "description": {"type": "string"},
+                                    },
+                                    "required": ["label"],
+                                    "additionalProperties": False,
+                                },
+                                "minItems": 1,
+                            },
+                        },
+                        "required": ["question"],
+                        "additionalProperties": False,
+                    },
+                    "minItems": 1,
+                }
+            },
+            "required": ["questions"],
+            "additionalProperties": False,
+        },
+        prompt_guidelines=(
+            "Use question only when clarification or a user decision is needed.",
+            "When recommending an option, make it the first option and add '(Recommended)' to its label.",
+        ),
+    )
+
+
+def set_question_prompt_handler(
+    tool: ToolSpec, handler: QuestionPromptHandler | None
+) -> bool:
+    """为 question 工具设置前端专用交互处理器。"""
+    if not isinstance(tool.handler, _QuestionToolHandler):
+        return False
+    tool.handler.prompt_handler = handler
+    return True
+
+
+def _questions(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise ValueError("questions must be a non-empty array")
+    questions: list[dict[str, Any]] = []
+    for raw in value:
+        if not isinstance(raw, dict):
+            raise TypeError("each question must be an object")
+        raw_header = raw.get("header")
+        header = str(raw_header).strip() if raw_header is not None else None
+        text = str(raw.get("question", "")).strip()
+        options = raw.get("options")
+        if header is not None and (not header or len(header) > 30):
+            raise ValueError("question header must be 1-30 characters when provided")
+        if not text:
+            raise ValueError("question text is required")
+        parsed: dict[str, Any] = {
+            "question": text,
+            "multiple": bool(raw.get("multiple", False)),
+        }
+        if header is not None:
+            parsed["header"] = header
+        if options is not None:
+            if not isinstance(options, list) or not options:
+                raise ValueError(
+                    f"question options must be non-empty when provided: {text}"
+                )
+            parsed_options = []
+            for option in options:
+                if not isinstance(option, dict):
+                    raise TypeError(f"question option must be an object: {text}")
+                label = str(option.get("label", "")).strip()
+                if not label:
+                    raise ValueError(f"question option label is required: {text}")
+                description = option.get("description")
+                parsed_option = {"label": label}
+                if isinstance(description, str) and description.strip():
+                    parsed_option["description"] = description.strip()
+                parsed_options.append(parsed_option)
+            parsed["options"] = parsed_options
+        questions.append(parsed)
+    return questions
+
+
+def _format_answers(questions: list[dict[str, Any]], answers: list[list[str]]) -> str:
+    formatted = []
+    for index, question in enumerate(questions):
+        answer = ", ".join(answers[index]) if answers[index] else "Unanswered"
+        formatted.append(f'"{question["question"]}" = "{answer}"')
+    return (
+        "User has answered your questions: "
+        + ", ".join(formatted)
+        + ". You can now continue with the user's answers in mind."
+    )

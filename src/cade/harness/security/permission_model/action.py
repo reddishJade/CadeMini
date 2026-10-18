@@ -1,0 +1,280 @@
+from __future__ import annotations
+
+import shlex
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
+from .types import Action, PermissionAccess, Target, UnresolvedEffect
+from .utils import _looks_absolute
+
+type PathExtractor = Callable[[Mapping[str, object]], tuple[str, ...]]
+
+
+class ActionExtractor:
+    def extract(
+        self,
+        tool_name: str,
+        tool_input: Mapping[str, object],
+        action_profile: tuple[str, str] | None = None,
+        path_extractor: PathExtractor | None = None,
+    ) -> Action:
+        action = self._extract_inner(tool_name, tool_input)
+        if action_profile is not None:
+            capability_name, target_kind = action_profile
+            targets = action.targets or self._profile_targets(
+                tool_input,
+                capability_name,
+                target_kind,
+                path_extractor,
+            )
+            action = Action(
+                tool=action.tool,
+                capability=capability_name,
+                operation=action.operation,
+                targets=targets,
+                input=action.input,
+                unresolved_effects=action.unresolved_effects,
+            )
+        return action
+
+    @staticmethod
+    def _profile_targets(
+        tool_input: Mapping[str, object],
+        capability: str,
+        target_kind: str,
+        path_extractor: PathExtractor | None,
+    ) -> tuple[Target, ...]:
+        """按工具声明为未知工具补充结构化 target。"""
+        if target_kind != "path":
+            return ()
+        if path_extractor is not None:
+            paths = path_extractor(tool_input)
+        else:
+            raw_path = tool_input.get("path")
+            paths = (raw_path,) if isinstance(raw_path, str) else ()
+        access: PermissionAccess = "read" if capability == "read" else "write"
+        return tuple(
+            Target(
+                kind="path",
+                value=_normalize_path_text(path),
+                access=access,
+            )
+            for path in paths
+            if path.strip()
+        )
+
+    def _extract_inner(
+        self,
+        tool_name: str,
+        tool_input: Mapping[str, object],
+    ) -> Action:
+        if tool_name == "read":
+            return self._path_action(tool_name, tool_input, "read", "read", "read")
+        if tool_name == "write":
+            return self._path_action(tool_name, tool_input, "write", "write", "write")
+        if tool_name == "save_memory":
+            return self._path_action(tool_name, tool_input, "write", tool_name, "write")
+        if tool_name == "edit":
+            return self._path_action(tool_name, tool_input, "edit", "edit", "write")
+        if tool_name == "bash":
+            return self._bash_action(tool_name, tool_input)
+        if tool_name in ("grep", "glob", "find", "ls"):
+            return self._path_action(tool_name, tool_input, "read", tool_name, "read")
+        if tool_name == "load_skill":
+            return self._load_skill_action(tool_name, tool_input)
+        if tool_name.startswith("mcp__"):
+            return Action(
+                tool=tool_name,
+                capability="mcp",
+                operation=tool_name,
+                targets=(Target(kind="mcp", value=tool_name, access="execute"),),
+                input=tool_input,
+            )
+        return Action(
+            tool=tool_name,
+            capability="unknown",
+            operation=tool_name,
+            targets=(),
+            input=tool_input,
+        )
+
+    def _load_skill_action(
+        self, tool_name: str, tool_input: Mapping[str, object]
+    ) -> Action:
+        name = tool_input.get("name")
+        targets: tuple[Target, ...] = ()
+        if isinstance(name, str) and name.strip():
+            targets = (Target(kind="skill", value=name.strip(), access="read"),)
+        return Action(
+            tool=tool_name,
+            capability="skill",
+            operation="load_skill",
+            targets=targets,
+            input=tool_input,
+        )
+
+    def _path_action(
+        self,
+        tool_name: str,
+        tool_input: Mapping[str, object],
+        capability: str,
+        operation: str,
+        access: PermissionAccess,
+    ) -> Action:
+        raw_path = tool_input.get("path")
+        targets: tuple[Target, ...] = ()
+        if isinstance(raw_path, str) and raw_path.strip():
+            targets = (
+                Target(
+                    kind="path",
+                    value=_normalize_path_text(raw_path),
+                    access=access,
+                ),
+            )
+        return Action(
+            tool=tool_name,
+            capability=capability,
+            operation=operation,
+            targets=targets,
+            input=tool_input,
+        )
+
+    def _bash_action(self, tool_name: str, tool_input: Mapping[str, object]) -> Action:
+        command = tool_input.get("command")
+        targets: tuple[Target, ...] = ()
+        unresolved_effects: tuple[UnresolvedEffect, ...] = ()
+        if isinstance(command, str) and command.strip():
+            normalized_command = command.strip()
+            analysis = self._analyze_command(normalized_command, "posix")
+            if analysis.classification_available:
+                targets = (
+                    Target(
+                        kind="command",
+                        value=normalized_command,
+                        access="execute",
+                    ),
+                    *analysis.resolved_paths,
+                )
+                unresolved_effects = analysis.unresolved_effects
+            else:
+                targets = (
+                    Target(
+                        kind="command",
+                        value=normalized_command,
+                        access="execute",
+                    ),
+                    *self._shell_path_targets(normalized_command),
+                )
+        return Action(
+            tool=tool_name,
+            capability="shell",
+            operation="run_command",
+            targets=targets,
+            input=tool_input,
+            unresolved_effects=unresolved_effects,
+        )
+
+    def _analyze_command(
+        self,
+        command: str,
+        shell_type: str = "posix",
+    ) -> Any:
+        try:
+            from ..shell_analyzer import analyze_shell_command
+
+            return analyze_shell_command(command, shell_type)
+        except ImportError:
+            return type(
+                "_EmptyAnalysis",
+                (),
+                {
+                    "resolved_paths": (),
+                    "unresolved_effects": (),
+                    "primary_command": None,
+                    "shell_type": shell_type,
+                    "parse_error": True,
+                    "classification_available": False,
+                },
+            )()
+
+    def _shell_path_targets(self, command: str) -> tuple[Target, ...]:
+        try:
+            tokens = shlex.split(command, posix=False)
+        except ValueError:
+            return ()
+        if not tokens:
+            return ()
+
+        command_name = Path(tokens[0].strip("\"'")).name.lower()
+        path_arguments = _filesystem_command_path_arguments(command_name, tokens[1:])
+        access: PermissionAccess = (
+            "read" if command_name in _READ_FILESYSTEM_COMMANDS else "write"
+        )
+        return tuple(
+            Target(
+                kind="path",
+                value=_normalize_path_text(path),
+                access=access,
+                provenance="shell_literal",
+            )
+            for path in path_arguments
+        )
+
+
+def _normalize_path_text(raw_path: str) -> str:
+    path = raw_path.strip()
+    if _looks_absolute(path):
+        return path.replace("\\", "/")
+    parts: list[str] = []
+    for part in path.replace("\\", "/").split("/"):
+        if part in ("", "."):
+            continue
+        parts.append(part)
+    return "/".join(parts) or "."
+
+
+_READ_FILESYSTEM_COMMANDS = frozenset(
+    {
+        "cat",
+        "dir",
+        "get-childitem",
+        "get-content",
+        "head",
+        "less",
+        "ls",
+        "more",
+        "realpath",
+        "tail",
+    }
+)
+_WRITE_FILESYSTEM_COMMANDS = frozenset(
+    {
+        "copy-item",
+        "cp",
+        "del",
+        "move-item",
+        "mv",
+        "remove-item",
+        "rm",
+        "set-content",
+    }
+)
+
+
+def _filesystem_command_path_arguments(
+    command_name: str,
+    arguments: Sequence[str],
+) -> tuple[str, ...]:
+    if command_name not in _READ_FILESYSTEM_COMMANDS | _WRITE_FILESYSTEM_COMMANDS:
+        return ()
+
+    paths: list[str] = []
+    for argument in arguments:
+        cleaned = argument.strip("\"'")
+        if not cleaned or cleaned.startswith("-"):
+            continue
+        if cleaned in {"&&", "||", ";", "|"}:
+            break
+        paths.append(cleaned)
+    return tuple(paths)
