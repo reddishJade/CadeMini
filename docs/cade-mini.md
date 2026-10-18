@@ -39,7 +39,8 @@ Committed on `experiment/cade-mini`:
   iterative compaction, automatic window fallback, skills, composable prompt
   modules, NOTE working state, plan/build/act modes, static rules, session
   grants, shell command classification, an optional Linux bubblewrap sandbox,
-  and 163 tests.
+  independent subagents, durable project memory, tool lifecycle hooks, a stdio
+  MCP bridge, and 179 tests.
 - A real CLI acceptance run through the configured DeepSeek account passed: the
   model used the write and read tools, `hello.txt` contained `mini`, and a
   resumed run on the same session read the file and answered `mini`.
@@ -53,13 +54,15 @@ Committed on `experiment/cade-mini`:
   `orange` skill, and answered `ORANGE`; NOTE.md and AGENTS.md were in context.
 - A real build-mode run passed: without `--yes`, the model used the write tool
   and created `build.txt` with content `build-mode`.
+- A real MCP subprocess test discovers an `echo` tool, calls it, and receives
+  `echo:hi`; subagent, memory, and hook paths are covered by CLI and async tests.
 - A live Codex smoke reached the API but the account returned HTTP 429 "usage
   limit has been reached". The loop recorded `request` and `attempt` facts and
   terminated with `provider_error`; the provider and error paths are verified.
 - On non-Linux hosts the OS sandbox is unavailable; path boundaries, mode
   policy, shell classification, and approvals remain the active safety layer.
-- Next: subagents, MCP, memory, and hooks. The live Codex acceptance is pending
-  account quota.
+- Next: TUI/web hosts, undo/snapshots, goals, and automatic approval review. The
+  live Codex acceptance is pending account quota.
 
 ## 1. What Cade is today
 
