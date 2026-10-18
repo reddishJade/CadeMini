@@ -92,6 +92,34 @@ def test_process_writers_keep_one_continuous_branch(tmp_path: Path) -> None:
     assert all(entry.parent == previous.id for previous, entry in pairwise(entries))
 
 
+def test_run_lock_rejects_another_process_and_releases(tmp_path: Path) -> None:
+    log = SessionLog.create(_sessions(tmp_path), session_id="locked")
+    script = (
+        "from pathlib import Path; import sys; "
+        "from cade_mini.core.log import SessionLog; "
+        "log = SessionLog.open(Path(sys.argv[1])); "
+        "exec('with log.run_lock():\\n pass')"
+    )
+    with log.run_lock():
+        result = subprocess.run(
+            [sys.executable, "-c", script, str(log.path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert "session is already running" in result.stderr
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(log.path)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_append_writes_one_complete_line_per_fact(tmp_path: Path) -> None:
     log = SessionLog.create(_sessions(tmp_path), session_id="s2")
     log.append("user", {"text": "one", "source": "user"})

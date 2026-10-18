@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol, cast
+from functools import wraps
+from typing import Any, Concatenate, Literal, Protocol, cast
 
 from cade_mini.ai.events import (
     FinalMessage,
@@ -147,6 +148,20 @@ class RunResult:
     usage: dict[str, int] | None = None
 
 
+def _exclusive_session[**P](
+    operation: Callable[Concatenate[SessionLog, P], Awaitable[RunResult]],
+) -> Callable[Concatenate[SessionLog, P], Coroutine[Any, Any, RunResult]]:
+    """在恢复、模型调用和工具执行期间持有会话运行锁。"""
+
+    @wraps(operation)
+    async def locked(log: SessionLog, *args: P.args, **kwargs: P.kwargs) -> RunResult:
+        with log.run_lock():
+            return await operation(log, *args, **kwargs)
+
+    return locked
+
+
+@_exclusive_session
 async def run(
     log: SessionLog,
     text: str,

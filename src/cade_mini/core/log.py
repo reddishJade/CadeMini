@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -92,6 +93,19 @@ class SessionLog:
         if match is None:
             raise LogError(f"not a session file: {self.path}")
         return match.group(1)
+
+    @contextmanager
+    def run_lock(self) -> Iterator[None]:
+        """独占整个会话操作；发生竞争时立即拒绝，退出时释放。"""
+        lock = filelock.FileLock(str(self.path.with_suffix(".run.lock")), timeout=0)
+        try:
+            lock.acquire()
+        except filelock.Timeout as exc:
+            raise LogError(f"session is already running: {self.session_id}") from exc
+        try:
+            yield
+        finally:
+            lock.release()
 
     def append(self, event_type: EventType, data: dict[str, JsonValue]) -> LogEntry:
         """追加一条事实并 fsync；返回已提交的条目。"""

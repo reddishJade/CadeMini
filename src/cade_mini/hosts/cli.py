@@ -554,25 +554,28 @@ def _run_task(
     cancel: CancellationToken | None = None,
 ) -> RunResult:
     tools = filter_tools(tools, policy.mode)
-    return asyncio.run(
-        run(
-            log,
-            task,
-            provider=provider,
-            tools=tools,
-            budget=budget,
-            policy=policy,
-            approve=approve,
-            context=context,
-            max_steps=max_steps,
-            on_event=on_event,
-            compact=compactor,
-            window=window,
-            hooks=hooks,
-            steering=steering,
-            cancel=cancel,
+    try:
+        return asyncio.run(
+            run(
+                log,
+                task,
+                provider=provider,
+                tools=tools,
+                budget=budget,
+                policy=policy,
+                approve=approve,
+                context=context,
+                max_steps=max_steps,
+                on_event=on_event,
+                compact=compactor,
+                window=window,
+                hooks=hooks,
+                steering=steering,
+                cancel=cancel,
+            )
         )
-    )
+    except LogError as exc:
+        return RunResult(answer="", steps=0, termination="aborted", error=str(exc))
 
 
 @dataclass(frozen=True)
@@ -1093,12 +1096,22 @@ def _repl(
                 print(f"goal set: {goal.objective}")
             continue
         if text == "/compact":
-            compacted = asyncio.run(compactor(log, budget))
+            try:
+                with log.run_lock():
+                    compacted = asyncio.run(compactor(log, budget))
+            except LogError as exc:
+                print(f"cade-mini: {exc}", file=sys.stderr)
+                continue
             print("compacted" if compacted else "nothing to compact")
             continue
         if text.startswith("/new-context"):
             handoff = text[len("/new-context") :].strip() or None
-            started = reset_window(log, handoff=handoff, reason="manual")
+            try:
+                with log.run_lock():
+                    started = reset_window(log, handoff=handoff, reason="manual")
+            except LogError as exc:
+                print(f"cade-mini: {exc}", file=sys.stderr)
+                continue
             print("window started" if started else "no task to reset")
             continue
 

@@ -2241,6 +2241,9 @@ appending a newline or dropping the incomplete tail.</li>
 </ol>
 <p><code>fsync</code> is deliberate: a returned append is durable enough to resume. A failed
 write raises <code>LogError</code> and does not return a fake entry.</p>
+<p><code>run_lock()</code> protects a whole turn separately from individual appends. It rejects
+competing operations immediately with <code>LogError</code>. <code>run()</code> and manual CLI context
+changes use it; other multi-event storage clients must acquire it explicitly.</p>
 <h2>Branch</h2>
 <p><code>branch()</code> follows parent IDs from the last entry back to the root and reverses
 the list. It rejects cycles, missing parents, and duplicate IDs.</p>

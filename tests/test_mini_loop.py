@@ -30,7 +30,7 @@ from cade_mini.core.loop import (
 )
 from cade_mini.core.projection import project
 from cade_mini.core.request import Budget
-from cade_mini.core.types import ToolCallBlock
+from cade_mini.core.types import LogError, ToolCallBlock
 from cade_mini.core.window import reset_window
 from cade_mini.safety.policy import WorkspacePolicy
 from cade_mini.tools.workspace import build_tools
@@ -219,6 +219,48 @@ async def test_resume_does_not_repeat_unknown_tool_effect(tmp_path: Path) -> Non
     assert len(results) == 1
     assert results[0].data["status"] == "interrupted"
     project(log.branch())
+
+
+async def test_concurrent_run_is_rejected_without_writing(tmp_path: Path) -> None:
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class WaitingProvider(FakeProvider):
+        async def stream(self, messages, tools, options=None):
+            entered.set()
+            await release.wait()
+            yield FinalMessage("done", "end_turn")
+
+    log = _log(tmp_path)
+    provider = WaitingProvider([])
+    task = asyncio.create_task(
+        run(log, "first", provider=provider, tools=(), budget=Budget(100_000))
+    )
+    try:
+        await entered.wait()
+        before = log.path.read_bytes()
+        for contender in (log, SessionLog.open(log.path)):
+            with pytest.raises(LogError, match="already running"):
+                await run(
+                    contender,
+                    "second",
+                    provider=provider,
+                    tools=(),
+                    budget=Budget(100_000),
+                )
+        assert log.path.read_bytes() == before
+    finally:
+        release.set()
+        await task
+
+    result = await run(
+        SessionLog.open(log.path),
+        "next",
+        provider=FakeProvider([_text_response("ok")]),
+        tools=(),
+        budget=Budget(100_000),
+    )
+    assert result.termination == "completed"
 
 
 async def test_run_executes_tool_and_continues(tmp_path: Path) -> None:

@@ -23,6 +23,10 @@
 `fsync` is deliberate: a returned append is durable enough to resume. A failed
 write raises `LogError` and does not return a fake entry.
 
+`run_lock()` protects a whole turn separately from individual appends. It rejects
+competing operations immediately with `LogError`. `run()` and manual CLI context
+changes use it; other multi-event storage clients must acquire it explicitly.
+
 ## Branch
 
 `branch()` follows parent IDs from the last entry back to the root and reverses
