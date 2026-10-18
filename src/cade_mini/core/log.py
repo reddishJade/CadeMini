@@ -32,8 +32,8 @@ class SessionInfo:
 class SessionLog:
     """单分支、单 writer 的会话事实日志。
 
-    读取忽略未换行的末尾残片；追加前截断残片。每个 SessionLog 实例缓存当前
-    head，因此同一文件只应由一个进程写入。
+    读取忽略未换行的末尾残片；追加前截断残片，并在文件锁内重新读取 head。
+    文件锁保证单次追加连续，但调用方仍需避免并发运行同一会话。
     """
 
     def __init__(self, path: Path, *, lock_timeout: float = 10.0) -> None:
@@ -44,8 +44,9 @@ class SessionLog:
             str(self.path.with_suffix(".lock")),
             timeout=lock_timeout,
         )
-        entries = self._read_entries() if self.path.exists() else []
-        self._head = entries[-1] if entries else None
+        with self._lock:
+            entries = self._read_entries()
+            self._head = entries[-1] if entries else None
 
     @classmethod
     def create(
@@ -96,6 +97,8 @@ class SessionLog:
         """追加一条事实并 fsync；返回已提交的条目。"""
         with self._lock:
             self._repair_tail()
+            entries = self._read_entries()
+            self._head = entries[-1] if entries else None
             entry = LogEntry(
                 id=uuid4().hex[:12],
                 parent=self._head.id if self._head is not None else None,
@@ -165,8 +168,7 @@ class SessionLog:
         """读取全部已提交条目；忽略未换行的末尾残片。"""
         with self._lock:
             entries = self._read_entries()
-            if entries:
-                self._head = entries[-1]
+            self._head = entries[-1] if entries else None
             return entries
 
     def branch(self) -> list[LogEntry]:

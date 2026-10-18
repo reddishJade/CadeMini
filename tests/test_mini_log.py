@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -46,6 +49,47 @@ def test_create_append_and_branch(tmp_path: Path) -> None:
     ]
     assert branch[-1].id == assistant.id
     assert branch[-1].parent == branch[-2].id
+
+
+def test_stale_writers_keep_all_entries_on_active_branch(tmp_path: Path) -> None:
+    first = SessionLog.create(_sessions(tmp_path), session_id="shared")
+    second = SessionLog.open(first.path)
+
+    one = first.append("user", {"text": "one"})
+    two = second.append("user", {"text": "two"})
+    three = first.append("user", {"text": "three"})
+
+    assert two.parent == one.id
+    assert three.parent == two.id
+    assert first.branch() == first.entries()
+
+
+def test_process_writers_keep_one_continuous_branch(tmp_path: Path) -> None:
+    log = SessionLog.create(_sessions(tmp_path), session_id="processes")
+    script = (
+        "from pathlib import Path; import sys; "
+        "from cade_mini.core.log import SessionLog; "
+        "log = SessionLog.open(Path(sys.argv[1])); "
+        "[log.append('user', {'text': str(i)}) for i in range(10)]"
+    )
+    processes = [
+        subprocess.Popen([sys.executable, "-c", script, str(log.path)])
+        for _ in range(4)
+    ]
+    try:
+        for process in processes:
+            assert process.wait(timeout=30) == 0
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+
+    log.append("user", {"text": "after processes"})
+    entries = log.entries()
+    assert len(entries) == 42
+    assert log.branch() == entries
+    assert all(entry.parent == previous.id for previous, entry in pairwise(entries))
 
 
 def test_append_writes_one_complete_line_per_fact(tmp_path: Path) -> None:
