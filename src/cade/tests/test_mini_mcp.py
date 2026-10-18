@@ -1,4 +1,4 @@
-"""Cade Mini 最小 MCP 客户端的回归测试。"""
+"""Cade Mini 持久 MCP 客户端的回归测试。"""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from pathlib import Path
 
 from cade.mini import (
     McpServerConfig,
+    McpTool,
     RuleConfig,
     ToolCallBlock,
     WorkspacePolicy,
@@ -17,6 +18,8 @@ from cade.mini import (
 _SERVER = """\
 import json
 import sys
+
+count = 0
 
 for line in sys.stdin:
     try:
@@ -43,17 +46,23 @@ for line in sys.stdin:
                         "properties": {"text": {"type": "string"}},
                         "required": ["text"],
                     },
-                }
+                },
+                {
+                    "name": "counter",
+                    "description": "Count calls",
+                    "inputSchema": {"type": "object", "properties": {}},
+                },
             ]
         }
     elif method == "tools/call":
-        arguments = message.get("params", {}).get("arguments", {})
-        result = {
-            "content": [
-                {"type": "text", "text": "echo:" + str(arguments.get("text", ""))}
-            ],
-            "isError": False,
-        }
+        params = message.get("params", {})
+        arguments = params.get("arguments", {})
+        if params.get("name") == "counter":
+            count += 1
+            text = "count:" + str(count)
+        else:
+            text = "echo:" + str(arguments.get("text", ""))
+        result = {"content": [{"type": "text", "text": text}], "isError": False}
     else:
         result = {}
     print(json.dumps({"jsonrpc": "2.0", "id": message["id"], "result": result}), flush=True)
@@ -70,28 +79,58 @@ def _server(tmp_path: Path) -> McpServerConfig:
     )
 
 
+def _tool(tools: tuple[McpTool, ...], name: str) -> McpTool:
+    for tool in tools:
+        if tool.name == name:
+            return tool
+    raise AssertionError(f"tool not found: {name}")
+
+
 def test_discover_and_call_mcp_tool(tmp_path: Path) -> None:
     tools, errors = asyncio.run(
         discover_mcp_tools({"fake": _server(tmp_path)}, tmp_path)
     )
+    try:
+        assert errors == ()
+        assert len(tools) == 2
+        tool = _tool(tools, "mcp__fake__echo")
+        assert "text" in tool.parameters["properties"]
 
-    assert errors == ()
-    assert len(tools) == 1
-    tool = tools[0]
-    assert tool.name == "mcp__fake__echo"
-    assert "text" in tool.parameters["properties"]
-
-    result = asyncio.run(
-        tool.execute(
-            ToolCallBlock(
-                id="m1",
-                name=tool.name,
-                args={"text": "hi"},
+        result = asyncio.run(
+            tool.execute(
+                ToolCallBlock(
+                    id="m1",
+                    name=tool.name,
+                    args={"text": "hi"},
+                )
             )
         )
+        assert result.content == "echo:hi"
+        assert result.is_error is False
+    finally:
+        for tool in tools:
+            tool.close()
+
+
+def test_mcp_connection_persists_between_calls(tmp_path: Path) -> None:
+    tools, errors = asyncio.run(
+        discover_mcp_tools({"fake": _server(tmp_path)}, tmp_path)
     )
-    assert result.content == "echo:hi"
-    assert result.is_error is False
+    try:
+        assert errors == ()
+        counter = _tool(tools, "mcp__fake__counter")
+
+        first = asyncio.run(
+            counter.execute(ToolCallBlock(id="m1", name=counter.name, args={}))
+        )
+        second = asyncio.run(
+            counter.execute(ToolCallBlock(id="m2", name=counter.name, args={}))
+        )
+        assert first.content == "count:1"
+        assert second.content == "count:2"
+    finally:
+        for tool in tools:
+            tool.close()
 
 
 def test_mcp_discovery_records_start_errors(tmp_path: Path) -> None:
