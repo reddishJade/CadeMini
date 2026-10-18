@@ -27,6 +27,15 @@ Three corrections from the first draft:
   projection semantics, not optional features. Compaction is the default;
   window switching is explicit and is the fallback when compaction cannot help.
 
+## Implementation status
+
+Committed on `experiment/cade-mini`:
+
+- Done: session schema, types, append-only log, deterministic projection, pure
+  request admission, agent loop with a fake provider, and 47 tests.
+- Next: Codex adapter, six tools and policy, CLI and resume, then a real
+  end-to-end task and compaction.
+
 ## 1. What Cade is today
 
 Product Python is about 41,000 lines, plus about 5,000 lines of tests. The
