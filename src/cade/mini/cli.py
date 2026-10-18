@@ -10,6 +10,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from .approval import SessionApprover
 from .compaction import Compactor
 from .config import MiniConfig
 from .instructions import load_project_instructions
@@ -137,7 +138,7 @@ def main(
 
     tools = build_tools(project_root)
     policy = WorkspacePolicy(project_root, read_only=read_only)
-    approve = _approver(args.yes)
+    approve = SessionApprover(auto_approve=args.yes)
     compactor = Compactor(selected)
     on_event: Callable[[LoopEvent], None] = _json_event if args.json else _human_event
 
@@ -388,28 +389,6 @@ def _repl(
         print()
         if result.error:
             print(f"[{result.termination}] {result.error}", file=sys.stderr)
-
-
-def _approver(auto_approve: bool) -> Callable[[ToolCallBlock], bool]:
-    def approve(call: ToolCallBlock) -> bool:
-        if auto_approve:
-            return True
-        if not sys.stdin.isatty():
-            return False
-        detail = json.dumps(call.args, ensure_ascii=False, sort_keys=True)
-        print(
-            f"\nApprove {call.name} {detail}? [y/N] ",
-            file=sys.stderr,
-            end="",
-            flush=True,
-        )
-        try:
-            answer = input().strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            return False
-        return answer in {"y", "yes"}
-
-    return approve
 
 
 def _human_event(event: LoopEvent) -> None:

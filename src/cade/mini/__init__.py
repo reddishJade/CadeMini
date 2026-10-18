@@ -1,5 +1,6 @@
 """Cade Mini：会话日志、确定性投影、请求与循环的独立实现。"""
 
+from .approval import SessionApprover
 from .compaction import CompactionConfig, Compactor
 from .config import MiniConfig
 from .instructions import load_project_instructions
@@ -70,6 +71,7 @@ __all__ = [
     "Request",
     "RequestTooLarge",
     "RunResult",
+    "SessionApprover",
     "SessionInfo",
     "SessionLog",
     "SummaryMessage",
