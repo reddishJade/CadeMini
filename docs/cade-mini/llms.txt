@@ -16,6 +16,8 @@
 - [How Cade Mini works](design/how-it-works.md)
 
 ## Design
+- [Code map and relationship to Cade](design/code-map.md)
+- [Cade comparison](design/cade-comparison.md)
 - [Capability seams](design/capability-seams.md)
 - [Event model](design/event-model.md)
 - [Tool execution](design/tool-execution.md)

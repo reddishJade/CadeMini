@@ -31,6 +31,9 @@ process restarts without inventing history.
 ## Design
 
 - [How Cade Mini works](design/how-it-works.md) is the short end-to-end model.
+- [Code map and relationship to Cade](design/code-map.md) explains the package
+  boundary and the entry points.
+- [Cade comparison](design/cade-comparison.md) gives scale and capability gaps.
 - [Capability seams](design/capability-seams.md) lists the replaceable
   contracts.
 - [Event model](design/event-model.md) separates facts from audits.

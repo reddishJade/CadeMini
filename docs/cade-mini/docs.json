@@ -17,6 +17,8 @@
     {
       "title": "Design",
       "pages": [
+        "design/code-map.md",
+        "design/cade-comparison.md",
         "design/capability-seams.md",
         "design/event-model.md",
         "design/tool-execution.md",
