@@ -28,6 +28,40 @@ process restarts without inventing history.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.
 
+## Design
+
+- [How Cade Mini works](design/how-it-works.md) is the short end-to-end model.
+- [Capability seams](design/capability-seams.md) lists the replaceable
+  contracts.
+- [Event model](design/event-model.md) separates facts from audits.
+- [Tool execution](design/tool-execution.md) is the policy-to-hook pipeline.
+- [Configuration catalog](design/config-catalog.md) and
+  [event catalog](design/event-catalog.md) are generated references.
+- [Tool catalog](design/tool-catalog.md) lists the built-in tools.
+- [Module graph](design/module-graph.md) is generated from imports.
+- [Persistence catalog](design/persistence-catalog.md) maps every artifact.
+- [Glossary](design/glossary.md) defines the vocabulary.
+- [Testing](design/testing.md) maps tests to layers.
+
+## Subsystems
+
+[Subsystems](subsystems/README.md) is the implementation reference for the log,
+projection and request, loop, tools and policy, context and compaction, and
+extensions.
+
+## Cookbook
+
+[Cookbook](cookbook/README.md) has procedures for fixing a bug, adding a
+feature, review-only work, long sessions, and a custom MCP server.
+
+## History
+
+- [Postmortems](postmortem/README.md) record incidents and their fixes.
+- [Persistence](persistence/README.md) describes the current format and the
+  change policy.
+- [Upgrade guide](upgrade/README.md) records breaking changes.
+- [Decision records](decisions/README.md) record durable design choices.
+
 ## Design and reference
 
 The guides are task-oriented. The detailed design and schema references remain
@@ -46,7 +80,10 @@ single-page site, and generates an `llms.txt` catalog for agents:
 ```bash
 python -m cade.mini.docs check
 python -m cade.mini.docs build
+python -m cade.mini.docs llms --write
+python -m cade.mini.docs catalogs --write
 ```
 
 The generated site is [docs/mini/index.html](../mini/index.html); the generated
-catalogs are `docs/cade-mini/llms.txt` and `docs/cade-mini/llms-full.txt`.
+catalogs are `docs/cade-mini/llms.txt`, `docs/cade-mini/llms-full.txt`, and the
+config, event, and module pages under `design/`.

@@ -28,6 +28,7 @@ a { color:var(--accent); }
 pre { background:var(--code); padding:1rem; overflow:auto; border-radius:.4rem; }
 code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em; }
 pre code { padding:0; }
+.mermaid { background:var(--code); padding:1rem; overflow:auto; border-radius:.4rem; }
 blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line); color:var(--muted); }
 @media (max-width: 760px) { main { grid-template-columns:1fr; } nav { position:static; max-height:none; order:2; } }
 </style>
@@ -45,6 +46,28 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <div class="nav-group"><p>Concepts</p>
 <a href="#page-architecture">Architecture</a>
 <a href="#page-sessions-context">Sessions and context</a>
+<a href="#page-how-it-works">How Cade Mini works</a>
+</div>
+<div class="nav-group"><p>Design</p>
+<a href="#page-capability-seams">Capability seams</a>
+<a href="#page-event-model">Event model</a>
+<a href="#page-tool-execution">Tool execution</a>
+<a href="#page-config-catalog">Configuration catalog</a>
+<a href="#page-event-catalog">Event catalog</a>
+<a href="#page-module-graph">Module graph</a>
+<a href="#page-tool-catalog">Tool catalog</a>
+<a href="#page-persistence-catalog">Persistence catalog</a>
+<a href="#page-glossary">Glossary</a>
+<a href="#page-testing">Testing</a>
+</div>
+<div class="nav-group"><p>Subsystems</p>
+<a href="#page-readme">Subsystems</a>
+<a href="#page-log">Log</a>
+<a href="#page-projection-request">Projection and request</a>
+<a href="#page-loop">Loop</a>
+<a href="#page-tools-policy">Tools and policy</a>
+<a href="#page-context-compaction">Context and compaction</a>
+<a href="#page-extensions">Extensions</a>
 </div>
 <div class="nav-group"><p>Safety</p>
 <a href="#page-tools-security">Tools and security</a>
@@ -54,10 +77,26 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <a href="#page-skills-memory">Skills and memory</a>
 <a href="#page-hooks-mcp-subagents">Hooks, MCP, and subagents</a>
 </div>
+<div class="nav-group"><p>Cookbook</p>
+<a href="#page-readme">Cookbook</a>
+<a href="#page-fix-a-bug">Fix a bug</a>
+<a href="#page-add-a-feature">Add a feature</a>
+<a href="#page-review-only">Review only</a>
+<a href="#page-long-session">Run a long session</a>
+<a href="#page-custom-mcp">Connect a custom MCP server</a>
+</div>
 <div class="nav-group"><p>Operations</p>
 <a href="#page-hosts">Hosts</a>
 <a href="#page-development">Development</a>
 <a href="#page-parity">Parity</a>
+</div>
+<div class="nav-group"><p>History</p>
+<a href="#page-readme">Postmortems</a>
+<a href="#page-0001-compaction-cut-misalignment">0001: Compaction cut pointed at a shadowed user entry</a>
+<a href="#page-0002-single-huge-tool-result">0002: One huge tool result exhausted the request budget</a>
+<a href="#page-readme">Persistence</a>
+<a href="#page-change-policy">Change policy</a>
+<a href="#page-readme">Upgrade guide</a>
 </div></nav><article><section class="page" id="page-readme" data-title="Cade Mini">
 <h1>Cade Mini</h1>
 <p>Cade Mini is the small coding agent in the Cade repository. It keeps one rule at
@@ -87,6 +126,36 @@ analysis, and the sandbox.</li>
 <li><a href="#page-development">Development</a> covers checks, tests, and the docs pipeline.</li>
 <li><a href="#page-parity">Parity</a> links the acceptance against Cade.</li>
 </ul>
+<h2>Design</h2>
+<ul>
+<li><a href="#page-how-it-works">How Cade Mini works</a> is the short end-to-end model.</li>
+<li><a href="#page-capability-seams">Capability seams</a> lists the replaceable
+contracts.</li>
+<li><a href="#page-event-model">Event model</a> separates facts from audits.</li>
+<li><a href="#page-tool-execution">Tool execution</a> is the policy-to-hook pipeline.</li>
+<li><a href="#page-config-catalog">Configuration catalog</a> and
+<a href="#page-event-catalog">event catalog</a> are generated references.</li>
+<li><a href="#page-tool-catalog">Tool catalog</a> lists the built-in tools.</li>
+<li><a href="#page-module-graph">Module graph</a> is generated from imports.</li>
+<li><a href="#page-persistence-catalog">Persistence catalog</a> maps every artifact.</li>
+<li><a href="#page-glossary">Glossary</a> defines the vocabulary.</li>
+<li><a href="#page-testing">Testing</a> maps tests to layers.</li>
+</ul>
+<h2>Subsystems</h2>
+<p><a href="#page-readme">Subsystems</a> is the implementation reference for the log,
+projection and request, loop, tools and policy, context and compaction, and
+extensions.</p>
+<h2>Cookbook</h2>
+<p><a href="#page-readme">Cookbook</a> has procedures for fixing a bug, adding a
+feature, review-only work, long sessions, and a custom MCP server.</p>
+<h2>History</h2>
+<ul>
+<li><a href="#page-readme">Postmortems</a> record incidents and their fixes.</li>
+<li><a href="#page-readme">Persistence</a> describes the current format and the
+change policy.</li>
+<li><a href="#page-readme">Upgrade guide</a> records breaking changes.</li>
+<li><a href="decisions/README.md">Decision records</a> record durable design choices.</li>
+</ul>
 <h2>Design and reference</h2>
 <p>The guides are task-oriented. The detailed design and schema references remain
 the source of truth for invariants:</p>
@@ -101,9 +170,12 @@ the source of truth for invariants:</p>
 single-page site, and generates an <code>llms.txt</code> catalog for agents:</p>
 <pre><code class="language-bash">python -m cade.mini.docs check
 python -m cade.mini.docs build
+python -m cade.mini.docs llms --write
+python -m cade.mini.docs catalogs --write
 </code></pre>
 <p>The generated site is <a href="../mini/index.html">docs/mini/index.html</a>; the generated
-catalogs are <code>docs/cade-mini/llms.txt</code> and <code>docs/cade-mini/llms-full.txt</code>.</p>
+catalogs are <code>docs/cade-mini/llms.txt</code>, <code>docs/cade-mini/llms-full.txt</code>, and the
+config, event, and module pages under <code>design/</code>.</p>
 
 </section>
 <section class="page" id="page-quickstart" data-title="Quickstart">
@@ -476,6 +548,1349 @@ never become conversation facts. See <a href="#page-architecture">Architecture</
 <a href="../cade-mini.md">design</a>.</p>
 
 </section>
+<section class="page" id="page-how-it-works" data-title="How Cade Mini works">
+<h1>How Cade Mini works</h1>
+<p>Cade Mini coordinates one model request at a time, executes the requested tools,
+and records every durable fact in a session log.</p>
+<h2>One run</h2>
+<p>A submitted task is appended as a <code>user</code> fact. Cade Mini projects the active
+branch, builds a request for the current budget, and sends it to the provider.
+The provider streams text and tool calls. The loop records the assistant
+message, executes each tool call, and records a tool result. If the model needs
+another request, the loop starts another step; otherwise the run ends.</p>
+<p>A step is one request plus the tools caused by its response. A run can contain
+many steps. The loop stops on completion, a step limit, context exhaustion,
+cancellation, or a provider error.</p>
+<h2>Context</h2>
+<p>The projection supplies conversation history. Request-only context supplies
+project instructions, the skill catalog, <code>NOTE.md</code>, <code>MEMORY.md</code>, and an active
+goal. Tool results are pruned when they no longer fit; the history tool can read
+the original facts.</p>
+<p>Compaction adds a summary fact and keeps a recent tail. A window moves the
+context start forward and may include a handoff. Neither operation rewrites the
+original messages.</p>
+<h2>Sessions</h2>
+<p>Sessions are JSONL files under <code>.cade-mini/sessions</code>. Entries have IDs and parent
+IDs, so a session can form a tree; the active branch ends at the latest entry.
+Resuming opens the same file and appends new facts.</p>
+<h2>Interfaces</h2>
+<p>The terminal host runs one task or a REPL. The web host serves a page and a
+small JSON API. Both call the same loop and share policy, tools, and session
+storage.</p>
+<h2>Extensions</h2>
+<p>Skills add on-demand instructions. Memory adds durable facts. Hooks run shell
+commands around tools. MCP adds remote tools. Subagents run an independent child
+session. Each extension is a narrow adapter over the loop, not a change to the
+session schema.</p>
+<h2>Trust and permissions</h2>
+<p>Every tool call passes through a policy. Modes, static rules, session grants,
+shell classification, and approvals decide whether a call runs. On Linux a
+bubblewrap sandbox can confine shell commands; on other hosts the path boundary,
+mode, shell classification, and approvals remain active.</p>
+<p>See <a href="../architecture.md">Architecture</a> for the invariant and
+<a href="capability-seams.md">Capability seams</a> for the contracts.</p>
+
+</section>
+<section class="page" id="page-capability-seams" data-title="Capability seams">
+<h1>Capability seams</h1>
+<p>Cade Mini keeps a small number of explicit contracts. A seam is a place where an
+implementation can be replaced without changing the session schema or the loop.</p>
+<table>
+<thead>
+<tr>
+<th>Seam</th>
+<th>Contract</th>
+<th>Implementations</th>
+<th>Main consumers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Provider</td>
+<td><code>loop.Provider</code> streaming events</td>
+<td>Chat providers, Codex</td>
+<td>Loop, compaction, auto-review</td>
+</tr>
+<tr>
+<td>Tool</td>
+<td><code>loop.Tool</code> name, description, parameters, execute</td>
+<td>Workspace tools, history, skill, memory, goal, subagent, MCP</td>
+<td>Loop</td>
+</tr>
+<tr>
+<td>Policy</td>
+<td><code>loop.Policy.check</code> returns allow, deny, or ask</td>
+<td><code>WorkspacePolicy</code></td>
+<td>Loop</td>
+</tr>
+<tr>
+<td>Approval</td>
+<td>Callable returning bool or awaitable bool</td>
+<td><code>SessionApprover</code>, <code>AutoReviewer</code></td>
+<td>Loop</td>
+</tr>
+<tr>
+<td>Hooks</td>
+<td><code>loop.Hooks.before/after</code></td>
+<td><code>HookRunner</code></td>
+<td>Loop</td>
+</tr>
+<tr>
+<td>Compaction</td>
+<td><code>Compactor(log, budget)</code></td>
+<td>LLM summary compactor</td>
+<td>Loop</td>
+</tr>
+<tr>
+<td>Session store</td>
+<td><code>SessionLog</code> append, branch, open</td>
+<td>File-backed JSONL log</td>
+<td>Every layer above it</td>
+</tr>
+<tr>
+<td>Recovery</td>
+<td><code>SnapshotStore</code> capture and undo</td>
+<td>File snapshot store</td>
+<td>Tools, CLI</td>
+</tr>
+<tr>
+<td>Host</td>
+<td>A task runner over the loop</td>
+<td>CLI, web host</td>
+<td>Users</td>
+</tr>
+</tbody>
+</table>
+<h2>Provider</h2>
+<p>The loop needs a streaming event source: text deltas, tool calls, a final
+message, usage, and failures. A provider owns wire conversion and replay state.
+Cade Mini does not depend on provider-specific message types above this seam.</p>
+<h2>Tool</h2>
+<p>A tool declares a JSON schema and an async <code>execute</code>. A tool result is content,
+an error flag, and optional metadata. Tools do not write the session log; the
+loop records their results.</p>
+<h2>Policy and approval</h2>
+<p>Policy returns a decision, not an execution. Approval is only consulted for
+<code>ask</code>. A denial becomes a tool error fact, so the model can recover. Keeping
+these separate lets the host choose a TTY prompt, a model reviewer, or a
+non-interactive denial.</p>
+<h2>Hooks</h2>
+<p>Hooks observe and can veto a tool call without changing the policy result. A
+<code>before_tool</code> failure is a denial; <code>after_tool</code> failure is ignored. Hooks are
+trusted configuration, not sandboxed code.</p>
+<h2>Stores</h2>
+<p><code>SessionLog</code> is the durable history. <code>SnapshotStore</code>, <code>GoalStore</code>, and the
+memory and NOTE files are host state, not session facts. Treating them as
+separate stores keeps the schema closed while allowing recovery and long-term
+state.</p>
+<h2>Host</h2>
+<p>A host owns presentation, input, and the event loop boundary. It does not own
+the agent loop or the schema. The CLI and web host differ only in how they run a
+task and render events.</p>
+<h2>Tests as contracts</h2>
+<p>Each seam has a focused test module. <code>test_mini_boundary.py</code> enforces the import
+firewall, so a seam cannot quietly become a dependency on the Cade product
+layers.</p>
+
+</section>
+<section class="page" id="page-event-model" data-title="Event model">
+<h1>Event model</h1>
+<p>A session is a tree of entries, not a message array. Entry types fall into two
+groups.</p>
+<h2>Model-visible facts</h2>
+<p>These entries project into the conversation:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system</code></td>
+<td>Base system prompt; the latest one wins</td>
+</tr>
+<tr>
+<td><code>user</code></td>
+<td>User task or steering input</td>
+</tr>
+<tr>
+<td><code>assistant</code></td>
+<td>Text and tool calls produced by one model response</td>
+</tr>
+<tr>
+<td><code>tool_result</code></td>
+<td>Result paired to a tool call</td>
+</tr>
+<tr>
+<td><code>compaction</code></td>
+<td>Summary plus <code>first_kept_id</code>; shadows older entries</td>
+</tr>
+<tr>
+<td><code>window</code></td>
+<td>New context start plus optional handoff</td>
+</tr>
+</tbody>
+</table>
+<p><code>compaction</code> and <code>window</code> also carry projections of their own: a summary
+message. The original entries remain readable by the history tool.</p>
+<h2>Audit facts</h2>
+<p>These entries never project:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>meta</code></td>
+<td>Session creation metadata</td>
+</tr>
+<tr>
+<td><code>request</code></td>
+<td>Provider, model, context, digests, estimated tokens, dropped evidence</td>
+</tr>
+<tr>
+<td><code>attempt</code></td>
+<td>One provider attempt, including failures and retries</td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td>Termination, steps, usage, error</td>
+</tr>
+</tbody>
+</table>
+<p>Audit facts make the request reproducible without turning diagnostics into
+conversation. A failed run therefore cannot fabricate an assistant message.</p>
+<h2>Flow</h2>
+<pre><code class="language-mermaid">flowchart LR
+  log[Session log] --&gt; project[Projection]
+  project --&gt; conversation[Conversation]
+  conversation --&gt; request[Request build]
+  request --&gt; provider[Provider stream]
+  provider --&gt; facts[Assistant and tool-result facts]
+  facts --&gt; log
+  request --&gt; audit[request fact]
+  provider --&gt; attempts[attempt facts]
+  facts --&gt; run[run fact]
+</code></pre>
+<p>The loop appends the user fact before the first request. Each step appends one
+assistant fact and zero or more tool-result facts. A run appends exactly one
+<code>run</code> fact.</p>
+<h2>Ordering and pairing</h2>
+<p>A tool result follows its assistant tool call. Projection rejects an orphan
+result or a duplicate result. If the branch ends after a tool call without a
+result, projection inserts a synthetic interrupted result at the tail so the
+request remains protocol-valid.</p>
+<h2>Compaction and windows</h2>
+<p>A compaction cuts at a user boundary. Its summary message appears first in the
+retained context. A window discards earlier entries and may insert a handoff.
+Only the latest cut applies. Compaction is preferred; a window is a fallback
+when a summary cannot fit.</p>
+<h2>Schema authority</h2>
+<p>The closed schema is in <a href="../../cade-mini-schema.md">Session log schema</a>. The
+generated <a href="event-catalog.md">event catalog</a> lists the current event types from
+code.</p>
+
+</section>
+<section class="page" id="page-tool-execution" data-title="Tool execution">
+<h1>Tool execution</h1>
+<p>Every tool call follows the same pipeline. Policy and approval decide whether a
+call may run; hooks can stop it; the loop owns execution and recording.</p>
+<pre><code class="language-mermaid">flowchart LR
+  call[Tool call] --&gt; policy[Policy decision]
+  policy --&gt;|deny| denied[Denied tool result]
+  policy --&gt;|ask| approval[Approval]
+  approval --&gt;|deny| denied
+  approval --&gt;|allow| before[before_tool hooks]
+  policy --&gt;|allow| before
+  before --&gt;|deny| hookdenied[Hook-denied result]
+  before --&gt;|allow| execute[Execute tool]
+  execute --&gt; after[after_tool hooks]
+  execute --&gt; result[Tool result]
+  result --&gt; log[Append fact]
+  denied --&gt; log
+  hookdenied --&gt; log
+</code></pre>
+<h2>Order</h2>
+<ol>
+<li>The model returns a tool call with an ID and arguments.</li>
+<li>Policy checks tool name, path, mode, rules, grants, and shell classification.</li>
+<li>An <code>ask</code> decision is resolved by the host: TTY prompt, <code>--yes</code>, auto-review,
+or denial.</li>
+<li><code>before_tool</code> hooks run. A non-zero exit denies the call.</li>
+<li>The tool executes with a timeout and cancellation token.</li>
+<li>The result is truncated, appended as a <code>tool_result</code> fact, and rendered.</li>
+<li><code>after_tool</code> hooks run and their output is ignored.</li>
+</ol>
+<h2>Denials and errors</h2>
+<p>A denied call is not an exception. It becomes an error tool result so the model
+can adapt. Unknown tools, malformed arguments, timeouts, and thrown exceptions
+also become error results. A cancellation appends interrupted results for any
+remaining calls before the run terminates.</p>
+<h2>Hooks</h2>
+<p>Hooks receive the tool name, JSON arguments, and the result for <code>after_tool</code>.
+They run with the workspace as the current directory. A hook timeout is a
+denial or a silently ignored observer, never an unbounded wait.</p>
+<h2>Evidence retention</h2>
+<p>Tool results are facts. Request admission can replace old bodies with a
+reference that names the <code>call_id</code>. The history tool retrieves the exact result
+from the branch, so pruning does not destroy evidence.</p>
+<h2>Tests</h2>
+<ul>
+<li><code>test_mini_loop.py</code> covers approval, errors, timeouts, cancellation, retries,
+and window fallback.</li>
+<li><code>test_mini_hooks.py</code> covers allow, deny, and after-hook execution.</li>
+<li><code>test_mini_policy.py</code> covers modes, rules, grants, and boundaries.</li>
+</ul>
+<p>See <a href="../tools-security.md">Tools and security</a> for user-facing behavior.</p>
+
+</section>
+<section class="page" id="page-config-catalog" data-title="Configuration catalog">
+<p>&lt;!-- Generated by <code>python -m cade.mini.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
+<h1>Configuration catalog</h1>
+<p>Top-level fields. Nested types follow the table.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>provider</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>model</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>reasoning_effort</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>context_window</code></td>
+<td><code>integer | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>max_steps</code></td>
+<td><code>integer | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sessions_dir</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>read_only</code></td>
+<td><code>boolean</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>instructions</code></td>
+<td><code>boolean</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td><code>boolean</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>memory</code></td>
+<td><code>boolean</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>auto_review</code></td>
+<td><code>boolean</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>prompt_modules</code></td>
+<td><code>list[string] | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td><code>plan | build | act</code></td>
+<td><code>&quot;act&quot;</code></td>
+</tr>
+<tr>
+<td><code>rules</code></td>
+<td><code>list[RuleConfig]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>hooks</code></td>
+<td><code>list[HookConfig]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>mcp_servers</code></td>
+<td><code>dict[str, McpServerConfig]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>sandbox</code></td>
+<td><code>off | workspace | strict</code></td>
+<td><code>&quot;workspace&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<h2>HookConfig</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>event</code></td>
+<td><code>before_tool | after_tool</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>command</code></td>
+<td><code>string</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>matcher</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>timeout_ms</code></td>
+<td><code>integer</code></td>
+<td><code>10000</code></td>
+</tr>
+</tbody>
+</table>
+<h2>McpServerConfig</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>command</code></td>
+<td><code>string</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>args</code></td>
+<td><code>list[string]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>env</code></td>
+<td><code>dict[str, string] | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>cwd</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>timeout_ms</code></td>
+<td><code>integer</code></td>
+<td><code>30000</code></td>
+</tr>
+</tbody>
+</table>
+<h2>RuleConfig</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tool</code></td>
+<td><code>string</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>decision</code></td>
+<td><code>allow | deny | ask</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>path_prefix</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>command_prefix</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+</tbody>
+</table>
+
+</section>
+<section class="page" id="page-event-catalog" data-title="Event catalog">
+<p>&lt;!-- Generated by <code>python -m cade.mini.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
+<h1>Event catalog</h1>
+<p>Session entry types from <code>EventType</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Projects</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>meta</code></td>
+<td>No</td>
+<td>Session creation</td>
+</tr>
+<tr>
+<td><code>system</code></td>
+<td>Yes</td>
+<td>Base system prompt; latest wins</td>
+</tr>
+<tr>
+<td><code>user</code></td>
+<td>Yes</td>
+<td>Task or steering input</td>
+</tr>
+<tr>
+<td><code>assistant</code></td>
+<td>Yes</td>
+<td>Model text and tool calls</td>
+</tr>
+<tr>
+<td><code>tool_result</code></td>
+<td>Yes</td>
+<td>Tool output paired by call ID</td>
+</tr>
+<tr>
+<td><code>compaction</code></td>
+<td>Yes</td>
+<td>Summary and first kept entry</td>
+</tr>
+<tr>
+<td><code>window</code></td>
+<td>Yes</td>
+<td>Context start and optional handoff</td>
+</tr>
+<tr>
+<td><code>request</code></td>
+<td>No</td>
+<td>Provider request audit</td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td>No</td>
+<td>Run termination, steps, and usage</td>
+</tr>
+<tr>
+<td><code>attempt</code></td>
+<td>No</td>
+<td>Provider attempt, retry, or failure</td>
+</tr>
+</tbody>
+</table>
+
+</section>
+<section class="page" id="page-module-graph" data-title="Module graph">
+<p>&lt;!-- Generated by <code>python -m cade.mini.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
+<h1>Module graph</h1>
+<p>Relative imports inside <code>src/cade/mini/</code>.</p>
+<pre><code class="language-mermaid">flowchart LR
+  __main__ --&gt; cli
+  approval --&gt; grants
+  approval --&gt; types
+  cli --&gt; approval
+  cli --&gt; compaction
+  cli --&gt; config
+  cli --&gt; goal
+  cli --&gt; grants
+  cli --&gt; history
+  cli --&gt; hooks
+  cli --&gt; instructions
+  cli --&gt; log
+  cli --&gt; loop
+  cli --&gt; mcp
+  cli --&gt; memory
+  cli --&gt; note
+  cli --&gt; policy
+  cli --&gt; projection
+  cli --&gt; prompts
+  cli --&gt; provider
+  cli --&gt; request
+  cli --&gt; review
+  cli --&gt; sandbox
+  cli --&gt; skills
+  cli --&gt; snapshots
+  cli --&gt; subagents
+  cli --&gt; tools
+  cli --&gt; types
+  cli --&gt; web
+  cli --&gt; window
+  compaction --&gt; log
+  compaction --&gt; loop
+  compaction --&gt; projection
+  compaction --&gt; request
+  compaction --&gt; types
+  goal --&gt; loop
+  goal --&gt; tools
+  goal --&gt; types
+  grants --&gt; types
+  history --&gt; log
+  history --&gt; loop
+  history --&gt; tools
+  history --&gt; types
+  hooks --&gt; config
+  hooks --&gt; types
+  log --&gt; types
+  loop --&gt; log
+  loop --&gt; projection
+  loop --&gt; request
+  loop --&gt; types
+  mcp --&gt; config
+  mcp --&gt; loop
+  mcp --&gt; types
+  memory --&gt; loop
+  memory --&gt; tools
+  memory --&gt; types
+  policy --&gt; config
+  policy --&gt; grants
+  policy --&gt; loop
+  policy --&gt; shell
+  policy --&gt; tools
+  policy --&gt; types
+  projection --&gt; types
+  provider --&gt; auth
+  request --&gt; types
+  review --&gt; loop
+  skills --&gt; loop
+  skills --&gt; tools
+  skills --&gt; types
+  subagents --&gt; history
+  subagents --&gt; log
+  subagents --&gt; loop
+  subagents --&gt; request
+  subagents --&gt; tools
+  subagents --&gt; types
+  tools --&gt; loop
+  tools --&gt; shell
+  tools --&gt; snapshots
+  tools --&gt; types
+  web --&gt; log
+  web --&gt; loop
+  window --&gt; log
+</code></pre>
+
+</section>
+<section class="page" id="page-tool-catalog" data-title="Tool catalog">
+<h1>Tool catalog</h1>
+<p>The built-in tool surface. MCP tools are discovered at startup and named
+<code>mcp__&lt;server&gt;__&lt;tool&gt;</code>; their parameters come from the server.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>Side effect</th>
+<th>Default policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read</code></td>
+<td><code>path</code>, <code>offset</code>, <code>limit</code></td>
+<td>None</td>
+<td>Allow inside workspace</td>
+</tr>
+<tr>
+<td><code>write</code></td>
+<td><code>path</code>, <code>content</code></td>
+<td>Creates or replaces a file; snapshot first</td>
+<td>Ask in act, allow in build</td>
+</tr>
+<tr>
+<td><code>edit</code></td>
+<td><code>path</code>, <code>old</code>, <code>new</code></td>
+<td>Replaces one occurrence; snapshot first</td>
+<td>Ask in act, allow in build</td>
+</tr>
+<tr>
+<td><code>glob</code></td>
+<td><code>pattern</code>, <code>path</code></td>
+<td>None</td>
+<td>Allow</td>
+</tr>
+<tr>
+<td><code>grep</code></td>
+<td><code>pattern</code>, <code>path</code>, <code>include</code></td>
+<td>None</td>
+<td>Allow</td>
+</tr>
+<tr>
+<td><code>bash</code></td>
+<td><code>command</code>, <code>workdir</code>, <code>timeout_ms</code></td>
+<td>Arbitrary process; snapshot common mutations</td>
+<td>Ask except read-only shell</td>
+</tr>
+<tr>
+<td><code>history</code></td>
+<td><code>query</code>, <code>entry_id</code>, <code>call_id</code>, <code>limit</code></td>
+<td>None</td>
+<td>Allow</td>
+</tr>
+<tr>
+<td><code>skill</code></td>
+<td><code>name</code></td>
+<td>None; loads a skill body</td>
+<td>Allow</td>
+</tr>
+<tr>
+<td><code>memory</code></td>
+<td><code>text</code></td>
+<td>Appends to <code>MEMORY.md</code></td>
+<td>Allow; denied read-only</td>
+</tr>
+<tr>
+<td><code>goal</code></td>
+<td><code>action</code>, <code>objective</code></td>
+<td>Updates <code>.cade-mini/goal.json</code></td>
+<td>Allow</td>
+</tr>
+<tr>
+<td><code>subagent</code></td>
+<td><code>prompt</code>, <code>description</code></td>
+<td>Creates a child session</td>
+<td>Allow; hidden in plan</td>
+</tr>
+<tr>
+<td><code>mcp__*</code></td>
+<td>Server-defined</td>
+<td>Remote side effects</td>
+<td>Ask; denied plan and read-only</td>
+</tr>
+</tbody>
+</table>
+<h2>Reading the table</h2>
+<ul>
+<li>&quot;Side effect&quot; is what the tool can change, not what it always changes.</li>
+<li><code>write</code> and <code>edit</code> fail closed if the snapshot cannot be taken.</li>
+<li><code>bash</code> read-only classification is conservative; unknown commands ask in
+build and act and are denied in plan.</li>
+<li>MCP tools are dynamic. A rule can allow a specific tool; the default is ask.</li>
+</ul>
+<h2>Parameters</h2>
+<p>The authoritative JSON schemas are built into each tool. This table is a
+navigation aid; when it disagrees with the tool schema, the schema wins.</p>
+<h2>Related</h2>
+<ul>
+<li><a href="../tools-security.md">Tools and security</a></li>
+<li><a href="../design/tool-execution.md">Tool execution</a></li>
+<li><a href="config-catalog.md">Configuration catalog</a></li>
+</ul>
+
+</section>
+<section class="page" id="page-persistence-catalog" data-title="Persistence catalog">
+<h1>Persistence catalog</h1>
+<p>Cade Mini separates durable history from host state. The session log is the
+authority for what the model saw and what happened; the other stores have
+narrower jobs.</p>
+<table>
+<thead>
+<tr>
+<th>Artifact</th>
+<th>Default location</th>
+<th>Owner</th>
+<th>Lifetime</th>
+<th>Schema</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Session log</td>
+<td><code>.cade-mini/sessions/session-*.jsonl</code></td>
+<td><code>SessionLog</code></td>
+<td>Project</td>
+<td>Closed v1</td>
+</tr>
+<tr>
+<td>Snapshots</td>
+<td><code>.cade-mini/snapshots/</code></td>
+<td><code>SnapshotStore</code></td>
+<td>Project</td>
+<td>Local index</td>
+</tr>
+<tr>
+<td>Goal</td>
+<td><code>.cade-mini/goal.json</code></td>
+<td><code>GoalStore</code></td>
+<td>Project</td>
+<td>One object</td>
+</tr>
+<tr>
+<td>Working note</td>
+<td><code>NOTE.md</code></td>
+<td>Project</td>
+<td>Project</td>
+<td>Markdown</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td><code>MEMORY.md</code></td>
+<td><code>MemoryTool</code></td>
+<td>Project</td>
+<td>Markdown</td>
+</tr>
+<tr>
+<td>Instructions</td>
+<td><code>AGENTS.md</code>, <code>CLAUDE.md</code>, overrides</td>
+<td>Project</td>
+<td>Project</td>
+<td>Markdown</td>
+</tr>
+<tr>
+<td>Skills</td>
+<td><code>~/.cade/skills</code>, <code>.cade/skills</code>, <code>.cade-mini/skills</code></td>
+<td>Discovery</td>
+<td>User or project</td>
+<td><code>SKILL.md</code></td>
+</tr>
+<tr>
+<td>Config</td>
+<td><code>cade-mini.json</code></td>
+<td><code>MiniConfig</code></td>
+<td>Project</td>
+<td>Pydantic, strict</td>
+</tr>
+<tr>
+<td>Credentials</td>
+<td>Cade auth store</td>
+<td>Cade auth</td>
+<td>User</td>
+<td>Cade-owned</td>
+</tr>
+<tr>
+<td>Docs site</td>
+<td><code>docs/mini/index.html</code></td>
+<td>Docs tool</td>
+<td>Repository</td>
+<td>Generated</td>
+</tr>
+<tr>
+<td>LLM catalogs</td>
+<td><code>docs/cade-mini/llms*.txt</code></td>
+<td>Docs tool</td>
+<td>Repository</td>
+<td>Generated</td>
+</tr>
+</tbody>
+</table>
+<h2>The session log</h2>
+<p>The log is append-only and versioned. It stores model-visible facts and audit
+facts in one tree. It is the only artifact needed to reconstruct the
+conversation. Compaction and windows are log entries, not rewrites.</p>
+<h2>Snapshots</h2>
+<p>Snapshots are an undo journal for file changes. They cover <code>write</code>, <code>edit</code>, and
+common single-command shell mutations. The index is JSONL and each snapshot has
+a metadata file plus an optional payload. They are not part of the session
+branch.</p>
+<h2>Goals and notes</h2>
+<p>A goal is one objective with an active or done status. <code>NOTE.md</code> is working
+state that is included in every request and summarized during compaction.
+<code>MEMORY.md</code> is durable project knowledge. These files are intentionally plain:
+they can be edited by hand and inspected with ordinary tools.</p>
+<h2>Generated artifacts</h2>
+<p>The docs site, <code>llms.txt</code>, and <code>llms-full.txt</code> are generated from Markdown and
+<code>docs.json</code>. They are checked for freshness; do not edit the HTML by hand.</p>
+<h2>What is not persisted</h2>
+<ul>
+<li>Request-only context is recorded in the request audit, not as messages.</li>
+<li>Grants last for the process; durable policy belongs in config rules.</li>
+<li>Approval prompts and TUI state are host state.</li>
+<li>Provider replay payloads live inside the assistant fact that produced them.</li>
+</ul>
+<p>See <a href="../../cade-mini-schema.md">Session log schema</a> for field-level detail and
+<a href="../persistence/change-policy.md">Change policy</a> for schema changes.</p>
+
+</section>
+<section class="page" id="page-glossary" data-title="Glossary">
+<h1>Glossary</h1>
+<p>One canonical term per concept. Links point to the owning page.</p>
+<h2>session log</h2>
+<p>The append-only JSONL file that records facts. It is the source of truth for the
+active branch. See <a href="../subsystems/log.md">Log</a>.</p>
+<h2>branch</h2>
+<p>A path through the entry tree. The active branch ends at the latest entry and
+supplies the projection.</p>
+<h2>projection</h2>
+<p>The deterministic conversation produced from a branch. It applies the latest
+system, compaction, and window cuts, then pairs tool calls with results. See
+<a href="../subsystems/projection-request.md">Projection and request</a>.</p>
+<h2>request</h2>
+<p>The admitted, provider-ready form of a conversation for one model call. It
+includes tools, budget, and request-only context. A request is not a fact and is
+never projected.</p>
+<h2>run</h2>
+<p>One invocation of the loop over a task. A run contains one or more steps and
+ends with a <code>run</code> fact.</p>
+<h2>step</h2>
+<p>One model request plus the tool calls caused by its response.</p>
+<h2>tool result</h2>
+<p>The recorded output of one tool call, paired by call ID. It is a fact.</p>
+<h2>compaction</h2>
+<p>A fact that adds a summary and a <code>first_kept_id</code>. It shadows older messages in
+later projections without deleting them.</p>
+<h2>window</h2>
+<p>A fact that moves the context start forward, optionally with a handoff. It is a
+fallback when compaction cannot fit.</p>
+<h2>history</h2>
+<p>The tool that retrieves exact evidence by entry ID or call ID after compaction
+or pruning.</p>
+<h2>mode</h2>
+<p><code>plan</code>, <code>build</code>, or <code>act</code>. A mode selects the default policy for tools and shell
+commands.</p>
+<h2>rule</h2>
+<p>A static policy entry in config. Rules can match tool, path prefix, and command
+prefix and return allow, deny, or ask.</p>
+<h2>grant</h2>
+<p>A process-local approval created by answering <code>a</code>. It matches the same tool and
+path or command.</p>
+<h2>hook</h2>
+<p>A configured shell command around a tool call (<code>before_tool</code> or <code>after_tool</code>).</p>
+<h2>skill</h2>
+<p>A <code>SKILL.md</code> body loaded on demand. The request carries a catalog; the <code>skill</code>
+tool loads the body.</p>
+<h2>MCP</h2>
+<p>Model Context Protocol. Cade Mini runs stdio MCP servers and exposes their tools
+as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>.</p>
+<h2>subagent</h2>
+<p>A child run with its own session and a restricted tool set. It cannot spawn
+another subagent.</p>
+<h2>snapshot</h2>
+<p>A pre-change copy of a file, used by <code>--undo</code> and <code>/undo</code>.</p>
+<h2>goal</h2>
+<p>A durable objective in <code>.cade-mini/goal.json</code>, separate from the session
+schema.</p>
+
+</section>
+<section class="page" id="page-testing" data-title="Testing">
+<h1>Testing</h1>
+<p>Tests are grouped by the layer they protect. Run the smallest group that covers
+a change, then the full suite before a release.</p>
+<h2>Commands</h2>
+<pre><code class="language-bash">uv run --locked pytest -q src/cade/tests
+uv run --locked pytest -q src/cade/tests/test_mini_loop.py
+uv run --locked ruff check src/cade/
+uv run --locked ruff format --check src/cade/
+uv run --locked pyright src/cade/
+uv run --locked python -m cade.mini.docs check
+</code></pre>
+<h2>Coverage map</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Tests</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Log, tail repair, sessions</td>
+<td><code>test_mini_log.py</code></td>
+</tr>
+<tr>
+<td>Projection and pairing</td>
+<td><code>test_mini_projection.py</code></td>
+</tr>
+<tr>
+<td>Budget, pruning, wire format</td>
+<td><code>test_mini_request.py</code></td>
+</tr>
+<tr>
+<td>Loop, approvals, retries, windows</td>
+<td><code>test_mini_loop.py</code></td>
+</tr>
+<tr>
+<td>Provider and auth</td>
+<td><code>test_mini_provider.py</code></td>
+</tr>
+<tr>
+<td>Workspace tools</td>
+<td><code>test_mini_tools.py</code></td>
+</tr>
+<tr>
+<td>Compaction and windows</td>
+<td><code>test_mini_compaction.py</code>, <code>test_mini_window.py</code></td>
+</tr>
+<tr>
+<td>CLI and config</td>
+<td><code>test_mini_cli.py</code>, <code>test_mini_config.py</code></td>
+</tr>
+<tr>
+<td>Instructions, skills, memory, NOTE</td>
+<td><code>test_mini_instructions.py</code>, <code>test_mini_skills.py</code>, <code>test_mini_memory.py</code>, <code>test_mini_note.py</code></td>
+</tr>
+<tr>
+<td>Safety and modes</td>
+<td><code>test_mini_policy.py</code>, <code>test_mini_shell.py</code>, <code>test_mini_grants.py</code>, <code>test_mini_sandbox.py</code></td>
+</tr>
+<tr>
+<td>Extensions</td>
+<td><code>test_mini_hooks.py</code>, <code>test_mini_mcp.py</code>, <code>test_mini_subagents.py</code></td>
+</tr>
+<tr>
+<td>Recovery</td>
+<td><code>test_mini_snapshots.py</code>, <code>test_mini_goal.py</code></td>
+</tr>
+<tr>
+<td>Hosts</td>
+<td><code>test_mini_web.py</code></td>
+</tr>
+<tr>
+<td>Docs</td>
+<td><code>test_mini_docs.py</code></td>
+</tr>
+<tr>
+<td>Import firewall</td>
+<td><code>test_mini_boundary.py</code></td>
+</tr>
+</tbody>
+</table>
+<h2>Real-provider checks</h2>
+<p>The acceptance runs use DeepSeek or Codex and are not part of the default test
+suite. They cover tool use, resume, compaction, skills, build mode, the web
+host, and Codex write/read. Record the command and observed result in the change
+that adds a new acceptance.</p>
+<h2>Docs checks</h2>
+<p><code>test_mini_docs.py</code> and <code>python -m cade.mini.docs check</code> validate the manifest,
+links, anchors, and generated catalogs. The docs job runs in CI.</p>
+<h2>Known noise</h2>
+<p>The full suite has three pre-existing Windows-only failures in untouched Cade
+modules: two working-directory assertions and one shell line-ending assertion.
+Treat them as unrelated until that module is changed.</p>
+
+</section>
+<section class="page" id="page-readme" data-title="Subsystems">
+<h1>Subsystems</h1>
+<p>Each page owns one subsystem's types, behavior, and failure modes. The
+<a href="../architecture.md">architecture</a> is the map; these pages are the reference.</p>
+<ul>
+<li><a href="log.md">Log</a>: append, lock, branch, list, and repair.</li>
+<li><a href="projection-request.md">Projection and request</a>: deterministic context and
+budget admission.</li>
+<li><a href="loop.md">Loop</a>: provider calls, tools, approvals, retries, and facts.</li>
+<li><a href="tools-policy.md">Tools and policy</a>: workspace tools, modes, rules, grants,
+shell classification, and sandbox.</li>
+<li><a href="context-compaction.md">Context and compaction</a>: summaries, windows, history,
+and request context.</li>
+<li><a href="extensions.md">Extensions</a>: skills, memory, hooks, MCP, subagents, snapshots,
+goals, and hosts.</li>
+</ul>
+<p>A subsystem page describes current behavior. Historical decisions belong in
+<a href="../decisions/README.md">decision records</a> and incidents in
+<a href="../postmortem/README.md">postmortems</a>.</p>
+
+</section>
+<section class="page" id="page-log" data-title="Log">
+<h1>Log</h1>
+<p><code>SessionLog</code> owns the append-only JSONL file.</p>
+<h2>Create and open</h2>
+<ul>
+<li><code>SessionLog.create(directory, session_id=None)</code> creates a unique file and
+writes a <code>meta</code> entry.</li>
+<li><code>SessionLog.open(path)</code> validates the file and repairs a torn final line by
+appending a newline or dropping the incomplete tail.</li>
+<li>The session ID is derived from the file name when not supplied.</li>
+</ul>
+<h2>Append</h2>
+<p><code>append(type, data)</code>:</p>
+<ol>
+<li>Takes an exclusive file lock.</li>
+<li>Reads the current tail to get the parent ID.</li>
+<li>Builds an entry with ID, timestamp, parent, type, and data.</li>
+<li>Appends one JSON line and flushes.</li>
+<li>Releases the lock.</li>
+</ol>
+<p><code>fsync</code> is deliberate: a returned append is durable enough to resume. A failed
+write raises <code>LogError</code> and does not return a fake entry.</p>
+<h2>Branch</h2>
+<p><code>branch()</code> follows parent IDs from the last entry back to the root and reverses
+the list. It rejects cycles, missing parents, and duplicate IDs.</p>
+<h2>Listing and titles</h2>
+<p><code>list_sessions(directory)</code> returns session ID, update time, and a title derived
+from the first user text. Corrupt files are skipped so one bad session cannot
+break the list.</p>
+<h2>Invariants</h2>
+<ul>
+<li>Entries are never rewritten in place.</li>
+<li>IDs are unique within a file.</li>
+<li>A parent precedes its child.</li>
+<li>The file ends with exactly one newline.</li>
+<li>The schema version is closed; new event types require a decision record.</li>
+</ul>
+<h2>Tests</h2>
+<p><code>test_mini_log.py</code> covers create, append, resume, tail repair, branching, and
+listing. <code>test_mini_projection.py</code> covers malformed branches.</p>
+
+</section>
+<section class="page" id="page-projection-request" data-title="Projection and request">
+<h1>Projection and request</h1>
+<h2>Projection</h2>
+<p><code>project(entries)</code> is pure. It:</p>
+<ol>
+<li>Finds the latest <code>system</code> entry.</li>
+<li>Applies the latest <code>window</code> start.</li>
+<li>Applies the latest <code>compaction</code> cut and emits a summary message.</li>
+<li>Converts user, assistant, and tool-result facts to messages.</li>
+<li>Pairs each tool call with its result by call ID.</li>
+<li>Inserts a synthetic interrupted result if the branch ends inside a call.</li>
+</ol>
+<p>It rejects orphan results, duplicate results, and cuts that do not point to a
+user entry. The projection does not call a provider or write the log.</p>
+<h2>Request</h2>
+<p><code>build(conversation, tools, budget, context)</code>:</p>
+<ol>
+<li>Joins the base system prompt with request-only context.</li>
+<li>Estimates tokens.</li>
+<li>Replaces old tool bodies with references, keeping recent results first.</li>
+<li>Drops the oldest user turns if still over budget.</li>
+<li>Converts to provider messages and tool definitions.</li>
+<li>Returns a <code>Request</code> and a <code>BuildReport</code>.</li>
+</ol>
+<p><code>BuildReport</code> records estimated tokens, budget, dropped call IDs, and dropped
+turns. A request that cannot fit raises <code>RequestTooLarge</code>.</p>
+<h2>Pruning rules</h2>
+<ul>
+<li>The latest four tool results are protected in the first pass.</li>
+<li>If still over, protected results are pruned oldest first.</li>
+<li>The newest result is pruned only as a last resort.</li>
+<li>The replacement names the call ID and points to the history tool.</li>
+</ul>
+<h2>Context order</h2>
+<p>The system message carries base instructions plus, in order: instructions,
+skill catalog, NOTE, memory, and goal. These inputs are request-only; the
+request audit records their digests and lengths, not their full text.</p>
+<h2>Tests</h2>
+<p><code>test_mini_projection.py</code>, <code>test_mini_request.py</code>, and
+<code>test_mini_compaction.py</code> cover the cut, pruning, and wire-format contracts.</p>
+
+</section>
+<section class="page" id="page-loop" data-title="Loop">
+<h1>Loop</h1>
+<p><code>run(log, text, ...)</code> is the only stage that writes during a turn.</p>
+<h2>One run</h2>
+<ol>
+<li>Append the <code>user</code> fact.</li>
+<li>For each step:
+<ul>
+<li>Project the branch.</li>
+<li>If the full estimate exceeds budget, call the compactor.</li>
+<li>Build the request.</li>
+<li>If still over, call the window fallback.</li>
+<li>Append a <code>request</code> audit fact.</li>
+<li>Stream the provider.</li>
+<li>Append the assistant fact.</li>
+<li>Resolve and execute each tool call.</li>
+<li>Append tool-result facts.</li>
+</ul>
+</li>
+<li>Append one <code>run</code> fact with termination, steps, usage, and error.</li>
+</ol>
+<h2>Provider handling</h2>
+<p>The loop collects text deltas, tool calls, usage, and provider replay state. A
+failure becomes an <code>attempt</code> fact. Retryable failures are retried once by
+default; the retry delay is configurable. A terminal failure ends the run with
+<code>provider_error</code> and never creates an assistant fact.</p>
+<h2>Termination</h2>
+<ul>
+<li><code>completed</code>: the provider ended without tool calls.</li>
+<li><code>step_limit</code>: the configured step count was reached.</li>
+<li><code>context_error</code>: no request fits after compaction and window fallback.</li>
+<li><code>aborted</code>: cancellation was requested.</li>
+<li><code>provider_error</code>: the provider failed.</li>
+</ul>
+<h2>Cancellation</h2>
+<p>A cancellation token is checked between steps and tool calls. Running tools get
+the token; remaining calls receive interrupted results. The run records the
+reason in its <code>run</code> fact.</p>
+<h2>Events</h2>
+<p>The host receives text deltas, tool start, tool end, and final output. Events are
+presentation; facts are durable. A host can drop events without losing history.</p>
+<h2>Tests</h2>
+<p><code>test_mini_loop.py</code> covers completion, tool use, approvals, retries, timeouts,
+cancellation, context errors, and window fallback.</p>
+
+</section>
+<section class="page" id="page-tools-policy" data-title="Tools and policy">
+<h1>Tools and policy</h1>
+<h2>Tool contract</h2>
+<p>A tool has a name, description, JSON parameter schema, and async execute. Results
+carry content, an error flag, and optional metadata. The loop records results; a
+tool never appends to the log.</p>
+<h2>Built-in tools</h2>
+<ul>
+<li>Workspace: <code>read</code>, <code>write</code>, <code>edit</code>, <code>glob</code>, <code>grep</code>, <code>bash</code>.</li>
+<li>Evidence and context: <code>history</code>, <code>skill</code>, <code>memory</code>, <code>goal</code>.</li>
+<li>Delegation: <code>subagent</code>.</li>
+<li>Remote: <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>.</li>
+</ul>
+<p><code>write</code> and <code>edit</code> snapshot the target before changing it. <code>bash</code> snapshots
+common single-command mutation targets.</p>
+<h2>Policy</h2>
+<p><code>WorkspacePolicy.check</code> returns allow, deny, or ask.</p>
+<p>Hard checks run first:</p>
+<ul>
+<li><code>read</code> and file writes must stay inside the workspace.</li>
+<li><code>bash</code> workdir must stay inside the workspace.</li>
+<li>Unknown tools are denied.</li>
+<li><code>read_only</code> denies writes, edits, shell, memory, and MCP.</li>
+</ul>
+<p>Then:</p>
+<ol>
+<li>A matching static rule decides.</li>
+<li>A matching session grant allows.</li>
+<li>The mode default decides.</li>
+</ol>
+<p>Modes:</p>
+<ul>
+<li><code>plan</code>: read tools and read-only shell; writes and mutations denied.</li>
+<li><code>build</code>: writes allowed; read-only shell allowed; mutating shell asks.</li>
+<li><code>act</code>: writes and shell ask.</li>
+</ul>
+<h2>Shell classification</h2>
+<p><code>classify_command</code> labels a command read-only, mutating, or unknown. Pipelines,
+redirections, command lists, substitutions, and unknown binaries are unknown.
+Plan mode denies unknown; build asks; act asks.</p>
+<h2>Grants</h2>
+<p><code>GrantStore</code> records a path or command for the exact tool. A grant is
+process-local. <code>/permissions</code> lists and clears it. Durable policy belongs in
+rules.</p>
+<h2>Approvals</h2>
+<p>The host resolves ask. <code>SessionApprover</code> prompts a TTY with yes/no/always.
+<code>AutoReviewer</code> makes one tool-free model call and requires an <code>ALLOW</code> prefix.
+Non-interactive hosts deny unless <code>--yes</code> or a rule allows.</p>
+<h2>Sandbox</h2>
+<p>On Linux, bubblewrap can confine shell commands and deny network access. Other
+hosts rely on the path boundary, mode, shell classification, and approvals.</p>
+<h2>Tests</h2>
+<p><code>test_mini_tools.py</code>, <code>test_mini_policy.py</code>, <code>test_mini_grants.py</code>,
+<code>test_mini_shell.py</code>, and <code>test_mini_sandbox.py</code>.</p>
+
+</section>
+<section class="page" id="page-context-compaction" data-title="Context and compaction">
+<h1>Context and compaction</h1>
+<h2>Request context</h2>
+<p>The system message is the base prompt plus request-only context:</p>
+<ol>
+<li>Project instructions from <code>AGENTS.md</code>, <code>CLAUDE.md</code>, or variants.</li>
+<li>Skill catalog names and descriptions.</li>
+<li><code>NOTE.md</code> working state.</li>
+<li><code>MEMORY.md</code> durable facts.</li>
+<li>An active goal.</li>
+</ol>
+<p>The request audit records this context's digests; it does not turn the text into
+conversation messages.</p>
+<h2>Compaction</h2>
+<p><code>Compactor</code> runs when the full projection exceeds the input budget.</p>
+<ol>
+<li>Select the cut at a user boundary that keeps the recent tail under the
+configured target.</li>
+<li>Serialize older messages, including a prior summary.</li>
+<li>Ask the provider for a summary with a bounded output.</li>
+<li>Append a <code>compaction</code> fact with summary and <code>first_kept_id</code>.</li>
+<li>Reproject.</li>
+</ol>
+<p>A summary failure or a cut with no messages appends an <code>attempt</code> fact and leaves
+the conversation unchanged. A prior summary is included as <code>PRIOR SUMMARY</code>, so
+compaction is iterative.</p>
+<h2>Window fallback</h2>
+<p>If compaction cannot fit, the loop may call the window hook. The CLI starts a
+window at the latest user entry with a fixed handoff that points to <code>NOTE.md</code>
+and history. If the request still does not fit, the run terminates with
+<code>context_error</code>.</p>
+<h2>History</h2>
+<p>The <code>history</code> tool searches the branch or reads an exact entry or tool result.
+It is the recovery path for evidence replaced during pruning or compaction.
+Exact content is capped; search results point to entry IDs.</p>
+<h2>Request pruning</h2>
+<p>Admission replaces old tool bodies with references before it drops turns. The
+history tool remains the only exact source. See
+<a href="projection-request.md">Projection and request</a>.</p>
+<h2>Tests</h2>
+<p><code>test_mini_compaction.py</code>, <code>test_mini_window.py</code>, <code>test_mini_history.py</code>, and
+the request tests cover cuts, summaries, fallback, and retrieval.</p>
+
+</section>
+<section class="page" id="page-extensions" data-title="Extensions">
+<h1>Extensions</h1>
+<p>Extensions add behavior through narrow seams. None changes the session schema.</p>
+<h2>Skills</h2>
+<p>Discovery reads <code>SKILL.md</code> from user and project roots. The request carries a
+catalog; the <code>skill</code> tool loads a body into a tool result. A body is a fact, not
+request-only context.</p>
+<h2>Memory</h2>
+<p><code>MEMORY.md</code> is request context. The <code>memory</code> tool appends one bullet and cannot
+write other paths. The file is capped to protect the request budget.</p>
+<h2>Hooks</h2>
+<p><code>HookRunner</code> executes configured shell commands around tools. <code>before_tool</code> can
+deny; <code>after_tool</code> observes. Hooks are trusted and time-bounded. See
+<a href="../hooks-mcp-subagents.md">Hooks, MCP, and subagents</a>.</p>
+<h2>MCP</h2>
+<p>Each configured stdio server keeps one persistent process. Discovery reads
+<code>tools/list</code>; calls use <code>tools/call</code> over a serialized queue. Tools are prefixed
+<code>mcp__</code>, ask by default, and are denied in plan and read-only modes. A server
+that cannot start is reported and skipped.</p>
+<h2>Subagents</h2>
+<p><code>SubagentTool</code> creates a child session under <code>&lt;sessions&gt;/subagents</code>. The child
+gets the parent provider, budget, policy, approver, hooks, context, and base
+tools plus its own history. It cannot spawn another subagent and is limited to
+20 steps. The parent records only the call and summary.</p>
+<h2>Snapshots</h2>
+<p><code>SnapshotStore</code> captures <code>write</code>, <code>edit</code>, and common single-command shell
+mutations. <code>--undo</code> and <code>/undo</code> restore the latest snapshot. Snapshots are project
+state, not session facts.</p>
+<h2>Goals</h2>
+<p><code>GoalStore</code> persists one objective in <code>.cade-mini/goal.json</code>. The <code>goal</code> tool and
+<code>/goal</code> command manage it. An active goal is request context.</p>
+<h2>Hosts</h2>
+<p>The CLI runs one-shot and REPL sessions. The web host serves a page and a small
+JSON API over one session. Both use the same loop and policy.</p>
+<h2>Limits</h2>
+<p>Extensions are deliberately small. MCP is a stdio client, not a full capability
+negotiation implementation. Hooks are shell commands, not in-process callbacks.
+Subagents are sequential and share the parent approval context.</p>
+<h2>Tests</h2>
+<p><code>test_mini_skills.py</code>, <code>test_mini_memory.py</code>, <code>test_mini_hooks.py</code>,
+<code>test_mini_mcp.py</code>, <code>test_mini_subagents.py</code>, <code>test_mini_snapshots.py</code>,
+<code>test_mini_goal.py</code>, and <code>test_mini_web.py</code>.</p>
+
+</section>
 <section class="page" id="page-tools-security" data-title="Tools and security">
 <h1>Tools and security</h1>
 <h2>Workspace tools</h2>
@@ -712,6 +2127,210 @@ Hooks are shell commands, not in-process callbacks. Subagents are sequential and
 share the parent's approval context rather than running in parallel.</p>
 
 </section>
+<section class="page" id="page-readme" data-title="Cookbook">
+<h1>Cookbook</h1>
+<p>Procedures with a concrete outcome and a verification step. Each recipe names
+the mode and the evidence to keep.</p>
+<ul>
+<li><a href="fix-a-bug.md">Fix a bug</a>: reproduce, patch, verify, report.</li>
+<li><a href="add-a-feature.md">Add a feature</a>: test, implement, verify, review the diff.</li>
+<li><a href="review-only.md">Review only</a>: investigate in plan mode without mutations.</li>
+<li><a href="long-session.md">Run a long session</a>: NOTE, compaction, history, and goals.</li>
+<li><a href="custom-mcp.md">Connect a custom MCP server</a>: configure, allow, call, inspect.</li>
+</ul>
+<p>For command details, see <a href="../cli.md">CLI</a> and <a href="../configuration.md">Configuration</a>.</p>
+
+</section>
+<section class="page" id="page-fix-a-bug" data-title="Fix a bug">
+<h1>Fix a bug</h1>
+<p>Use <code>build</code> mode for the change. Keep the patch minimal and verify with the
+repository's tests.</p>
+<h2>Procedure</h2>
+<ol>
+<li>
+<p>Reproduce the failure:</p>
+<pre><code class="language-bash">cade-mini --mode plan &quot;Read the failing test and explain the failure.&quot;
+</code></pre>
+</li>
+<li>
+<p>Fix it:</p>
+<pre><code class="language-bash">cade-mini --mode build --yes &quot;Fix the failing test with the smallest change, then run pytest.&quot;
+</code></pre>
+</li>
+<li>
+<p>Inspect the diff and the snapshot:</p>
+<pre><code class="language-bash">git diff
+cade-mini --undo  # only if the change is wrong
+</code></pre>
+</li>
+</ol>
+<h2>Verify</h2>
+<ul>
+<li>The targeted test passes.</li>
+<li>The full relevant test file passes.</li>
+<li>The diff contains only the intended change.</li>
+<li>The assistant names the command it ran.</li>
+</ul>
+<h2>Keep</h2>
+<p>The run log records the request, tool calls, and test output. The snapshot
+allows recovery before the next run. For a reviewable change, keep the diff in
+the commit, not in a docs file.</p>
+<h2>Avoid</h2>
+<ul>
+<li><code>--read-only</code> when you intend to edit.</li>
+<li><code>--yes</code> on a shared repository without rules.</li>
+<li>A broad refactor when a one-line condition fixes the test.</li>
+</ul>
+
+</section>
+<section class="page" id="page-add-a-feature" data-title="Add a feature">
+<h1>Add a feature</h1>
+<p>Write the test first, then implement, then verify. Use <code>build</code> mode and keep the
+diff reviewable.</p>
+<h2>Procedure</h2>
+<ol>
+<li>
+<p>Ask for a failing test or write it yourself:</p>
+<pre><code class="language-bash">cade-mini --mode build --yes &quot;Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails.&quot;
+</code></pre>
+</li>
+<li>
+<p>Implement the smallest change:</p>
+<pre><code class="language-bash">cade-mini --mode build --yes &quot;Implement mul() and run the new test.&quot;
+</code></pre>
+</li>
+<li>
+<p>Review:</p>
+<pre><code class="language-bash">git diff
+pytest -q
+</code></pre>
+</li>
+</ol>
+<h2>Verify</h2>
+<ul>
+<li>The new test fails before the change and passes after it.</li>
+<li>Existing tests still pass.</li>
+<li>The implementation has no unrelated edits.</li>
+<li>Public behavior is documented in the relevant guide.</li>
+</ul>
+<h2>Undo</h2>
+<p>If the change is wrong, use <code>cade-mini --undo</code> or <code>/undo</code> before starting
+another attempt. Undo restores one recorded file change at a time.</p>
+<h2>Keep</h2>
+<p>Update the guide or decision record when the feature changes a public contract.
+Tests belong in <code>src/cade/tests/</code>; docs belong under <code>docs/cade-mini/</code>.</p>
+
+</section>
+<section class="page" id="page-review-only" data-title="Review only">
+<h1>Review only</h1>
+<p>Use <code>plan</code> and <code>--read-only</code> when the task is to inspect, not change.</p>
+<h2>Procedure</h2>
+<pre><code class="language-bash">cade-mini --mode plan --read-only &quot;Review the request builder for evidence loss. Cite files and lines; do not modify anything.&quot;
+</code></pre>
+<p>Plan mode hides write and edit tools and denies mutating shell commands.
+<code>--read-only</code> also denies memory, MCP, and any remaining mutation.</p>
+<h2>Verify</h2>
+<ul>
+<li><code>git status</code> is clean.</li>
+<li>The answer cites files by relative path and line.</li>
+<li>Claims about tests name the command and result.</li>
+<li>Findings distinguish a bug from a preference.</li>
+</ul>
+<h2>Keep</h2>
+<p>For a review, keep the report in the conversation or a review document. Do not
+create a working note unless the review spans multiple sessions.</p>
+<h2>Limits</h2>
+<p>The model can still read anything inside the workspace. A review of untrusted
+code still needs human judgment; the policy prevents writes, not misleading
+prose.</p>
+
+</section>
+<section class="page" id="page-long-session" data-title="Run a long session">
+<h1>Run a long session</h1>
+<p>Long tasks need durable state and a way to recover context. Use <code>NOTE.md</code>, a
+goal, and the history tool.</p>
+<h2>Procedure</h2>
+<ol>
+<li>
+<p>Set a goal:</p>
+<pre><code class="language-bash">cade-mini --goal &quot;Migrate the request builder to the new budget model&quot; &quot;Start by mapping the current admission rules.&quot;
+</code></pre>
+</li>
+<li>
+<p>Keep a working note. Ask the model to update <code>NOTE.md</code> after each milestone:</p>
+<pre><code class="language-text">Update NOTE.md with completed work, current blockers, and the next action.
+</code></pre>
+</li>
+<li>
+<p>Continue the same session:</p>
+<pre><code class="language-bash">cade-mini --continue &quot;Resume from NOTE.md and run the next step.&quot;
+</code></pre>
+</li>
+<li>
+<p>Compact when the session grows:</p>
+<pre><code class="language-text">/compact
+</code></pre>
+</li>
+<li>
+<p>Recover an old detail:</p>
+<pre><code class="language-text">Use history with query &quot;budget&quot; to find the earlier discussion.
+</code></pre>
+</li>
+</ol>
+<h2>Verify</h2>
+<ul>
+<li><code>NOTE.md</code> names the next action, not just history.</li>
+<li>A resumed run can continue without the original terminal.</li>
+<li>The goal is marked done only when its acceptance check passes.</li>
+</ul>
+<h2>Limits</h2>
+<p><code>NOTE.md</code> is request context and is summarized during compaction. <code>MEMORY.md</code> is
+for durable facts, not a task log. The session log is the authority for exact
+evidence.</p>
+
+</section>
+<section class="page" id="page-custom-mcp" data-title="Connect a custom MCP server">
+<h1>Connect a custom MCP server</h1>
+<p>MCP servers use stdio. Cade Mini keeps one process per server and exposes each
+tool as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>.</p>
+<h2>Configure</h2>
+<p>Add the server to <code>cade-mini.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;mcp_servers&quot;: {
+    &quot;files&quot;: {
+      &quot;command&quot;: &quot;python&quot;,
+      &quot;args&quot;: [&quot;tools/mcp_files.py&quot;],
+      &quot;timeout_ms&quot;: 30000,
+      &quot;env&quot;: {&quot;LOG_LEVEL&quot;: &quot;warn&quot;}
+    }
+  }
+}
+</code></pre>
+<p><code>command</code> and <code>args</code> are required; <code>cwd</code>, <code>env</code>, and <code>timeout_ms</code> are optional.
+A relative <code>cwd</code> resolves against the project root.</p>
+<h2>Allow</h2>
+<p>MCP tools ask by default. Add a rule for a specific tool if unattended runs need
+it:</p>
+<pre><code class="language-json">{
+  &quot;rules&quot;: [
+    {&quot;tool&quot;: &quot;mcp__files__read_file&quot;, &quot;decision&quot;: &quot;allow&quot;}
+  ]
+}
+</code></pre>
+<p>Plan mode and <code>--read-only</code> deny MCP tools even with a rule.</p>
+<h2>Verify</h2>
+<ol>
+<li>Start Cade Mini; it prints a startup error if the server cannot start.</li>
+<li>Ask the model to list or call a discovered tool.</li>
+<li>Check the tool result and the <code>mcp__</code> prefix in the log.</li>
+<li>Stop Cade Mini; the server process closes at exit.</li>
+</ol>
+<h2>Limits</h2>
+<p>The client implements <code>initialize</code>, <code>tools/list</code>, and <code>tools/call</code>. It does not
+implement resources, prompts, sampling, or server-initiated requests. A server
+that hangs is killed after the configured timeout.</p>
+
+</section>
 <section class="page" id="page-hosts" data-title="Hosts">
 <h1>Hosts</h1>
 <p>Cade Mini has two hosts: the terminal CLI and a local web host. Both use the
@@ -785,6 +2404,7 @@ published.</p>
 uv run --locked python -m cade.mini.docs check
 uv run --locked python -m cade.mini.docs build
 uv run --locked python -m cade.mini.docs llms --write
+uv run --locked python -m cade.mini.docs catalogs --write
 </code></pre>
 <p><code>check</code> validates the manifest, page files, relative links, and anchors. The CI
 workflow runs it without the docs extra, because checking uses only the standard
@@ -872,7 +2492,191 @@ Codex session read it back.</li>
 workflow by creating a clean fixture, running both agents with the settings
 above, and comparing the diff and test result rather than the prose answer.</p>
 
+</section>
+<section class="page" id="page-readme" data-title="Postmortems">
+<h1>Postmortems</h1>
+<p>A postmortem records an incident that escaped the intended design. It is the
+only place for chronology and war stories; current behavior belongs in the
+subsystem reference.</p>
+<h2>Records</h2>
+<ul>
+<li><a href="0001-compaction-cut-misalignment.md">0001: Compaction cut pointed at a shadowed user entry</a></li>
+<li><a href="0002-single-huge-tool-result.md">0002: One huge tool result exhausted the request budget</a></li>
+</ul>
+<h2>Template</h2>
+<p>Copy <a href="TEMPLATE.md">TEMPLATE.md</a>. Keep the timeline factual, name the root cause,
+show the fix, and record the test that would have caught it. Do not turn the
+postmortem into a tutorial; link the current behavior page instead.</p>
+<p>Postmortems are excluded from the published guide manifest but remain valid
+links and are reviewed with the fix.</p>
+
+</section>
+<section class="page" id="page-0001-compaction-cut-misalignment" data-title="0001: Compaction cut pointed at a shadowed user entry">
+<h1>0001: Compaction cut pointed at a shadowed user entry</h1>
+<p>Date: 2026-10-18</p>
+<p>Status: resolved</p>
+<h2>Impact</h2>
+<p>After a prior compaction, the next compaction could choose a <code>first_kept_id</code>
+from a user entry that was already shadowed. The summary covered the wrong tail,
+and the retained window could omit the current task.</p>
+<h2>Timeline</h2>
+<ul>
+<li>The compactor collected all user entries from the branch.</li>
+<li>It collected user positions from the visible projection.</li>
+<li>It chose a cut by visible position but indexed the full branch entry list.</li>
+<li>A session with a prior compaction therefore pointed at an older, shadowed
+user entry.</li>
+</ul>
+<h2>Root cause</h2>
+<p>Two lists with different lengths were treated as parallel arrays. A compaction
+removes old user entries from the projection but leaves them in the branch. The
+index into visible positions is not an index into all branch users.</p>
+<h2>Fix</h2>
+<p>The compactor now aligns with the <strong>last N</strong> user entries, where N is the number
+of visible user messages. A regression test builds a session with a prior
+summary, a retained turn, and a new task, then asserts the new cut points at the
+new task and the summary request contains the prior summary.</p>
+<h2>Verification</h2>
+<p><code>test_mini_compaction.py::test_iterative_compaction_includes_prior_summary</code>
+passes. The projected roles are <code>system, summary, user</code>.</p>
+<h2>Follow-up</h2>
+<p>Any future cut logic must derive entry IDs from the same visible sequence it uses
+to choose positions. See <a href="../subsystems/context-compaction.md">Context and compaction</a>.</p>
+
+</section>
+<section class="page" id="page-0002-single-huge-tool-result" data-title="0002: One huge tool result exhausted the request budget">
+<h1>0002: One huge tool result exhausted the request budget</h1>
+<p>Date: 2026-10-18</p>
+<p>Status: resolved</p>
+<h2>Impact</h2>
+<p>A single tool result larger than the input budget could make a request
+impossible. The request builder protected the most recent four tool results, so
+a lone huge result was never replaced, and the run ended with <code>context_error</code>.</p>
+<h2>Timeline</h2>
+<ul>
+<li>A tool returned a result larger than the budget.</li>
+<li>Admission protected the result because it was among the latest four.</li>
+<li>Turn dropping removed old turns but not the current turn's huge result.</li>
+<li>The request remained over budget and the run failed.</li>
+</ul>
+<h2>Root cause</h2>
+<p>The pruning policy treated &quot;recent&quot; as always protected. Protection is a
+heuristic for preserving working evidence, not a hard invariant. With only one
+result, the protected set was the entire candidate set.</p>
+<h2>Fix</h2>
+<p>Admission now prunes in passes:</p>
+<ol>
+<li>Replace unprotected results, oldest first.</li>
+<li>If still over, replace protected results oldest first.</li>
+<li>If still over, replace the newest result as a last resort.</li>
+</ol>
+<p>Every replacement points to the history tool, so the evidence remains
+retrievable. A regression test covers a single huge result.</p>
+<h2>Verification</h2>
+<p><code>test_mini_request.py::test_build_prunes_a_single_huge_tool_result</code> passes and
+the resulting request is under budget.</p>
+<h2>Follow-up</h2>
+<p>Keep the history tool available whenever pruning can remove the newest result.
+See <a href="../subsystems/projection-request.md">Projection and request</a>.</p>
+
+</section>
+<section class="page" id="page-readme" data-title="Persistence">
+<h1>Persistence</h1>
+<p>Cade Mini has one durable conversation format: the session log. The rest are
+host-state files with narrow scopes.</p>
+<h2>Current format</h2>
+<ul>
+<li>Session log: schema v1, closed. See <a href="../../cade-mini-schema.md">Session log schema</a>.</li>
+<li>Entry file: one JSON object per line; a trailing newline is required.</li>
+<li>Session directory: <code>.cade-mini/sessions</code>.</li>
+<li>Compaction and windows are entries, not file rewrites.</li>
+<li>Snapshots, goals, NOTE, memory, and config are separate artifacts.</li>
+</ul>
+<h2>Compatibility</h2>
+<p>A reader must reject an unknown schema version rather than guess. A writer must
+not add fields that change the meaning of existing fields. Additive diagnostic
+fields are allowed only when old readers can ignore them.</p>
+<h2>History</h2>
+<p>There are no format migrations yet. When the first change lands, add a record
+under <a href="../upgrade/README.md">upgrade</a> and a decision record describing the
+migration and rollback.</p>
+<h2>Verification</h2>
+<p><code>test_mini_log.py</code>, <code>test_mini_projection.py</code>, and
+<code>test_mini_acceptance.py</code> exercise the current format. A schema change must add a
+test that opens an old fixture and one that rejects a future version.</p>
+<h2>Related</h2>
+<ul>
+<li><a href="../design/persistence-catalog.md">Persistence catalog</a></li>
+<li><a href="change-policy.md">Change policy</a></li>
+<li><a href="../../cade-mini-schema.md">Session log schema</a></li>
+</ul>
+
+</section>
+<section class="page" id="page-change-policy" data-title="Change policy">
+<h1>Change policy</h1>
+<p>A persisted format change is a public interface change. It needs a decision,
+tests, and a migration path.</p>
+<h2>Before changing the schema</h2>
+<ol>
+<li>Write a decision record under <code>docs/cade-mini/decisions/</code>.</li>
+<li>State whether the change is additive, transformative, or breaking.</li>
+<li>Describe how an old session is read and whether it is rewritten.</li>
+<li>Define the new schema version and the reader's rejection rule.</li>
+<li>Add an old-format fixture and a migration test.</li>
+</ol>
+<h2>Rules</h2>
+<ul>
+<li>Never rewrite a user's session file in place without an explicit migration.</li>
+<li>Never infer a missing field from a provider's current behavior.</li>
+<li>Keep audit facts out of the projection unless the schema says otherwise.</li>
+<li>Bump the version for any change that an old reader cannot ignore.</li>
+<li>Update <a href="#page-readme">Persistence</a>, the <a href="../../cade-mini-schema.md">schema</a>, and
+the <a href="../upgrade/README.md">upgrade guide</a> in the same change.</li>
+</ul>
+<h2>Review checklist</h2>
+<ul>
+<li>Old fixture opens and projects identically.</li>
+<li>Unknown future version fails with a clear error.</li>
+<li>Migration is idempotent and can be interrupted.</li>
+<li>New fields have a documented owner and lifetime.</li>
+<li>Session size and compaction behavior remain bounded.</li>
+</ul>
+<h2>Current status</h2>
+<p>Schema v1 is closed. No migration exists. The next format change must add the
+first entry to the upgrade guide.</p>
+
+</section>
+<section class="page" id="page-readme" data-title="Upgrade guide">
+<h1>Upgrade guide</h1>
+<p>This page records changes that require action from an existing user or
+automation.</p>
+<h2>Current status</h2>
+<p>Cade Mini is on session schema v1. There are no breaking upgrades yet. Existing
+sessions, <code>cade-mini.json</code> files, and snapshots remain readable.</p>
+<h2>When an upgrade is needed</h2>
+<p>An upgrade entry is required when:</p>
+<ul>
+<li>the session schema version changes;</li>
+<li>a config key is renamed or removed;</li>
+<li>a CLI flag changes meaning;</li>
+<li>a tool name or parameter becomes incompatible;</li>
+<li>a persisted host-state file changes shape.</li>
+</ul>
+<h2>Procedure for a future upgrade</h2>
+<ol>
+<li>Read the relevant decision record.</li>
+<li>Back up <code>.cade-mini/</code> before migrating.</li>
+<li>Run the documented migration command once.</li>
+<li>Open a session and verify the projection and <code>history</code> tool.</li>
+<li>Keep the old directory until the new version has passed a real task.</li>
+</ol>
+<h2>Compatibility promise</h2>
+<p>Additive optional config fields are not breaking. A new event type is breaking
+because the schema is closed. A removed tool or a changed parameter is breaking.
+The change policy is in <a href="../persistence/change-policy.md">Persistence</a>.</p>
+
 </section></article></main>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
 const search = document.getElementById('search');
 search.addEventListener('input', () => {
@@ -905,6 +2709,20 @@ document.querySelectorAll('pre').forEach((pre) => {
   });
   pre.prepend(button);
 });
+if (window.mermaid) {
+  document.querySelectorAll('pre > code.language-mermaid').forEach((code) => {
+    const pre = code.parentElement;
+    const diagram = document.createElement('div');
+    diagram.className = 'mermaid';
+    diagram.textContent = code.textContent;
+    pre.replaceWith(diagram);
+  });
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default'
+  });
+  mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+}
 </script>
 </body>
 </html>

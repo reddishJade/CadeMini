@@ -40,6 +40,7 @@ uv sync --locked --extra docs
 uv run --locked python -m cade.mini.docs check
 uv run --locked python -m cade.mini.docs build
 uv run --locked python -m cade.mini.docs llms --write
+uv run --locked python -m cade.mini.docs catalogs --write
 ```
 
 `check` validates the manifest, page files, relative links, and anchors. The CI

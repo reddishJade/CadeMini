@@ -12,7 +12,34 @@
     },
     {
       "title": "Concepts",
-      "pages": ["architecture.md", "sessions-context.md"]
+      "pages": ["architecture.md", "sessions-context.md", "design/how-it-works.md"]
+    },
+    {
+      "title": "Design",
+      "pages": [
+        "design/capability-seams.md",
+        "design/event-model.md",
+        "design/tool-execution.md",
+        "design/config-catalog.md",
+        "design/event-catalog.md",
+        "design/module-graph.md",
+        "design/tool-catalog.md",
+        "design/persistence-catalog.md",
+        "design/glossary.md",
+        "design/testing.md"
+      ]
+    },
+    {
+      "title": "Subsystems",
+      "pages": [
+        "subsystems/README.md",
+        "subsystems/log.md",
+        "subsystems/projection-request.md",
+        "subsystems/loop.md",
+        "subsystems/tools-policy.md",
+        "subsystems/context-compaction.md",
+        "subsystems/extensions.md"
+      ]
     },
     {
       "title": "Safety",
@@ -23,9 +50,31 @@
       "pages": ["skills-memory.md", "hooks-mcp-subagents.md"]
     },
     {
+      "title": "Cookbook",
+      "pages": [
+        "cookbook/README.md",
+        "cookbook/fix-a-bug.md",
+        "cookbook/add-a-feature.md",
+        "cookbook/review-only.md",
+        "cookbook/long-session.md",
+        "cookbook/custom-mcp.md"
+      ]
+    },
+    {
       "title": "Operations",
       "pages": ["hosts.md", "development.md", "parity.md"]
+    },
+    {
+      "title": "History",
+      "pages": [
+        "postmortem/README.md",
+        "postmortem/0001-compaction-cut-misalignment.md",
+        "postmortem/0002-single-huge-tool-result.md",
+        "persistence/README.md",
+        "persistence/change-policy.md",
+        "upgrade/README.md"
+      ]
     }
   ],
-  "exclude": ["decisions/**"]
+  "exclude": ["decisions/**", "postmortem/TEMPLATE.md"]
 }

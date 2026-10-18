@@ -20,14 +20,20 @@ def _manifest(pages: list[str]) -> dict[str, object]:
 
 def _write_docs(root: Path, pages: dict[str, str]) -> None:
     root.mkdir(parents=True, exist_ok=True)
+    catalog_pages = [
+        "design/config-catalog.md",
+        "design/event-catalog.md",
+        "design/module-graph.md",
+    ]
     (root / "docs.json").write_text(
-        json.dumps(_manifest(list(pages))),
+        json.dumps(_manifest([*pages, *catalog_pages])),
         encoding="utf-8",
     )
     for relative, text in pages.items():
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
+    docs.write_catalogs(root)
     docs.write_llms(root)
 
 
@@ -49,6 +55,30 @@ def test_llms_full_contains_page_bodies() -> None:
 
     assert "<!-- source: architecture.md -->" in catalog
     assert "The session log is the source of truth" in catalog
+
+
+def test_generated_catalogs_cover_the_contracts() -> None:
+    config = docs.render_config_catalog()
+    events = docs.render_event_catalog()
+    graph = docs.render_module_graph()
+
+    assert "`provider`" in config
+    assert "string \\| null" in config
+    assert "| `request` | No |" in events
+    assert "loop" in graph
+    assert "flowchart LR" in graph
+
+
+def test_stale_catalog_is_reported(tmp_path: Path) -> None:
+    _write_docs(tmp_path, {"README.md": "# Test\n"})
+    catalog = tmp_path / "design" / "config-catalog.md"
+    catalog.write_text(
+        catalog.read_text(encoding="utf-8") + "\nstale\n", encoding="utf-8"
+    )
+
+    issues = docs.check(tmp_path)
+
+    assert any("config-catalog.md: out of date" in issue for issue in issues)
 
 
 def test_stale_llms_full_is_reported(tmp_path: Path) -> None:

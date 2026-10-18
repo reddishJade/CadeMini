@@ -36,6 +36,40 @@ process restarts without inventing history.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.
 
+## Design
+
+- [How Cade Mini works](design/how-it-works.md) is the short end-to-end model.
+- [Capability seams](design/capability-seams.md) lists the replaceable
+  contracts.
+- [Event model](design/event-model.md) separates facts from audits.
+- [Tool execution](design/tool-execution.md) is the policy-to-hook pipeline.
+- [Configuration catalog](design/config-catalog.md) and
+  [event catalog](design/event-catalog.md) are generated references.
+- [Tool catalog](design/tool-catalog.md) lists the built-in tools.
+- [Module graph](design/module-graph.md) is generated from imports.
+- [Persistence catalog](design/persistence-catalog.md) maps every artifact.
+- [Glossary](design/glossary.md) defines the vocabulary.
+- [Testing](design/testing.md) maps tests to layers.
+
+## Subsystems
+
+[Subsystems](subsystems/README.md) is the implementation reference for the log,
+projection and request, loop, tools and policy, context and compaction, and
+extensions.
+
+## Cookbook
+
+[Cookbook](cookbook/README.md) has procedures for fixing a bug, adding a
+feature, review-only work, long sessions, and a custom MCP server.
+
+## History
+
+- [Postmortems](postmortem/README.md) record incidents and their fixes.
+- [Persistence](persistence/README.md) describes the current format and the
+  change policy.
+- [Upgrade guide](upgrade/README.md) records breaking changes.
+- [Decision records](decisions/README.md) record durable design choices.
+
 ## Design and reference
 
 The guides are task-oriented. The detailed design and schema references remain
@@ -54,10 +88,13 @@ single-page site, and generates an `llms.txt` catalog for agents:
 ```bash
 python -m cade.mini.docs check
 python -m cade.mini.docs build
+python -m cade.mini.docs llms --write
+python -m cade.mini.docs catalogs --write
 ```
 
 The generated site is [docs/mini/index.html](../mini/index.html); the generated
-catalogs are `docs/cade-mini/llms.txt` and `docs/cade-mini/llms-full.txt`.
+catalogs are `docs/cade-mini/llms.txt`, `docs/cade-mini/llms-full.txt`, and the
+config, event, and module pages under `design/`.
 
 # Quickstart
 
@@ -532,6 +569,1094 @@ Items 2-6 are request-only context. They are recorded in the request audit but
 never become conversation facts. See [Architecture](architecture.md) and the
 [design](../cade-mini.md).
 
+# How Cade Mini works
+
+<!-- source: design/how-it-works.md -->
+
+# How Cade Mini works
+
+Cade Mini coordinates one model request at a time, executes the requested tools,
+and records every durable fact in a session log.
+
+## One run
+
+A submitted task is appended as a `user` fact. Cade Mini projects the active
+branch, builds a request for the current budget, and sends it to the provider.
+The provider streams text and tool calls. The loop records the assistant
+message, executes each tool call, and records a tool result. If the model needs
+another request, the loop starts another step; otherwise the run ends.
+
+A step is one request plus the tools caused by its response. A run can contain
+many steps. The loop stops on completion, a step limit, context exhaustion,
+cancellation, or a provider error.
+
+## Context
+
+The projection supplies conversation history. Request-only context supplies
+project instructions, the skill catalog, `NOTE.md`, `MEMORY.md`, and an active
+goal. Tool results are pruned when they no longer fit; the history tool can read
+the original facts.
+
+Compaction adds a summary fact and keeps a recent tail. A window moves the
+context start forward and may include a handoff. Neither operation rewrites the
+original messages.
+
+## Sessions
+
+Sessions are JSONL files under `.cade-mini/sessions`. Entries have IDs and parent
+IDs, so a session can form a tree; the active branch ends at the latest entry.
+Resuming opens the same file and appends new facts.
+
+## Interfaces
+
+The terminal host runs one task or a REPL. The web host serves a page and a
+small JSON API. Both call the same loop and share policy, tools, and session
+storage.
+
+## Extensions
+
+Skills add on-demand instructions. Memory adds durable facts. Hooks run shell
+commands around tools. MCP adds remote tools. Subagents run an independent child
+session. Each extension is a narrow adapter over the loop, not a change to the
+session schema.
+
+## Trust and permissions
+
+Every tool call passes through a policy. Modes, static rules, session grants,
+shell classification, and approvals decide whether a call runs. On Linux a
+bubblewrap sandbox can confine shell commands; on other hosts the path boundary,
+mode, shell classification, and approvals remain active.
+
+See [Architecture](../architecture.md) for the invariant and
+[Capability seams](capability-seams.md) for the contracts.
+
+# Capability seams
+
+<!-- source: design/capability-seams.md -->
+
+# Capability seams
+
+Cade Mini keeps a small number of explicit contracts. A seam is a place where an
+implementation can be replaced without changing the session schema or the loop.
+
+| Seam | Contract | Implementations | Main consumers |
+| --- | --- | --- | --- |
+| Provider | `loop.Provider` streaming events | Chat providers, Codex | Loop, compaction, auto-review |
+| Tool | `loop.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
+| Policy | `loop.Policy.check` returns allow, deny, or ask | `WorkspacePolicy` | Loop |
+| Approval | Callable returning bool or awaitable bool | `SessionApprover`, `AutoReviewer` | Loop |
+| Hooks | `loop.Hooks.before/after` | `HookRunner` | Loop |
+| Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
+| Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |
+| Recovery | `SnapshotStore` capture and undo | File snapshot store | Tools, CLI |
+| Host | A task runner over the loop | CLI, web host | Users |
+
+## Provider
+
+The loop needs a streaming event source: text deltas, tool calls, a final
+message, usage, and failures. A provider owns wire conversion and replay state.
+Cade Mini does not depend on provider-specific message types above this seam.
+
+## Tool
+
+A tool declares a JSON schema and an async `execute`. A tool result is content,
+an error flag, and optional metadata. Tools do not write the session log; the
+loop records their results.
+
+## Policy and approval
+
+Policy returns a decision, not an execution. Approval is only consulted for
+`ask`. A denial becomes a tool error fact, so the model can recover. Keeping
+these separate lets the host choose a TTY prompt, a model reviewer, or a
+non-interactive denial.
+
+## Hooks
+
+Hooks observe and can veto a tool call without changing the policy result. A
+`before_tool` failure is a denial; `after_tool` failure is ignored. Hooks are
+trusted configuration, not sandboxed code.
+
+## Stores
+
+`SessionLog` is the durable history. `SnapshotStore`, `GoalStore`, and the
+memory and NOTE files are host state, not session facts. Treating them as
+separate stores keeps the schema closed while allowing recovery and long-term
+state.
+
+## Host
+
+A host owns presentation, input, and the event loop boundary. It does not own
+the agent loop or the schema. The CLI and web host differ only in how they run a
+task and render events.
+
+## Tests as contracts
+
+Each seam has a focused test module. `test_mini_boundary.py` enforces the import
+firewall, so a seam cannot quietly become a dependency on the Cade product
+layers.
+
+# Event model
+
+<!-- source: design/event-model.md -->
+
+# Event model
+
+A session is a tree of entries, not a message array. Entry types fall into two
+groups.
+
+## Model-visible facts
+
+These entries project into the conversation:
+
+| Type | Meaning |
+| --- | --- |
+| `system` | Base system prompt; the latest one wins |
+| `user` | User task or steering input |
+| `assistant` | Text and tool calls produced by one model response |
+| `tool_result` | Result paired to a tool call |
+| `compaction` | Summary plus `first_kept_id`; shadows older entries |
+| `window` | New context start plus optional handoff |
+
+`compaction` and `window` also carry projections of their own: a summary
+message. The original entries remain readable by the history tool.
+
+## Audit facts
+
+These entries never project:
+
+| Type | Meaning |
+| --- | --- |
+| `meta` | Session creation metadata |
+| `request` | Provider, model, context, digests, estimated tokens, dropped evidence |
+| `attempt` | One provider attempt, including failures and retries |
+| `run` | Termination, steps, usage, error |
+
+Audit facts make the request reproducible without turning diagnostics into
+conversation. A failed run therefore cannot fabricate an assistant message.
+
+## Flow
+
+```mermaid
+flowchart LR
+  log[Session log] --> project[Projection]
+  project --> conversation[Conversation]
+  conversation --> request[Request build]
+  request --> provider[Provider stream]
+  provider --> facts[Assistant and tool-result facts]
+  facts --> log
+  request --> audit[request fact]
+  provider --> attempts[attempt facts]
+  facts --> run[run fact]
+```
+
+The loop appends the user fact before the first request. Each step appends one
+assistant fact and zero or more tool-result facts. A run appends exactly one
+`run` fact.
+
+## Ordering and pairing
+
+A tool result follows its assistant tool call. Projection rejects an orphan
+result or a duplicate result. If the branch ends after a tool call without a
+result, projection inserts a synthetic interrupted result at the tail so the
+request remains protocol-valid.
+
+## Compaction and windows
+
+A compaction cuts at a user boundary. Its summary message appears first in the
+retained context. A window discards earlier entries and may insert a handoff.
+Only the latest cut applies. Compaction is preferred; a window is a fallback
+when a summary cannot fit.
+
+## Schema authority
+
+The closed schema is in [Session log schema](../../cade-mini-schema.md). The
+generated [event catalog](event-catalog.md) lists the current event types from
+code.
+
+# Tool execution
+
+<!-- source: design/tool-execution.md -->
+
+# Tool execution
+
+Every tool call follows the same pipeline. Policy and approval decide whether a
+call may run; hooks can stop it; the loop owns execution and recording.
+
+```mermaid
+flowchart LR
+  call[Tool call] --> policy[Policy decision]
+  policy -->|deny| denied[Denied tool result]
+  policy -->|ask| approval[Approval]
+  approval -->|deny| denied
+  approval -->|allow| before[before_tool hooks]
+  policy -->|allow| before
+  before -->|deny| hookdenied[Hook-denied result]
+  before -->|allow| execute[Execute tool]
+  execute --> after[after_tool hooks]
+  execute --> result[Tool result]
+  result --> log[Append fact]
+  denied --> log
+  hookdenied --> log
+```
+
+## Order
+
+1. The model returns a tool call with an ID and arguments.
+2. Policy checks tool name, path, mode, rules, grants, and shell classification.
+3. An `ask` decision is resolved by the host: TTY prompt, `--yes`, auto-review,
+   or denial.
+4. `before_tool` hooks run. A non-zero exit denies the call.
+5. The tool executes with a timeout and cancellation token.
+6. The result is truncated, appended as a `tool_result` fact, and rendered.
+7. `after_tool` hooks run and their output is ignored.
+
+## Denials and errors
+
+A denied call is not an exception. It becomes an error tool result so the model
+can adapt. Unknown tools, malformed arguments, timeouts, and thrown exceptions
+also become error results. A cancellation appends interrupted results for any
+remaining calls before the run terminates.
+
+## Hooks
+
+Hooks receive the tool name, JSON arguments, and the result for `after_tool`.
+They run with the workspace as the current directory. A hook timeout is a
+denial or a silently ignored observer, never an unbounded wait.
+
+## Evidence retention
+
+Tool results are facts. Request admission can replace old bodies with a
+reference that names the `call_id`. The history tool retrieves the exact result
+from the branch, so pruning does not destroy evidence.
+
+## Tests
+
+- `test_mini_loop.py` covers approval, errors, timeouts, cancellation, retries,
+  and window fallback.
+- `test_mini_hooks.py` covers allow, deny, and after-hook execution.
+- `test_mini_policy.py` covers modes, rules, grants, and boundaries.
+
+See [Tools and security](../tools-security.md) for user-facing behavior.
+
+# Configuration catalog
+
+<!-- source: design/config-catalog.md -->
+
+<!-- Generated by `python -m cade.mini.docs catalogs --write`. Do not edit by hand. -->
+
+# Configuration catalog
+
+Top-level fields. Nested types follow the table.
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `provider` | `string \| null` | `null` |
+| `model` | `string \| null` | `null` |
+| `reasoning_effort` | `string \| null` | `null` |
+| `context_window` | `integer \| null` | `null` |
+| `max_steps` | `integer \| null` | `null` |
+| `sessions_dir` | `string \| null` | `null` |
+| `read_only` | `boolean` | `false` |
+| `instructions` | `boolean` | `true` |
+| `note` | `boolean` | `true` |
+| `memory` | `boolean` | `true` |
+| `auto_review` | `boolean` | `false` |
+| `prompt_modules` | `list[string] \| null` | `null` |
+| `mode` | `plan \| build \| act` | `"act"` |
+| `rules` | `list[RuleConfig]` | `required` |
+| `hooks` | `list[HookConfig]` | `required` |
+| `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
+| `sandbox` | `off \| workspace \| strict` | `"workspace"` |
+
+## HookConfig
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `event` | `before_tool \| after_tool` | `required` |
+| `command` | `string` | `required` |
+| `matcher` | `string \| null` | `null` |
+| `timeout_ms` | `integer` | `10000` |
+
+## McpServerConfig
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `command` | `string` | `required` |
+| `args` | `list[string]` | `required` |
+| `env` | `dict[str, string] \| null` | `null` |
+| `cwd` | `string \| null` | `null` |
+| `timeout_ms` | `integer` | `30000` |
+
+## RuleConfig
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `tool` | `string` | `required` |
+| `decision` | `allow \| deny \| ask` | `required` |
+| `path_prefix` | `string \| null` | `null` |
+| `command_prefix` | `string \| null` | `null` |
+
+# Event catalog
+
+<!-- source: design/event-catalog.md -->
+
+<!-- Generated by `python -m cade.mini.docs catalogs --write`. Do not edit by hand. -->
+
+# Event catalog
+
+Session entry types from `EventType`.
+
+| Event | Projects | Purpose |
+| --- | --- | --- |
+| `meta` | No | Session creation |
+| `system` | Yes | Base system prompt; latest wins |
+| `user` | Yes | Task or steering input |
+| `assistant` | Yes | Model text and tool calls |
+| `tool_result` | Yes | Tool output paired by call ID |
+| `compaction` | Yes | Summary and first kept entry |
+| `window` | Yes | Context start and optional handoff |
+| `request` | No | Provider request audit |
+| `run` | No | Run termination, steps, and usage |
+| `attempt` | No | Provider attempt, retry, or failure |
+
+# Module graph
+
+<!-- source: design/module-graph.md -->
+
+<!-- Generated by `python -m cade.mini.docs catalogs --write`. Do not edit by hand. -->
+
+# Module graph
+
+Relative imports inside `src/cade/mini/`.
+
+```mermaid
+flowchart LR
+  __main__ --> cli
+  approval --> grants
+  approval --> types
+  cli --> approval
+  cli --> compaction
+  cli --> config
+  cli --> goal
+  cli --> grants
+  cli --> history
+  cli --> hooks
+  cli --> instructions
+  cli --> log
+  cli --> loop
+  cli --> mcp
+  cli --> memory
+  cli --> note
+  cli --> policy
+  cli --> projection
+  cli --> prompts
+  cli --> provider
+  cli --> request
+  cli --> review
+  cli --> sandbox
+  cli --> skills
+  cli --> snapshots
+  cli --> subagents
+  cli --> tools
+  cli --> types
+  cli --> web
+  cli --> window
+  compaction --> log
+  compaction --> loop
+  compaction --> projection
+  compaction --> request
+  compaction --> types
+  goal --> loop
+  goal --> tools
+  goal --> types
+  grants --> types
+  history --> log
+  history --> loop
+  history --> tools
+  history --> types
+  hooks --> config
+  hooks --> types
+  log --> types
+  loop --> log
+  loop --> projection
+  loop --> request
+  loop --> types
+  mcp --> config
+  mcp --> loop
+  mcp --> types
+  memory --> loop
+  memory --> tools
+  memory --> types
+  policy --> config
+  policy --> grants
+  policy --> loop
+  policy --> shell
+  policy --> tools
+  policy --> types
+  projection --> types
+  provider --> auth
+  request --> types
+  review --> loop
+  skills --> loop
+  skills --> tools
+  skills --> types
+  subagents --> history
+  subagents --> log
+  subagents --> loop
+  subagents --> request
+  subagents --> tools
+  subagents --> types
+  tools --> loop
+  tools --> shell
+  tools --> snapshots
+  tools --> types
+  web --> log
+  web --> loop
+  window --> log
+```
+
+# Tool catalog
+
+<!-- source: design/tool-catalog.md -->
+
+# Tool catalog
+
+The built-in tool surface. MCP tools are discovered at startup and named
+`mcp__<server>__<tool>`; their parameters come from the server.
+
+| Tool | Parameters | Side effect | Default policy |
+| --- | --- | --- | --- |
+| `read` | `path`, `offset`, `limit` | None | Allow inside workspace |
+| `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in act, allow in build |
+| `edit` | `path`, `old`, `new` | Replaces one occurrence; snapshot first | Ask in act, allow in build |
+| `glob` | `pattern`, `path` | None | Allow |
+| `grep` | `pattern`, `path`, `include` | None | Allow |
+| `bash` | `command`, `workdir`, `timeout_ms` | Arbitrary process; snapshot common mutations | Ask except read-only shell |
+| `history` | `query`, `entry_id`, `call_id`, `limit` | None | Allow |
+| `skill` | `name` | None; loads a skill body | Allow |
+| `memory` | `text` | Appends to `MEMORY.md` | Allow; denied read-only |
+| `goal` | `action`, `objective` | Updates `.cade-mini/goal.json` | Allow |
+| `subagent` | `prompt`, `description` | Creates a child session | Allow; hidden in plan |
+| `mcp__*` | Server-defined | Remote side effects | Ask; denied plan and read-only |
+
+## Reading the table
+
+- "Side effect" is what the tool can change, not what it always changes.
+- `write` and `edit` fail closed if the snapshot cannot be taken.
+- `bash` read-only classification is conservative; unknown commands ask in
+  build and act and are denied in plan.
+- MCP tools are dynamic. A rule can allow a specific tool; the default is ask.
+
+## Parameters
+
+The authoritative JSON schemas are built into each tool. This table is a
+navigation aid; when it disagrees with the tool schema, the schema wins.
+
+## Related
+
+- [Tools and security](../tools-security.md)
+- [Tool execution](../design/tool-execution.md)
+- [Configuration catalog](config-catalog.md)
+
+# Persistence catalog
+
+<!-- source: design/persistence-catalog.md -->
+
+# Persistence catalog
+
+Cade Mini separates durable history from host state. The session log is the
+authority for what the model saw and what happened; the other stores have
+narrower jobs.
+
+| Artifact | Default location | Owner | Lifetime | Schema |
+| --- | --- | --- | --- | --- |
+| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Closed v1 |
+| Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
+| Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
+| Working note | `NOTE.md` | Project | Project | Markdown |
+| Memory | `MEMORY.md` | `MemoryTool` | Project | Markdown |
+| Instructions | `AGENTS.md`, `CLAUDE.md`, overrides | Project | Project | Markdown |
+| Skills | `~/.cade/skills`, `.cade/skills`, `.cade-mini/skills` | Discovery | User or project | `SKILL.md` |
+| Config | `cade-mini.json` | `MiniConfig` | Project | Pydantic, strict |
+| Credentials | Cade auth store | Cade auth | User | Cade-owned |
+| Docs site | `docs/mini/index.html` | Docs tool | Repository | Generated |
+| LLM catalogs | `docs/cade-mini/llms*.txt` | Docs tool | Repository | Generated |
+
+## The session log
+
+The log is append-only and versioned. It stores model-visible facts and audit
+facts in one tree. It is the only artifact needed to reconstruct the
+conversation. Compaction and windows are log entries, not rewrites.
+
+## Snapshots
+
+Snapshots are an undo journal for file changes. They cover `write`, `edit`, and
+common single-command shell mutations. The index is JSONL and each snapshot has
+a metadata file plus an optional payload. They are not part of the session
+branch.
+
+## Goals and notes
+
+A goal is one objective with an active or done status. `NOTE.md` is working
+state that is included in every request and summarized during compaction.
+`MEMORY.md` is durable project knowledge. These files are intentionally plain:
+they can be edited by hand and inspected with ordinary tools.
+
+## Generated artifacts
+
+The docs site, `llms.txt`, and `llms-full.txt` are generated from Markdown and
+`docs.json`. They are checked for freshness; do not edit the HTML by hand.
+
+## What is not persisted
+
+- Request-only context is recorded in the request audit, not as messages.
+- Grants last for the process; durable policy belongs in config rules.
+- Approval prompts and TUI state are host state.
+- Provider replay payloads live inside the assistant fact that produced them.
+
+See [Session log schema](../../cade-mini-schema.md) for field-level detail and
+[Change policy](../persistence/change-policy.md) for schema changes.
+
+# Glossary
+
+<!-- source: design/glossary.md -->
+
+# Glossary
+
+One canonical term per concept. Links point to the owning page.
+
+## session log
+
+The append-only JSONL file that records facts. It is the source of truth for the
+active branch. See [Log](../subsystems/log.md).
+
+## branch
+
+A path through the entry tree. The active branch ends at the latest entry and
+supplies the projection.
+
+## projection
+
+The deterministic conversation produced from a branch. It applies the latest
+system, compaction, and window cuts, then pairs tool calls with results. See
+[Projection and request](../subsystems/projection-request.md).
+
+## request
+
+The admitted, provider-ready form of a conversation for one model call. It
+includes tools, budget, and request-only context. A request is not a fact and is
+never projected.
+
+## run
+
+One invocation of the loop over a task. A run contains one or more steps and
+ends with a `run` fact.
+
+## step
+
+One model request plus the tool calls caused by its response.
+
+## tool result
+
+The recorded output of one tool call, paired by call ID. It is a fact.
+
+## compaction
+
+A fact that adds a summary and a `first_kept_id`. It shadows older messages in
+later projections without deleting them.
+
+## window
+
+A fact that moves the context start forward, optionally with a handoff. It is a
+fallback when compaction cannot fit.
+
+## history
+
+The tool that retrieves exact evidence by entry ID or call ID after compaction
+or pruning.
+
+## mode
+
+`plan`, `build`, or `act`. A mode selects the default policy for tools and shell
+commands.
+
+## rule
+
+A static policy entry in config. Rules can match tool, path prefix, and command
+prefix and return allow, deny, or ask.
+
+## grant
+
+A process-local approval created by answering `a`. It matches the same tool and
+path or command.
+
+## hook
+
+A configured shell command around a tool call (`before_tool` or `after_tool`).
+
+## skill
+
+A `SKILL.md` body loaded on demand. The request carries a catalog; the `skill`
+tool loads the body.
+
+## MCP
+
+Model Context Protocol. Cade Mini runs stdio MCP servers and exposes their tools
+as `mcp__<server>__<tool>`.
+
+## subagent
+
+A child run with its own session and a restricted tool set. It cannot spawn
+another subagent.
+
+## snapshot
+
+A pre-change copy of a file, used by `--undo` and `/undo`.
+
+## goal
+
+A durable objective in `.cade-mini/goal.json`, separate from the session
+schema.
+
+# Testing
+
+<!-- source: design/testing.md -->
+
+# Testing
+
+Tests are grouped by the layer they protect. Run the smallest group that covers
+a change, then the full suite before a release.
+
+## Commands
+
+```bash
+uv run --locked pytest -q src/cade/tests
+uv run --locked pytest -q src/cade/tests/test_mini_loop.py
+uv run --locked ruff check src/cade/
+uv run --locked ruff format --check src/cade/
+uv run --locked pyright src/cade/
+uv run --locked python -m cade.mini.docs check
+```
+
+## Coverage map
+
+| Area | Tests |
+| --- | --- |
+| Log, tail repair, sessions | `test_mini_log.py` |
+| Projection and pairing | `test_mini_projection.py` |
+| Budget, pruning, wire format | `test_mini_request.py` |
+| Loop, approvals, retries, windows | `test_mini_loop.py` |
+| Provider and auth | `test_mini_provider.py` |
+| Workspace tools | `test_mini_tools.py` |
+| Compaction and windows | `test_mini_compaction.py`, `test_mini_window.py` |
+| CLI and config | `test_mini_cli.py`, `test_mini_config.py` |
+| Instructions, skills, memory, NOTE | `test_mini_instructions.py`, `test_mini_skills.py`, `test_mini_memory.py`, `test_mini_note.py` |
+| Safety and modes | `test_mini_policy.py`, `test_mini_shell.py`, `test_mini_grants.py`, `test_mini_sandbox.py` |
+| Extensions | `test_mini_hooks.py`, `test_mini_mcp.py`, `test_mini_subagents.py` |
+| Recovery | `test_mini_snapshots.py`, `test_mini_goal.py` |
+| Hosts | `test_mini_web.py` |
+| Docs | `test_mini_docs.py` |
+| Import firewall | `test_mini_boundary.py` |
+
+## Real-provider checks
+
+The acceptance runs use DeepSeek or Codex and are not part of the default test
+suite. They cover tool use, resume, compaction, skills, build mode, the web
+host, and Codex write/read. Record the command and observed result in the change
+that adds a new acceptance.
+
+## Docs checks
+
+`test_mini_docs.py` and `python -m cade.mini.docs check` validate the manifest,
+links, anchors, and generated catalogs. The docs job runs in CI.
+
+## Known noise
+
+The full suite has three pre-existing Windows-only failures in untouched Cade
+modules: two working-directory assertions and one shell line-ending assertion.
+Treat them as unrelated until that module is changed.
+
+# Subsystems
+
+<!-- source: subsystems/README.md -->
+
+# Subsystems
+
+Each page owns one subsystem's types, behavior, and failure modes. The
+[architecture](../architecture.md) is the map; these pages are the reference.
+
+- [Log](log.md): append, lock, branch, list, and repair.
+- [Projection and request](projection-request.md): deterministic context and
+  budget admission.
+- [Loop](loop.md): provider calls, tools, approvals, retries, and facts.
+- [Tools and policy](tools-policy.md): workspace tools, modes, rules, grants,
+  shell classification, and sandbox.
+- [Context and compaction](context-compaction.md): summaries, windows, history,
+  and request context.
+- [Extensions](extensions.md): skills, memory, hooks, MCP, subagents, snapshots,
+  goals, and hosts.
+
+A subsystem page describes current behavior. Historical decisions belong in
+[decision records](../decisions/README.md) and incidents in
+[postmortems](../postmortem/README.md).
+
+# Log
+
+<!-- source: subsystems/log.md -->
+
+# Log
+
+`SessionLog` owns the append-only JSONL file.
+
+## Create and open
+
+- `SessionLog.create(directory, session_id=None)` creates a unique file and
+  writes a `meta` entry.
+- `SessionLog.open(path)` validates the file and repairs a torn final line by
+  appending a newline or dropping the incomplete tail.
+- The session ID is derived from the file name when not supplied.
+
+## Append
+
+`append(type, data)`:
+
+1. Takes an exclusive file lock.
+2. Reads the current tail to get the parent ID.
+3. Builds an entry with ID, timestamp, parent, type, and data.
+4. Appends one JSON line and flushes.
+5. Releases the lock.
+
+`fsync` is deliberate: a returned append is durable enough to resume. A failed
+write raises `LogError` and does not return a fake entry.
+
+## Branch
+
+`branch()` follows parent IDs from the last entry back to the root and reverses
+the list. It rejects cycles, missing parents, and duplicate IDs.
+
+## Listing and titles
+
+`list_sessions(directory)` returns session ID, update time, and a title derived
+from the first user text. Corrupt files are skipped so one bad session cannot
+break the list.
+
+## Invariants
+
+- Entries are never rewritten in place.
+- IDs are unique within a file.
+- A parent precedes its child.
+- The file ends with exactly one newline.
+- The schema version is closed; new event types require a decision record.
+
+## Tests
+
+`test_mini_log.py` covers create, append, resume, tail repair, branching, and
+listing. `test_mini_projection.py` covers malformed branches.
+
+# Projection and request
+
+<!-- source: subsystems/projection-request.md -->
+
+# Projection and request
+
+## Projection
+
+`project(entries)` is pure. It:
+
+1. Finds the latest `system` entry.
+2. Applies the latest `window` start.
+3. Applies the latest `compaction` cut and emits a summary message.
+4. Converts user, assistant, and tool-result facts to messages.
+5. Pairs each tool call with its result by call ID.
+6. Inserts a synthetic interrupted result if the branch ends inside a call.
+
+It rejects orphan results, duplicate results, and cuts that do not point to a
+user entry. The projection does not call a provider or write the log.
+
+## Request
+
+`build(conversation, tools, budget, context)`:
+
+1. Joins the base system prompt with request-only context.
+2. Estimates tokens.
+3. Replaces old tool bodies with references, keeping recent results first.
+4. Drops the oldest user turns if still over budget.
+5. Converts to provider messages and tool definitions.
+6. Returns a `Request` and a `BuildReport`.
+
+`BuildReport` records estimated tokens, budget, dropped call IDs, and dropped
+turns. A request that cannot fit raises `RequestTooLarge`.
+
+## Pruning rules
+
+- The latest four tool results are protected in the first pass.
+- If still over, protected results are pruned oldest first.
+- The newest result is pruned only as a last resort.
+- The replacement names the call ID and points to the history tool.
+
+## Context order
+
+The system message carries base instructions plus, in order: instructions,
+skill catalog, NOTE, memory, and goal. These inputs are request-only; the
+request audit records their digests and lengths, not their full text.
+
+## Tests
+
+`test_mini_projection.py`, `test_mini_request.py`, and
+`test_mini_compaction.py` cover the cut, pruning, and wire-format contracts.
+
+# Loop
+
+<!-- source: subsystems/loop.md -->
+
+# Loop
+
+`run(log, text, ...)` is the only stage that writes during a turn.
+
+## One run
+
+1. Append the `user` fact.
+2. For each step:
+   - Project the branch.
+   - If the full estimate exceeds budget, call the compactor.
+   - Build the request.
+   - If still over, call the window fallback.
+   - Append a `request` audit fact.
+   - Stream the provider.
+   - Append the assistant fact.
+   - Resolve and execute each tool call.
+   - Append tool-result facts.
+3. Append one `run` fact with termination, steps, usage, and error.
+
+## Provider handling
+
+The loop collects text deltas, tool calls, usage, and provider replay state. A
+failure becomes an `attempt` fact. Retryable failures are retried once by
+default; the retry delay is configurable. A terminal failure ends the run with
+`provider_error` and never creates an assistant fact.
+
+## Termination
+
+- `completed`: the provider ended without tool calls.
+- `step_limit`: the configured step count was reached.
+- `context_error`: no request fits after compaction and window fallback.
+- `aborted`: cancellation was requested.
+- `provider_error`: the provider failed.
+
+## Cancellation
+
+A cancellation token is checked between steps and tool calls. Running tools get
+the token; remaining calls receive interrupted results. The run records the
+reason in its `run` fact.
+
+## Events
+
+The host receives text deltas, tool start, tool end, and final output. Events are
+presentation; facts are durable. A host can drop events without losing history.
+
+## Tests
+
+`test_mini_loop.py` covers completion, tool use, approvals, retries, timeouts,
+cancellation, context errors, and window fallback.
+
+# Tools and policy
+
+<!-- source: subsystems/tools-policy.md -->
+
+# Tools and policy
+
+## Tool contract
+
+A tool has a name, description, JSON parameter schema, and async execute. Results
+carry content, an error flag, and optional metadata. The loop records results; a
+tool never appends to the log.
+
+## Built-in tools
+
+- Workspace: `read`, `write`, `edit`, `glob`, `grep`, `bash`.
+- Evidence and context: `history`, `skill`, `memory`, `goal`.
+- Delegation: `subagent`.
+- Remote: `mcp__<server>__<tool>`.
+
+`write` and `edit` snapshot the target before changing it. `bash` snapshots
+common single-command mutation targets.
+
+## Policy
+
+`WorkspacePolicy.check` returns allow, deny, or ask.
+
+Hard checks run first:
+
+- `read` and file writes must stay inside the workspace.
+- `bash` workdir must stay inside the workspace.
+- Unknown tools are denied.
+- `read_only` denies writes, edits, shell, memory, and MCP.
+
+Then:
+
+1. A matching static rule decides.
+2. A matching session grant allows.
+3. The mode default decides.
+
+Modes:
+
+- `plan`: read tools and read-only shell; writes and mutations denied.
+- `build`: writes allowed; read-only shell allowed; mutating shell asks.
+- `act`: writes and shell ask.
+
+## Shell classification
+
+`classify_command` labels a command read-only, mutating, or unknown. Pipelines,
+redirections, command lists, substitutions, and unknown binaries are unknown.
+Plan mode denies unknown; build asks; act asks.
+
+## Grants
+
+`GrantStore` records a path or command for the exact tool. A grant is
+process-local. `/permissions` lists and clears it. Durable policy belongs in
+rules.
+
+## Approvals
+
+The host resolves ask. `SessionApprover` prompts a TTY with yes/no/always.
+`AutoReviewer` makes one tool-free model call and requires an `ALLOW` prefix.
+Non-interactive hosts deny unless `--yes` or a rule allows.
+
+## Sandbox
+
+On Linux, bubblewrap can confine shell commands and deny network access. Other
+hosts rely on the path boundary, mode, shell classification, and approvals.
+
+## Tests
+
+`test_mini_tools.py`, `test_mini_policy.py`, `test_mini_grants.py`,
+`test_mini_shell.py`, and `test_mini_sandbox.py`.
+
+# Context and compaction
+
+<!-- source: subsystems/context-compaction.md -->
+
+# Context and compaction
+
+## Request context
+
+The system message is the base prompt plus request-only context:
+
+1. Project instructions from `AGENTS.md`, `CLAUDE.md`, or variants.
+2. Skill catalog names and descriptions.
+3. `NOTE.md` working state.
+4. `MEMORY.md` durable facts.
+5. An active goal.
+
+The request audit records this context's digests; it does not turn the text into
+conversation messages.
+
+## Compaction
+
+`Compactor` runs when the full projection exceeds the input budget.
+
+1. Select the cut at a user boundary that keeps the recent tail under the
+   configured target.
+2. Serialize older messages, including a prior summary.
+3. Ask the provider for a summary with a bounded output.
+4. Append a `compaction` fact with summary and `first_kept_id`.
+5. Reproject.
+
+A summary failure or a cut with no messages appends an `attempt` fact and leaves
+the conversation unchanged. A prior summary is included as `PRIOR SUMMARY`, so
+compaction is iterative.
+
+## Window fallback
+
+If compaction cannot fit, the loop may call the window hook. The CLI starts a
+window at the latest user entry with a fixed handoff that points to `NOTE.md`
+and history. If the request still does not fit, the run terminates with
+`context_error`.
+
+## History
+
+The `history` tool searches the branch or reads an exact entry or tool result.
+It is the recovery path for evidence replaced during pruning or compaction.
+Exact content is capped; search results point to entry IDs.
+
+## Request pruning
+
+Admission replaces old tool bodies with references before it drops turns. The
+history tool remains the only exact source. See
+[Projection and request](projection-request.md).
+
+## Tests
+
+`test_mini_compaction.py`, `test_mini_window.py`, `test_mini_history.py`, and
+the request tests cover cuts, summaries, fallback, and retrieval.
+
+# Extensions
+
+<!-- source: subsystems/extensions.md -->
+
+# Extensions
+
+Extensions add behavior through narrow seams. None changes the session schema.
+
+## Skills
+
+Discovery reads `SKILL.md` from user and project roots. The request carries a
+catalog; the `skill` tool loads a body into a tool result. A body is a fact, not
+request-only context.
+
+## Memory
+
+`MEMORY.md` is request context. The `memory` tool appends one bullet and cannot
+write other paths. The file is capped to protect the request budget.
+
+## Hooks
+
+`HookRunner` executes configured shell commands around tools. `before_tool` can
+deny; `after_tool` observes. Hooks are trusted and time-bounded. See
+[Hooks, MCP, and subagents](../hooks-mcp-subagents.md).
+
+## MCP
+
+Each configured stdio server keeps one persistent process. Discovery reads
+`tools/list`; calls use `tools/call` over a serialized queue. Tools are prefixed
+`mcp__`, ask by default, and are denied in plan and read-only modes. A server
+that cannot start is reported and skipped.
+
+## Subagents
+
+`SubagentTool` creates a child session under `<sessions>/subagents`. The child
+gets the parent provider, budget, policy, approver, hooks, context, and base
+tools plus its own history. It cannot spawn another subagent and is limited to
+20 steps. The parent records only the call and summary.
+
+## Snapshots
+
+`SnapshotStore` captures `write`, `edit`, and common single-command shell
+mutations. `--undo` and `/undo` restore the latest snapshot. Snapshots are project
+state, not session facts.
+
+## Goals
+
+`GoalStore` persists one objective in `.cade-mini/goal.json`. The `goal` tool and
+`/goal` command manage it. An active goal is request context.
+
+## Hosts
+
+The CLI runs one-shot and REPL sessions. The web host serves a page and a small
+JSON API over one session. Both use the same loop and policy.
+
+## Limits
+
+Extensions are deliberately small. MCP is a stdio client, not a full capability
+negotiation implementation. Hooks are shell commands, not in-process callbacks.
+Subagents are sequential and share the parent approval context.
+
+## Tests
+
+`test_mini_skills.py`, `test_mini_memory.py`, `test_mini_hooks.py`,
+`test_mini_mcp.py`, `test_mini_subagents.py`, `test_mini_snapshots.py`,
+`test_mini_goal.py`, and `test_mini_web.py`.
+
 # Tools and security
 
 <!-- source: tools-security.md -->
@@ -836,6 +1961,264 @@ MCP is a small stdio client, not a full capability negotiation implementation.
 Hooks are shell commands, not in-process callbacks. Subagents are sequential and
 share the parent's approval context rather than running in parallel.
 
+# Cookbook
+
+<!-- source: cookbook/README.md -->
+
+# Cookbook
+
+Procedures with a concrete outcome and a verification step. Each recipe names
+the mode and the evidence to keep.
+
+- [Fix a bug](fix-a-bug.md): reproduce, patch, verify, report.
+- [Add a feature](add-a-feature.md): test, implement, verify, review the diff.
+- [Review only](review-only.md): investigate in plan mode without mutations.
+- [Run a long session](long-session.md): NOTE, compaction, history, and goals.
+- [Connect a custom MCP server](custom-mcp.md): configure, allow, call, inspect.
+
+For command details, see [CLI](../cli.md) and [Configuration](../configuration.md).
+
+# Fix a bug
+
+<!-- source: cookbook/fix-a-bug.md -->
+
+# Fix a bug
+
+Use `build` mode for the change. Keep the patch minimal and verify with the
+repository's tests.
+
+## Procedure
+
+1. Reproduce the failure:
+
+   ```bash
+   cade-mini --mode plan "Read the failing test and explain the failure."
+   ```
+
+2. Fix it:
+
+   ```bash
+   cade-mini --mode build --yes "Fix the failing test with the smallest change, then run pytest."
+   ```
+
+3. Inspect the diff and the snapshot:
+
+   ```bash
+   git diff
+   cade-mini --undo  # only if the change is wrong
+   ```
+
+## Verify
+
+- The targeted test passes.
+- The full relevant test file passes.
+- The diff contains only the intended change.
+- The assistant names the command it ran.
+
+## Keep
+
+The run log records the request, tool calls, and test output. The snapshot
+allows recovery before the next run. For a reviewable change, keep the diff in
+the commit, not in a docs file.
+
+## Avoid
+
+- `--read-only` when you intend to edit.
+- `--yes` on a shared repository without rules.
+- A broad refactor when a one-line condition fixes the test.
+
+# Add a feature
+
+<!-- source: cookbook/add-a-feature.md -->
+
+# Add a feature
+
+Write the test first, then implement, then verify. Use `build` mode and keep the
+diff reviewable.
+
+## Procedure
+
+1. Ask for a failing test or write it yourself:
+
+   ```bash
+   cade-mini --mode build --yes "Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails."
+   ```
+
+2. Implement the smallest change:
+
+   ```bash
+   cade-mini --mode build --yes "Implement mul() and run the new test."
+   ```
+
+3. Review:
+
+   ```bash
+   git diff
+   pytest -q
+   ```
+
+## Verify
+
+- The new test fails before the change and passes after it.
+- Existing tests still pass.
+- The implementation has no unrelated edits.
+- Public behavior is documented in the relevant guide.
+
+## Undo
+
+If the change is wrong, use `cade-mini --undo` or `/undo` before starting
+another attempt. Undo restores one recorded file change at a time.
+
+## Keep
+
+Update the guide or decision record when the feature changes a public contract.
+Tests belong in `src/cade/tests/`; docs belong under `docs/cade-mini/`.
+
+# Review only
+
+<!-- source: cookbook/review-only.md -->
+
+# Review only
+
+Use `plan` and `--read-only` when the task is to inspect, not change.
+
+## Procedure
+
+```bash
+cade-mini --mode plan --read-only "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
+```
+
+Plan mode hides write and edit tools and denies mutating shell commands.
+`--read-only` also denies memory, MCP, and any remaining mutation.
+
+## Verify
+
+- `git status` is clean.
+- The answer cites files by relative path and line.
+- Claims about tests name the command and result.
+- Findings distinguish a bug from a preference.
+
+## Keep
+
+For a review, keep the report in the conversation or a review document. Do not
+create a working note unless the review spans multiple sessions.
+
+## Limits
+
+The model can still read anything inside the workspace. A review of untrusted
+code still needs human judgment; the policy prevents writes, not misleading
+prose.
+
+# Run a long session
+
+<!-- source: cookbook/long-session.md -->
+
+# Run a long session
+
+Long tasks need durable state and a way to recover context. Use `NOTE.md`, a
+goal, and the history tool.
+
+## Procedure
+
+1. Set a goal:
+
+   ```bash
+   cade-mini --goal "Migrate the request builder to the new budget model" "Start by mapping the current admission rules."
+   ```
+
+2. Keep a working note. Ask the model to update `NOTE.md` after each milestone:
+
+   ```text
+   Update NOTE.md with completed work, current blockers, and the next action.
+   ```
+
+3. Continue the same session:
+
+   ```bash
+   cade-mini --continue "Resume from NOTE.md and run the next step."
+   ```
+
+4. Compact when the session grows:
+
+   ```text
+   /compact
+   ```
+
+5. Recover an old detail:
+
+   ```text
+   Use history with query "budget" to find the earlier discussion.
+   ```
+
+## Verify
+
+- `NOTE.md` names the next action, not just history.
+- A resumed run can continue without the original terminal.
+- The goal is marked done only when its acceptance check passes.
+
+## Limits
+
+`NOTE.md` is request context and is summarized during compaction. `MEMORY.md` is
+for durable facts, not a task log. The session log is the authority for exact
+evidence.
+
+# Connect a custom MCP server
+
+<!-- source: cookbook/custom-mcp.md -->
+
+# Connect a custom MCP server
+
+MCP servers use stdio. Cade Mini keeps one process per server and exposes each
+tool as `mcp__<server>__<tool>`.
+
+## Configure
+
+Add the server to `cade-mini.json`:
+
+```json
+{
+  "mcp_servers": {
+    "files": {
+      "command": "python",
+      "args": ["tools/mcp_files.py"],
+      "timeout_ms": 30000,
+      "env": {"LOG_LEVEL": "warn"}
+    }
+  }
+}
+```
+
+`command` and `args` are required; `cwd`, `env`, and `timeout_ms` are optional.
+A relative `cwd` resolves against the project root.
+
+## Allow
+
+MCP tools ask by default. Add a rule for a specific tool if unattended runs need
+it:
+
+```json
+{
+  "rules": [
+    {"tool": "mcp__files__read_file", "decision": "allow"}
+  ]
+}
+```
+
+Plan mode and `--read-only` deny MCP tools even with a rule.
+
+## Verify
+
+1. Start Cade Mini; it prints a startup error if the server cannot start.
+2. Ask the model to list or call a discovered tool.
+3. Check the tool result and the `mcp__` prefix in the log.
+4. Stop Cade Mini; the server process closes at exit.
+
+## Limits
+
+The client implements `initialize`, `tools/list`, and `tools/call`. It does not
+implement resources, prompts, sampling, or server-initiated requests. A server
+that hangs is killed after the configured timeout.
+
 # Hosts
 
 <!-- source: hosts.md -->
@@ -945,6 +2328,7 @@ uv sync --locked --extra docs
 uv run --locked python -m cade.mini.docs check
 uv run --locked python -m cade.mini.docs build
 uv run --locked python -m cade.mini.docs llms --write
+uv run --locked python -m cade.mini.docs catalogs --write
 ```
 
 `check` validates the manifest, page files, relative links, and anchors. The CI
@@ -1046,3 +2430,242 @@ Resume:
 The parity report records the concrete fixtures and observed results. Re-run a
 workflow by creating a clean fixture, running both agents with the settings
 above, and comparing the diff and test result rather than the prose answer.
+
+# Postmortems
+
+<!-- source: postmortem/README.md -->
+
+# Postmortems
+
+A postmortem records an incident that escaped the intended design. It is the
+only place for chronology and war stories; current behavior belongs in the
+subsystem reference.
+
+## Records
+
+- [0001: Compaction cut pointed at a shadowed user entry](0001-compaction-cut-misalignment.md)
+- [0002: One huge tool result exhausted the request budget](0002-single-huge-tool-result.md)
+
+## Template
+
+Copy [TEMPLATE.md](TEMPLATE.md). Keep the timeline factual, name the root cause,
+show the fix, and record the test that would have caught it. Do not turn the
+postmortem into a tutorial; link the current behavior page instead.
+
+Postmortems are excluded from the published guide manifest but remain valid
+links and are reviewed with the fix.
+
+# 0001: Compaction cut pointed at a shadowed user entry
+
+<!-- source: postmortem/0001-compaction-cut-misalignment.md -->
+
+# 0001: Compaction cut pointed at a shadowed user entry
+
+Date: 2026-10-18
+
+Status: resolved
+
+## Impact
+
+After a prior compaction, the next compaction could choose a `first_kept_id`
+from a user entry that was already shadowed. The summary covered the wrong tail,
+and the retained window could omit the current task.
+
+## Timeline
+
+- The compactor collected all user entries from the branch.
+- It collected user positions from the visible projection.
+- It chose a cut by visible position but indexed the full branch entry list.
+- A session with a prior compaction therefore pointed at an older, shadowed
+  user entry.
+
+## Root cause
+
+Two lists with different lengths were treated as parallel arrays. A compaction
+removes old user entries from the projection but leaves them in the branch. The
+index into visible positions is not an index into all branch users.
+
+## Fix
+
+The compactor now aligns with the **last N** user entries, where N is the number
+of visible user messages. A regression test builds a session with a prior
+summary, a retained turn, and a new task, then asserts the new cut points at the
+new task and the summary request contains the prior summary.
+
+## Verification
+
+`test_mini_compaction.py::test_iterative_compaction_includes_prior_summary`
+passes. The projected roles are `system, summary, user`.
+
+## Follow-up
+
+Any future cut logic must derive entry IDs from the same visible sequence it uses
+to choose positions. See [Context and compaction](../subsystems/context-compaction.md).
+
+# 0002: One huge tool result exhausted the request budget
+
+<!-- source: postmortem/0002-single-huge-tool-result.md -->
+
+# 0002: One huge tool result exhausted the request budget
+
+Date: 2026-10-18
+
+Status: resolved
+
+## Impact
+
+A single tool result larger than the input budget could make a request
+impossible. The request builder protected the most recent four tool results, so
+a lone huge result was never replaced, and the run ended with `context_error`.
+
+## Timeline
+
+- A tool returned a result larger than the budget.
+- Admission protected the result because it was among the latest four.
+- Turn dropping removed old turns but not the current turn's huge result.
+- The request remained over budget and the run failed.
+
+## Root cause
+
+The pruning policy treated "recent" as always protected. Protection is a
+heuristic for preserving working evidence, not a hard invariant. With only one
+result, the protected set was the entire candidate set.
+
+## Fix
+
+Admission now prunes in passes:
+
+1. Replace unprotected results, oldest first.
+2. If still over, replace protected results oldest first.
+3. If still over, replace the newest result as a last resort.
+
+Every replacement points to the history tool, so the evidence remains
+retrievable. A regression test covers a single huge result.
+
+## Verification
+
+`test_mini_request.py::test_build_prunes_a_single_huge_tool_result` passes and
+the resulting request is under budget.
+
+## Follow-up
+
+Keep the history tool available whenever pruning can remove the newest result.
+See [Projection and request](../subsystems/projection-request.md).
+
+# Persistence
+
+<!-- source: persistence/README.md -->
+
+# Persistence
+
+Cade Mini has one durable conversation format: the session log. The rest are
+host-state files with narrow scopes.
+
+## Current format
+
+- Session log: schema v1, closed. See [Session log schema](../../cade-mini-schema.md).
+- Entry file: one JSON object per line; a trailing newline is required.
+- Session directory: `.cade-mini/sessions`.
+- Compaction and windows are entries, not file rewrites.
+- Snapshots, goals, NOTE, memory, and config are separate artifacts.
+
+## Compatibility
+
+A reader must reject an unknown schema version rather than guess. A writer must
+not add fields that change the meaning of existing fields. Additive diagnostic
+fields are allowed only when old readers can ignore them.
+
+## History
+
+There are no format migrations yet. When the first change lands, add a record
+under [upgrade](../upgrade/README.md) and a decision record describing the
+migration and rollback.
+
+## Verification
+
+`test_mini_log.py`, `test_mini_projection.py`, and
+`test_mini_acceptance.py` exercise the current format. A schema change must add a
+test that opens an old fixture and one that rejects a future version.
+
+## Related
+
+- [Persistence catalog](../design/persistence-catalog.md)
+- [Change policy](change-policy.md)
+- [Session log schema](../../cade-mini-schema.md)
+
+# Change policy
+
+<!-- source: persistence/change-policy.md -->
+
+# Change policy
+
+A persisted format change is a public interface change. It needs a decision,
+tests, and a migration path.
+
+## Before changing the schema
+
+1. Write a decision record under `docs/cade-mini/decisions/`.
+2. State whether the change is additive, transformative, or breaking.
+3. Describe how an old session is read and whether it is rewritten.
+4. Define the new schema version and the reader's rejection rule.
+5. Add an old-format fixture and a migration test.
+
+## Rules
+
+- Never rewrite a user's session file in place without an explicit migration.
+- Never infer a missing field from a provider's current behavior.
+- Keep audit facts out of the projection unless the schema says otherwise.
+- Bump the version for any change that an old reader cannot ignore.
+- Update [Persistence](README.md), the [schema](../../cade-mini-schema.md), and
+  the [upgrade guide](../upgrade/README.md) in the same change.
+
+## Review checklist
+
+- Old fixture opens and projects identically.
+- Unknown future version fails with a clear error.
+- Migration is idempotent and can be interrupted.
+- New fields have a documented owner and lifetime.
+- Session size and compaction behavior remain bounded.
+
+## Current status
+
+Schema v1 is closed. No migration exists. The next format change must add the
+first entry to the upgrade guide.
+
+# Upgrade guide
+
+<!-- source: upgrade/README.md -->
+
+# Upgrade guide
+
+This page records changes that require action from an existing user or
+automation.
+
+## Current status
+
+Cade Mini is on session schema v1. There are no breaking upgrades yet. Existing
+sessions, `cade-mini.json` files, and snapshots remain readable.
+
+## When an upgrade is needed
+
+An upgrade entry is required when:
+
+- the session schema version changes;
+- a config key is renamed or removed;
+- a CLI flag changes meaning;
+- a tool name or parameter becomes incompatible;
+- a persisted host-state file changes shape.
+
+## Procedure for a future upgrade
+
+1. Read the relevant decision record.
+2. Back up `.cade-mini/` before migrating.
+3. Run the documented migration command once.
+4. Open a session and verify the projection and `history` tool.
+5. Keep the old directory until the new version has passed a real task.
+
+## Compatibility promise
+
+Additive optional config fields are not breaking. A new event type is breaking
+because the schema is closed. A removed tool or a changed parameter is breaking.
+The change policy is in [Persistence](../persistence/change-policy.md).

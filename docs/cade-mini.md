@@ -42,8 +42,10 @@ Committed on `experiment/cade-mini`:
   independent subagents, durable project memory, tool lifecycle hooks, a
   persistent stdio MCP bridge, file snapshots/undo covering common shell
   mutation targets, workspace goals, automatic approval review, a local web
-  host, a Markdown guide set with a link/anchors checker, generated site,
-  `llms.txt`, and `llms-full.txt`, and 207 tests.
+  host, a documentation system with design, subsystem, cookbook, postmortem,
+  persistence, and upgrade pages, generated config/event/module/tool catalogs,
+  a link/anchor checker, generated site, `llms.txt`, and `llms-full.txt`, and
+  209 tests.
 - A real CLI acceptance run through the configured DeepSeek account passed: the
   model used the write and read tools, `hello.txt` contained `mini`, and a
   resumed run on the same session read the file and answered `mini`.

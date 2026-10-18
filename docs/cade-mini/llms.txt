@@ -13,6 +13,28 @@
 ## Concepts
 - [Architecture](architecture.md)
 - [Sessions and context](sessions-context.md)
+- [How Cade Mini works](design/how-it-works.md)
+
+## Design
+- [Capability seams](design/capability-seams.md)
+- [Event model](design/event-model.md)
+- [Tool execution](design/tool-execution.md)
+- [Configuration catalog](design/config-catalog.md)
+- [Event catalog](design/event-catalog.md)
+- [Module graph](design/module-graph.md)
+- [Tool catalog](design/tool-catalog.md)
+- [Persistence catalog](design/persistence-catalog.md)
+- [Glossary](design/glossary.md)
+- [Testing](design/testing.md)
+
+## Subsystems
+- [Subsystems](subsystems/README.md)
+- [Log](subsystems/log.md)
+- [Projection and request](subsystems/projection-request.md)
+- [Loop](subsystems/loop.md)
+- [Tools and policy](subsystems/tools-policy.md)
+- [Context and compaction](subsystems/context-compaction.md)
+- [Extensions](subsystems/extensions.md)
 
 ## Safety
 - [Tools and security](tools-security.md)
@@ -22,10 +44,26 @@
 - [Skills and memory](skills-memory.md)
 - [Hooks, MCP, and subagents](hooks-mcp-subagents.md)
 
+## Cookbook
+- [Cookbook](cookbook/README.md)
+- [Fix a bug](cookbook/fix-a-bug.md)
+- [Add a feature](cookbook/add-a-feature.md)
+- [Review only](cookbook/review-only.md)
+- [Run a long session](cookbook/long-session.md)
+- [Connect a custom MCP server](cookbook/custom-mcp.md)
+
 ## Operations
 - [Hosts](hosts.md)
 - [Development](development.md)
 - [Parity](parity.md)
+
+## History
+- [Postmortems](postmortem/README.md)
+- [0001: Compaction cut pointed at a shadowed user entry](postmortem/0001-compaction-cut-misalignment.md)
+- [0002: One huge tool result exhausted the request budget](postmortem/0002-single-huge-tool-result.md)
+- [Persistence](persistence/README.md)
+- [Change policy](persistence/change-policy.md)
+- [Upgrade guide](upgrade/README.md)
 
 ## Design references
 
