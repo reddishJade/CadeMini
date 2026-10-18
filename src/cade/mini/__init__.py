@@ -3,6 +3,7 @@
 from .approval import SessionApprover
 from .compaction import CompactionConfig, Compactor
 from .config import MiniConfig
+from .history import HistoryTool
 from .instructions import load_project_instructions
 from .log import SessionInfo, SessionLog, list_sessions, session_title
 from .loop import (
@@ -58,6 +59,7 @@ __all__ = [
     "EditTool",
     "GlobTool",
     "GrepTool",
+    "HistoryTool",
     "LogEntry",
     "LogError",
     "LoopEvent",

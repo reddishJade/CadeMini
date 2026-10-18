@@ -502,3 +502,43 @@ def test_cli_invalid_config_returns_two(
 
     assert code == 2
     assert "config" in capsys.readouterr().err
+
+
+def test_cli_exposes_history_tool(tmp_path: Path) -> None:
+    sessions = tmp_path / "sessions"
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="h1",
+                            name="history",
+                            input={"query": "hi"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("done"),
+        ]
+    )
+
+    code = main(
+        [
+            "exec",
+            "hi",
+            "--project-root",
+            str(tmp_path),
+            "--sessions-dir",
+            str(sessions),
+            "--yes",
+        ],
+        provider=provider,
+    )
+
+    assert code == 0
+    log = SessionLog.open(_session_files(sessions)[0])
+    tool_result = next(entry for entry in log.branch() if entry.type == "tool_result")
+    assert "Matching entries" in str(tool_result.data["content"])
+    assert "hi" in str(tool_result.data["content"])

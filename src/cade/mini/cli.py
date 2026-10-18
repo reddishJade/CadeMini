@@ -13,6 +13,7 @@ from typing import Any
 from .approval import SessionApprover
 from .compaction import Compactor
 from .config import MiniConfig
+from .history import HistoryTool
 from .instructions import load_project_instructions
 from .log import SessionLog, list_sessions
 from .loop import (
@@ -136,7 +137,7 @@ def main(
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2
 
-    tools = build_tools(project_root)
+    base_tools = build_tools(project_root)
     policy = WorkspacePolicy(project_root, read_only=read_only)
     approve = SessionApprover(auto_approve=args.yes)
     compactor = Compactor(selected)
@@ -153,6 +154,7 @@ def main(
     except (OSError, ValueError, LogError) as exc:
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2
+    tools = _tools_for(base_tools, project_root, log)
 
     if one_shot:
         result = _run_task(
@@ -180,7 +182,8 @@ def main(
         log,
         sessions_dir,
         selected,
-        tools,
+        base_tools,
+        project_root,
         policy,
         approve,
         budget,
@@ -280,6 +283,14 @@ def _ensure_system(log: SessionLog) -> None:
         log.append("system", {"text": SYSTEM_PROMPT})
 
 
+def _tools_for(
+    base_tools: Sequence[Tool],
+    workspace: Path,
+    log: SessionLog,
+) -> tuple[Tool, ...]:
+    return (*base_tools, HistoryTool(workspace, log))
+
+
 def _run_task(
     log: SessionLog,
     task: str,
@@ -314,7 +325,8 @@ def _repl(
     log: SessionLog,
     sessions_dir: Path,
     provider: Provider,
-    tools: Sequence[Tool],
+    base_tools: Sequence[Tool],
+    workspace: Path,
     policy: WorkspacePolicy,
     approve: Callable[[ToolCallBlock], bool],
     budget: Budget,
@@ -323,6 +335,7 @@ def _repl(
     on_event: Callable[[LoopEvent], None],
     compactor: Compactor,
 ) -> int:
+    tools = _tools_for(base_tools, workspace, log)
     print(f"Cade Mini session {log.session_id}. Enter a task, /help, or /exit.")
     while True:
         try:
@@ -348,6 +361,7 @@ def _repl(
             continue
         if text == "/new":
             log = _new_log(sessions_dir)
+            tools = _tools_for(base_tools, workspace, log)
             print(f"session {log.session_id}")
             continue
         if text.startswith("/resume"):
@@ -357,6 +371,7 @@ def _repl(
             except (OSError, ValueError, LogError) as exc:
                 print(f"cade-mini: {exc}", file=sys.stderr)
                 continue
+            tools = _tools_for(base_tools, workspace, log)
             print(f"session {log.session_id}")
             continue
         if text == "/compact":
