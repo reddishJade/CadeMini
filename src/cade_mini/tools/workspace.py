@@ -6,6 +6,7 @@ import asyncio
 import re
 import shutil
 import sys
+from contextlib import ExitStack, nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -156,10 +157,10 @@ class WriteTool(WorkspaceTool):
             )
         content = _text_arg(args, "content")
         data = content.encode("utf-8")
-        if self.snapshots is not None:
-            self.snapshots.capture(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+        change = self.snapshots.change(path) if self.snapshots else nullcontext()
+        with change:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
         return ToolResult(
             content=(f"Wrote {len(data)} bytes to {display_path(self.workspace, path)}")
         )
@@ -207,9 +208,9 @@ class EditTool(WorkspaceTool):
             raise ValueError("old text was not found")
         if count > 1:
             raise ValueError(f"old text appears {count} times; make it unique")
-        if self.snapshots is not None:
-            self.snapshots.capture(path)
-        path.write_bytes(text.replace(old, new, 1).encode("utf-8"))
+        change = self.snapshots.change(path) if self.snapshots else nullcontext()
+        with change:
+            path.write_bytes(text.replace(old, new, 1).encode("utf-8"))
         return ToolResult(
             content=(
                 f"Edited {display_path(self.workspace, path)} "
@@ -356,20 +357,21 @@ class BashTool(WorkspaceTool):
             raise ValueError(
                 f"workdir is not a directory: {display_path(self.workspace, workdir)}"
             )
-        if self.snapshots is not None:
-            for raw in mutation_targets(command):
-                try:
-                    target = resolve_workspace_path(workdir, raw)
-                except ValueError:
-                    continue
-                if target.is_dir():
-                    continue
-                self.snapshots.capture(target)
-        result = SubprocessShell().run(
-            _shell_argv(command),
-            cwd=workdir,
-            timeout=timeout_ms,
-        )
+        with ExitStack() as changes:
+            if self.snapshots is not None:
+                for raw in dict.fromkeys(mutation_targets(command)):
+                    try:
+                        target = resolve_workspace_path(workdir, raw)
+                    except ValueError:
+                        continue
+                    if target.is_dir():
+                        continue
+                    changes.enter_context(self.snapshots.change(target))
+            result = SubprocessShell().run(
+                _shell_argv(command),
+                cwd=workdir,
+                timeout=timeout_ms,
+            )
         output = result.output.strip() or "(no output)"
         if result.timed_out:
             output += f"\nCommand timed out after {timeout_ms}ms"

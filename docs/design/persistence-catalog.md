@@ -27,9 +27,10 @@ conversation. Compaction and windows are log entries, not rewrites.
 ## Snapshots
 
 Snapshots are an undo journal for file changes. They cover `write`, `edit`, and
-common single-command shell mutations. The index is JSONL and each snapshot has
-a metadata file plus an optional payload. They are not part of the session
-branch.
+common single-command shell mutations. Format v2 uses an atomically replaced
+JSONL index, immutable before/after records, and content-addressed original blobs.
+See [Snapshots and goals](../snapshots-goals.md) for conflict and legacy behavior.
+Snapshots are not part of the session branch.
 
 ## Goals and notes
 

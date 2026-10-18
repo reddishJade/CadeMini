@@ -1803,9 +1803,10 @@ facts in one tree. It is the only artifact needed to reconstruct the
 conversation. Compaction and windows are log entries, not rewrites.</p>
 <h2>Snapshots</h2>
 <p>Snapshots are an undo journal for file changes. They cover <code>write</code>, <code>edit</code>, and
-common single-command shell mutations. The index is JSONL and each snapshot has
-a metadata file plus an optional payload. They are not part of the session
-branch.</p>
+common single-command shell mutations. Format v2 uses an atomically replaced
+JSONL index, immutable before/after records, and content-addressed original blobs.
+See <a href="#page-snapshots-goals">Snapshots and goals</a> for conflict and legacy behavior.
+Snapshots are not part of the session branch.</p>
 <h2>Goals and notes</h2>
 <p>A goal is one objective with an active or done status. <code>NOTE.md</code> is working
 state that is included in every request and summarized during compaction.
@@ -2594,7 +2595,11 @@ silently skipped.</li>
 </code></pre>
 <p>This restores the latest snapshot and exits without contacting a provider. In
 the REPL, use <code>/undo</code>. Each call restores one snapshot, so repeated undo walks
-back through the recorded changes.</p>
+back through the recorded changes. Stop external file writers before undo.</p>
+<p>Undo checks that the current file matches the recorded post-change state. It
+rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
+A rejected undo leaves the file and index unchanged. Legacy snapshots have no
+post-change state and require manual inspection; automatic undo rejects them.</p>
 <p>Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.</p>
 <h2>Goals</h2>

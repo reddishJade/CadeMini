@@ -180,7 +180,11 @@ def main(
         _print_sessions(sessions_dir)
         return 0
     if args.undo:
-        snapshot = SnapshotStore(project_root).undo_last()
+        try:
+            snapshot = SnapshotStore(project_root).undo_last()
+        except (OSError, ValueError) as exc:
+            print(f"cade-mini: {exc}", file=sys.stderr)
+            return 1
         if snapshot is None:
             print("cade-mini: no snapshots to undo", file=sys.stderr)
             return 1
@@ -1058,7 +1062,11 @@ def _repl(
                 print("usage: /undo [N]", file=sys.stderr)
                 continue
             for _ in range(count):
-                snapshot = snapshots.undo_last()
+                try:
+                    snapshot = snapshots.undo_last()
+                except (OSError, ValueError) as exc:
+                    print(f"cade-mini: {exc}", file=sys.stderr)
+                    break
                 if snapshot is None:
                     print("no snapshots to undo")
                     break

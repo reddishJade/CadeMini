@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 from pathlib import Path
 
 import pytest
 
 from cade_mini.core.types import ToolCallBlock
-from cade_mini.extensions.snapshots import SnapshotStore
+from cade_mini.extensions.snapshots import SnapshotConflict, SnapshotStore
 from cade_mini.tools.workspace import BashTool, WriteTool
 
 
@@ -25,8 +27,8 @@ def test_capture_and_undo_restores_content(tmp_path: Path) -> None:
     target.write_text("old", encoding="utf-8")
     store = SnapshotStore(tmp_path)
 
-    store.capture(target)
-    target.write_text("new", encoding="utf-8")
+    with store.change(target):
+        target.write_text("new", encoding="utf-8")
     snapshot = store.undo_last()
 
     assert snapshot is not None
@@ -39,8 +41,8 @@ def test_undo_created_file_deletes_it(tmp_path: Path) -> None:
     target = tmp_path / "new.txt"
     store = SnapshotStore(tmp_path)
 
-    store.capture(target)
-    target.write_text("content", encoding="utf-8")
+    with store.change(target):
+        target.write_text("content", encoding="utf-8")
     store.undo_last()
 
     assert not target.exists()
@@ -62,6 +64,92 @@ def test_write_tool_snapshots_before_change(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "new"
     store.undo_last()
     assert target.read_text(encoding="utf-8") == "old"
+
+
+@pytest.mark.parametrize("change", ["edit", "delete", "directory", "symlink"])
+def test_undo_rejects_changed_target_without_consuming_snapshot(
+    tmp_path: Path, change: str
+) -> None:
+    target = tmp_path / "a.txt"
+    target.write_text("old", encoding="utf-8")
+    store = SnapshotStore(tmp_path)
+    with store.change(target):
+        target.write_text("agent", encoding="utf-8")
+    if change == "edit":
+        target.write_text("human", encoding="utf-8")
+    else:
+        target.unlink()
+        if change == "directory":
+            target.mkdir()
+        elif change == "symlink":
+            other = tmp_path / "other.txt"
+            other.write_text("human", encoding="utf-8")
+            target.symlink_to(other)
+    before_index = store.index.read_bytes()
+
+    with pytest.raises(SnapshotConflict):
+        store.undo_last()
+
+    assert store.index.read_bytes() == before_index
+    if change == "edit":
+        assert target.read_text(encoding="utf-8") == "human"
+    elif change == "symlink":
+        assert target.is_symlink()
+        assert target.read_text(encoding="utf-8") == "human"
+    elif change == "directory":
+        assert target.is_dir()
+    else:
+        assert not target.exists()
+
+
+def test_undo_rejects_corrupt_payload_before_changing_file(tmp_path: Path) -> None:
+    target = tmp_path / "a.txt"
+    target.write_text("old", encoding="utf-8")
+    store = SnapshotStore(tmp_path)
+    with store.change(target):
+        target.write_text("new", encoding="utf-8")
+    next((store.root / "blobs").iterdir()).write_bytes(b"corrupted")
+
+    with pytest.raises(SnapshotConflict, match="corrupted"):
+        store.undo_last()
+    assert target.read_text(encoding="utf-8") == "new"
+    assert len(store.list()) == 1
+
+
+def test_undo_requires_completion_and_rejects_legacy_snapshot(tmp_path: Path) -> None:
+    target = tmp_path / "a.txt"
+    store = SnapshotStore(tmp_path)
+    snapshot_id = store.capture(target)
+    target.write_text("unknown outcome", encoding="utf-8")
+    with pytest.raises(SnapshotConflict, match="unknown"):
+        store.undo_last()
+    store.complete(snapshot_id)
+    with pytest.raises(SnapshotConflict, match="already complete"):
+        store.complete(snapshot_id)
+    store.undo_last()
+    assert not target.exists()
+
+    store.index.write_text(json.dumps({"id": "old"}) + "\n", encoding="utf-8")
+    with pytest.raises(SnapshotConflict, match="Legacy"):
+        store.undo_last()
+
+
+def test_repeated_undo_preserves_modes_and_survives_reopen(tmp_path: Path) -> None:
+    target = tmp_path / "a.txt"
+    target.write_text("original", encoding="utf-8")
+    if os.name != "nt":
+        target.chmod(0o755)
+    store = SnapshotStore(tmp_path)
+    for content in ("first", "second"):
+        with store.change(target):
+            target.write_text(content, encoding="utf-8")
+    reopened = SnapshotStore(tmp_path)
+    reopened.undo_last()
+    assert target.read_text(encoding="utf-8") == "first"
+    reopened.undo_last()
+    assert target.read_text(encoding="utf-8") == "original"
+    if os.name != "nt":
+        assert target.stat().st_mode & 0o777 == 0o755
 
 
 def test_snapshot_rejects_paths_outside_workspace(tmp_path: Path) -> None:

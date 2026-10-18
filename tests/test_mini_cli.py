@@ -919,8 +919,8 @@ def test_cli_memory_tool_appends(tmp_path: Path) -> None:
 def test_cli_undo_restores_latest_snapshot(tmp_path: Path) -> None:
     target = tmp_path / "a.txt"
     target.write_text("old", encoding="utf-8")
-    SnapshotStore(tmp_path).capture(target)
-    target.write_text("new", encoding="utf-8")
+    with SnapshotStore(tmp_path).change(target):
+        target.write_text("new", encoding="utf-8")
 
     code = main(["--undo", "--project-root", str(tmp_path)])
 

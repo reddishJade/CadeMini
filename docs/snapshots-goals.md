@@ -28,7 +28,12 @@ cade-mini --undo
 
 This restores the latest snapshot and exits without contacting a provider. In
 the REPL, use `/undo`. Each call restores one snapshot, so repeated undo walks
-back through the recorded changes.
+back through the recorded changes. Stop external file writers before undo.
+
+Undo checks that the current file matches the recorded post-change state. It
+rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
+A rejected undo leaves the file and index unchanged. Legacy snapshots have no
+post-change state and require manual inspection; automatic undo rejects them.
 
 Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.

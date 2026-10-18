@@ -1477,9 +1477,10 @@ conversation. Compaction and windows are log entries, not rewrites.
 ## Snapshots
 
 Snapshots are an undo journal for file changes. They cover `write`, `edit`, and
-common single-command shell mutations. The index is JSONL and each snapshot has
-a metadata file plus an optional payload. They are not part of the session
-branch.
+common single-command shell mutations. Format v2 uses an atomically replaced
+JSONL index, immutable before/after records, and content-addressed original blobs.
+See [Snapshots and goals](../snapshots-goals.md) for conflict and legacy behavior.
+Snapshots are not part of the session branch.
 
 ## Goals and notes
 
@@ -2328,7 +2329,12 @@ cade-mini --undo
 
 This restores the latest snapshot and exits without contacting a provider. In
 the REPL, use `/undo`. Each call restores one snapshot, so repeated undo walks
-back through the recorded changes.
+back through the recorded changes. Stop external file writers before undo.
+
+Undo checks that the current file matches the recorded post-change state. It
+rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
+A rejected undo leaves the file and index unchanged. Legacy snapshots have no
+post-change state and require manual inspection; automatic undo rejects them.
 
 Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.
