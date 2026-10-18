@@ -96,7 +96,10 @@ def test_build_renders_site(tmp_path: Path) -> None:
     _write_docs(
         tmp_path,
         {
-            "README.md": "# Test\n\nHello docs. [Quickstart](quickstart.md)\n",
+            "README.md": (
+                "# Test\n\nHello docs. [Quickstart](quickstart.md)\n\n"
+                "| A | B |\n| - | - |\n| 1 | 2 |\n"
+            ),
             "quickstart.md": "# Quickstart\n\nGo.\n",
         },
     )
@@ -109,6 +112,7 @@ def test_build_renders_site(tmp_path: Path) -> None:
     assert "Hello docs." in text
     assert "page-readme" in text
     assert 'href="#page-quickstart"' in text
+    assert "<table>" in text
 
 
 def test_cli_check_and_llms(tmp_path: Path) -> None:

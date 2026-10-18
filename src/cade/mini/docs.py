@@ -255,7 +255,7 @@ def build(root: Path = _DOCS_ROOT, out: Path = _SITE_OUT) -> Path:
     pages, errors = list_pages(root)
     if errors:
         raise DocsError("; ".join(errors))
-    renderer = MarkdownIt("commonmark", {"html": False})
+    renderer = MarkdownIt("gfm-like", {"html": False, "linkify": False})
     page_ids = {page.relative: _slug(page.path.stem) for page in pages}
     sections: list[str] = []
     for page in pages:
