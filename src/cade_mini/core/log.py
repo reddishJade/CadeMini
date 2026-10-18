@@ -9,10 +9,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 import filelock
 
+from cade_mini.core.events import validate_event_data
 from cade_mini.core.types import EventType, JsonValue, LogEntry, LogError
 
 _SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
@@ -108,12 +110,27 @@ class SessionLog:
             lock.release()
 
     def append(self, event_type: EventType, data: dict[str, JsonValue]) -> LogEntry:
-        """追加一条事实并 fsync；返回已提交的条目。"""
+        """校验并追加 v2 事实，fsync 后返回已提交的条目。"""
+        return self._append(event_type, data, version=2)
+
+    def _append(
+        self,
+        event_type: EventType,
+        data: dict[str, JsonValue],
+        *,
+        version: Literal[1, 2],
+    ) -> LogEntry:
+        if version == 2:
+            try:
+                validate_event_data(event_type, data)
+            except ValueError as exc:
+                raise LogError(f"invalid {event_type} event payload") from exc
         with self._lock:
             self._repair_tail()
             entries = self._read_entries()
             self._head = entries[-1] if entries else None
             entry = LogEntry(
+                v=version,
                 id=uuid4().hex[:12],
                 parent=self._head.id if self._head is not None else None,
                 ts=_now(),
@@ -174,7 +191,7 @@ class SessionLog:
                 value = data.get(key)
                 if isinstance(value, str) and value in id_map:
                     data[key] = id_map[value]
-            copied = target.append(entry.type, data)
+            copied = target._append(entry.type, data, version=entry.v)
             id_map[entry.id] = copied.id
         return target
 
@@ -225,7 +242,10 @@ class SessionLog:
             if not raw.strip():
                 continue
             try:
-                entries.append(LogEntry.model_validate_json(raw))
+                entry = LogEntry.model_validate_json(raw)
+                if entry.v == 2:
+                    validate_event_data(entry.type, entry.data)
+                entries.append(entry)
             except ValueError as exc:
                 raise LogError(f"invalid session record: {self.path}:{number}") from exc
         _validate_entries(entries, self.path)

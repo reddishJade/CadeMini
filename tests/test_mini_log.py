@@ -8,12 +8,14 @@ import subprocess
 import sys
 from itertools import pairwise
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from cade_mini.core.log import SessionLog, list_sessions, session_title
 from cade_mini.core.projection import project
-from cade_mini.core.types import LogError
+from cade_mini.core.request import Budget, build
+from cade_mini.core.types import EventType, JsonValue, LogError, UserMessage
 
 
 def _sessions(tmp_path: Path) -> Path:
@@ -170,6 +172,130 @@ def test_future_session_version_is_rejected(tmp_path: Path) -> None:
     record = json.loads(log.path.read_text(encoding="utf-8"))
     record["v"] = 3
     log.path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    with pytest.raises(LogError, match="invalid session record"):
+        SessionLog.open(log.path)
+
+
+@pytest.mark.parametrize(
+    ("event_type", "data"),
+    [
+        ("meta", {"session": "s"}),
+        ("system", {"text": 42}),
+        ("user", {"text": "task", "source": "unknown"}),
+        ("user", {"text": "task", "typo": True}),
+        ("assistant", {"blocks": [{"type": "unknown"}]}),
+        ("assistant", {"blocks": [{"type": "tool_call", "id": "", "name": "echo"}]}),
+        ("tool_result", {"call_id": "c1", "status": "success", "content": "ok"}),
+        ("compaction", {"summary": "summary", "first_kept_id": 12}),
+        ("window", {"start_id": "u1", "reason": "implicit"}),
+        ("request", {"model": "m"}),
+        ("run", {"termination": "finished", "steps": 1}),
+        ("run", {"termination": "completed", "steps": True}),
+        (
+            "attempt",
+            {
+                "model": "m",
+                "provider": "p",
+                "error": "bad",
+                "usage": {"input": -1, "output": 0},
+            },
+        ),
+        (
+            "assistant",
+            {
+                "blocks": [
+                    {
+                        "type": "tool_call",
+                        "id": "c1",
+                        "name": "echo",
+                        "args": {"value": float("nan")},
+                    }
+                ]
+            },
+        ),
+        ("unknown", {}),
+    ],
+)
+def test_invalid_payload_is_rejected_before_tail_repair(
+    tmp_path: Path, event_type: str, data: dict[str, JsonValue]
+) -> None:
+    log = SessionLog.create(_sessions(tmp_path), session_id="payload")
+    head = log.head_id
+    with log.path.open("ab") as stream:
+        stream.write(b'{"incomplete":')
+    before = log.path.read_bytes()
+    with pytest.raises(LogError, match="event payload"):
+        log.append(cast(EventType, event_type), data)
+    assert log.path.read_bytes() == before
+    assert log.head_id == head
+
+
+@pytest.mark.parametrize(
+    "failure", ["tools", "budget", "options", "option_type", "option_name"]
+)
+def test_request_payload_validates_nested_snapshot(
+    tmp_path: Path, failure: str
+) -> None:
+    log = SessionLog.create(_sessions(tmp_path), session_id="audit")
+    snapshot = build([UserMessage(text="task")], budget=Budget(100_000)).as_record()
+    if failure == "tools":
+        snapshot["tools"] = [{"name": "echo", "description": "Echo", "parameters": []}]
+    elif failure == "budget":
+        snapshot["budget"] = {
+            "context_window": 1,
+            "output_reserve": 2,
+            "headroom_tokens": 0,
+        }
+    elif failure == "options":
+        snapshot["options"] = {"api_key": "must not persist"}
+    elif failure == "option_type":
+        snapshot["options"] = {"max_tokens": "many"}
+    else:
+        snapshot["options"] = {"unknown_option": True}
+    before = log.path.read_bytes()
+    with pytest.raises(LogError, match="request event payload"):
+        log.append(
+            "request",
+            {
+                "model": "m",
+                "provider": "p",
+                "tools_digest": "digest",
+                "conversation_digest": "digest",
+                "context": [],
+                "estimated_tokens": 1,
+                "dropped": [],
+                "snapshot": snapshot,
+            },
+        )
+    assert log.path.read_bytes() == before
+
+
+def test_copy_preserves_legacy_audit_version_without_inventing_snapshot(
+    tmp_path: Path,
+) -> None:
+    path = _sessions(tmp_path) / "session-legacy-audit.jsonl"
+    path.parent.mkdir()
+    path.write_text(
+        '{"v":1,"id":"old","parent":null,"ts":"2026-10-18T00:00:00+00:00",'
+        '"type":"request","data":{"model":"m","provider":"p",'
+        '"tools_digest":"t","conversation_digest":"c","context":[],"estimated_tokens":1,"dropped":[]}}\n',
+        encoding="utf-8",
+    )
+    copied = SessionLog.open(path).copy_branch(_sessions(tmp_path))
+    audit = next(entry for entry in copied.branch() if entry.type == "request")
+    assert audit.v == 1
+    assert "snapshot" not in audit.data
+
+
+def test_read_rejects_invalid_v2_payload(tmp_path: Path) -> None:
+    log = SessionLog.create(_sessions(tmp_path), session_id="invalid-data")
+    records = [
+        json.loads(line) for line in log.path.read_text(encoding="utf-8").splitlines()
+    ]
+    records[0]["data"]["session"] = False
+    log.path.write_text(
+        "".join(json.dumps(record) + "\n" for record in records), encoding="utf-8"
+    )
     with pytest.raises(LogError, match="invalid session record"):
         SessionLog.open(log.path)
 

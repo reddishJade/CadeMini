@@ -6,19 +6,20 @@
 
 - `SessionLog.create(directory, session_id=None)` creates a unique file and
   writes a `meta` entry.
-- `SessionLog.open(path)` validates the file and repairs a torn final line by
-  appending a newline or dropping the incomplete tail.
+- `SessionLog.open(path)` validates the envelope and v2 payloads. Reads ignore a
+  torn final line; the next valid append truncates that tail.
 - The session ID is derived from the file name when not supplied.
 
 ## Append
 
 `append(type, data)`:
 
-1. Takes an exclusive file lock.
-2. Reads the current tail to get the parent ID.
-3. Builds an entry with ID, timestamp, parent, type, and data.
-4. Appends one JSON line and flushes.
-5. Releases the lock.
+1. Validates the v2 payload without modifying the file.
+2. Takes an exclusive file lock.
+3. Repairs a torn tail and reads the current entries to get the parent ID.
+4. Builds an entry with ID, timestamp, parent, type, and data.
+5. Appends one JSON line, flushes, and calls `fsync`.
+6. Releases the lock.
 
 `fsync` is deliberate: a returned append is durable enough to resume. A failed
 write raises `LogError` and does not return a fake entry.

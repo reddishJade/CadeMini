@@ -25,6 +25,14 @@ is stored from day one so fork and rewind do not need a schema change.
 
 Unknown event types are a version error. Do not ignore them.
 
+V2 payloads are validated on append and read. Unknown fields, wrong primitive
+types, invalid enums, and non-finite numbers are rejected. Missing optional
+fields are allowed but defaults are not written into the record. `user.source`
+defaults to `user`; assistant model/provider/usage/replay metadata and nullable
+artifact/handoff/usage/details fields may be absent. Cross-event call pairing
+and context-cut references are validated by projection. V1 keeps legacy reading
+rules. Branch copies preserve source event versions.
+
 ## Event types
 
 ### Conversation events

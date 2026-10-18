@@ -44,6 +44,9 @@ flowchart LR
   core_compaction --> core_projection
   core_compaction --> core_request
   core_compaction --> core_types
+  core_events --> ai_types
+  core_events --> core_types
+  core_log --> core_events
   core_log --> core_types
   core_loop --> ai_events
   core_loop --> ai_types

@@ -524,6 +524,7 @@ fallback are decisions expressed as new log facts.
 ## Package map
 
 - `core/types.py`: log, message, block, and error types.
+- `core/events.py`: strict v2 event payload validation.
 - `core/log.py`: append, lock, tail repair, session listing, copy/fork.
 - `core/projection.py`: deterministic conversation projection.
 - `core/request.py`: budget, admission, wire conversion.
@@ -1148,6 +1149,9 @@ flowchart LR
   core_compaction --> core_projection
   core_compaction --> core_request
   core_compaction --> core_types
+  core_events --> ai_types
+  core_events --> core_types
+  core_log --> core_events
   core_log --> core_types
   core_loop --> ai_events
   core_loop --> ai_types
@@ -1692,6 +1696,14 @@ is stored from day one so fork and rewind do not need a schema change.
 
 Unknown event types are a version error. Do not ignore them.
 
+V2 payloads are validated on append and read. Unknown fields, wrong primitive
+types, invalid enums, and non-finite numbers are rejected. Missing optional
+fields are allowed but defaults are not written into the record. `user.source`
+defaults to `user`; assistant model/provider/usage/replay metadata and nullable
+artifact/handoff/usage/details fields may be absent. Cross-event call pairing
+and context-cut references are validated by projection. V1 keeps legacy reading
+rules. Branch copies preserve source event versions.
+
 ## Event types
 
 ### Conversation events
@@ -1863,19 +1875,20 @@ A subsystem page describes current behavior. Historical decisions belong in
 
 - `SessionLog.create(directory, session_id=None)` creates a unique file and
   writes a `meta` entry.
-- `SessionLog.open(path)` validates the file and repairs a torn final line by
-  appending a newline or dropping the incomplete tail.
+- `SessionLog.open(path)` validates the envelope and v2 payloads. Reads ignore a
+  torn final line; the next valid append truncates that tail.
 - The session ID is derived from the file name when not supplied.
 
 ## Append
 
 `append(type, data)`:
 
-1. Takes an exclusive file lock.
-2. Reads the current tail to get the parent ID.
-3. Builds an entry with ID, timestamp, parent, type, and data.
-4. Appends one JSON line and flushes.
-5. Releases the lock.
+1. Validates the v2 payload without modifying the file.
+2. Takes an exclusive file lock.
+3. Repairs a torn tail and reads the current entries to get the parent ID.
+4. Builds an entry with ID, timestamp, parent, type, and data.
+5. Appends one JSON line, flushes, and calls `fsync`.
+6. Releases the lock.
 
 `fsync` is deliberate: a returned append is durable enough to resume. A failed
 write raises `LogError` and does not return a fake entry.
@@ -3389,6 +3402,13 @@ facts. The [upgrade guide](../upgrade/README.md) documents resume and rollback.
 
 This page records changes that require action from an existing user or
 automation.
+
+## V2 payload validation
+
+V2 events now enforce their closed payload schemas on write and read. Invalid
+complete records are rejected instead of being ignored or silently repaired.
+V1 keeps its legacy reading rules. Branch copies preserve each event's version.
+See [decision 0006](../decisions/0006-validate-event-payloads.md).
 
 ## Explicit context reduction
 

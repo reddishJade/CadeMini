@@ -3,6 +3,13 @@
 This page records changes that require action from an existing user or
 automation.
 
+## V2 payload validation
+
+V2 events now enforce their closed payload schemas on write and read. Invalid
+complete records are rejected instead of being ignored or silently repaired.
+V1 keeps its legacy reading rules. Branch copies preserve each event's version.
+See [decision 0006](../decisions/0006-validate-event-payloads.md).
+
 ## Explicit context reduction
 
 Request construction no longer trims tool outputs or old turns. The loop first

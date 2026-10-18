@@ -526,6 +526,7 @@ fallback are decisions expressed as new log facts.</p>
 <h2>Package map</h2>
 <ul>
 <li><code>core/types.py</code>: log, message, block, and error types.</li>
+<li><code>core/events.py</code>: strict v2 event payload validation.</li>
 <li><code>core/log.py</code>: append, lock, tail repair, session listing, copy/fork.</li>
 <li><code>core/projection.py</code>: deterministic conversation projection.</li>
 <li><code>core/request.py</code>: budget, admission, wire conversion.</li>
@@ -1317,6 +1318,9 @@ and window fallback.</li>
   core_compaction --&gt; core_projection
   core_compaction --&gt; core_request
   core_compaction --&gt; core_types
+  core_events --&gt; ai_types
+  core_events --&gt; core_types
+  core_log --&gt; core_events
   core_log --&gt; core_types
   core_loop --&gt; ai_events
   core_loop --&gt; ai_types
@@ -2038,6 +2042,13 @@ This is the persistent format and projection contract.</p>
 <p>The first increment has one active branch: the head is the last event. <code>parent</code>
 is stored from day one so fork and rewind do not need a schema change.</p>
 <p>Unknown event types are a version error. Do not ignore them.</p>
+<p>V2 payloads are validated on append and read. Unknown fields, wrong primitive
+types, invalid enums, and non-finite numbers are rejected. Missing optional
+fields are allowed but defaults are not written into the record. <code>user.source</code>
+defaults to <code>user</code>; assistant model/provider/usage/replay metadata and nullable
+artifact/handoff/usage/details fields may be absent. Cross-event call pairing
+and context-cut references are validated by projection. V1 keeps legacy reading
+rules. Branch copies preserve source event versions.</p>
 <h2>Event types</h2>
 <h3>Conversation events</h3>
 <p>These produce model-visible messages.</p>
@@ -2234,17 +2245,18 @@ goals, and hosts.</li>
 <ul>
 <li><code>SessionLog.create(directory, session_id=None)</code> creates a unique file and
 writes a <code>meta</code> entry.</li>
-<li><code>SessionLog.open(path)</code> validates the file and repairs a torn final line by
-appending a newline or dropping the incomplete tail.</li>
+<li><code>SessionLog.open(path)</code> validates the envelope and v2 payloads. Reads ignore a
+torn final line; the next valid append truncates that tail.</li>
 <li>The session ID is derived from the file name when not supplied.</li>
 </ul>
 <h2>Append</h2>
 <p><code>append(type, data)</code>:</p>
 <ol>
+<li>Validates the v2 payload without modifying the file.</li>
 <li>Takes an exclusive file lock.</li>
-<li>Reads the current tail to get the parent ID.</li>
+<li>Repairs a torn tail and reads the current entries to get the parent ID.</li>
 <li>Builds an entry with ID, timestamp, parent, type, and data.</li>
-<li>Appends one JSON line and flushes.</li>
+<li>Appends one JSON line, flushes, and calls <code>fsync</code>.</li>
 <li>Releases the lock.</li>
 </ol>
 <p><code>fsync</code> is deliberate: a returned append is durable enough to resume. A failed
@@ -3397,6 +3409,11 @@ facts. The <a href="#page-readme">upgrade guide</a> documents resume and rollbac
 <h1>Upgrade guide</h1>
 <p>This page records changes that require action from an existing user or
 automation.</p>
+<h2>V2 payload validation</h2>
+<p>V2 events now enforce their closed payload schemas on write and read. Invalid
+complete records are rejected instead of being ignored or silently repaired.
+V1 keeps its legacy reading rules. Branch copies preserve each event's version.
+See <a href="decisions/0006-validate-event-payloads.md">decision 0006</a>.</p>
 <h2>Explicit context reduction</h2>
 <p>Request construction no longer trims tool outputs or old turns. The loop first
 tries compaction, then a logged window fallback. If the current task, instructions,

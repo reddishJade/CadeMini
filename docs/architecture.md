@@ -65,6 +65,7 @@ fallback are decisions expressed as new log facts.
 ## Package map
 
 - `core/types.py`: log, message, block, and error types.
+- `core/events.py`: strict v2 event payload validation.
 - `core/log.py`: append, lock, tail repair, session listing, copy/fork.
 - `core/projection.py`: deterministic conversation projection.
 - `core/request.py`: budget, admission, wire conversion.
