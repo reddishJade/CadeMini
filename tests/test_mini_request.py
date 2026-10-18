@@ -68,7 +68,7 @@ def test_build_merges_context_into_one_system_message() -> None:
     assert request.report.context_tokens > 0
 
 
-def test_build_prunes_old_tool_evidence_but_keeps_recent() -> None:
+def test_build_preserves_old_tool_evidence_when_over_budget() -> None:
     conversation: list[Message] = [_user("run")]
     for index in range(1, 6):
         conversation.append(
@@ -86,18 +86,18 @@ def test_build_prunes_old_tool_evidence_but_keeps_recent() -> None:
         budget=Budget(context_window=5_000, output_reserve=0, headroom_tokens=0),
     )
 
-    assert request.report.over_budget is False
-    assert request.report.dropped_tool_calls == ("c1",)
+    assert request.report.over_budget is True
+    assert request.report.dropped_tool_calls == ()
     assert request.report.dropped_turns == 0
+    assert request.admitted == tuple(conversation)
     tool_messages = [
         message for message in request.messages if message["role"] == "tool"
     ]
-    assert tool_messages[0]["content"].startswith("[tool output omitted")
-    assert tool_messages[0]["content"].count("use the history tool") == 1
+    assert tool_messages[0]["content"] == "x" * 20_000
     assert tool_messages[1]["content"] == "small"
 
 
-def test_build_prunes_a_single_huge_tool_result() -> None:
+def test_build_rejects_a_single_huge_tool_result_without_replacing_it() -> None:
     conversation = [
         _user("run"),
         AssistantMessage(blocks=(ToolCallBlock(id="c1", name="read"),)),
@@ -109,15 +109,17 @@ def test_build_prunes_a_single_huge_tool_result() -> None:
         budget=Budget(context_window=5_000, output_reserve=0, headroom_tokens=0),
     )
 
-    assert request.report.over_budget is False
-    assert request.report.dropped_tool_calls == ("c1",)
+    assert request.report.over_budget is True
+    assert request.report.dropped_tool_calls == ()
+    with pytest.raises(RequestTooLarge):
+        request.require_sendable()
     tool_message = next(
         message for message in request.messages if message["role"] == "tool"
     )
-    assert tool_message["content"].startswith("[tool output omitted")
+    assert tool_message["content"] == "x" * 20_000
 
 
-def test_build_drops_oldest_turn_when_no_tool_evidence() -> None:
+def test_build_preserves_oldest_turn_when_over_budget() -> None:
     conversation = [
         _user("old " * 5_000),
         _assistant("old answer " * 5_000),
@@ -130,11 +132,11 @@ def test_build_drops_oldest_turn_when_no_tool_evidence() -> None:
         budget=Budget(context_window=5_000, output_reserve=0, headroom_tokens=0),
     )
 
-    assert request.report.over_budget is False
-    assert request.report.dropped_turns == 1
+    assert request.report.over_budget is True
+    assert request.report.dropped_turns == 0
     assert request.report.dropped_tool_calls == ()
-    assert request.messages[0]["role"] == "user"
-    assert "new" in str(request.messages[0]["content"])
+    assert request.admitted == tuple(conversation)
+    assert request.messages[0]["content"] == "old " * 5_000
 
 
 def test_build_reports_over_budget_when_system_alone_is_too_large() -> None:

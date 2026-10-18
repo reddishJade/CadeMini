@@ -10,8 +10,8 @@ The system message is the base prompt plus request-only context:
 4. `MEMORY.md` durable facts.
 5. An active goal.
 
-The request audit records this context's digests; it does not turn the text into
-conversation messages.
+The request audit records this context and the normalized request; it does not
+turn the text into conversation facts.
 
 ## Compaction
 
@@ -38,13 +38,13 @@ and history. If the request still does not fit, the run terminates with
 ## History
 
 The `history` tool searches the branch or reads an exact entry or tool result.
-It is the recovery path for evidence replaced during pruning or compaction.
+It retrieves evidence outside the current compaction or window boundary.
 Exact content is capped; search results point to entry IDs.
 
-## Request pruning
+## Request admission
 
-Admission replaces old tool bodies with references before it drops turns. The
-history tool remains the only exact source. See
+Admission preserves the full projection. Overflow requires a logged context
+transition or fails with `context_error`. See
 [Projection and request](projection-request.md).
 
 ## Tests

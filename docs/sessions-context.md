@@ -41,18 +41,13 @@ Compaction is iterative: a prior summary is serialized as `PRIOR SUMMARY` and
 can be summarized again. The original user, assistant, and tool-result facts
 remain in the log.
 
-## Pruning
+## Request admission
 
-Request admission replaces old tool results with a reference:
-
-```text
-[tool output omitted; call_id=...; use the history tool ...]
-```
-
-The latest four tool results are protected first. If the request still does not
-fit, older protected results and finally the newest result can be replaced. The
-model can recover exact content with the `history` tool using `call_id` or
-`entry_id`.
+Request construction preserves the entire projection, including tool outputs.
+Only logged compaction and window events reduce visible history. If the request
+still exceeds the budget after these steps, the loop returns `context_error`
+without sending it to the provider. Use the `history` tool to retrieve evidence
+outside the current context.
 
 ## Windows
 

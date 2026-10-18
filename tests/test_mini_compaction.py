@@ -21,6 +21,7 @@ from cade_mini.core.loop import run
 from cade_mini.core.projection import project
 from cade_mini.core.request import Budget
 from cade_mini.core.types import SummaryMessage
+from cade_mini.core.window import reset_window
 
 
 class FakeProvider:
@@ -150,6 +151,39 @@ async def test_loop_uses_compactor_before_request(tmp_path: Path) -> None:
     assert "summary" in content
     assert "new task" in content
     assert "old " * 10 not in content
+
+
+async def test_failed_compaction_uses_logged_window_before_main_request(
+    tmp_path: Path,
+) -> None:
+    log = _log(tmp_path)
+    log.append("user", {"text": "old " * 5_000})
+    log.append("assistant", _assistant("old answer " * 5_000))
+    provider = FakeProvider(
+        [
+            [ProviderFailure("summary failed", "Error")],
+            _summary_response("done"),
+        ]
+    )
+    result = await run(
+        log,
+        "new task",
+        provider=provider,
+        tools=(),
+        budget=Budget(2_000, output_reserve=0, headroom_tokens=0),
+        compact=Compactor(provider),
+        window=lambda log: reset_window(log, reason="fallback"),
+    )
+    assert result.termination == "completed"
+    entries = log.branch()
+    window_index = next(i for i, entry in enumerate(entries) if entry.type == "window")
+    request_index = next(
+        i for i, entry in enumerate(entries) if entry.type == "request"
+    )
+    assert window_index < request_index
+    assert not any(entry.type == "compaction" for entry in entries)
+    assert provider.requests[-1][0] == [{"role": "user", "content": "new task"}]
+    assert any(entry.data.get("text") == "old " * 5_000 for entry in entries)
 
 
 async def test_iterative_compaction_includes_prior_summary(

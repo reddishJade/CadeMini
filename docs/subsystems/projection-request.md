@@ -20,20 +20,14 @@ user entry. The projection does not call a provider or write the log.
 
 1. Joins the base system prompt with request-only context.
 2. Estimates tokens.
-3. Replaces old tool bodies with references, keeping recent results first.
-4. Drops the oldest user turns if still over budget.
-5. Converts to provider messages and tool definitions.
-6. Returns a `Request` and a `BuildReport`.
+3. Preserves all projected messages and tool bodies.
+4. Converts to provider messages and tool definitions.
+5. Returns a `Request` and a `BuildReport`.
 
-`BuildReport` records estimated tokens, budget, dropped call IDs, and dropped
-turns. A request that cannot fit raises `RequestTooLarge`.
-
-## Pruning rules
-
-- The latest four tool results are protected in the first pass.
-- If still over, protected results are pruned oldest first.
-- The newest result is pruned only as a last resort.
-- The replacement names the call ID and points to the history tool.
+`BuildReport` records estimated tokens and budget. Legacy dropped-call and
+turn counters remain empty/zero. `require_sendable()` raises `RequestTooLarge`
+when the full request cannot fit. The loop reduces context only through logged
+compaction and window decisions, then rejects any remaining overflow.
 
 ## Context order
 
@@ -45,4 +39,4 @@ non-authentication options, and budget. Session files can contain sensitive inpu
 ## Tests
 
 `test_mini_projection.py`, `test_mini_request.py`, and
-`test_mini_compaction.py` cover the cut, pruning, and wire-format contracts.
+`test_mini_compaction.py` cover cuts, strict admission, and wire-format contracts.

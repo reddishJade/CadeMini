@@ -45,13 +45,14 @@ model window. It:
 
 - joins request-only context such as instructions, skill catalog, NOTE, memory,
   and goal;
-- replaces old tool bodies with references to the history tool;
-- drops the oldest turns when needed;
+- preserves every projected message and tool result;
+- checks the complete request against the input budget;
 - converts the result to provider wire format;
 - returns a `Request` with a `BuildReport`.
 
-Admission does not mutate the conversation and does not write facts. A request
-that still exceeds the budget is rejected rather than silently truncated.
+Admission does not mutate the conversation and does not write facts. Only
+compaction and window events change the visible history. An over-budget request
+is rejected rather than silently truncated.
 
 ## Run
 

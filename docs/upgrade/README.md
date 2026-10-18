@@ -3,6 +3,13 @@
 This page records changes that require action from an existing user or
 automation.
 
+## Explicit context reduction
+
+Request construction no longer trims tool outputs or old turns. The loop first
+tries compaction, then a logged window fallback. If the current task, instructions,
+or tools still exceed the budget, the run returns `context_error`. Reduce the
+input or start a new task; no hidden request-only truncation occurs.
+
 ## Session v2 and snapshot v2
 
 New session facts use v2. This reader also accepts v1 and mixed-version branches.

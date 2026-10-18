@@ -504,13 +504,14 @@ model window. It:
 
 - joins request-only context such as instructions, skill catalog, NOTE, memory,
   and goal;
-- replaces old tool bodies with references to the history tool;
-- drops the oldest turns when needed;
+- preserves every projected message and tool result;
+- checks the complete request against the input budget;
 - converts the result to provider wire format;
 - returns a `Request` with a `BuildReport`.
 
-Admission does not mutate the conversation and does not write facts. A request
-that still exceeds the budget is rejected rather than silently truncated.
+Admission does not mutate the conversation and does not write facts. Only
+compaction and window events change the visible history. An over-budget request
+is rejected rather than silently truncated.
 
 ## Run
 
@@ -614,18 +615,13 @@ Compaction is iterative: a prior summary is serialized as `PRIOR SUMMARY` and
 can be summarized again. The original user, assistant, and tool-result facts
 remain in the log.
 
-## Pruning
+## Request admission
 
-Request admission replaces old tool results with a reference:
-
-```text
-[tool output omitted; call_id=...; use the history tool ...]
-```
-
-The latest four tool results are protected first. If the request still does not
-fit, older protected results and finally the newest result can be replaced. The
-model can recover exact content with the `history` tool using `call_id` or
-`entry_id`.
+Request construction preserves the entire projection, including tool outputs.
+Only logged compaction and window events reduce visible history. If the request
+still exceeds the budget after these steps, the loop returns `context_error`
+without sending it to the provider. Use the `history` tool to retrieve evidence
+outside the current context.
 
 ## Windows
 
@@ -1938,20 +1934,14 @@ user entry. The projection does not call a provider or write the log.
 
 1. Joins the base system prompt with request-only context.
 2. Estimates tokens.
-3. Replaces old tool bodies with references, keeping recent results first.
-4. Drops the oldest user turns if still over budget.
-5. Converts to provider messages and tool definitions.
-6. Returns a `Request` and a `BuildReport`.
+3. Preserves all projected messages and tool bodies.
+4. Converts to provider messages and tool definitions.
+5. Returns a `Request` and a `BuildReport`.
 
-`BuildReport` records estimated tokens, budget, dropped call IDs, and dropped
-turns. A request that cannot fit raises `RequestTooLarge`.
-
-## Pruning rules
-
-- The latest four tool results are protected in the first pass.
-- If still over, protected results are pruned oldest first.
-- The newest result is pruned only as a last resort.
-- The replacement names the call ID and points to the history tool.
+`BuildReport` records estimated tokens and budget. Legacy dropped-call and
+turn counters remain empty/zero. `require_sendable()` raises `RequestTooLarge`
+when the full request cannot fit. The loop reduces context only through logged
+compaction and window decisions, then rejects any remaining overflow.
 
 ## Context order
 
@@ -1963,7 +1953,7 @@ non-authentication options, and budget. Session files can contain sensitive inpu
 ## Tests
 
 `test_mini_projection.py`, `test_mini_request.py`, and
-`test_mini_compaction.py` cover the cut, pruning, and wire-format contracts.
+`test_mini_compaction.py` cover cuts, strict admission, and wire-format contracts.
 
 # Loop
 
@@ -2109,8 +2099,8 @@ The system message is the base prompt plus request-only context:
 4. `MEMORY.md` durable facts.
 5. An active goal.
 
-The request audit records this context's digests; it does not turn the text into
-conversation messages.
+The request audit records this context and the normalized request; it does not
+turn the text into conversation facts.
 
 ## Compaction
 
@@ -2137,13 +2127,13 @@ and history. If the request still does not fit, the run terminates with
 ## History
 
 The `history` tool searches the branch or reads an exact entry or tool result.
-It is the recovery path for evidence replaced during pruning or compaction.
+It retrieves evidence outside the current compaction or window boundary.
 Exact content is capped; search results point to entry IDs.
 
-## Request pruning
+## Request admission
 
-Admission replaces old tool bodies with references before it drops turns. The
-history tool remains the only exact source. See
+Admission preserves the full projection. Overflow requires a logged context
+transition or fails with `context_error`. See
 [Projection and request](projection-request.md).
 
 ## Tests
@@ -2236,7 +2226,7 @@ Subagents are sequential and share the parent approval context.
 
 ## Context and extension tools
 
-- `history`: retrieve compacted or pruned evidence.
+- `history`: retrieve evidence outside the current context boundary.
 - `skill`: load the full body of an available `SKILL.md`.
 - `memory`: append a durable fact to `MEMORY.md`.
 - `goal`: read, set, complete, or clear the workspace goal.
@@ -3399,6 +3389,13 @@ facts. The [upgrade guide](../upgrade/README.md) documents resume and rollback.
 
 This page records changes that require action from an existing user or
 automation.
+
+## Explicit context reduction
+
+Request construction no longer trims tool outputs or old turns. The loop first
+tries compaction, then a logged window fallback. If the current task, instructions,
+or tools still exceed the budget, the run returns `context_error`. Reduce the
+input or start a new task; no hidden request-only truncation occurs.
 
 ## Session v2 and snapshot v2
 

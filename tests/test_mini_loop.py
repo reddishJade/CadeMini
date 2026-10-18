@@ -478,7 +478,7 @@ async def test_run_uses_compaction_hook_before_giving_up(
     assert result.termination == "context_error"
 
 
-async def test_run_compacts_before_admission_drops_old_turns(
+async def test_run_compacts_before_building_request(
     tmp_path: Path,
 ) -> None:
     log = _log(tmp_path)
@@ -673,6 +673,24 @@ async def test_run_falls_back_to_window_when_over_budget(
     assert result.termination == "completed"
     assert result.answer == "done"
     assert any(entry.type == "window" for entry in log.branch())
+
+
+async def test_current_turn_overflow_does_not_hide_tool_output(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+    provider = FakeProvider([_tool_response("c1", "x" * 20_000)])
+    result = await run(
+        log,
+        "echo",
+        provider=provider,
+        tools=(EchoTool(),),
+        budget=Budget(2_000, output_reserve=0, headroom_tokens=0),
+        window=lambda log: reset_window(log, reason="fallback"),
+    )
+    assert result.termination == "context_error"
+    assert len(provider.requests) == 1
+    tool_result = next(entry for entry in log.branch() if entry.type == "tool_result")
+    assert tool_result.data["content"] == "x" * 20_000
+    assert len([entry for entry in log.branch() if entry.type == "window"]) == 1
 
 
 async def test_run_appends_steering_at_step_boundary(tmp_path: Path) -> None:

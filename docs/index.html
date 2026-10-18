@@ -509,13 +509,14 @@ model window. It:</p>
 <ul>
 <li>joins request-only context such as instructions, skill catalog, NOTE, memory,
 and goal;</li>
-<li>replaces old tool bodies with references to the history tool;</li>
-<li>drops the oldest turns when needed;</li>
+<li>preserves every projected message and tool result;</li>
+<li>checks the complete request against the input budget;</li>
 <li>converts the result to provider wire format;</li>
 <li>returns a <code>Request</code> with a <code>BuildReport</code>.</li>
 </ul>
-<p>Admission does not mutate the conversation and does not write facts. A request
-that still exceeds the budget is rejected rather than silently truncated.</p>
+<p>Admission does not mutate the conversation and does not write facts. Only
+compaction and window events change the visible history. An over-budget request
+is rejected rather than silently truncated.</p>
 <h2>Run</h2>
 <p>Before appending a new user fact, <code>run()</code> persists interrupted results for
 unfinished tool calls. It does not repeat tools whose outcome is unknown.
@@ -599,14 +600,12 @@ Compaction and window references are remapped when entries are copied.</p>
 <p>Compaction is iterative: a prior summary is serialized as <code>PRIOR SUMMARY</code> and
 can be summarized again. The original user, assistant, and tool-result facts
 remain in the log.</p>
-<h2>Pruning</h2>
-<p>Request admission replaces old tool results with a reference:</p>
-<pre><code class="language-text">[tool output omitted; call_id=...; use the history tool ...]
-</code></pre>
-<p>The latest four tool results are protected first. If the request still does not
-fit, older protected results and finally the newest result can be replaced. The
-model can recover exact content with the <code>history</code> tool using <code>call_id</code> or
-<code>entry_id</code>.</p>
+<h2>Request admission</h2>
+<p>Request construction preserves the entire projection, including tool outputs.
+Only logged compaction and window events reduce visible history. If the request
+still exceeds the budget after these steps, the loop returns <code>context_error</code>
+without sending it to the provider. Use the <code>history</code> tool to retrieve evidence
+outside the current context.</p>
 <h2>Windows</h2>
 <p>A <code>window</code> fact starts a new context at a user entry and may include a handoff.
 The CLI can start one explicitly with <code>/new-context</code>. If compaction cannot bring
@@ -2292,20 +2291,14 @@ user entry. The projection does not call a provider or write the log.</p>
 <ol>
 <li>Joins the base system prompt with request-only context.</li>
 <li>Estimates tokens.</li>
-<li>Replaces old tool bodies with references, keeping recent results first.</li>
-<li>Drops the oldest user turns if still over budget.</li>
+<li>Preserves all projected messages and tool bodies.</li>
 <li>Converts to provider messages and tool definitions.</li>
 <li>Returns a <code>Request</code> and a <code>BuildReport</code>.</li>
 </ol>
-<p><code>BuildReport</code> records estimated tokens, budget, dropped call IDs, and dropped
-turns. A request that cannot fit raises <code>RequestTooLarge</code>.</p>
-<h2>Pruning rules</h2>
-<ul>
-<li>The latest four tool results are protected in the first pass.</li>
-<li>If still over, protected results are pruned oldest first.</li>
-<li>The newest result is pruned only as a last resort.</li>
-<li>The replacement names the call ID and points to the history tool.</li>
-</ul>
+<p><code>BuildReport</code> records estimated tokens and budget. Legacy dropped-call and
+turn counters remain empty/zero. <code>require_sendable()</code> raises <code>RequestTooLarge</code>
+when the full request cannot fit. The loop reduces context only through logged
+compaction and window decisions, then rejects any remaining overflow.</p>
 <h2>Context order</h2>
 <p>The system message carries base instructions plus, in order: instructions,
 skill catalog, NOTE, memory, and goal. These inputs are request-only; the
@@ -2313,7 +2306,7 @@ v2 request audit records their full text, the admitted messages, tool definition
 non-authentication options, and budget. Session files can contain sensitive input.</p>
 <h2>Tests</h2>
 <p><code>test_mini_projection.py</code>, <code>test_mini_request.py</code>, and
-<code>test_mini_compaction.py</code> cover the cut, pruning, and wire-format contracts.</p>
+<code>test_mini_compaction.py</code> cover cuts, strict admission, and wire-format contracts.</p>
 
 </section>
 <section class="page" id="page-loop" data-title="Loop">
@@ -2430,8 +2423,8 @@ the safety layer.</p>
 <li><code>MEMORY.md</code> durable facts.</li>
 <li>An active goal.</li>
 </ol>
-<p>The request audit records this context's digests; it does not turn the text into
-conversation messages.</p>
+<p>The request audit records this context and the normalized request; it does not
+turn the text into conversation facts.</p>
 <h2>Compaction</h2>
 <p><code>Compactor</code> runs when the full projection exceeds the input budget.</p>
 <ol>
@@ -2452,11 +2445,11 @@ and history. If the request still does not fit, the run terminates with
 <code>context_error</code>.</p>
 <h2>History</h2>
 <p>The <code>history</code> tool searches the branch or reads an exact entry or tool result.
-It is the recovery path for evidence replaced during pruning or compaction.
+It retrieves evidence outside the current compaction or window boundary.
 Exact content is capped; search results point to entry IDs.</p>
-<h2>Request pruning</h2>
-<p>Admission replaces old tool bodies with references before it drops turns. The
-history tool remains the only exact source. See
+<h2>Request admission</h2>
+<p>Admission preserves the full projection. Overflow requires a logged context
+transition or fails with <code>context_error</code>. See
 <a href="#page-projection-request">Projection and request</a>.</p>
 <h2>Tests</h2>
 <p><code>test_mini_compaction.py</code>, <code>test_mini_window.py</code>, <code>test_mini_history.py</code>, and
@@ -2521,7 +2514,7 @@ Subagents are sequential and share the parent approval context.</p>
 </ul>
 <h2>Context and extension tools</h2>
 <ul>
-<li><code>history</code>: retrieve compacted or pruned evidence.</li>
+<li><code>history</code>: retrieve evidence outside the current context boundary.</li>
 <li><code>skill</code>: load the full body of an available <code>SKILL.md</code>.</li>
 <li><code>memory</code>: append a durable fact to <code>MEMORY.md</code>.</li>
 <li><code>goal</code>: read, set, complete, or clear the workspace goal.</li>
@@ -3404,6 +3397,11 @@ facts. The <a href="#page-readme">upgrade guide</a> documents resume and rollbac
 <h1>Upgrade guide</h1>
 <p>This page records changes that require action from an existing user or
 automation.</p>
+<h2>Explicit context reduction</h2>
+<p>Request construction no longer trims tool outputs or old turns. The loop first
+tries compaction, then a logged window fallback. If the current task, instructions,
+or tools still exceed the budget, the run returns <code>context_error</code>. Reduce the
+input or start a new task; no hidden request-only truncation occurs.</p>
 <h2>Session v2 and snapshot v2</h2>
 <p>New session facts use v2. This reader also accepts v1 and mixed-version branches.
 Resume an old session normally; its existing bytes remain unchanged. Request

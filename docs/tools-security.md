@@ -11,7 +11,7 @@
 
 ## Context and extension tools
 
-- `history`: retrieve compacted or pruned evidence.
+- `history`: retrieve evidence outside the current context boundary.
 - `skill`: load the full body of an available `SKILL.md`.
 - `memory`: append a durable fact to `MEMORY.md`.
 - `goal`: read, set, complete, or clear the workspace goal.

@@ -17,15 +17,9 @@ from cade_mini.core.types import (
     SystemMessage,
     TextBlock,
     ToolCallBlock,
-    ToolResultMessage,
     UserMessage,
 )
 
-_TOOL_REFERENCE = (
-    "[tool output omitted from this request; call_id={call_id}; "
-    "use the history tool with call_id={call_id} for exact content]"
-)
-_KEEP_RECENT_TOOL_RESULTS = 4
 _SUMMARY_TAGS = {"compaction": "compaction-summary", "window": "window-handoff"}
 
 
@@ -58,7 +52,7 @@ class Budget:
 
 @dataclass(frozen=True)
 class BuildReport:
-    """本次请求的准入结果；丢弃项用于审计，不写回历史。"""
+    """完整投影的准入结果；历史裁剪计数保留为零。"""
 
     estimated_tokens: int
     budget_tokens: int
@@ -149,21 +143,10 @@ def build(
     options: StreamOptions | None = None,
     context: Sequence[str] = (),
 ) -> Request:
-    """构造当前请求；不读文件、不写日志、不调用模型。"""
+    """完整转换投影并检查预算；不裁剪消息，不执行 I/O。"""
     system_text, messages = _prepare(conversation, context)
 
-    tools_tokens = _estimate_tools(tools)
-    message_budget = budget.input_budget - tools_tokens
-    estimated = _estimate_messages(messages) + tools_tokens
-
-    dropped_tool_calls: tuple[str, ...] = ()
-    dropped_turns = 0
-    if estimated > budget.input_budget:
-        messages, dropped_tool_calls = _drop_tool_evidence(messages, message_budget)
-        estimated = _estimate_messages(messages) + tools_tokens
-    if estimated > budget.input_budget:
-        messages, dropped_turns = _drop_turns(messages, message_budget)
-        estimated = _estimate_messages(messages) + tools_tokens
+    estimated = _estimate_messages(messages) + _estimate_tools(tools)
 
     return Request(
         messages=tuple(_to_wire(message) for message in messages),
@@ -173,8 +156,6 @@ def build(
             estimated_tokens=estimated,
             budget_tokens=budget.input_budget,
             over_budget=estimated > budget.input_budget,
-            dropped_tool_calls=dropped_tool_calls,
-            dropped_turns=dropped_turns,
             context_tokens=_tokens(system_text) if context else 0,
         ),
         admitted=tuple(messages),
@@ -207,70 +188,6 @@ def _prepare(
 def _join_system(base: str, context: Sequence[str]) -> str:
     parts = [base.strip(), *(part.strip() for part in context if part.strip())]
     return "\n\n".join(part for part in parts if part)
-
-
-def _drop_tool_evidence(
-    messages: list[Message],
-    budget: int,
-) -> tuple[list[Message], tuple[str, ...]]:
-    """先替换旧工具结果；仍超预算时再动最近结果和最末一条。"""
-    if budget <= 0:
-        return messages, ()
-    candidates = [
-        index
-        for index, message in enumerate(messages)
-        if isinstance(message, ToolResultMessage)
-    ]
-    protected = set(candidates[-_KEEP_RECENT_TOOL_RESULTS:])
-    projected = list(messages)
-    dropped: list[str] = []
-    pruned: set[int] = set()
-
-    def prune(index: int) -> None:
-        message = projected[index]
-        if not isinstance(message, ToolResultMessage) or index in pruned:
-            return
-        projected[index] = message.model_copy(
-            update={"content": _TOOL_REFERENCE.format(call_id=message.call_id)}
-        )
-        dropped.append(message.call_id)
-        pruned.add(index)
-
-    for index in candidates:
-        if index in protected:
-            continue
-        if _estimate_messages(projected) <= budget:
-            return projected, tuple(dropped)
-        prune(index)
-    for index in candidates:
-        if index not in protected or index == candidates[-1]:
-            continue
-        if _estimate_messages(projected) <= budget:
-            return projected, tuple(dropped)
-        prune(index)
-    if _estimate_messages(projected) > budget and candidates:
-        prune(candidates[-1])
-    return projected, tuple(dropped)
-
-
-def _drop_turns(messages: list[Message], budget: int) -> tuple[list[Message], int]:
-    """从最旧的用户轮次开始整轮移除，保留最新任务。"""
-    if budget <= 0:
-        return messages, 0
-    projected = list(messages)
-    dropped = 0
-    while _estimate_messages(projected) > budget:
-        user_indices = [
-            index
-            for index, message in enumerate(projected)
-            if isinstance(message, UserMessage)
-        ]
-        if len(user_indices) <= 1:
-            break
-        start, end = user_indices[0], user_indices[1]
-        del projected[start:end]
-        dropped += 1
-    return projected, dropped
 
 
 def _to_wire(message: Message) -> dict[str, Any]:
