@@ -31,5 +31,5 @@ cade_mini/
   __main__.py
 ```
 
-See [Architecture](../../docs/cade-mini/architecture.md) and the
-[code map](../../docs/cade-mini/design/code-map.md).
+See [Architecture](../../docs/architecture.md) and the
+[code map](../../docs/design/code-map.md).

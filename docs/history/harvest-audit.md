@@ -2,8 +2,8 @@
 
 > Historical record from before the standalone project split. Package names,
 > paths, and development plans below describe that earlier checkout. For the
-> current project, see the [manual](cade-mini/README.md) and
-> [architecture](architecture.md).
+> current project, see the [manual](../README.md) and
+> [architecture](../architecture.md).
 
 > Status: first pass, read-only. This audit classifies the existing code for the
 > Mini refactor. It does not move or edit code.
@@ -285,7 +285,7 @@ Recommendation: defer. Revisit after the first increment if Git is not enough.
 ## First harvest order
 
 1. Freeze the Mini event schema and compaction record. The decision is
-   [cade-mini-schema.md](cade-mini-schema.md).
+   [Session schema](../reference/session-schema.md).
 2. Copy or adapt the small pure helpers: `_tool_pairing.py`,
    `validate_tool_pairing`, `artifacts.py`, `path_utils.py`, `truncate.py`, and
    `shell_adapter.py`.

@@ -70,13 +70,14 @@ feature, review-only work, long sessions, and a custom MCP server.
 
 ## Design and reference
 
-The guides are task-oriented. The detailed design and schema references remain
-the source of truth for invariants:
+The [session schema](reference/session-schema.md) defines the persistence
+contract. Historical research and acceptance records describe the project before
+it became independent:
 
-- [Cade Mini design](../cade-mini.md)
-- [Session log schema](../cade-mini-schema.md)
-- [Harvest notes](../cade-mini-harvest.md)
-- [Parity acceptance](../cade-mini-parity.md)
+- [Cade Mini design](history/design-proposal.md)
+- [Session log schema](reference/session-schema.md)
+- [Harvest notes](history/harvest-audit.md)
+- [Parity acceptance](history/parity-acceptance.md)
 
 ## Built docs
 
@@ -90,6 +91,6 @@ python -m cade_mini.docs llms --write
 python -m cade_mini.docs catalogs --write
 ```
 
-The generated site is [docs/index.html](../index.html); the generated
-catalogs are `docs/cade-mini/llms.txt`, `docs/cade-mini/llms-full.txt`, and the
+The generated site is [docs/index.html](index.html); the generated
+catalogs are `docs/llms.txt`, `docs/llms-full.txt`, and the
 config, event, and module pages under `design/`.

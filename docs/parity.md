@@ -1,7 +1,7 @@
 # Parity
 
 Cade Mini was accepted against Cade on two real repository workflows and a
-session resume. The full report is [Cade Mini parity](../cade-mini-parity.md).
+session resume. The full report is [Cade Mini parity](history/parity-acceptance.md).
 
 ## Workflows
 

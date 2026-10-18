@@ -2,8 +2,8 @@
 
 > Historical record from before the standalone project split. Package names,
 > paths, and development plans below describe that earlier checkout. For the
-> current project, see the [manual](cade-mini/README.md) and
-> [architecture](architecture.md).
+> current project, see the [manual](../README.md) and
+> [architecture](../architecture.md).
 
 > Status: proposal, revised after review. This is a plan, not a reduced feature
 > list. Cade Mini is the same product idea with a corrected structure.
@@ -67,12 +67,12 @@ Committed on `experiment/cade-mini`:
   and created `build.txt` with content `build-mode`.
 - A real web-host run passed: an HTTP POST to `/api/task` returned
   `{"answer":"WEB-OK","termination":"completed"}` from DeepSeek.
-- The Mini docs are built from `docs/cade-mini/` and `docs.json`. `python -m
+- The Mini docs are built from `docs/` and `docs.json`. `python -m
   cade.mini.docs check` validates links and anchors in CI; `build` writes
-  `docs/mini/index.html`; `llms --write` writes the catalog and full corpus.
+  `docs/index.html`; `llms --write` writes the catalog and full corpus.
 - Parity acceptance passed on two repository workflows and a session resume:
   Mini and Cade produced the same bug-fix and feature diffs, both ran pytest,
-  and both recalled the earlier fix. See [cade-mini-parity.md](cade-mini-parity.md).
+  and both recalled the earlier fix. See [Parity acceptance](parity-acceptance.md).
 - A persistent MCP subprocess test discovers `echo` and `counter` tools, calls
   them across event loops, and gets `echo:hi` plus stateful `count:1`/`count:2`.
 - A live Codex acceptance passed after the quota recovered: the write tool
@@ -279,7 +279,7 @@ summary, never the projected result".
 Compaction and window switching are projection semantics. They belong in the
 first increment because a coding session outgrows one model window. The full
 event schema and storage contract are in
-[cade-mini-schema.md](cade-mini-schema.md).
+[Session schema](../reference/session-schema.md).
 
 ### Compaction
 
@@ -439,7 +439,7 @@ because a simpler mechanism already covers the need:
 
 Do not rewrite a module because it is old. Rewrite it only when it violates the
 pipeline or cannot be read in one sitting. The full audit is in
-[cade-mini-harvest.md](cade-mini-harvest.md). This is the summary.
+[Harvest audit](harvest-audit.md). This is the summary.
 
 | Existing area | Verdict | Reason |
 | --- | --- | --- |

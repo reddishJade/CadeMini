@@ -1,30 +1,107 @@
-# Cade Mini architecture
+# Architecture
 
-Cade Mini is a standalone coding agent. All runtime code lives in
-`src/cade_mini/`; it does not import or install Cade.
-
-The main pipeline separates durable facts from model requests:
+Cade Mini is a standalone coding agent in `src/cade_mini/`. It uses a pipeline
+with four stages. Each stage has one owner and one direction of data flow.
 
 ```text
-Session log -> Conversation projection -> Request admission -> Run
+Session log -> Conversation projection -> Request -> Run
 ```
 
-- `core/` owns logs, projection, budgets, the loop, compaction, and window changes.
-- `ai/` owns provider protocols, streaming adapters, model metadata, and OAuth.
-- `execution_env/` owns local process execution and output capture.
-- `tools/`, `safety/`, and `extensions/` implement actions, permissions, and add-ons.
-- `app/` owns configuration, credentials, and request context.
-- `hosts/` owns terminal, login, and web interaction.
+## Session log
 
-Provider and process modules do not depend on the application or hosts. Tests
-in `tests/test_mini_boundary.py` enforce independence from the old Cade package.
-Mini has no OS sandbox; shell execution uses local host permissions.
+`SessionLog` is an append-only JSONL file. Each entry has an ID, timestamp,
+type, parent ID, and data. The active branch ends at the latest entry. A tree is
+possible, but the loop follows one branch.
+
+The log stores facts:
+
+- `system`, `user`, `assistant`, and `tool_result` are model-visible facts.
+- `compaction` records a summary and `first_kept_id`.
+- `window` records a new context start and an optional handoff.
+- `request`, `run`, and `attempt` are audit facts. They never become
+  conversation messages.
+
+The schema is closed and versioned. See [Session log schema](reference/session-schema.md).
+
+## Projection
+
+`project(entries)` is a pure function. It reads the branch and produces the
+deterministic conversation projection:
+
+1. Take the latest system message.
+2. Apply the latest window start.
+3. Apply the latest compaction summary.
+4. Keep retained user, assistant, and tool-result messages.
+5. Pair tool calls with tool results; insert a synthetic interrupted result at
+   the tail when the log ends mid-call.
+
+No projection step writes to the log. Replaying the same entries always
+produces the same conversation.
+
+## Request
+
+`build(conversation, tools, budget, context)` admits messages into the current
+model window. It:
+
+- joins request-only context such as instructions, skill catalog, NOTE, memory,
+  and goal;
+- replaces old tool bodies with references to the history tool;
+- drops the oldest turns when needed;
+- converts the result to provider wire format;
+- returns a `Request` with a `BuildReport`.
+
+Admission does not mutate the conversation and does not write facts. A request
+that still exceeds the budget is rejected rather than silently truncated.
+
+## Run
+
+`run()` appends the user fact, calls the provider, appends assistant and
+tool-result facts, and executes tools. It is the only stage that writes during a
+turn. Compaction and window fallback are decisions expressed as new log facts.
+
+## Package map
+
+- `core/types.py`: log, message, block, and error types.
+- `core/log.py`: append, lock, tail repair, session listing, copy/fork.
+- `core/projection.py`: deterministic conversation projection.
+- `core/request.py`: budget, admission, wire conversion.
+- `core/loop.py`: provider stream, tool execution, retries, facts.
+- `core/compaction.py` and `core/window.py`: context reduction decisions.
+- `tools/workspace.py`, `tools/history.py`: workspace tools and evidence
+  retrieval.
+- `safety/policy.py`, `safety/shell.py`, `safety/grants.py`,
+  `safety/approval.py`, `safety/review.py`: permissions and approvals.
+- `extensions/skills.py`, `extensions/memory.py`, `extensions/hooks.py`,
+  `extensions/mcp.py`, `extensions/subagents.py`, `extensions/snapshots.py`,
+  `extensions/goal.py`: add-ons and durable host state.
+- `app/config.py`, `app/provider.py`, `app/auth.py`, `app/prompts.py`,
+  `app/instructions.py`, `app/note.py`: startup and request context.
+- `hosts/cli.py`, `hosts/web.py`, `docs.py`: hosts and documentation.
+
+Mini owns `cade_mini.ai` and `cade_mini.execution_env` as lower layers for
+provider protocols and local process execution. It does not depend on the
+separate Cade project. `test_mini_boundary.py` rejects old Cade imports and
+application dependencies in these lower layers. There are no top-level
+re-exports; import the owning submodule directly.
+
+## Lower layers and state
+
+`ai/` owns provider protocols, streaming adapters, model metadata, and OAuth.
+`execution_env/` owns local process execution and output capture. Neither layer
+imports application or host modules. Mini has no OS sandbox; shell execution
+uses local host permissions.
 
 Credentials and user skills use `~/.cade-mini/`. Sessions, snapshots, goals,
-and project skills use `<workspace>/.cade-mini/`. Mini reads project settings
-from `cade-mini.json`. It does not discover old Cade state.
+and project skills use `<workspace>/.cade-mini/`. Project settings live in
+`cade-mini.json`. Mini does not discover old Cade state.
 
-See the [pipeline architecture](cade-mini/architecture.md),
-[code map](cade-mini/design/code-map.md), and
-[persistence catalog](cade-mini/design/persistence-catalog.md) for contracts
-and implementation locations.
+See the [code map](design/code-map.md) and
+[persistence catalog](design/persistence-catalog.md) for implementation locations
+and durable state ownership.
+
+## Why the split
+
+The split prevents a common failure: the request builder starts hiding
+messages, then the history rewrite becomes the only copy of what happened. Mini
+keeps the original facts and lets the projection and admission be replaced
+without losing history.

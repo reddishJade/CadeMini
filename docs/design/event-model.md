@@ -68,6 +68,6 @@ when a summary cannot fit.
 
 ## Schema authority
 
-The closed schema is in [Session log schema](../../cade-mini-schema.md). The
+The closed schema is in [Session log schema](../reference/session-schema.md). The
 generated [event catalog](event-catalog.md) lists the current event types from
 code.

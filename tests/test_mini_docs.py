@@ -38,6 +38,7 @@ def _write_docs(root: Path, pages: dict[str, str]) -> None:
 
 
 def test_repository_docs_check_passes() -> None:
+    assert docs._DOCS_ROOT == Path(__file__).resolve().parents[1] / "docs"
     assert docs.check(docs._DOCS_ROOT) == []
 
 
@@ -48,6 +49,10 @@ def test_llms_lists_every_manifest_page() -> None:
     assert "(quickstart.md)" in catalog
     assert "(security" not in catalog
     assert "(tools-security.md)" in catalog
+    assert "(reference/session-schema.md)" in catalog
+    assert "(history/design-proposal.md)" in catalog
+    assert "cade-mini/" not in catalog
+    assert "../cade-mini" not in catalog
 
 
 def test_llms_full_contains_page_bodies() -> None:

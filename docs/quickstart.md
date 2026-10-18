@@ -94,4 +94,4 @@ uv run --locked python -m cade_mini.docs check
 uv run --locked python -m cade_mini.docs build
 ```
 
-Open `docs/index.html`. The docs source is under `docs/cade-mini/`.
+Open `docs/index.html`. The docs source is under `docs/`.

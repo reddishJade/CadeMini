@@ -35,5 +35,5 @@ navigation aid; when it disagrees with the tool schema, the schema wins.
 ## Related
 
 - [Tools and security](../tools-security.md)
-- [Tool execution](../design/tool-execution.md)
+- [Tool execution](tool-execution.md)
 - [Configuration catalog](config-catalog.md)

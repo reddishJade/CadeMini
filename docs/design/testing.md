@@ -52,4 +52,4 @@ links, anchors, and generated catalogs. The docs job runs in CI.
 Build the wheel and source archive with `uv build --no-sources`. Install the
 wheel in a clean virtual environment and check both `cade-mini --help` and
 `python -m cade_mini --help` outside the source tree. No Cade package or command
-should be present. See the [validation guidelines](../../testing.md).
+should be present. See the [validation guidelines](../testing.md).

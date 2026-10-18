@@ -1,6 +1,6 @@
 # Documentation guide
 
-The published Cade Mini docs live in `docs/cade-mini/`. The site is generated
+The published Cade Mini docs live in `docs/`. The site is generated
 from Markdown and `docs.json`; do not edit `docs/index.html` by hand.
 
 ## Rules
@@ -9,7 +9,7 @@ from Markdown and `docs.json`; do not edit `docs/index.html` by hand.
 - Keep one source of truth. Link to the design and schema instead of copying
   invariants into several pages.
 - Add every new page to a section in `docs.json`. The only exceptions are paths
-  matched by `exclude` (decision records and the postmortem template).
+  matched by `exclude` (this file, decision records, and the postmortem template).
 - Use relative links to other docs and code. Do not use absolute filesystem
   paths.
 - Use fenced code blocks with a language. Keep commands copy-pasteable.
@@ -25,8 +25,9 @@ from Markdown and `docs.json`; do not edit `docs/index.html` by hand.
 - Safety and Extensions: user-facing behavior of policy and add-ons.
 - Cookbook: numbered procedures with a verification step.
 - Operations: hosts, development, testing, and parity.
-- History: postmortems, persistence policy, and upgrade notes. Chronology
-  belongs only in postmortems.
+- Reference: persistent format contracts under `reference/`.
+- History: pre-split design, harvest, and acceptance records under `history/`.
+  Postmortems, persistence policy, and upgrade notes have their own directories.
 - Decisions: durable choices that change a public contract.
 
 Generated pages (`design/config-catalog.md`, `design/event-catalog.md`, and
@@ -54,6 +55,6 @@ path first. Link related guides at the end.
 
 ## Decision records
 
-Use `docs/cade-mini/decisions/TEMPLATE.md` for choices that change durable state
+Use `docs/decisions/TEMPLATE.md` for choices that change durable state
 or public interfaces. Number them sequentially, set a status, and link the code
 and tests that enforce the decision.

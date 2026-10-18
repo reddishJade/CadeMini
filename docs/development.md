@@ -11,8 +11,8 @@ uv sync --locked --extra dev --extra docs
 mkdir -p e2e-results
 ```
 
-Code lives in `src/cade_mini/`, tests in `tests/`, and the manual in
-`docs/cade-mini/`. See [Architecture](architecture.md) for module boundaries.
+Code lives in `src/cade_mini/`, tests in `tests/`, and documentation in `docs/`.
+See [Architecture](architecture.md) for module boundaries.
 
 ## Checks
 
@@ -28,10 +28,52 @@ uv run --locked python -m cade_mini.docs check
 uv build --no-sources
 ```
 
-Follow the [validation guidelines](testing.md) to select additional checks.
+Follow the [validation guidelines](testing.md) to select focused checks.
 Keep temporary workspaces and run evidence under `e2e-results/`. Never commit
-credentials or raw provider traces. See the
-[manual development page](cade-mini/development.md) for docs generation.
+credentials or raw provider traces.
+
+## Documentation
+
+The docs source is `docs/`. The manifest is `docs/docs.json`; it defines
+navigation order and published pages. [docs/README.md](README.md) is the manual
+entry point. [docs/AGENTS.md](AGENTS.md) defines documentation rules.
+
+```bash
+uv run --locked python -m cade_mini.docs catalogs --write
+uv run --locked python -m cade_mini.docs llms --write
+uv run --locked python -m cade_mini.docs build
+uv run --locked python -m cade_mini.docs check
+```
+
+`check` validates the manifest, page files, relative links, anchors, and generated
+catalogs. It uses only the standard library and runs in CI. `build` renders
+`docs/index.html` and needs the `docs` extra.
+
+`llms --write` updates `docs/llms.txt` and `docs/llms-full.txt`. `catalogs --write`
+updates the config, event, and module references under `docs/design/`.
+Do not edit generated files by hand.
+
+To add a page:
+
+1. Add the Markdown file under `docs/`.
+2. Add it to a section in `docs/docs.json`.
+3. Use relative links to other pages.
+4. Regenerate the catalogs and site, then run the docs check.
+
+Every Markdown file must be listed in the manifest unless it matches `exclude`.
+The excluded files are agent instructions, decision records, and the postmortem
+template. Put session format references under `docs/reference/` and historical
+research under `docs/history/`.
+
+## Boundaries
+
+Mini owns the provider and process layers in `cade_mini.ai` and
+`cade_mini.execution_env`. `tests/test_mini_boundary.py` rejects imports from
+the old `cade` namespace. Do not add dependencies on the separate Cade project.
+
+Public interfaces include the session schema, config fields, CLI flags, tool
+names, and docs manifest. Change them with tests and documentation in the same
+commit.
 
 ## Commits and releases
 

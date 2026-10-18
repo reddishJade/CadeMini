@@ -23,7 +23,7 @@ uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review thi
 
 Provider API key environment variables are also supported. Credentials live in
 `~/.cade-mini/auth.json`; Cade credentials and settings are not read. See the
-[quickstart](docs/cade-mini/quickstart.md) for device-code login and setup.
+[quickstart](docs/quickstart.md) for device-code login and setup.
 
 To install the command outside the checkout:
 
@@ -49,8 +49,8 @@ project's `.cade-mini/` directory. Project settings live in `cade-mini.json`.
 Mini includes workspace tools, history retrieval, context compaction, skills,
 memory, hooks, MCP tools, subagents, file snapshots, and goals.
 
-- [User and developer guides](docs/cade-mini/README.md)
-- [CLI](docs/cade-mini/cli.md) · [Configuration](docs/cade-mini/configuration.md)
+- [User and developer guides](docs/README.md)
+- [CLI](docs/cli.md) · [Configuration](docs/configuration.md)
 - [Architecture](docs/architecture.md) · [Development](docs/development.md)
 - [Generated docs site](docs/index.html)
 

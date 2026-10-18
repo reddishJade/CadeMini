@@ -5,7 +5,7 @@ tests, and a migration path.
 
 ## Before changing the schema
 
-1. Write a decision record under `docs/cade-mini/decisions/`.
+1. Write a decision record under `docs/decisions/`.
 2. State whether the change is additive, transformative, or breaking.
 3. Describe how an old session is read and whether it is rewritten.
 4. Define the new schema version and the reader's rejection rule.
@@ -17,7 +17,7 @@ tests, and a migration path.
 - Never infer a missing field from a provider's current behavior.
 - Keep audit facts out of the projection unless the schema says otherwise.
 - Bump the version for any change that an old reader cannot ignore.
-- Update [Persistence](README.md), the [schema](../../cade-mini-schema.md), and
+- Update [Persistence](README.md), the [schema](../reference/session-schema.md), and
   the [upgrade guide](../upgrade/README.md) in the same change.
 
 ## Review checklist

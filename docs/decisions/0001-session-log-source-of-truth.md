@@ -30,4 +30,4 @@ facts and never project into the conversation.
 - Schema changes require a versioned decision because stored facts are durable.
 
 The invariant is documented in [Architecture](../architecture.md), [Sessions and
-context](../sessions-context.md), and the [schema](../../cade-mini-schema.md).
+context](../sessions-context.md), and the [schema](../reference/session-schema.md).

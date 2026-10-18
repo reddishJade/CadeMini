@@ -31,6 +31,9 @@
 - [Glossary](design/glossary.md)
 - [Testing](design/testing.md)
 
+## Reference
+- [Cade Mini session schema](reference/session-schema.md)
+
 ## Subsystems
 - [Subsystems](subsystems/README.md)
 - [Log](subsystems/log.md)
@@ -59,6 +62,8 @@
 ## Operations
 - [Hosts](hosts.md)
 - [Development](development.md)
+- [Validation guidelines](testing.md)
+- [Cade Mini review standards](review-standards.md)
 - [Parity](parity.md)
 
 ## History
@@ -68,10 +73,6 @@
 - [Persistence](persistence/README.md)
 - [Change policy](persistence/change-policy.md)
 - [Upgrade guide](upgrade/README.md)
-
-## Design references
-
-- [Cade Mini design](../cade-mini.md)
-- [Session log schema](../cade-mini-schema.md)
-- [Harvest notes](../cade-mini-harvest.md)
-- [Parity acceptance](../cade-mini-parity.md)
+- [Cade Mini: a full refactor of Cade's core](history/design-proposal.md)
+- [Cade Mini harvest audit](history/harvest-audit.md)
+- [Cade Mini parity acceptance](history/parity-acceptance.md)

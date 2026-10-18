@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, get_args
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_DOCS_ROOT = _REPO_ROOT / "docs" / "cade-mini"
+_DOCS_ROOT = _REPO_ROOT / "docs"
 _SITE_OUT = _REPO_ROOT / "docs" / "index.html"
 _LLMS_NAME = "llms.txt"
 _LLMS_FULL_NAME = "llms-full.txt"
@@ -212,17 +212,6 @@ def render_llms(root: Path = _DOCS_ROOT) -> str:
                 path = root / relative
                 lines.append(f"- [{_title(path)}]({relative})")
             lines.append("")
-    lines.extend(
-        [
-            "## Design references",
-            "",
-            "- [Cade Mini design](../cade-mini.md)",
-            "- [Session log schema](../cade-mini-schema.md)",
-            "- [Harvest notes](../cade-mini-harvest.md)",
-            "- [Parity acceptance](../cade-mini-parity.md)",
-            "",
-        ]
-    )
     return "\n".join(lines)
 
 

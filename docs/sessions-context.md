@@ -85,4 +85,4 @@ For each task the request contains:
 
 Items 2-6 are request-only context. They are recorded in the request audit but
 never become conversation facts. See [Architecture](architecture.md) and the
-[design](../cade-mini.md).
+[design](history/design-proposal.md).

@@ -34,6 +34,10 @@
       ]
     },
     {
+      "title": "Reference",
+      "pages": ["reference/session-schema.md"]
+    },
+    {
       "title": "Subsystems",
       "pages": [
         "subsystems/README.md",
@@ -66,7 +70,7 @@
     },
     {
       "title": "Operations",
-      "pages": ["hosts.md", "development.md", "parity.md"]
+      "pages": ["hosts.md", "development.md", "testing.md", "review-standards.md", "parity.md"]
     },
     {
       "title": "History",
@@ -76,9 +80,12 @@
         "postmortem/0002-single-huge-tool-result.md",
         "persistence/README.md",
         "persistence/change-policy.md",
-        "upgrade/README.md"
+        "upgrade/README.md",
+        "history/design-proposal.md",
+        "history/harvest-audit.md",
+        "history/parity-acceptance.md"
       ]
     }
   ],
-  "exclude": ["decisions/**", "postmortem/TEMPLATE.md"]
+  "exclude": ["AGENTS.md", "decisions/**", "postmortem/TEMPLATE.md"]
 }

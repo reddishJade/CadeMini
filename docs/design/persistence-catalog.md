@@ -16,7 +16,7 @@ narrower jobs.
 | Config | `cade-mini.json` | `MiniConfig` | Project | Pydantic, strict |
 | Credentials | `~/.cade-mini/auth.json` | `JsonCredentialStore` | User | Provider credentials |
 | Docs site | `docs/index.html` | Docs tool | Repository | Generated |
-| LLM catalogs | `docs/cade-mini/llms*.txt` | Docs tool | Repository | Generated |
+| LLM catalogs | `docs/llms*.txt` | Docs tool | Repository | Generated |
 
 ## The session log
 
@@ -50,5 +50,5 @@ The docs site, `llms.txt`, and `llms-full.txt` are generated from Markdown and
 - Approval prompts and TUI state are host state.
 - Provider replay payloads live inside the assistant fact that produced them.
 
-See [Session log schema](../../cade-mini-schema.md) for field-level detail and
+See [Session log schema](../reference/session-schema.md) for field-level detail and
 [Change policy](../persistence/change-policy.md) for schema changes.

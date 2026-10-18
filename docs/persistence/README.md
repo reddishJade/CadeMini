@@ -5,7 +5,7 @@ host-state files with narrow scopes.
 
 ## Current format
 
-- Session log: schema v1, closed. See [Session log schema](../../cade-mini-schema.md).
+- Session log: schema v1, closed. See [Session log schema](../reference/session-schema.md).
 - Entry file: one JSON object per line; a trailing newline is required.
 - Session directory: `.cade-mini/sessions`.
 - Compaction and windows are entries, not file rewrites.
@@ -33,4 +33,4 @@ test that opens an old fixture and one that rejects a future version.
 
 - [Persistence catalog](../design/persistence-catalog.md)
 - [Change policy](change-policy.md)
-- [Session log schema](../../cade-mini-schema.md)
+- [Session log schema](../reference/session-schema.md)
