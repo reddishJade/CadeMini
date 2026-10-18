@@ -13,9 +13,20 @@ from .loop import (
     ToolStartEvent,
     run,
 )
+from .policy import WorkspacePolicy
 from .projection import project
 from .provider import ProviderConfig, build_provider
 from .request import Budget, BuildReport, Request, RequestTooLarge, build, estimate
+from .tools import (
+    BashTool,
+    EditTool,
+    GlobTool,
+    GrepTool,
+    ReadTool,
+    WriteTool,
+    build_tools,
+    resolve_workspace_path,
+)
 from .types import (
     AssistantMessage,
     LogEntry,
@@ -33,9 +44,13 @@ from .types import (
 
 __all__ = [
     "AssistantMessage",
+    "BashTool",
     "Budget",
     "BuildReport",
     "CancellationToken",
+    "EditTool",
+    "GlobTool",
+    "GrepTool",
     "LogEntry",
     "LogError",
     "LoopEvent",
@@ -44,6 +59,7 @@ __all__ = [
     "Policy",
     "ProjectionError",
     "ProviderConfig",
+    "ReadTool",
     "Request",
     "RequestTooLarge",
     "RunResult",
@@ -59,9 +75,13 @@ __all__ = [
     "ToolResultMessage",
     "ToolStartEvent",
     "UserMessage",
+    "WorkspacePolicy",
+    "WriteTool",
     "build",
     "build_provider",
+    "build_tools",
     "estimate",
     "project",
+    "resolve_workspace_path",
     "run",
 ]

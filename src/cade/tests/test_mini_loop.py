@@ -25,6 +25,8 @@ from cade.mini import (
     ToolEndEvent,
     ToolResult,
     ToolStartEvent,
+    WorkspacePolicy,
+    build_tools,
     project,
     run,
 )
@@ -433,3 +435,48 @@ async def test_run_emits_stream_and_tool_events(tmp_path: Path) -> None:
     assert any(isinstance(event, ToolStartEvent) for event in events)
     assert any(isinstance(event, ToolEndEvent) for event in events)
     assert any(isinstance(event, TextDeltaEvent) for event in events)
+
+
+async def test_run_executes_workspace_tools_with_policy(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="w1",
+                            name="write",
+                            input={"path": "a.txt", "content": "hello"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            [
+                ToolCallEvent(
+                    [ToolCall(id="r1", name="read", input={"path": "a.txt"})]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text_response("done"),
+        ]
+    )
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "write then read",
+        provider=provider,
+        tools=build_tools(workspace),
+        budget=Budget(100_000),
+        policy=WorkspacePolicy(workspace),
+        approve=lambda call: True,
+    )
+
+    assert result.termination == "completed"
+    assert result.answer == "done"
+    assert (workspace / "a.txt").read_text(encoding="utf-8") == "hello"
+    tool_results = [entry for entry in log.branch() if entry.type == "tool_result"]
+    assert any("hello" in str(entry.data["content"]) for entry in tool_results)
