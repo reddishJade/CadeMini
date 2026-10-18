@@ -27,18 +27,13 @@ from .loop import (
 )
 from .policy import WorkspacePolicy
 from .projection import project
+from .prompts import render_system_prompt
 from .provider import ProviderConfig, build_provider
 from .request import Budget
 from .skills import LoadSkillTool, discover_skills, render_skill_catalog
 from .tools import build_tools
 from .types import LogError, ToolCallBlock
 from .window import reset_window
-
-SYSTEM_PROMPT = """\
-You are Cade Mini, a coding agent working in a local workspace.
-Use the provided tools to inspect and modify files. Read before editing.
-Prefer small, verifiable changes. Run relevant checks when useful.
-Never claim a change you did not make. Keep answers concise."""
 
 WINDOW_HANDOFF = (
     "Earlier history was discarded to fit the model window. "
@@ -125,6 +120,11 @@ def main(
         )
         return 2
     resume = "" if args.continue_ else args.resume
+    try:
+        system_prompt = render_system_prompt(project_root, config.prompt_modules)
+    except ValueError as exc:
+        print(f"cade-mini: {exc}", file=sys.stderr)
+        return 2
 
     try:
         selected = provider or build_provider(
@@ -165,7 +165,7 @@ def main(
         return tuple(parts)
 
     try:
-        log = _open_log(sessions_dir, resume)
+        log = _open_log(sessions_dir, resume, system_prompt)
     except (OSError, ValueError, LogError) as exc:
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2
@@ -197,6 +197,7 @@ def main(
     return _repl(
         log,
         sessions_dir,
+        system_prompt,
         selected,
         base_tools,
         project_root,
@@ -270,10 +271,14 @@ def _print_sessions(sessions_dir: Path) -> None:
         print(f"{info.id:<12} {info.updated_at:<25} {info.title}")
 
 
-def _open_log(sessions_dir: Path, resume: str | None) -> SessionLog:
+def _open_log(
+    sessions_dir: Path,
+    resume: str | None,
+    system_prompt: str,
+) -> SessionLog:
     sessions_dir.mkdir(parents=True, exist_ok=True)
     if resume is None:
-        return _new_log(sessions_dir)
+        return _new_log(sessions_dir, system_prompt)
     if resume == "":
         paths = sorted(
             sessions_dir.glob("session-*.jsonl"),
@@ -281,23 +286,23 @@ def _open_log(sessions_dir: Path, resume: str | None) -> SessionLog:
             reverse=True,
         )
         if not paths:
-            return _new_log(sessions_dir)
+            return _new_log(sessions_dir, system_prompt)
         log = SessionLog.open(paths[0])
     else:
         log = SessionLog.open(sessions_dir / f"session-{resume}.jsonl")
-    _ensure_system(log)
+    _ensure_system(log, system_prompt)
     return log
 
 
-def _new_log(sessions_dir: Path) -> SessionLog:
+def _new_log(sessions_dir: Path, system_prompt: str) -> SessionLog:
     log = SessionLog.create(sessions_dir)
-    log.append("system", {"text": SYSTEM_PROMPT})
+    log.append("system", {"text": system_prompt})
     return log
 
 
-def _ensure_system(log: SessionLog) -> None:
+def _ensure_system(log: SessionLog, system_prompt: str) -> None:
     if not any(entry.type == "system" for entry in log.branch()):
-        log.append("system", {"text": SYSTEM_PROMPT})
+        log.append("system", {"text": system_prompt})
 
 
 def _tools_for(
@@ -343,6 +348,7 @@ def _run_task(
 def _repl(
     log: SessionLog,
     sessions_dir: Path,
+    system_prompt: str,
     provider: Provider,
     base_tools: Sequence[Tool],
     workspace: Path,
@@ -380,14 +386,14 @@ def _repl(
             )
             continue
         if text == "/new":
-            log = _new_log(sessions_dir)
+            log = _new_log(sessions_dir, system_prompt)
             tools = _tools_for(base_tools, workspace, log)
             print(f"session {log.session_id}")
             continue
         if text.startswith("/resume"):
             target = text[len("/resume") :].strip()
             try:
-                log = _open_log(sessions_dir, target)
+                log = _open_log(sessions_dir, target, system_prompt)
             except (OSError, ValueError, LogError) as exc:
                 print(f"cade-mini: {exc}", file=sys.stderr)
                 continue
@@ -471,4 +477,4 @@ def _final_json(result: RunResult) -> None:
     )
 
 
-__all__ = ["SYSTEM_PROMPT", "main"]
+__all__ = ["main"]

@@ -20,6 +20,7 @@ from .loop import (
 )
 from .policy import WorkspacePolicy
 from .projection import project
+from .prompts import DEFAULT_MODULES, render_system_prompt
 from .provider import ProviderConfig, build_provider
 from .request import Budget, BuildReport, Request, RequestTooLarge, build, estimate
 from .skills import LoadSkillTool, Skill, discover_skills, render_skill_catalog
@@ -50,6 +51,7 @@ from .types import (
 from .window import reset_window
 
 __all__ = [
+    "DEFAULT_MODULES",
     "AssistantMessage",
     "BashTool",
     "Budget",
@@ -101,6 +103,7 @@ __all__ = [
     "load_project_instructions",
     "project",
     "render_skill_catalog",
+    "render_system_prompt",
     "reset_window",
     "resolve_workspace_path",
     "run",

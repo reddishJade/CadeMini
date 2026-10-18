@@ -590,3 +590,27 @@ def test_cli_exposes_skill_catalog_and_tool(tmp_path: Path) -> None:
     log = SessionLog.open(_session_files(sessions)[0])
     tool_result = next(entry for entry in log.branch() if entry.type == "tool_result")
     assert "Say HELLO." in str(tool_result.data["content"])
+
+
+def test_cli_uses_configured_prompt_modules(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "cade-mini.json").write_text(
+        json.dumps({"prompt_modules": ["identity"]}),
+        encoding="utf-8",
+    )
+    provider = FakeProvider([_text("ok")])
+
+    code = main(
+        ["exec", "hi", "--project-root", str(workspace), "--yes"],
+        provider=provider,
+    )
+
+    assert code == 0
+    system_text = "\n".join(
+        str(message.get("content", ""))
+        for message in provider.requests[0][0]
+        if message.get("role") == "system"
+    )
+    assert "Cade Mini" in system_text
+    assert "Platform:" not in system_text

@@ -32,6 +32,7 @@ def test_loads_values(tmp_path: Path) -> None:
                 "sessions_dir": "data/sessions",
                 "read_only": True,
                 "instructions": False,
+                "prompt_modules": ["identity"],
             }
         ),
         encoding="utf-8",
@@ -47,6 +48,7 @@ def test_loads_values(tmp_path: Path) -> None:
     assert config.sessions_dir == "data/sessions"
     assert config.read_only is True
     assert config.instructions is False
+    assert config.prompt_modules == ["identity"]
 
 
 def test_explicit_missing_config_raises(tmp_path: Path) -> None:

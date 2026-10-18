@@ -23,6 +23,7 @@ class MiniConfig(BaseModel):
     sessions_dir: str | None = None
     read_only: bool = False
     instructions: bool = True
+    prompt_modules: list[str] | None = None
 
     @classmethod
     def load(
