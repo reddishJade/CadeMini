@@ -33,9 +33,10 @@ command. The second workflow used the same settings.
 
 ## Remaining differences
 
-- Mini's file snapshots cover `write` and `edit`; shell mutations are not
-  snapshotted.
-- Mini's MCP bridge starts a server per call; Cade's MCP lifecycle is richer.
+- Mini's file snapshots cover `write`, `edit`, and common single-command shell
+  mutations; complex pipelines are not snapshotted.
+- Mini keeps one persistent MCP connection per server; Cade's MCP lifecycle and
+  capability surface are still broader.
 - The OS sandbox is available only on Linux; on Windows Mini relies on path
   boundaries, modes, shell classification, and approvals.
 - The live Codex acceptance remains pending because the account returned HTTP

@@ -39,9 +39,10 @@ Committed on `experiment/cade-mini`:
   iterative compaction, automatic window fallback, skills, composable prompt
   modules, NOTE working state, plan/build/act modes, static rules, session
   grants, shell command classification, an optional Linux bubblewrap sandbox,
-  independent subagents, durable project memory, tool lifecycle hooks, a stdio
-  MCP bridge, file snapshots/undo, workspace goals, automatic approval review,
-  a local web host, and 191 tests.
+  independent subagents, durable project memory, tool lifecycle hooks, a
+  persistent stdio MCP bridge, file snapshots/undo covering common shell
+  mutation targets, workspace goals, automatic approval review, a local web
+  host, and 198 tests.
 - A real CLI acceptance run through the configured DeepSeek account passed: the
   model used the write and read tools, `hello.txt` contained `mini`, and a
   resumed run on the same session read the file and answered `mini`.
@@ -60,16 +61,16 @@ Committed on `experiment/cade-mini`:
 - Parity acceptance passed on two repository workflows and a session resume:
   Mini and Cade produced the same bug-fix and feature diffs, both ran pytest,
   and both recalled the earlier fix. See [cade-mini-parity.md](cade-mini-parity.md).
-- A real MCP subprocess test discovers an `echo` tool, calls it, and receives
-  `echo:hi`; subagent, memory, and hook paths are covered by CLI and async tests.
+- A persistent MCP subprocess test discovers `echo` and `counter` tools, calls
+  them across event loops, and gets `echo:hi` plus stateful `count:1`/`count:2`.
 - A live Codex smoke reached the API but the account returned HTTP 429 "usage
   limit has been reached". The loop recorded `request` and `attempt` facts and
   terminated with `provider_error`; the provider and error paths are verified.
 - On non-Linux hosts the OS sandbox is unavailable; path boundaries, mode
   policy, shell classification, and approvals remain the active safety layer.
-- Snapshots cover write/edit changes only; shell mutations are not snapshotted.
-- Remaining: live Codex acceptance when quota returns, persistent MCP
-  sessions, and shell-mutation snapshots.
+- Snapshots cover write/edit and common single-command shell mutations; complex
+  pipelines are not snapshotted.
+- Remaining: live Codex acceptance when quota returns.
 
 ## 1. What Cade is today
 
