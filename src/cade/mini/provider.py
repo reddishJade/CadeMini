@@ -57,10 +57,11 @@ def build_provider(
     base_url = selected.base_url or resolution.default_base_url
     api_key = selected.api_key
     account_id: str | None = None
+    store = JsonCredentialStore(auth_path)
 
     if transport == "openai_codex":
         credential = resolve_codex_credential(
-            JsonCredentialStore(auth_path),
+            store,
             provider="openai-codex",
         )
         if credential is None or credential.type != "oauth" or not credential.access:
@@ -68,6 +69,14 @@ def build_provider(
         api_key = credential.access
         account_id = credential.account_id
     else:
+        stored = store.get(provider)
+        if (
+            api_key is None
+            and stored is not None
+            and stored.type == "api_key"
+            and stored.access
+        ):
+            api_key = stored.access
         api_key = api_key or get_environment_api_key(
             transport,
             tuple(env_files),
@@ -75,7 +84,7 @@ def build_provider(
         if not api_key:
             raise RuntimeError(
                 f"Missing API key for provider {provider}; "
-                "set its API key environment variable"
+                "run 'cade login --method api_key' or set its API key"
             )
 
     profile = ModelProfileConfig(

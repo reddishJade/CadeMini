@@ -77,6 +77,25 @@ def test_build_chat_provider_with_explicit_key() -> None:
     assert provider.model == "deepseek-chat"
 
 
+def test_build_chat_provider_uses_stored_api_key(tmp_path: Path) -> None:
+    auth_path = tmp_path / "auth.json"
+    JsonCredentialStore(auth_path).save(
+        AuthCredential(
+            type="api_key",
+            provider="deepseek",
+            access="stored-key",
+        )
+    )
+
+    provider = build_provider(
+        ProviderConfig(provider="deepseek", model="deepseek-chat"),
+        auth_path=auth_path,
+    )
+
+    assert provider.transport == "deepseek_chat"
+    assert provider.model == "deepseek-chat"
+
+
 def test_provider_config_rejects_empty_values() -> None:
     with pytest.raises(ValueError):
         ProviderConfig(provider="")
