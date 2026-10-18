@@ -198,6 +198,8 @@ def _select_cut(
     count = min(len(user_entries), len(user_positions))
     if count < 2:
         return None
+    # 压缩/换窗会遮蔽旧用户轮次；投影里的用户消息对应最近的那部分 entry。
+    visible_entries = user_entries[-count:]
     chosen: int | None = None
     for index in range(1, count):
         tail = conversation[user_positions[index] :]
@@ -211,7 +213,7 @@ def _select_cut(
             chosen = last
     if chosen is None:
         return None
-    first_kept_id = user_entries[chosen].id
+    first_kept_id = visible_entries[chosen].id
     messages: list[Message] = [
         message
         for message in conversation[: user_positions[chosen]]

@@ -155,6 +155,53 @@ async def test_loop_uses_compactor_before_request(tmp_path: Path) -> None:
     assert "old " * 10 not in content
 
 
+async def test_iterative_compaction_includes_prior_summary(
+    tmp_path: Path,
+) -> None:
+    log = _log(tmp_path)
+    log.append("system", {"text": "sys"})
+    log.append("user", {"text": "task one", "source": "user"})
+    log.append("assistant", _assistant("answer one"))
+    user_two = log.append("user", {"text": "task two", "source": "user"})
+    log.append("assistant", _assistant("answer two"))
+    log.append(
+        "compaction",
+        {
+            "summary": "prior summary",
+            "first_kept_id": user_two.id,
+            "tokens_before": 100,
+            "model": "m",
+            "provider": "p",
+            "usage": None,
+            "details": None,
+        },
+    )
+    user_three = log.append("user", {"text": "task three", "source": "user"})
+    provider = FakeProvider([_summary_response("new summary")])
+    compactor = Compactor(
+        provider,
+        config=CompactionConfig(keep_recent_tokens=10),
+    )
+
+    compacted = await compactor(log, Budget(100_000))
+
+    assert compacted is True
+    entries = log.branch()
+    new_compaction = entries[-1]
+    assert new_compaction.type == "compaction"
+    assert new_compaction.data["first_kept_id"] == user_three.id
+    summary_request = provider.requests[0][0]
+    text = str(summary_request)
+    assert "PRIOR SUMMARY" in text
+    assert "prior summary" in text
+    assert "task two" in text
+    assert [message.role for message in project(entries)] == [
+        "system",
+        "summary",
+        "user",
+    ]
+
+
 async def test_compaction_config_rejects_bad_values() -> None:
     with pytest.raises(ValueError):
         CompactionConfig(keep_recent_tokens=0)
