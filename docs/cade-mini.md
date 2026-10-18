@@ -34,12 +34,15 @@ Committed on `experiment/cade-mini`:
 - Done: session schema, types, append-only log, deterministic projection, pure
   request admission, agent loop, Codex provider and credential store, six
   workspace tools with a policy, compaction and window reset, CLI/REPL with
-  resume, and 81 tests.
-- Live Codex smoke reached the API but the account returned HTTP 429 "usage
+  resume, and 84 tests.
+- A real CLI acceptance run through the configured DeepSeek account passed: the
+  model used the write and read tools, `hello.txt` contained `mini`, and a
+  resumed run on the same session read the file and answered `mini`.
+- A live Codex smoke reached the API but the account returned HTTP 429 "usage
   limit has been reached". The loop recorded `request` and `attempt` facts and
   terminated with `provider_error`; the provider and error paths are verified.
 - Pending: rerun the live Codex acceptance task when the account quota is
-  available, then the first-increment acceptance review.
+  available. The rest of the first increment is complete and tested.
 
 ## 1. What Cade is today
 
