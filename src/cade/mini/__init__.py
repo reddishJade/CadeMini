@@ -2,9 +2,10 @@
 
 from .approval import SessionApprover
 from .compaction import CompactionConfig, Compactor
-from .config import MiniConfig, RuleConfig
+from .config import HookConfig, MiniConfig, RuleConfig
 from .grants import Grant, GrantStore
 from .history import HistoryTool
+from .hooks import HookRunner
 from .instructions import load_project_instructions
 from .log import SessionInfo, SessionLog, list_sessions, session_title
 from .loop import (
@@ -71,6 +72,8 @@ __all__ = [
     "GrantStore",
     "GrepTool",
     "HistoryTool",
+    "HookConfig",
+    "HookRunner",
     "LoadSkillTool",
     "LogEntry",
     "LogError",

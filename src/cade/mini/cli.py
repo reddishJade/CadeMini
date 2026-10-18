@@ -15,6 +15,7 @@ from .compaction import Compactor
 from .config import MiniConfig
 from .grants import GrantStore
 from .history import HistoryTool
+from .hooks import HookRunner
 from .instructions import load_project_instructions
 from .log import SessionLog, list_sessions
 from .loop import (
@@ -175,6 +176,7 @@ def main(
         grants=grants,
     )
     approve = SessionApprover(auto_approve=args.yes, grants=grants)
+    hooks = HookRunner(config.hooks, project_root)
 
     def note_context() -> str | None:
         return load_working_note(project_root) if use_note else None
@@ -212,6 +214,7 @@ def main(
         approve=approve,
         context=context,
         max_steps=min(max_steps, 20),
+        hooks=hooks,
     )
     base_tools = (*core_tools, subagent)
 
@@ -235,6 +238,7 @@ def main(
             max_steps,
             on_event,
             compactor,
+            hooks,
             fallback_window,
         )
         if args.json:
@@ -259,6 +263,7 @@ def main(
         max_steps,
         on_event,
         compactor,
+        hooks,
         fallback_window,
     )
 
@@ -400,6 +405,7 @@ def _run_task(
     max_steps: int,
     on_event: Callable[[LoopEvent], None],
     compactor: Compactor,
+    hooks: HookRunner | None,
     window: Callable[[SessionLog], bool] | None,
 ) -> RunResult:
     tools = filter_tools(tools, policy.mode)
@@ -417,6 +423,7 @@ def _run_task(
             on_event=on_event,
             compact=compactor,
             window=window,
+            hooks=hooks,
         )
     )
 
@@ -435,6 +442,7 @@ def _repl(
     max_steps: int,
     on_event: Callable[[LoopEvent], None],
     compactor: Compactor,
+    hooks: HookRunner | None,
     window: Callable[[SessionLog], bool] | None,
 ) -> int:
     tools = _tools_for(base_tools, workspace, log)
@@ -522,6 +530,7 @@ def _repl(
                 max_steps,
                 on_event,
                 compactor,
+                hooks,
                 window,
             )
         except KeyboardInterrupt:

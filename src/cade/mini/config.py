@@ -22,6 +22,17 @@ class RuleConfig(BaseModel):
     command_prefix: str | None = None
 
 
+class HookConfig(BaseModel):
+    """一条工具生命周期 hook；命令以工作区为 cwd 执行。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event: Literal["before_tool", "after_tool"]
+    command: str
+    matcher: str | None = None
+    timeout_ms: int = Field(default=10_000, gt=0, le=120_000)
+
+
 class MiniConfig(BaseModel):
     """项目级默认值；命令行参数优先于配置文件。"""
 
@@ -40,6 +51,7 @@ class MiniConfig(BaseModel):
     prompt_modules: list[str] | None = None
     mode: Literal["plan", "build", "act"] = "act"
     rules: list[RuleConfig] = Field(default_factory=list)
+    hooks: list[HookConfig] = Field(default_factory=list)
     sandbox: Literal["off", "workspace", "strict"] = "workspace"
 
     @classmethod

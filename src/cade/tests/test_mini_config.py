@@ -42,6 +42,13 @@ def test_loads_values(tmp_path: Path) -> None:
                         "decision": "allow",
                     }
                 ],
+                "hooks": [
+                    {
+                        "event": "before_tool",
+                        "command": "echo prepare",
+                        "matcher": "bash",
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -62,6 +69,8 @@ def test_loads_values(tmp_path: Path) -> None:
     assert config.sandbox == "strict"
     assert config.rules[0].tool == "bash"
     assert config.rules[0].decision == "allow"
+    assert config.hooks[0].event == "before_tool"
+    assert config.hooks[0].matcher == "bash"
 
 
 def test_explicit_missing_config_raises(tmp_path: Path) -> None:

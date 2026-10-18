@@ -87,6 +87,19 @@ class Policy(Protocol):
     def check(self, call: ToolCallBlock) -> Decision: ...
 
 
+class Hooks(Protocol):
+    """工具生命周期 hooks。"""
+
+    async def before(self, call: ToolCallBlock) -> tuple[bool, str]: ...
+
+    async def after(
+        self,
+        call: ToolCallBlock,
+        content: str,
+        is_error: bool,
+    ) -> None: ...
+
+
 class CancellationToken:
     """协作式取消；循环在步骤和工具边界检查。"""
 
@@ -153,6 +166,7 @@ async def run(
     on_event: Callable[[LoopEvent], None] | None = None,
     compact: Callable[[SessionLog, Budget], Awaitable[bool]] | None = None,
     window: Callable[[SessionLog], bool] | None = None,
+    hooks: Hooks | None = None,
 ) -> RunResult:
     """追加用户输入并驱动模型/工具循环，直到完成或终止。
 
@@ -317,11 +331,21 @@ async def run(
                 _emit(on_event, ToolEndEvent(call.id, content, True))
                 continue
 
+            if hooks is not None:
+                allowed, hook_output = await hooks.before(call)
+                if not allowed:
+                    content = f"Hook denied {call.name}: {hook_output}".strip()
+                    _append_tool_result(log, call, content, True)
+                    _emit(on_event, ToolEndEvent(call.id, content, True))
+                    continue
+
             _emit(on_event, ToolStartEvent(call.id, call.name, call.args))
             tool_result = await _execute_tool(tool, call, cancel, tool_timeout_seconds)
             content = _truncate(tool_result.content)
             _append_tool_result(log, call, content, tool_result.is_error)
             _emit(on_event, ToolEndEvent(call.id, content, tool_result.is_error))
+            if hooks is not None:
+                await hooks.after(call, content, tool_result.is_error)
 
     return _finish(
         log,

@@ -8,7 +8,15 @@ from typing import Any
 
 from .history import HistoryTool
 from .log import SessionLog
-from .loop import CancellationToken, Policy, Provider, Tool, ToolResult, run
+from .loop import (
+    CancellationToken,
+    Hooks,
+    Policy,
+    Provider,
+    Tool,
+    ToolResult,
+    run,
+)
 from .request import Budget
 from .tools import _text_arg
 from .types import ToolCallBlock
@@ -36,6 +44,7 @@ class SubagentTool:
         approve: Callable[[ToolCallBlock], bool],
         context: Callable[[], Sequence[str]] | None = None,
         max_steps: int = 20,
+        hooks: Hooks | None = None,
     ) -> None:
         self.workspace = workspace.resolve()
         self.provider = provider
@@ -47,6 +56,7 @@ class SubagentTool:
         self.approve = approve
         self.context = context or (lambda: ())
         self.max_steps = max_steps
+        self.hooks = hooks
         self.parameters: dict[str, Any] = {
             "type": "object",
             "properties": {
@@ -79,6 +89,7 @@ class SubagentTool:
             context=tuple(self.context()),
             max_steps=self.max_steps,
             cancel=signal,
+            hooks=self.hooks,
         )
         summary = result.answer.strip() or "(no answer)"
         header = (
