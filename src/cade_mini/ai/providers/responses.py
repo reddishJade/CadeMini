@@ -18,6 +18,7 @@ from cade_mini.ai.cache import CacheUsage
 from cade_mini.ai.events import (
     FinalMessage,
     ProviderEvent,
+    ProviderFailure,
     ProviderJsonValue,
     ProviderReplayPayload,
     ReasoningDelta,
@@ -937,7 +938,7 @@ class OpenAIResponsesProvider:
                 if call_id and full_args is not None:
                     function_calls[call_id]["arguments"] = str(full_args)
 
-            elif event_type in {"response.failed", "error"}:
+            elif event_type == "error":
                 response = _response_value(event, "response")
                 error = _response_value(response, "error") or _response_value(
                     event, "error"
@@ -962,6 +963,7 @@ class OpenAIResponsesProvider:
                 "response.completed",
                 "response.done",
                 "response.incomplete",
+                "response.failed",
             ):
                 resp = _response_value(event, "response")
                 if resp:
@@ -1051,6 +1053,15 @@ class OpenAIResponsesProvider:
                             input_tokens=prompt_tokens,
                             output_tokens=completion_tokens,
                         )
+                    if event_type == "response.failed" or response_status == "failed":
+                        error = _response_value(resp, "error")
+                        code = _response_value(error, "code", "server_error")
+                        message = _response_value(error, "message", "Response failed")
+                        yield ProviderFailure(
+                            message=f"{code}: {message}",
+                            exception_type="ResponseFailed",
+                        )
+                        return
 
         if last_response_id:
             self._last_response_id = last_response_id

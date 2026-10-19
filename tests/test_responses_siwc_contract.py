@@ -6,11 +6,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
+from openai.types.responses import ResponseFailedEvent
 
-from cade_mini.ai.events import ProviderEvent, UsageUpdate
+from cade_mini.ai.events import (
+    FinalMessage,
+    ProviderEvent,
+    ProviderFailure,
+    ToolCallEvent,
+    UsageUpdate,
+)
 from cade_mini.ai.providers.responses import (
     ChatGPTResponsesProvider,
     OpenAIResponsesProvider,
@@ -18,6 +26,9 @@ from cade_mini.ai.providers.responses import (
     _format_openai_error,
 )
 from cade_mini.ai.types import ProviderConfig, StreamOptions, ToolDefinition
+from cade_mini.core.log import SessionLog
+from cade_mini.core.loop import run
+from cade_mini.core.request import Budget
 
 _RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -105,6 +116,68 @@ class _FailingResponsesBoundary:
 class _FailingClient:
     def __init__(self) -> None:
         self.responses = _FailingResponsesBoundary()
+
+
+@pytest.mark.parametrize("event_type", ["response.failed", "response.done"])
+async def test_failed_response_is_a_provider_error(
+    tmp_path: Path, event_type: str
+) -> None:
+    # 使用 SDK 的失败事件类型校验故障样例，避免测试依赖不合法的协议数据。
+    failed = ResponseFailedEvent.model_validate(
+        {
+            "type": "response.failed",
+            "sequence_number": 2,
+            "response": {
+                "id": "synthetic_failure",
+                "created_at": 0,
+                "model": "gpt-5.6-luna",
+                "object": "response",
+                "output": [],
+                "parallel_tool_calls": False,
+                "tool_choice": "auto",
+                "tools": [],
+                "status": "failed",
+                "error": {"code": "server_error", "message": "Injected failure"},
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 2,
+                    "total_tokens": 12,
+                    "input_tokens_details": {
+                        "cached_tokens": 0,
+                        "cache_write_tokens": 0,
+                    },
+                    "output_tokens_details": {"reasoning_tokens": 0},
+                },
+            },
+        }
+    ).model_dump()
+    failed["type"] = event_type
+
+    class FailedResponses(_ResponsesBoundary):
+        def create(self, **params: Any) -> list[dict[str, Any]]:
+            return [{"type": "response.output_text.delta", "delta": "partial"}, failed]
+
+    client = _InjectedClient()
+    client.responses = FailedResponses()
+    provider = ChatGPTResponsesProvider(_config(), client=client)
+    events = await _collect(provider)
+    assert [e for e in events if isinstance(e, UsageUpdate)] == [UsageUpdate(10, 2)]
+    failures = [e for e in events if isinstance(e, ProviderFailure)]
+    assert len(failures) == 1
+    assert failures[0].message == "server_error: Injected failure"
+    assert not any(isinstance(e, (FinalMessage, ToolCallEvent)) for e in events)
+
+    result = await run(
+        SessionLog.create(tmp_path / "sessions"),
+        "test failure",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+        max_provider_retries=0,
+    )
+    assert result.termination == "provider_error"
+    assert result.error == "server_error: Injected failure"
+    assert result.usage == {"input": 10, "output": 2}
 
 
 def _config(
