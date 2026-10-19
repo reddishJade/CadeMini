@@ -46,10 +46,12 @@ cade-mini --mode build "Fix the bug"
 ```
 
 In an interactive terminal, `cade-mini` opens the inline TUI; `--no-tui` keeps
-the legacy REPL. The TUI offers session/model selectors, `@file`/`$skill`
-completion, `!shell`, in-terminal approvals, Ctrl+O tool detail, Ctrl+T
-reasoning, Ctrl+K command search, Ctrl+P model selection, Alt+Enter steering,
-Ctrl+J newline, interactive user questions, and busy-task queueing.
+the legacy REPL. The TUI includes a colorized welcome page, inline command
+completion with argument hints, a multiline editor, a two-line status bar,
+searchable session/model selectors, `@file`/`$skill` completion, `!shell`,
+in-terminal approvals, Ctrl+O tool details, Ctrl+T reasoning, Ctrl+K command
+search, Ctrl+P model selection, Alt+Enter steering, Ctrl+J newline, interactive
+user questions, and busy-task queueing. Use `/help` for all commands.
 
 Act mode is the default. Writes and mutating shell commands require approval.
 Permission checks are not an OS sandbox. Sessions and snapshots live in the

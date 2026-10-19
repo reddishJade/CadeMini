@@ -13,8 +13,10 @@ legacy REPL.
 
 ## Interactive terminal
 
-The TUI uses main-screen terminal scrollback, streamed Markdown, tool/reasoning
-folding and project/session/model selectors. A new project can be configured
+The TUI uses an inline, colorized welcome page, an adaptive one-to-five-line
+editor, a two-line status bar, searchable slash-command completion, native
+terminal scrollback, streamed Markdown, tool/reasoning folding and
+project/session/model selectors. A new project can be configured
 using the provider/model setup wizard; ChatGPT uses SIWC browser login and
 OpenAI uses an API key. Existing login credentials remain in the Mini store.
 
@@ -28,7 +30,7 @@ OpenAI uses an API key. Existing login credentials remain in the Mini store.
 - Shift+Tab changes mode; Ctrl+D twice exits on an empty prompt. Ctrl+Q exits.
 - /btw QUESTION asks an isolated streaming side question without logging it.
 - Ctrl+K opens the searchable command palette, Ctrl+P the model selector, and
-  Ctrl+G the session selector; ? opens the palette at an empty prompt.
+  Ctrl+G the session selector. Press ? with an empty prompt for keyboard help.
 - Session, model, configuration and tool selectors support fuzzy search;
   use ↑/↓ and Enter, Tab to focus the list, Esc to close.
 - The model selector includes a custom model ID entry.
@@ -94,27 +96,34 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 
 - `--goal TEXT` sets the workspace goal before running.
 
-## Interactive commands (TUI and legacy REPL)
+## Interactive commands (TUI)
 
-- `/new` starts a new session.
-- `/resume [ID]` resumes the latest or a specific session.
-- `/sessions` lists project sessions.
-- `/fork [N|ENTRY]` forks before a recent user turn or entry. `N=1` is the latest.
-- `/clone` copies the current branch to a new session.
-- `/tree` shows entries; `*` marks the active branch.
-- `/rewind [N]` creates a session without the latest N user turns.
-- `/compact` summarizes older turns.
-- `/new-context [NOTE]` starts a new window, optionally with a handoff note.
-- `/mode [MODE]` shows or switches the execution mode.
-- `/permissions [clear]` shows or clears session grants.
-- `/undo [N]` restores the latest N snapshots.
-- `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
-- `/context` prints the session ID, provider, budget, and event count.
-- `/steer TEXT` queues guidance for the next model step.
-- `/queue TEXT` queues a task to run after the current one.
-- `/stop` cancels the current task at the next safe point.
-- `/help` prints the command list.
-- `/exit` or `/quit` exits.
+Slash commands are completed while typing. Enter accepts a completion; the
+terminal also shows the selected command's argument hint. Commands that require
+a choice open an in-terminal selector where available.
+
+| Area | Commands |
+|---|---|
+| Sessions | `/new`, `/clear`, `/continue`, `/resume [ID]`, `/sessions`, `/rename TITLE` |
+| History | `/fork [turn|ID]`, `/clone`, `/tree [ID]`, `/rewind [N]`, `/undo [N|--list]`, `/compact`, `/rollover [--force]` |
+| Models | `/model [provider/]model`, `/effort [level]`, `/thinking [on|off]`, `/context-window [size|default]`, `/context` |
+| Work | `/mode [act|build|plan]`, `/queue [followup|steer|interrupt|task]`, `/steer TEXT`, `/stop`, `/btw QUESTION`, `/goal [text|pause|resume|done|clear]` |
+| Connections | `/login [provider]`, `/connect [provider]`, `/logout [provider]`, `/auth [status|login|logout]` |
+| Settings | `/config [setting[=value]]`, `/permissions [list|clear]`, `/hooks`, `/mcp`, `/tool [list|NAME JSON]`, `/skill [name]`, `/memory` |
+| Help and exit | `/help`, `/exit`, `/quit` |
+
+`/revert` aliases `/undo`, and `/new-context` aliases `/rollover`.
+`/fork`, `/resume`, `/model`, `/effort`, `/mode`, `/permissions`,
+`/config`, `/login`, `/logout`, `/skill`, and `/tool` offer native
+selection when called without arguments.
+
+`/rollover` requires a workspace `NOTE.md` with a handoff note. The
+`--force` argument skips that guard. `/undo` restores completed, still-safe
+file snapshots; `--list` only lists them. Changes to `/config` are saved
+atomically and become effective on the next launch.
+
+The line-oriented `--no-tui` REPL retains its own input handling and
+command support.
 
 ## Interactive input
 

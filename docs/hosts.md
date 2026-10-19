@@ -6,9 +6,11 @@ The terminal host has three modes: inline TUI, line-oriented REPL and one-shot.
 ## Terminal
 
 Running `cade-mini` on an interactive terminal opens the main-screen inline
-TUI with native scrollback, streamed Markdown, a multiline editor, completion,
-searchable session/model/configuration pickers, grouped exploration tools,
-streamed Markdown, reasoning folding, and interactive approvals:
+TUI with native scrollback, a colorized and resource-aware welcome page,
+streamed Markdown, a content-sized editor, argument-aware slash-command
+completion, an inline completion menu, a compact two-line status bar, searchable
+session/model/configuration selectors, grouped exploration tools, reasoning
+folding, and interactive approvals:
 
 ```bash
 cade-mini

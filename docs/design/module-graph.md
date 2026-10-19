@@ -110,6 +110,7 @@ flowchart LR
   hosts_interaction --> extensions_skills
   hosts_interaction --> extensions_snapshots
   hosts_interaction --> extensions_subagents
+  hosts_interaction --> hosts_command_catalog
   hosts_interaction --> hosts_interaction_question
   hosts_interaction --> hosts_interaction_settings
   hosts_interaction --> safety_policy
@@ -127,6 +128,7 @@ flowchart LR
   hosts_tui_app --> core_types
   hosts_tui_app --> hosts_interaction
   hosts_tui_app --> hosts_interaction_question
+  hosts_tui_completion --> hosts_command_catalog
   hosts_tui_completion --> hosts_interaction
   hosts_tui_setup --> ai_models
   hosts_tui_setup --> hosts_interaction_settings
