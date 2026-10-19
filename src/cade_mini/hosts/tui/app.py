@@ -12,7 +12,6 @@ import json
 import subprocess
 import threading
 import time
-from pathlib import Path
 from typing import Any, cast
 
 from prompt_toolkit.application import Application
