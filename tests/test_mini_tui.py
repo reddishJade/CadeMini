@@ -761,7 +761,8 @@ async def test_manual_tool_invocation_emits_foldable_events_and_runs_hooks(
     class ReadTool:
         name = "read"
         description = "Read a file"
-        parameters = {"type": "object"}
+        def __init__(self) -> None:
+            self.parameters = {"type": "object"}
 
         async def execute(self, call: ToolCallBlock, signal=None) -> ToolResult:
             calls.append("execute")
@@ -1116,7 +1117,6 @@ def test_terminal_mode_is_restored_even_when_tui_fails(
     monkeypatch.setattr(
         platform, "_windows_input_mode", lambda: (Kernel(), 42, 0x0007)
     )
-    with pytest.raises(RuntimeError, match="render failure"):
-        with platform.preserve_console_input_mode():
-            raise RuntimeError("render failure")
+    with pytest.raises(RuntimeError, match="render failure"), platform.preserve_console_input_mode():
+        raise RuntimeError("render failure")
     assert restored == [(42, 0x0007)]
