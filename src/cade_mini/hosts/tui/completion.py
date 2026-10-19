@@ -44,9 +44,7 @@ def score(query: str, candidate: str) -> tuple[int, int, int] | None:
 class CommandArgsSuggester(AutoSuggest):
     """Show the same inline slash-command argument hints as Cade."""
 
-    def get_suggestion(
-        self, buffer: Buffer, document: Document
-    ) -> Suggestion | None:
+    def get_suggestion(self, buffer: Buffer, document: Document) -> Suggestion | None:
         command = document.text.strip()
         spec = COMMAND_INDEX.get(command)
         if spec is None or not spec.args:

@@ -238,16 +238,9 @@ def main(
             try:
                 selected = build_provider(requested)
             except RuntimeError as exc:
-                interactive = (
-                    not one_shot
-                    and (
-                        args.tui is True
-                        or (
-                            args.tui is None
-                            and sys.stdin.isatty()
-                            and sys.stdout.isatty()
-                        )
-                    )
+                interactive = not one_shot and (
+                    args.tui is True
+                    or (args.tui is None and sys.stdin.isatty() and sys.stdout.isatty())
                 )
                 if not interactive:
                     raise
@@ -411,8 +404,7 @@ def main(
                 automatic_approver=approve if args.yes or use_auto_review else None,
                 config_path=args.config,
                 context_window_explicit=(
-                    args.context_window is not None
-                    or config.context_window is not None
+                    args.context_window is not None or config.context_window is not None
                 ),
             )
         )

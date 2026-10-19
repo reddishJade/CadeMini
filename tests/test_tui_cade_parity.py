@@ -62,12 +62,45 @@ def host(tmp_path: Path) -> InteractionService:
 
 def test_all_cade_slash_command_names_are_supported() -> None:
     expected = {
-        "/help", "/clear", "/continue", "/new", "/fork", "/clone", "/rewind",
-        "/resume", "/sessions", "/tree", "/model", "/effort", "/context-window",
-        "/thinking", "/login", "/connect", "/logout", "/auth", "/config", "/mode",
-        "/steer", "/queue", "/compact", "/rollover", "/goal", "/permissions",
-        "/hooks", "/mcp", "/tool", "/skill", "/memory", "/rename", "/undo",
-        "/exit", "/context", "/btw", "/quit", "/revert", "/new-context",
+        "/help",
+        "/clear",
+        "/continue",
+        "/new",
+        "/fork",
+        "/clone",
+        "/rewind",
+        "/resume",
+        "/sessions",
+        "/tree",
+        "/model",
+        "/effort",
+        "/context-window",
+        "/thinking",
+        "/login",
+        "/connect",
+        "/logout",
+        "/auth",
+        "/config",
+        "/mode",
+        "/steer",
+        "/queue",
+        "/compact",
+        "/rollover",
+        "/goal",
+        "/permissions",
+        "/hooks",
+        "/mcp",
+        "/tool",
+        "/skill",
+        "/memory",
+        "/rename",
+        "/undo",
+        "/exit",
+        "/context",
+        "/btw",
+        "/quit",
+        "/revert",
+        "/new-context",
     }
     assert expected <= set(COMMAND_INDEX)
     assert all(COMMAND_INDEX[name].canonical is None for name in COMMANDS)
@@ -87,17 +120,14 @@ def test_command_completion_and_argument_hints(tmp_path: Path) -> None:
     assert "/mode" in commands
 
     choices = {
-        item.text for item in completer.get_completions(
-            Document("/auth lo"), object()
-        )
+        item.text for item in completer.get_completions(Document("/auth lo"), object())
     }
     assert "login" in choices
     assert "logout" in choices
 
     choices = {
-        item.text for item in completer.get_completions(
-            Document("/config mod"), object()
-        )
+        item.text
+        for item in completer.get_completions(Document("/config mod"), object())
     }
     assert "mode" in choices
 
@@ -137,8 +167,10 @@ def test_file_references_are_highlighted_in_terminal_editor() -> None:
     highlights = TuiInputLexer().lex_document(
         Document("Review @src/main.py and @README.md")
     )(0)
-    assert any(style == "fg:ansicyan bold" and "@src/main.py" in text
-               for style, text in highlights)
+    assert any(
+        style == "fg:ansicyan bold" and "@src/main.py" in text
+        for style, text in highlights
+    )
     assert any("@README.md" in text for style, text in highlights)
 
 

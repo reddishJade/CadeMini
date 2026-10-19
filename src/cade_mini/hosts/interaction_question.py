@@ -81,9 +81,9 @@ class QuestionTool:
         pieces = []
         for question, values in zip(questions, answers, strict=True):
             if not values:
-                pieces.append(f'{question.text}: unanswered')
+                pieces.append(f"{question.text}: unanswered")
             else:
-                pieces.append(f'{question.text}: {", ".join(values)}')
+                pieces.append(f"{question.text}: {', '.join(values)}")
         return ToolResult(content="User answers:\n" + "\n".join(pieces))
 
 

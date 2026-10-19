@@ -19,9 +19,7 @@ from cade_mini.app.config import MiniConfig
 class SettingsService:
     """Validate and atomically store project configuration edits."""
 
-    def __init__(
-        self, workspace: Path, config_path: Path | None = None
-    ) -> None:
+    def __init__(self, workspace: Path, config_path: Path | None = None) -> None:
         self.workspace = workspace.resolve()
         self.explicit = config_path is not None
         if config_path is None:
@@ -32,9 +30,7 @@ class SettingsService:
             self.path = (self.workspace / config_path).resolve()
 
     def _load(self) -> MiniConfig:
-        return MiniConfig.load(
-            self.workspace, self.path if self.explicit else None
-        )
+        return MiniConfig.load(self.workspace, self.path if self.explicit else None)
 
     def choices(self) -> tuple[tuple[str, str], ...]:
         config = self._load()

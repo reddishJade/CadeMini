@@ -135,7 +135,13 @@ def welcome_text(
         if compact:
             lines.append(f"[{name}] {fit_text(content, width - len(name) - 4)}")
         else:
-            lines.extend(["", f"[{name}]", "  " + fit_text(content, width - 2, keep_end=name == "Context")])
+            lines.extend(
+                [
+                    "",
+                    f"[{name}]",
+                    "  " + fit_text(content, width - 2, keep_end=name == "Context"),
+                ]
+            )
     return "\n".join(fit_text(line, width) for line in lines)
 
 
@@ -149,7 +155,9 @@ def welcome_ansi_lines(content: str) -> list[str]:
                 colored += f"\x1b[0;38;2;139;148;158m  mini v{version_text}"
         elif line.startswith("["):
             heading, separator, rest = line.partition("]")
-            colored = f"\x1b[38;2;210;153;34m{heading}{separator}\x1b[38;2;139;148;158m{rest}"
+            colored = (
+                f"\x1b[38;2;210;153;34m{heading}{separator}\x1b[38;2;139;148;158m{rest}"
+            )
         else:
             colored = f"\x1b[38;2;139;148;158m{line}"
         lines.append(colored + "\x1b[0m")

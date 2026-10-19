@@ -180,8 +180,7 @@ class CadeTui:
         picker_bindings.add(
             " ",
             filter=Condition(
-                lambda: self._picker_kind == "question"
-                and self._question_multiple
+                lambda: self._picker_kind == "question" and self._question_multiple
             ),
         )(lambda _event: self._pick())
         picker_bindings.add("escape", eager=True)(lambda _event: self._close_picker())
@@ -197,21 +196,17 @@ class CadeTui:
             style="class:input",
             scrollbar=False,
         )
-        self._picker_search.buffer.on_text_changed += (
-            lambda _buffer: self._filter_picker()
+        self._picker_search.buffer.on_text_changed += lambda _buffer: (
+            self._filter_picker()
         )
         search_bindings = KeyBindings()
         search_bindings.add("enter")(lambda _event: self._pick())
-        search_bindings.add("escape", eager=True)(
-            lambda _event: self._close_picker()
-        )
+        search_bindings.add("escape", eager=True)(lambda _event: self._close_picker())
         search_bindings.add("up")(lambda _event: self._move_picker(-1))
         search_bindings.add("down")(lambda _event: self._move_picker(1))
         search_bindings.add("pageup")(lambda _event: self._move_picker(-8))
         search_bindings.add("pagedown")(lambda _event: self._move_picker(8))
-        search_bindings.add("tab")(
-            lambda _event: self.app.layout.focus(self._picker)
-        )
+        search_bindings.add("tab")(lambda _event: self.app.layout.focus(self._picker))
         self._picker_search.control.key_bindings = search_bindings
         self._approvals = RadioList(
             [
@@ -244,9 +239,7 @@ class CadeTui:
             right_margins=[ScrollbarMargin(display_arrows=True)],
         )
         question_text_bindings = KeyBindings()
-        question_text_bindings.add("enter")(
-            lambda _event: self._answer_question_text()
-        )
+        question_text_bindings.add("enter")(lambda _event: self._answer_question_text())
         question_text_bindings.add("c-j")(
             lambda _event: self._question_text.buffer.insert_text("\n")
         )
@@ -336,7 +329,9 @@ class CadeTui:
             ),
         )
         self._hint = Window(
-            FormattedTextControl(text=lambda: fit_text(self._hint_text(), self._width())),
+            FormattedTextControl(
+                text=lambda: fit_text(self._hint_text(), self._width())
+            ),
             height=1,
             style="class:hint",
         )
@@ -445,8 +440,12 @@ class CadeTui:
             panel_height = self._input_height() + 2
         available = max(
             1,
-            rows - 1 - 2 - panel_height
-            - self._completion_height() - self._hint_height(),
+            rows
+            - 1
+            - 2
+            - panel_height
+            - self._completion_height()
+            - self._hint_height(),
         )
         return min(available, self.transcript.line_count(self._width()) + 1)
 
@@ -457,9 +456,7 @@ class CadeTui:
 
     def _picker_height(self) -> int:
         return min(12, len(self._picker.values) + 2) + (
-            self._question_title_height()
-            if self._picker_kind == "question"
-            else 0
+            self._question_title_height() if self._picker_kind == "question" else 0
         )
 
     def _approval_height(self) -> int:
@@ -509,7 +506,8 @@ class CadeTui:
         last = service.last_usage
         context = (
             f"context: {last['input']:,} / {service.budget.context_window:,}"
-            if last else f"context: {service.budget.context_window:,}"
+            if last
+            else f"context: {service.budget.context_window:,}"
         )
         if last and width >= 90:
             context += f"  in {last.get('input', 0):,} · out {last.get('output', 0):,}"
@@ -796,8 +794,7 @@ class CadeTui:
             choices = self.service.choices(kind)
         if kind == "model":
             current = (
-                f"{self.service.provider_config.provider}/"
-                f"{self.service.provider.model}"
+                f"{self.service.provider_config.provider}/{self.service.provider.model}"
             )
             if current not in {name for name, _ in choices}:
                 choices = ((current, f"{current} · current model"), *choices)
@@ -815,8 +812,7 @@ class CadeTui:
         self._filter_picker()
         if kind == "model":
             chosen = (
-                f"{self.service.provider_config.provider}/"
-                f"{self.service.provider.model}"
+                f"{self.service.provider_config.provider}/{self.service.provider.model}"
             )
             for index, (name, _) in enumerate(self._picker.values):
                 if name == chosen:
@@ -975,9 +971,7 @@ class CadeTui:
         else:
             self.transcript.notice(f"Unknown provider: {provider}", error=True)
 
-    async def _ask_questions(
-        self, questions: tuple[Question, ...]
-    ) -> list[list[str]]:
+    async def _ask_questions(self, questions: tuple[Question, ...]) -> list[list[str]]:
         """Suspend the model tool until the active TUI collects every answer."""
         answers: list[list[str]] = []
         for question in questions:
@@ -1301,7 +1295,9 @@ class CadeTui:
                 self.app.run()
         finally:
             seconds = time.monotonic() - self._started
-            print(f"✦ Cade Mini · {seconds:.0f}s · session {self.service.log.session_id}")
+            print(
+                f"✦ Cade Mini · {seconds:.0f}s · session {self.service.log.session_id}"
+            )
             print(f"Resume: cade-mini --resume {self.service.log.session_id}")
         return 0
 

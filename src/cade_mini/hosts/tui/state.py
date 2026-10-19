@@ -255,10 +255,7 @@ class Transcript:
                 if index and _is_exploration(self.entries[index - 1]):
                     continue
                 last = index + 1
-                while (
-                    last < len(self.entries)
-                    and _is_exploration(self.entries[last])
-                ):
+                while last < len(self.entries) and _is_exploration(self.entries[last]):
                     last += 1
                 if last - index > 1:
                     counts: dict[str, int] = {}
@@ -268,8 +265,7 @@ class Transcript:
                         f"{name} ×{count}" for name, count in counts.items()
                     )
                     result.append(
-                        f"• Explored {last - index} · {detail} "
-                        "(Ctrl+O to expand)"
+                        f"• Explored {last - index} · {detail} (Ctrl+O to expand)"
                     )
                     result.append("")
                     continue
@@ -406,8 +402,7 @@ class Transcript:
             count = len(args["content"].splitlines())
             return f"· {path or 'file'} · {count} lines"
         if entry.name == "edit" and all(
-            isinstance(args.get(key), str)
-            for key in ("old_text", "new_text")
+            isinstance(args.get(key), str) for key in ("old_text", "new_text")
         ):
             old_count = len(args["old_text"].splitlines())
             new_count = len(args["new_text"].splitlines())

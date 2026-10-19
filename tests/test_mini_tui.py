@@ -526,9 +526,9 @@ def test_palette_fuzzy_search_navigation_and_empty_results(tmp_path: Path) -> No
     assert any(choice.endswith("gpt-6-luna") for choice, _ in matches)
     assert len(matches) < len(terminal._picker_source)
     terminal._move_picker(1)
-    assert terminal._picker.current_value == matches[
-        terminal._picker._selected_index
-    ][0]
+    assert (
+        terminal._picker.current_value == matches[terminal._picker._selected_index][0]
+    )
 
     terminal._picker_search.text = "zzzzzz_unavailable_model"
     assert terminal._picker.values == [("", "No matches")]
@@ -931,9 +931,7 @@ async def test_long_question_is_readable_and_free_text_can_be_multiline(
 
     terminal = CadeTui(service(tmp_path))
     long_prompt = "Describe the desired change, including risks and constraints. " * 6
-    pending = asyncio.create_task(
-        terminal._ask_questions((Question(long_prompt),))
-    )
+    pending = asyncio.create_task(terminal._ask_questions((Question(long_prompt),)))
     await asyncio.sleep(0)
     assert terminal._question_title_height() > 1
     assert terminal._question_text_active
@@ -1114,9 +1112,10 @@ def test_terminal_mode_is_restored_even_when_tui_fails(
         def SetConsoleMode(self, handle: int, mode: int) -> None:
             restored.append((handle, mode))
 
-    monkeypatch.setattr(
-        platform, "_windows_input_mode", lambda: (Kernel(), 42, 0x0007)
-    )
-    with pytest.raises(RuntimeError, match="render failure"), platform.preserve_console_input_mode():
+    monkeypatch.setattr(platform, "_windows_input_mode", lambda: (Kernel(), 42, 0x0007))
+    with (
+        pytest.raises(RuntimeError, match="render failure"),
+        platform.preserve_console_input_mode(),
+    ):
         raise RuntimeError("render failure")
     assert restored == [(42, 0x0007)]

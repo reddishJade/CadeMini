@@ -68,8 +68,10 @@ class TuiCompletionControl(CompletionsMenuControl):
             padding = " " * max(0, name_width - get_cwidth(name) + 2)
             description = fit_text(item.display_meta_text, width - name_width - 4)
             return [
-                (f"class:completion-menu.completion{suffix}",
-                    f"{'›' if line == index else ' '} {name}{padding}"),
+                (
+                    f"class:completion-menu.completion{suffix}",
+                    f"{'›' if line == index else ' '} {name}{padding}",
+                ),
                 (f"class:completion-menu.meta.completion{suffix}", description),
             ]
 

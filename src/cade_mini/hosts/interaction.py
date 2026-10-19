@@ -236,7 +236,10 @@ class InteractionService:
                 )
             )
         if kind == "thinking":
-            return (("on", "Show reasoning summaries"), ("off", "Hide reasoning summaries"))
+            return (
+                ("on", "Show reasoning summaries"),
+                ("off", "Hide reasoning summaries"),
+            )
         if kind == "auth":
             return (
                 ("status", "List connected accounts"),
@@ -433,7 +436,9 @@ class InteractionService:
             on_event(ToolStartEvent(call.id, call.name, call.args))
         decision = self.policy.check(call)
         if decision == "deny" or (decision == "ask" and not await approve(call)):
-            return finish(ToolResult(content=f"Permission denied: {name}", is_error=True))
+            return finish(
+                ToolResult(content=f"Permission denied: {name}", is_error=True)
+            )
         tool = next(
             (t for t in filter_tools(self.tools, self.policy.mode) if t.name == name),
             None,
@@ -661,7 +666,8 @@ class InteractionService:
                     tuple(
                         f"{item.created_at}  {item.path}"
                         for item in reversed(snapshots)
-                    ) or ("No snapshots available",)
+                    )
+                    or ("No snapshots available",)
                 )
             messages = []
             for _ in range(_count(arg)):
@@ -729,9 +735,7 @@ class InteractionService:
                 return CommandResult(
                     tuple(f"{tool.name} · {tool.description}" for tool in self.tools)
                 )
-            return CommandResult(
-                ("Use /tool NAME JSON to invoke a tool.",)
-            )
+            return CommandResult(("Use /tool NAME JSON to invoke a tool.",))
         if command == "/mcp":
             return CommandResult(
                 tuple(t.name for t in self.tools if t.name.startswith("mcp__"))
