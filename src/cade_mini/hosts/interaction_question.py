@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any
 
 from cade_mini.core.loop import CancellationToken, ToolResult
 from cade_mini.core.types import JsonValue, ToolCallBlock
@@ -30,40 +30,40 @@ class QuestionTool:
         "single- or multiple-choice decision, or omit options for free text. "
         "Do this only when a user decision is required."
     )
-    parameters: ClassVar[dict[str, Any]] = {
-        "type": "object",
-        "properties": {
-            "questions": {
-                "type": "array",
-                "minItems": 1,
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "header": {"type": "string", "maxLength": 30},
-                        "question": {"type": "string"},
-                        "multiple": {"type": "boolean"},
-                        "options": {
-                            "type": "array",
-                            "minItems": 1,
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "label": {"type": "string"},
-                                    "description": {"type": "string"},
-                                },
-                                "required": ["label"],
-                            },
-                        },
-                    },
-                    "required": ["question"],
-                },
-            }
-        },
-        "required": ["questions"],
-    }
-
     def __init__(self, answer: AnswerHandler) -> None:
         self.answer = answer
+        parameters: dict[str, Any] = {
+            "type": "object",
+            "properties": {
+                "questions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "header": {"type": "string", "maxLength": 30},
+                            "question": {"type": "string"},
+                            "multiple": {"type": "boolean"},
+                            "options": {
+                                "type": "array",
+                                "minItems": 1,
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "description": {"type": "string"},
+                                    },
+                                    "required": ["label"],
+                                },
+                            },
+                        },
+                        "required": ["question"],
+                    },
+                }
+            },
+            "required": ["questions"],
+        }
+
 
     async def execute(
         self,
