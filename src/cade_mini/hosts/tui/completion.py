@@ -13,7 +13,7 @@ from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
 
-from cade_mini.hosts.command_catalog import COMMANDS, COMMAND_INDEX
+from cade_mini.hosts.command_catalog import COMMAND_INDEX, COMMANDS
 from cade_mini.hosts.interaction import InteractionService
 
 _BLOCKED = frozenset(
