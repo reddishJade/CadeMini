@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from cade_mini.ai.providers.base import ModelProvider
 from cade_mini.ai.providers.registry import (
     ModelProfileConfig,
-    ProviderSettings,
-    build_provider_bundle,
+    build_model_provider,
     get_environment_api_key,
 )
 from cade_mini.ai.resolver import ModelResolver
@@ -43,7 +41,6 @@ def build_provider(
     config: ProviderConfig | None = None,
     *,
     auth_path: Path | None = None,
-    env_files: Sequence[Path] = (),
 ) -> ModelProvider:
     """解析模型、连接和凭据，返回 cade_mini.ai provider。"""
     selected = config or ProviderConfig()
@@ -78,15 +75,12 @@ def build_provider(
             and stored.access
         ):
             api_key = stored.access
-        api_key = api_key or get_environment_api_key(
-            transport,
-            tuple(env_files),
-        )
+        api_key = api_key or get_environment_api_key()
         if not api_key:
             raise RuntimeError(
                 f"Missing API key for provider {provider}; "
                 f"run 'cade-mini login --provider {provider} --method api_key' "
-                "or set its API key"
+                "or set OPENAI_API_KEY"
             )
 
     profile = ModelProfileConfig(
@@ -99,10 +93,4 @@ def build_provider(
         reasoning_effort=selected.reasoning_effort,
         account_id=account_id,
     )
-    bundle = build_provider_bundle(
-        ProviderSettings(
-            env_files=tuple(env_files),
-            model_profiles={"main": profile},
-        )
-    )
-    return bundle.llm
+    return build_model_provider(profile)

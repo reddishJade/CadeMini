@@ -16,13 +16,13 @@ starts the interactive REPL.
 ```bash
 cade-mini login
 cade-mini login --method device_code
-cade-mini login --provider deepseek
+cade-mini login --provider openai
 ```
 
 `--provider` defaults to `openai-codex`. Codex supports `browser` (default) and
-`device_code`; other providers use `api_key` with a hidden input prompt.
-Credentials are stored in `~/.cade-mini/auth.json`. Login does not change
-project provider or model settings.
+`device_code`; `openai` uses `api_key` with a hidden input prompt. Credentials
+are stored in `~/.cade-mini/auth.json`. Login does not change project provider or
+model settings. Cade Mini supports only the OpenAI Responses protocol.
 
 ## One-shot options
 

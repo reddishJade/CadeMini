@@ -1,30 +1,23 @@
 """Provider 适配器注册。"""
 
-from .chatglm import ChatGLMProvider
-from .deepseek import DeepSeekProvider
-from .mimo import MiMoProvider
-from .openai import OpenAIChatProvider
+from .base import ModelProvider, StreamProvider
 from .registry import (
     PROVIDER_REGISTRY,
     ModelProfileConfig,
     ModelProfileProto,
-    ProviderBundle,
-    ProviderSettings,
-    build_provider_bundle,
+    build_model_provider,
+    get_environment_api_key,
 )
 from .responses import OpenAICodexResponsesProvider, OpenAIResponsesProvider
 
 __all__ = [
     "PROVIDER_REGISTRY",
-    "ChatGLMProvider",
-    "DeepSeekProvider",
-    "MiMoProvider",
     "ModelProfileConfig",
     "ModelProfileProto",
-    "OpenAIChatProvider",
+    "ModelProvider",
     "OpenAICodexResponsesProvider",
     "OpenAIResponsesProvider",
-    "ProviderBundle",
-    "ProviderSettings",
-    "build_provider_bundle",
+    "StreamProvider",
+    "build_model_provider",
+    "get_environment_api_key",
 ]

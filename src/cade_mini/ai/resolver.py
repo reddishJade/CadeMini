@@ -1,6 +1,7 @@
 """模型与 Transport 解析器（单一事实源）。
 
-收敛别名规范化、Provider 推断、Transport 推断与默认 Base URL 解析。
+只支持 OpenAI Responses 协议：API Key 使用 `openai_responses`，
+ChatGPT 登录使用 `openai_codex`。
 """
 
 from __future__ import annotations
@@ -23,23 +24,16 @@ MODEL_ALIASES: Final[dict[str, str]] = {
 PROVIDER_ALIASES: Final[dict[str, str]] = {
     "codex": "openai-codex",
     "openai-codex": "openai-codex",
-    "glm": "chatglm",
 }
 
 PROVIDER_TRANSPORTS: Final[dict[str, str]] = {
     "openai": "openai_responses",
     "openai-codex": "openai_codex",
-    "deepseek": "deepseek_chat",
-    "chatglm": "chatglm_chat",
-    "mimo": "mimo_chat",
-    "custom": "custom",
 }
 
 
 def provider_for_transport(transport: str) -> str:
     """把传输协议映射到独立的认证提供方。"""
-    if transport == "openai_chat":
-        return "openai"
     for provider, candidate in PROVIDER_TRANSPORTS.items():
         if candidate == transport:
             return provider
@@ -49,19 +43,11 @@ def provider_for_transport(transport: str) -> str:
 # 默认 Base URL
 DEFAULT_BASE_URLS: Final[dict[str, str]] = {
     "openai_codex": "https://chatgpt.com/backend-api",
-    "openai_chat": "https://api.openai.com/v1",
     "openai_responses": "https://api.openai.com/v1",
-    "deepseek_chat": "https://api.deepseek.com",
-    "chatglm_chat": "https://open.bigmodel.cn/api/paas/v4/",
-    "mimo_chat": "https://api.xiaomimimo.com/v1",
 }
 
 # 默认环境变量覆盖 Base URL
 BASE_URL_ENV_VARS: Final[dict[str, str]] = {
-    "deepseek_chat": "DEEPSEEK_BASE_URL",
-    "chatglm_chat": "CHATGLM_BASE_URL",
-    "mimo_chat": "MIMO_BASE_URL",
-    "openai_chat": "OPENAI_BASE_URL",
     "openai_responses": "OPENAI_BASE_URL",
 }
 
@@ -107,12 +93,6 @@ class ModelResolver:
             ("gpt-", "codex-", "chat-", "o1", "o3", "o4")
         ):
             return "openai"
-        if resolved_name.startswith("deepseek"):
-            return "deepseek"
-        if resolved_name.startswith("glm-"):
-            return "chatglm"
-        if resolved_name.startswith("mimo-"):
-            return "mimo"
 
         from cade_mini.ai.models import _MODELS
 
@@ -187,6 +167,11 @@ class ModelResolver:
             or cls.infer_provider(resolved_model)
             or "openai"
         )
+        if norm_provider not in PROVIDER_TRANSPORTS:
+            supported = ", ".join(PROVIDER_TRANSPORTS)
+            raise ValueError(
+                f"Unsupported provider '{norm_provider}'. Supported: {supported}"
+            )
 
         if transport:
             resolved_transport = transport

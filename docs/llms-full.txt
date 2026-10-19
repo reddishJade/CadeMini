@@ -128,17 +128,18 @@ uv run --locked cade-mini login
 uv run --locked cade-mini login --method device_code
 ```
 
-For an API-key provider, use a hidden key prompt or set its environment variable:
+For an OpenAI API key, use a hidden key prompt or set the environment variable:
 
 ```bash
-uv run --locked cade-mini login --provider deepseek
-export DEEPSEEK_API_KEY=...
-uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review this project."
+uv run --locked cade-mini login --provider openai
+export OPENAI_API_KEY=...
+uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project."
 ```
 
 The default provider is `openai-codex`. Set `provider` and `model` in
-`cade-mini.json` to choose other startup defaults. Mini does not read Cade's
-credentials, skills, or settings.
+`cade-mini.json` to choose other startup defaults. Cade Mini supports only the
+OpenAI Responses protocol: `openai-codex` for ChatGPT OAuth and `openai` for an
+API key. Mini does not read Cade's credentials, skills, or settings.
 
 ## Run one task
 
@@ -227,13 +228,13 @@ starts the interactive REPL.
 ```bash
 cade-mini login
 cade-mini login --method device_code
-cade-mini login --provider deepseek
+cade-mini login --provider openai
 ```
 
 `--provider` defaults to `openai-codex`. Codex supports `browser` (default) and
-`device_code`; other providers use `api_key` with a hidden input prompt.
-Credentials are stored in `~/.cade-mini/auth.json`. Login does not change
-project provider or model settings.
+`device_code`; `openai` uses `api_key` with a hidden input prompt. Credentials
+are stored in `~/.cade-mini/auth.json`. Login does not change project provider or
+model settings. Cade Mini supports only the OpenAI Responses protocol.
 
 ## One-shot options
 
@@ -351,8 +352,8 @@ silently ignored.
 
 ```json
 {
-  "provider": "deepseek",
-  "model": "deepseek-chat",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-luna",
   "reasoning_effort": "high",
   "context_window": 128000,
   "max_steps": 30,
@@ -376,8 +377,9 @@ silently ignored.
 
 ## Fields
 
-- `provider`, `model`: provider name and model identifier. The CLI flags
-  override both.
+- `provider`, `model`: provider name and model identifier. Use `openai-codex`
+  for ChatGPT OAuth or `openai` for an OpenAI API key. The CLI flags override
+  both.
 - `reasoning_effort`: provider reasoning effort. The CLI flag is `--effort`.
 - `context_window`: model context window in tokens.
 - `max_steps`: maximum model steps in one run.
@@ -551,8 +553,9 @@ re-exports; import the owning submodule directly.
 
 `ai/` owns provider protocols, streaming adapters, model metadata, and OAuth.
 `execution_env/` owns local process execution and output capture. Neither layer
-imports application or host modules. Mini has no OS sandbox; shell execution
-uses local host permissions.
+imports application or host modules. The AI layer supports only the OpenAI
+Responses protocol, as recorded in [decision 0007](decisions/0007-responses-only-provider.md).
+Mini has no OS sandbox; shell execution uses local host permissions.
 
 Credentials and user skills use `~/.cade-mini/`. Sessions, snapshots, goals,
 and project skills use `<workspace>/.cade-mini/`. Project settings live in
@@ -822,7 +825,7 @@ implementation can be replaced without changing the session schema or the loop.
 
 | Seam | Contract | Implementations | Main consumers |
 | --- | --- | --- | --- |
-| Provider | `loop.Provider` streaming events | Chat providers, Codex | Loop, compaction, auto-review |
+| Provider | `loop.Provider` streaming events | OpenAI Responses, Codex OAuth | Loop, compaction, auto-review |
 | Tool | `loop.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
 | Policy | `loop.Policy.check` returns allow, deny, or ask | `WorkspacePolicy` | Loop |
 | Approval | Callable returning bool or awaitable bool | `SessionApprover`, `AutoReviewer` | Loop |
@@ -1114,20 +1117,9 @@ flowchart LR
   ai_events --> ai_types
   ai_models --> ai_types
   ai_providers__codec --> ai_types
-  ai_providers__compat --> ai_cache
-  ai_providers__compat --> ai_events
-  ai_providers__compat --> ai_types
-  ai_providers__compat --> ai_usage
-  ai_providers__stream --> ai_events
-  ai_providers__stream --> ai_types
   ai_providers_base --> ai_events
   ai_providers_base --> ai_types
   ai_providers_base --> ai_usage
-  ai_providers_chatglm --> ai_events
-  ai_providers_chatglm --> ai_types
-  ai_providers_deepseek --> ai_types
-  ai_providers_mimo --> ai_types
-  ai_providers_openai --> ai_types
   ai_providers_registry --> ai_providers_base
   ai_providers_registry --> ai_resolver
   ai_providers_registry --> ai_types
@@ -1648,8 +1640,8 @@ uv run --locked python -m cade_mini.docs check
 
 ## Real-provider checks
 
-The acceptance runs use DeepSeek or Codex and are not part of the default test
-suite. They cover tool use, resume, compaction, skills, build mode, the web
+The acceptance runs use OpenAI Responses or Codex and are not part of the default
+test suite. They cover tool use, resume, compaction, skills, build mode, the web
 host, and Codex write/read. Record the command and observed result in the change
 that adds a new acceptance.
 
@@ -3173,7 +3165,8 @@ Resume:
 
 - Mini ran with `--mode build --yes`; Cade ran with `--mode build --approval
   auto-review`.
-- Both used DeepSeek `deepseek-chat`.
+- Both used DeepSeek `deepseek-chat` at the time of the run. Cade Mini now
+  supports only the OpenAI Responses protocol.
 - Mini used five steps per workflow; Cade used four. Mini issued an extra `glob`
   inspection, which did not change the result.
 - Cade emits JSONL telemetry and budget/approval events; Mini emits human tool
@@ -3191,8 +3184,9 @@ Resume:
   Codex session read it back.
 
 The parity report records the concrete fixtures and observed results. Re-run a
-workflow by creating a clean fixture, running both agents with the settings
-above, and comparing the diff and test result rather than the prose answer.
+workflow by creating a clean fixture, running both agents with the same provider
+and settings, and comparing the diff and test result rather than the prose
+answer. Cade Mini supports only the OpenAI Responses protocol.
 
 # Postmortems
 

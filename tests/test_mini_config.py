@@ -24,8 +24,8 @@ def test_loads_values(tmp_path: Path) -> None:
     (tmp_path / "cade-mini.json").write_text(
         json.dumps(
             {
-                "provider": "deepseek",
-                "model": "deepseek-chat",
+                "provider": "openai",
+                "model": "gpt-5.5",
                 "reasoning_effort": "low",
                 "context_window": 64000,
                 "max_steps": 7,
@@ -57,8 +57,8 @@ def test_loads_values(tmp_path: Path) -> None:
 
     config = MiniConfig.load(tmp_path)
 
-    assert config.provider == "deepseek"
-    assert config.model == "deepseek-chat"
+    assert config.provider == "openai"
+    assert config.model == "gpt-5.5"
     assert config.reasoning_effort == "low"
     assert config.context_window == 64_000
     assert config.max_steps == 7

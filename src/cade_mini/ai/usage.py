@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime
 
 from cade_mini.ai.cache import CacheUsage
 from cade_mini.ai.models import get_model_cost
@@ -66,7 +65,6 @@ class UsageAccumulator:
         completion_tokens: int,
         cache_usage: CacheUsage | None = None,
         cache_write_tokens: int = 0,
-        now: datetime | None = None,
     ) -> None:
         """记录一次请求的 usage。prompt_tokens 为含缓存命中的总输入。"""
         cache_usage = cache_usage or CacheUsage()
@@ -81,7 +79,6 @@ class UsageAccumulator:
             output_tokens=completion_tokens,
             cache_read_tokens=cache_usage.hit_tokens,
             cache_write_tokens=cache_write_tokens,
-            now=now,
         )
         self._totals.input_tokens += billed_input
         self._totals.output_tokens += completion_tokens
@@ -100,12 +97,11 @@ def _estimate_cost_usd(
     output_tokens: int,
     cache_read_tokens: int,
     cache_write_tokens: int,
-    now: datetime | None,
 ) -> float:
     """按模型注册表费率估算单次请求成本；未知模型返回 0。"""
     if not model:
         return 0.0
-    rate = get_model_cost(model, now)
+    rate = get_model_cost(model)
     if rate is None:
         return 0.0
     return (

@@ -1,13 +1,16 @@
 # AI protocols and streaming events
 
-The AI layer translates vendor protocols and normalizes streaming chunks, reasoning, and tool calls into a typed `ProviderEvent` stream for Agent.
+The AI layer translates the OpenAI Responses protocol and normalizes streaming
+chunks, reasoning, and tool calls into a typed `ProviderEvent` stream for the
+agent. Cade Mini supports only Responses: an API key against `api.openai.com`,
+or ChatGPT Codex OAuth against the ChatGPT backend.
 
 ## Data flow
 
 ```text
 Model request: messages and tools
   → HTTP POST / SSE
-  → Provider adapter: OpenAI, DeepSeek, ChatGLM, MiMo
+  → Responses adapter
   → Stream decoding and normalization
   → ReasoningDelta / TextDelta / ToolCallEvent / FinalMessage
   → UsageUpdate
@@ -29,39 +32,30 @@ Model request: messages and tools
 
 AI owns communication, parameter encoding, and stream decoding. It must not depend on Agent steps, rollover, session persistence, or OS tools.
 
-Normalize vendor reasoning fields or tags to `ReasoningDelta` for presentation. Parsing failures and timeouts must produce an explicit failure or exception, not silently drop content.
+Normalize reasoning fields to `ReasoningDelta` for presentation. Parsing failures and timeouts must produce an explicit failure or exception, not silently drop content.
 
 ## Example
 
-Set `DEEPSEEK_API_KEY` before running this example. `messages` and `tools` are the request's message and tool-definition lists. Consume the stream inside an async function.
+Set `OPENAI_API_KEY` before running this example. `messages` and `tools` are the request's message and tool-definition lists. Consume the stream inside an async function.
 
 ```python
 import os
 
 from cade_mini.ai.events import FinalMessage, ReasoningDelta, TextDelta, ToolCallEvent
-from cade_mini.ai.providers.registry import (
-    ModelProfileConfig,
-    ProviderSettings,
-    build_provider_bundle,
-)
+from cade_mini.ai.providers.registry import ModelProfileConfig, build_model_provider
 
-# 根据模型配置构建 provider 组合
-bundle = build_provider_bundle(
-    ProviderSettings(
-        env_files=(),
-        model_profiles={
-            "main": ModelProfileConfig(
-                provider="deepseek",
-                transport="deepseek_chat",
-                chat_model="deepseek-reasoner",
-                api_key=os.environ["DEEPSEEK_API_KEY"],
-            )
-        },
+# 根据模型配置构建 Responses provider
+provider = build_model_provider(
+    ModelProfileConfig(
+        provider="openai",
+        transport="openai_responses",
+        chat_model="gpt-5.5",
+        api_key=os.environ["OPENAI_API_KEY"],
     )
 )
 
 # 消费归一化事件
-async for event in bundle.llm.stream(messages, tools=tools):
+async for event in provider.stream(messages, tools=tools):
     match event:
         case ReasoningDelta(chunk=thought):
             print(f"[Thinking] {thought}", end="")
@@ -75,5 +69,5 @@ async for event in bundle.llm.stream(messages, tools=tools):
 
 ## Submodules
 
-- [providers/](providers/README.md): vendor adapters using shared base classes and codecs.
-- [auth/](auth/README.md): authentication contracts, OAuth and refresh, and pre-request credential resolution. Hosts implement `CredentialStore`; AI does not know authentication file paths or CLI interactions.
+- [providers/](providers/README.md): Responses adapters and shared encoding helpers.
+- [auth/](auth/README.md): authentication contracts, Codex OAuth and refresh, and pre-request credential resolution. Hosts implement `CredentialStore`; AI does not know authentication file paths or CLI interactions.

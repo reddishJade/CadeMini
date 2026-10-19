@@ -1,4 +1,4 @@
-"""AI 层：LLM provider、认证、transport、stream 类型。"""
+"""AI 层：Responses provider、认证、transport、stream 类型。"""
 
 from .auth import (
     AuthCredential,

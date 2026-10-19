@@ -29,8 +29,8 @@ def test_default_auth_directory_is_owned_by_mini() -> None:
 def test_api_key_login(auth_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(auth.getpass, "getpass", lambda prompt: " test-key ")
 
-    assert main(["login", "--provider", "deepseek"]) == 0
-    credential = JsonCredentialStore(auth_path).get("deepseek")
+    assert main(["login", "--provider", "openai"]) == 0
+    credential = JsonCredentialStore(auth_path).get("openai")
     assert credential is not None
     assert credential.type == "api_key"
     assert credential.access == "test-key"
@@ -68,7 +68,7 @@ def test_cancelled_login_does_not_write(
 ) -> None:
     monkeypatch.setattr(auth.getpass, "getpass", Mock(side_effect=KeyboardInterrupt))
 
-    assert main(["login", "--provider", "deepseek"]) == 130
+    assert main(["login", "--provider", "openai"]) == 130
     assert not auth_path.exists()
 
 
@@ -88,7 +88,7 @@ def test_oauth_failure_preserves_credentials(
 
 @pytest.mark.parametrize(
     "args",
-    [["--method", "api_key"], ["--provider", "deepseek", "--method", "browser"]],
+    [["--method", "api_key"], ["--provider", "openai", "--method", "browser"]],
 )
 def test_login_rejects_wrong_method(auth_path: Path, args: list[str]) -> None:
     with pytest.raises(SystemExit) as exc:

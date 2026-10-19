@@ -22,6 +22,14 @@ def _call(path: str, content: str) -> ToolCallBlock:
     )
 
 
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    """创建符号链接；平台不允许时跳过该用例。"""
+    try:
+        link.symlink_to(target)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlinks are unavailable: {exc}")
+
+
 def test_capture_and_undo_restores_content(tmp_path: Path) -> None:
     target = tmp_path / "a.txt"
     target.write_text("old", encoding="utf-8")
@@ -84,7 +92,7 @@ def test_undo_rejects_changed_target_without_consuming_snapshot(
         elif change == "symlink":
             other = tmp_path / "other.txt"
             other.write_text("human", encoding="utf-8")
-            target.symlink_to(other)
+            _symlink_or_skip(target, other)
     before_index = store.index.read_bytes()
 
     with pytest.raises(SnapshotConflict):

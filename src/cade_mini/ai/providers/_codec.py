@@ -1,7 +1,6 @@
-"""消息与工具编码：将内部格式转换为 Chat Completions API 格式。
+"""Responses 请求编码与工具参数解码。
 
-包括：JSON Schema strict 模式转换、消息格式转换、工具 schema 构建。
-流式响应解码见 _stream.py。
+包含 JSON Schema strict 模式转换与工具参数解析。
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from typing import Any
 
 import orjson
 
-from cade_mini.ai.types import ToolDefinition
+from cade_mini.ai.types import ToolArguments
 
 # ── JSON Schema strict 模式 ──
 
@@ -103,266 +102,22 @@ def _nullable_schema(schema: Any) -> Any:
     return result
 
 
-# ── 工具名称转换 ──
+# ── 工具参数解析 ──
 
 
-def provider_function_name(canonical_id: str) -> str:
-    """将内部规范 ID 转换为 provider 合法的函数名。"""
-    if "://" not in canonical_id:
-        return canonical_id
-    kind, _, remainder = canonical_id.partition("://")
-    safe = remainder.replace("/", "__")
-    return f"{kind}__{safe}"
+def parse_tool_arguments(raw_arguments: str) -> ToolArguments:
+    """解析工具调用参数；非法 JSON 转为可识别的错误占位。"""
+    try:
+        result = orjson.loads((raw_arguments or "{}").encode())
+        parsed = _tool_arguments(result)
+        if parsed is not None:
+            return parsed
+        return {"__invalid_tool_arguments__": str(result)}
+    except orjson.JSONDecodeError:
+        return {"__invalid_tool_arguments__": raw_arguments}
 
 
-# ── Chat Completions 工具格式 ──
-
-
-def to_chat_tool(
-    name: str, description: str, schema: dict | None, strict: bool = False
-) -> dict[str, Any]:
-    """将工具定义转换为 Chat Completions 格式。"""
-    resolved = schema or {
-        "type": "object",
-        "properties": {
-            "input": {"type": "string", "description": description},
-        },
-    }
-    if strict:
-        resolved = make_schema_strict(resolved)
-        return {
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": description,
-                "parameters": resolved,
-                "strict": True,
-            },
-        }
-    return {
-        "type": "function",
-        "function": {
-            "name": name,
-            "description": description,
-            "parameters": resolved,
-        },
-    }
-
-
-def to_chat_tools(
-    tools: tuple[ToolDefinition, ...],
-    *,
-    strict: bool = False,
-) -> list[dict[str, Any]]:
-    """将 ToolDefinition 列表转换为 Chat Completions 工具参数。"""
-    return [
-        to_chat_tool(tool.name, tool.description, tool.parameters, strict=strict)
-        for tool in tools
-    ]
-
-
-# ── 跨 provider 消息归一化 ──
-
-_REASONING_CONTENT_TRANSPORTS = frozenset(
-    {
-        "deepseek_chat",
-        "chatglm_chat",
-        "mimo_chat",
-    }
-)
-
-
-def _has_reasoning_content(messages: list[dict[str, Any]]) -> bool:
-    for msg in messages:
-        if msg.get("reasoning_content"):
-            return True
-    return False
-
-
-def normalize_cross_provider_messages(
-    messages: list[dict[str, Any]],
-    target_transport: str,
-) -> list[dict[str, Any]]:
-    """跨 provider 消息归一化。
-
-    当消息来自不同 provider 时，将 provider 专有字段转为通用文本格式。
-    """
-    if not _has_reasoning_content(messages):
-        return messages
-
-    if target_transport in _REASONING_CONTENT_TRANSPORTS:
-        return messages
-
-    result: list[dict[str, Any]] = []
-    for msg in messages:
-        rc = msg.get("reasoning_content")
-        if rc:
-            msg = copy.deepcopy(msg)
-            text = str(rc)
-            existing = msg.get("content")
-            if existing is None or existing == "":
-                msg["content"] = f"<thinking>{text}</thinking>"
-            elif isinstance(existing, str):
-                msg["content"] = f"<thinking>{text}</thinking>\n\n{existing}"
-            msg.pop("reasoning_content", None)
-        result.append(msg)
-    return result
-
-
-# ── Chat Completions 消息格式 ──
-
-
-def to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """转换为 Chat Completions API 格式。tool result 使用 role:'tool'。"""
-    converted: list[dict[str, Any]] = []
-    pending_tool_images: list[dict[str, Any]] = []
-    for message in messages:
-        role = str(message.get("role", "user"))
-        content = message.get("content")
-        if role != "tool" and pending_tool_images:
-            converted.append({"role": "user", "content": pending_tool_images})
-            pending_tool_images = []
-        if role == "tool" and isinstance(content, list):
-            text = "".join(
-                str(part.get("text", ""))
-                for part in content
-                if isinstance(part, dict) and part.get("type") == "text"
-            )
-            converted.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": message.get("tool_call_id", ""),
-                    "content": text,
-                }
-            )
-            images = [
-                part
-                for part in content
-                if isinstance(part, dict) and part.get("type") == "image_url"
-            ]
-            if images:
-                pending_tool_images.extend(
-                    [
-                        {
-                            "type": "text",
-                            "text": (
-                                "Image output from tool call "
-                                f"{message.get('tool_call_id', '')}:"
-                            ),
-                        },
-                        *images,
-                    ]
-                )
-            continue
-        if "content" in message:
-            if role == "tool" and content is None:
-                result_content: str | None = ""
-            else:
-                result_content = None if content is None else str(content)
-        else:
-            result_content = ""
-
-        if isinstance(content, list):
-            converted.extend(
-                _content_blocks_to_chat_messages(
-                    role,
-                    content,
-                    reasoning_content=message.get("reasoning_content"),
-                    prefix=message.get("prefix"),
-                )
-            )
-        else:
-            result: dict[str, Any] = {
-                "role": role,
-                "content": result_content,
-            }
-            if "tool_calls" in message:
-                result["tool_calls"] = _normalize_chat_tool_calls(message["tool_calls"])
-            if (
-                "reasoning_content" in message
-                and message["reasoning_content"] is not None
-            ):
-                result["reasoning_content"] = message["reasoning_content"]
-            if "tool_call_id" in message:
-                result["tool_call_id"] = message["tool_call_id"]
-            if "prefix" in message:
-                result["prefix"] = message["prefix"]
-            converted.append(result)
-    if pending_tool_images:
-        converted.append({"role": "user", "content": pending_tool_images})
-    return converted
-
-
-def _normalize_chat_tool_calls(tool_calls: object) -> list[dict[str, Any]]:
-    normalized: list[dict[str, Any]] = []
-    if not isinstance(tool_calls, list):
-        return normalized
-    for call in tool_calls:
-        if not isinstance(call, dict):
-            continue
-        fixed_call = dict(call)
-        function = fixed_call.get("function")
-        if isinstance(function, dict):
-            fixed_function = dict(function)
-            arguments = fixed_function.get("arguments", "")
-            if not isinstance(arguments, str):
-                fixed_function["arguments"] = orjson.dumps(arguments).decode()
-            fixed_call["function"] = fixed_function
-        normalized.append(fixed_call)
-    return normalized
-
-
-def _content_blocks_to_chat_messages(
-    role: str,
-    content: list,
-    reasoning_content: str | None = None,
-    prefix: bool | None = None,
-) -> list[dict[str, Any]]:
-    """将内容块列表转换为 Chat Completions 格式。"""
-    converted: list[dict[str, Any]] = []
-    assistant_tool_calls = []
-    text_parts = []
-    for part in content:
-        if not isinstance(part, dict):
-            text_parts.append(str(part))
-            continue
-        if part.get("type") == "tool_result":
-            converted.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": str(part.get("tool_use_id", "")),
-                    "content": str(part.get("content", "")),
-                }
-            )
-        elif part.get("type") == "tool_use":
-            assistant_tool_calls.append(
-                {
-                    "id": str(part.get("id", "")),
-                    "type": "function",
-                    "function": {
-                        "name": str(part.get("name", "")),
-                        "arguments": orjson.dumps(part.get("input", {})).decode(),
-                    },
-                }
-            )
-        elif part.get("type") == "text":
-            text_parts.append(str(part.get("text", "")))
-    if assistant_tool_calls:
-        msg: dict[str, Any] = {
-            "role": "assistant",
-            "content": "".join(text_parts) or None,
-            "tool_calls": assistant_tool_calls,
-        }
-        if reasoning_content is not None:
-            msg["reasoning_content"] = reasoning_content
-        if prefix is not None:
-            msg["prefix"] = prefix
-        converted.insert(0, msg)
-    elif text_parts:
-        msg = {"role": role, "content": "".join(text_parts)}
-        if reasoning_content is not None and role == "assistant":
-            msg["reasoning_content"] = reasoning_content
-        if prefix is not None and role == "assistant":
-            msg["prefix"] = prefix
-        converted.insert(0, msg)
-    return converted
+def _tool_arguments(value: object) -> ToolArguments | None:
+    if not isinstance(value, dict):
+        return None
+    return {str(key): item for key, item in value.items()}

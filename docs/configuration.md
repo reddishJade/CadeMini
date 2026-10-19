@@ -11,8 +11,8 @@ silently ignored.
 
 ```json
 {
-  "provider": "deepseek",
-  "model": "deepseek-chat",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-luna",
   "reasoning_effort": "high",
   "context_window": 128000,
   "max_steps": 30,
@@ -36,8 +36,9 @@ silently ignored.
 
 ## Fields
 
-- `provider`, `model`: provider name and model identifier. The CLI flags
-  override both.
+- `provider`, `model`: provider name and model identifier. Use `openai-codex`
+  for ChatGPT OAuth or `openai` for an OpenAI API key. The CLI flags override
+  both.
 - `reasoning_effort`: provider reasoning effort. The CLI flag is `--effort`.
 - `context_window`: model context window in tokens.
 - `max_steps`: maximum model steps in one run.

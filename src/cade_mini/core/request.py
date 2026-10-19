@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass, fields
 from typing import Any, cast
 
-from cade_mini.ai.types import StreamOptions, ThinkingBudgets, ToolDefinition
+from cade_mini.ai.types import StreamOptions, ToolDefinition
 from cade_mini.core.types import (
     AssistantMessage,
     JsonValue,
@@ -78,14 +78,11 @@ class Request:
         options: dict[str, Any] | None = None
         if self.options is not None:
             excluded = {"api_key", "headers", "signal", "on_payload", "on_response"}
-            options = {}
-            for field in fields(self.options):
-                if field.name in excluded:
-                    continue
-                value = getattr(self.options, field.name)
-                options[field.name] = (
-                    asdict(value) if isinstance(value, ThinkingBudgets) else value
-                )
+            options = {
+                field.name: getattr(self.options, field.name)
+                for field in fields(self.options)
+                if field.name not in excluded
+            }
         record = {
             "messages": list(self.messages),
             "tools": [asdict(tool) for tool in self.tools],

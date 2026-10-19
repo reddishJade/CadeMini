@@ -1,43 +1,25 @@
 """Provider 注册表与工厂。
 
-职责：
-1. 维护 transport → provider class 的映射
-2. 从 settings 构建 provider 实例
-3. 解析 API key（环境变量回退）
+Cade Mini 只支持 OpenAI Responses 协议，包括 API Key 与 Codex OAuth。
 """
 
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Protocol
-
-from dotenv import dotenv_values
 
 from cade_mini.ai.providers.base import ModelProvider
 from cade_mini.ai.resolver import ModelResolver
 from cade_mini.ai.types import ProviderConfig
 
-from ._runtime import ProviderRuntime, RateLimitPolicy, RetryPolicy
-from .chatglm import ChatGLMProvider
-from .deepseek import DeepSeekProvider
-from .mimo import MiMoProvider
-from .openai import OpenAIChatProvider
 from .responses import OpenAICodexResponsesProvider, OpenAIResponsesProvider
 
 # ── 注册表 ──
 
 PROVIDER_REGISTRY: dict[str, type] = {
-    "openai_chat": OpenAIChatProvider,
     "openai_responses": OpenAIResponsesProvider,
     "openai_codex": OpenAICodexResponsesProvider,
-    "chatglm_chat": ChatGLMProvider,
-    "deepseek_chat": DeepSeekProvider,
-    "mimo_chat": MiMoProvider,
-    # custom：任意 OpenAI 协议网关（自定义 base_url + api_key）
-    "custom": OpenAIChatProvider,
 }
 
 
@@ -63,153 +45,57 @@ class ModelProfileProto(Protocol):
     @property
     def reasoning_effort(self) -> str | None: ...
     @property
-    def clear_thinking(self) -> bool: ...
-    @property
-    def tool_stream(self) -> bool: ...
-    @property
-    def response_format(self) -> dict[str, Any] | None: ...
-    @property
     def account_id(self) -> str | None: ...
 
 
 @dataclass(frozen=True)
 class ModelProfileConfig:
     provider: str = "openai"
-    transport: str = "openai_chat"
+    transport: str = "openai_responses"
     chat_model: str = ""
     base_url: str = ""
     api_key: str = ""
     context_window: int | None = None
     thinking: bool = True
     reasoning_effort: str | None = None
-    clear_thinking: bool = False
-    tool_stream: bool = True
-    response_format: dict[str, Any] | None = None
     account_id: str | None = None
-
-
-@dataclass(frozen=True)
-class ProviderSettings:
-    env_files: tuple[Path, ...]
-    model_profiles: Mapping[str, ModelProfileProto]
-    retry: RetryPolicy = field(default_factory=RetryPolicy)
-    rate_limit: RateLimitPolicy = field(default_factory=RateLimitPolicy)
-
-
-@dataclass(frozen=True)
-class ProviderBundle:
-    llm: ModelProvider
-    llms: dict[str, ModelProvider]
 
 
 # ── 环境变量工具 ──
 
-
-def load_env_file(path: Path) -> dict[str, str | None]:
-    return dotenv_values(path)
+_OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
 
 
-def get_config_value(name: str, env_files: tuple[Path, ...] = ()) -> str | None:
-    if value := os.environ.get(name):
-        return value
-    for env_file in env_files:
-        values = load_env_file(env_file)
-        if value := values.get(name):
-            return value
-    return None
+def get_environment_api_key() -> str | None:
+    """读取 OpenAI 环境凭据，不借用其他服务的 key。"""
+    return os.environ.get(_OPENAI_API_KEY_ENV_VAR) or None
 
 
 # ── 工厂 ──
 
 
-def build_provider_bundle(settings: ProviderSettings) -> ProviderBundle:
-    llms = _build_llm_profiles(settings)
-    return ProviderBundle(
-        llm=llms["main"],
-        llms=llms,
-    )
-
-
-def _build_llm_profiles(
-    settings: ProviderSettings,
-) -> dict[str, ModelProvider]:
-    """只为调用方实际选择的角色构造实例；其他角色由宿主继承 main。"""
-    profile_settings = dict(settings.model_profiles)
-    profile_settings.setdefault("main", ModelProfileConfig())
-    return {
-        name: _build_llm_profile(
-            profile,
-            name,
-            settings.env_files,
-            ProviderRuntime(
-                retry=settings.retry,
-                rate_limit=settings.rate_limit,
-            ),
-        )
-        for name, profile in profile_settings.items()
-    }
-
-
-_PROVIDER_ENV_VARS: dict[str, tuple[str, ...]] = {
-    "chatglm_chat": ("CHATGLM_API_KEY", "ZHIPUAI_API_KEY", "BIGMODEL_API_KEY"),
-    "deepseek_chat": ("DEEPSEEK_API_KEY",),
-    "mimo_chat": ("MIMO_API_KEY",),
-    "openai_chat": ("OPENAI_API_KEY",),
-    "openai_responses": ("OPENAI_API_KEY",),
-    "custom": ("API_KEY",),
-}
-
-
-def get_environment_api_key(
-    transport: str,
-    env_files: tuple[Path, ...] = (),
-    api_key_env: str | None = None,
-) -> str | None:
-    """只读取所选 provider 的环境凭据，不借用其他服务的 key。"""
-    names = (api_key_env,) if api_key_env else _PROVIDER_ENV_VARS.get(transport, ())
-    for name in names:
-        if value := get_config_value(name, env_files):
-            return value
-    return None
-
-
-def _build_llm_profile(
-    profile: ModelProfileProto,
-    profile_name: str,
-    env_files: tuple[Path, ...],
-    runtime: ProviderRuntime,
-) -> ModelProvider:
-    """构造单个 provider 实例。"""
+def build_model_provider(profile: ModelProfileProto) -> ModelProvider:
+    """按模型 profile 构造单个 provider 实例。"""
     transport = profile.transport
-    api_key = profile.api_key or get_environment_api_key(transport, env_files)
-    if not api_key:
-        raise RuntimeError(f"Missing credentials for profile '{profile_name}'")
-
     provider_cls = PROVIDER_REGISTRY.get(transport)
     if provider_cls is None:
         raise ValueError(
-            f"Unknown transport '{profile.transport}'. "
+            f"Unknown transport '{transport}'. "
             f"Available: {', '.join(PROVIDER_REGISTRY)}"
         )
 
-    base_url = profile.base_url or ModelResolver.get_default_base_url(transport)
-
-    extra: dict[str, Any] = {
-        "clear_thinking": profile.clear_thinking,
-        "tool_stream": profile.tool_stream,
-    }
+    extra: dict[str, Any] = {}
     account_id = getattr(profile, "account_id", None)
     if account_id:
         extra["account_id"] = account_id
 
     config = ProviderConfig(
-        api_key=api_key,
+        api_key=profile.api_key,
         model=profile.chat_model,
-        base_url=base_url,
+        base_url=profile.base_url or ModelResolver.get_default_base_url(transport),
         context_window=profile.context_window,
         thinking=profile.thinking,
         reasoning_effort=profile.reasoning_effort,
-        response_format=profile.response_format,
         extra=extra,
     )
-    return provider_cls(config, runtime=runtime)
+    return provider_cls(config)

@@ -5,7 +5,7 @@ implementation can be replaced without changing the session schema or the loop.
 
 | Seam | Contract | Implementations | Main consumers |
 | --- | --- | --- | --- |
-| Provider | `loop.Provider` streaming events | Chat providers, Codex | Loop, compaction, auto-review |
+| Provider | `loop.Provider` streaming events | OpenAI Responses, Codex OAuth | Loop, compaction, auto-review |
 | Tool | `loop.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
 | Policy | `loop.Policy.check` returns allow, deny, or ask | `WorkspacePolicy` | Loop |
 | Approval | Callable returning bool or awaitable bool | `SessionApprover`, `AutoReviewer` | Loop |

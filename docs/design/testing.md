@@ -37,8 +37,8 @@ uv run --locked python -m cade_mini.docs check
 
 ## Real-provider checks
 
-The acceptance runs use DeepSeek or Codex and are not part of the default test
-suite. They cover tool use, resume, compaction, skills, build mode, the web
+The acceptance runs use OpenAI Responses or Codex and are not part of the default
+test suite. They cover tool use, resume, compaction, skills, build mode, the web
 host, and Codex write/read. Record the command and observed result in the change
 that adds a new acceptance.
 

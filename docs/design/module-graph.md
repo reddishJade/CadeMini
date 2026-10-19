@@ -9,20 +9,9 @@ flowchart LR
   ai_events --> ai_types
   ai_models --> ai_types
   ai_providers__codec --> ai_types
-  ai_providers__compat --> ai_cache
-  ai_providers__compat --> ai_events
-  ai_providers__compat --> ai_types
-  ai_providers__compat --> ai_usage
-  ai_providers__stream --> ai_events
-  ai_providers__stream --> ai_types
   ai_providers_base --> ai_events
   ai_providers_base --> ai_types
   ai_providers_base --> ai_usage
-  ai_providers_chatglm --> ai_events
-  ai_providers_chatglm --> ai_types
-  ai_providers_deepseek --> ai_types
-  ai_providers_mimo --> ai_types
-  ai_providers_openai --> ai_types
   ai_providers_registry --> ai_providers_base
   ai_providers_registry --> ai_resolver
   ai_providers_registry --> ai_types

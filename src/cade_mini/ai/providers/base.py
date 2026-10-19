@@ -1,4 +1,4 @@
-"""Provider 抽象协议与基类。"""
+"""Provider 抽象协议。"""
 
 from __future__ import annotations
 

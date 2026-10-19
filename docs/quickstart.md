@@ -19,17 +19,18 @@ uv run --locked cade-mini login
 uv run --locked cade-mini login --method device_code
 ```
 
-For an API-key provider, use a hidden key prompt or set its environment variable:
+For an OpenAI API key, use a hidden key prompt or set the environment variable:
 
 ```bash
-uv run --locked cade-mini login --provider deepseek
-export DEEPSEEK_API_KEY=...
-uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review this project."
+uv run --locked cade-mini login --provider openai
+export OPENAI_API_KEY=...
+uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project."
 ```
 
 The default provider is `openai-codex`. Set `provider` and `model` in
-`cade-mini.json` to choose other startup defaults. Mini does not read Cade's
-credentials, skills, or settings.
+`cade-mini.json` to choose other startup defaults. Cade Mini supports only the
+OpenAI Responses protocol: `openai-codex` for ChatGPT OAuth and `openai` for an
+API key. Mini does not read Cade's credentials, skills, or settings.
 
 ## Run one task
 

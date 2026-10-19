@@ -12,7 +12,7 @@ import httpx
 from cade_mini.ai.auth import AuthCredential, LoginCancelledError, get_auth_provider
 from cade_mini.app.auth import JsonCredentialStore
 
-_PROVIDERS = ("openai-codex", "openai", "deepseek", "chatglm", "mimo", "custom")
+_PROVIDERS = ("openai-codex", "openai")
 
 
 def login(argv: Sequence[str]) -> int:
@@ -28,7 +28,7 @@ def login(argv: Sequence[str]) -> int:
         "browser" if args.provider == "openai-codex" else "api_key"
     )
     if (args.provider == "openai-codex") == (method == "api_key"):
-        parser.error("openai-codex requires OAuth; other providers require api_key")
+        parser.error("openai-codex requires OAuth; openai requires api_key")
     try:
         if method == "api_key":
             key = getpass.getpass(f"API key for {args.provider}: ").strip()

@@ -64,36 +64,44 @@ def test_build_codex_provider_requires_login(tmp_path: Path) -> None:
         )
 
 
-def test_build_chat_provider_with_explicit_key() -> None:
+def test_build_responses_provider_with_explicit_key() -> None:
     provider = build_provider(
         ProviderConfig(
-            provider="deepseek",
-            model="deepseek-chat",
+            provider="openai",
+            model="gpt-5.5",
             api_key="test-key",
         )
     )
 
-    assert provider.transport == "deepseek_chat"
-    assert provider.model == "deepseek-chat"
+    assert provider.transport == "openai_responses"
+    assert provider.model == "gpt-5.5"
 
 
-def test_build_chat_provider_uses_stored_api_key(tmp_path: Path) -> None:
+def test_build_responses_provider_uses_stored_api_key(tmp_path: Path) -> None:
     auth_path = tmp_path / "auth.json"
     JsonCredentialStore(auth_path).save(
         AuthCredential(
             type="api_key",
-            provider="deepseek",
+            provider="openai",
             access="stored-key",
         )
     )
 
     provider = build_provider(
-        ProviderConfig(provider="deepseek", model="deepseek-chat"),
+        ProviderConfig(provider="openai", model="gpt-5.5"),
         auth_path=auth_path,
     )
 
-    assert provider.transport == "deepseek_chat"
-    assert provider.model == "deepseek-chat"
+    assert provider.transport == "openai_responses"
+    assert provider.model == "gpt-5.5"
+
+
+def test_unsupported_provider_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Unsupported provider 'deepseek'"):
+        build_provider(
+            ProviderConfig(provider="deepseek", model="deepseek-chat"),
+            auth_path=tmp_path / "missing.json",
+        )
 
 
 def test_provider_config_rejects_empty_values() -> None:

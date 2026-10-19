@@ -10,6 +10,12 @@ them.
 ## Records
 
 - [0001: Session log is the source of truth](0001-session-log-source-of-truth.md)
+- [0002: Reject concurrent session runs](0002-session-run-lock.md)
+- [0003: Verify file state before undo](0003-snapshot-conflict-detection.md)
+- [0004: Persist normalized request inputs](0004-normalized-request-audit.md)
+- [0005: Keep request admission lossless](0005-explicit-context-reduction.md)
+- [0006: Validate persisted event payloads](0006-validate-event-payloads.md)
+- [0007: The AI layer supports only the OpenAI Responses protocol](0007-responses-only-provider.md)
 
 ## Adding a record
 
