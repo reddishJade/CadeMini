@@ -96,7 +96,10 @@ async def test_session_commands_update_host_log_without_losing_history(
     app = service(tmp_path)
     app.log.append("user", {"text": "first"})
     old = app.log.session_id
-    fork = await app.command("/fork")
+    picker = await app.command("/fork")
+    assert picker.picker == "fork"
+    assert any(choice == app.log.branch()[-1].id for choice, _ in app.choices("fork"))
+    fork = await app.command("/fork " + app.log.branch()[-1].id)
     assert fork.changed_session and fork.draft == "first"
     assert app.log.session_id != old
     result = await app.command("/resume " + old)
@@ -547,7 +550,9 @@ def test_model_picker_allows_custom_model_without_unusable_preset(
     assert terminal._picker.current_value == "__custom__"
     terminal._pick()
     assert terminal._picker_kind is None
-    assert terminal._input.text == "/model chatgpt/"
+    assert terminal._input.text == (
+        f"/model {terminal.service.provider_config.provider}/"
+    )
 
 
 def test_switching_model_updates_subagent_runtime(
