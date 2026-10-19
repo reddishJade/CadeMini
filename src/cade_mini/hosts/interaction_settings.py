@@ -52,6 +52,21 @@ class SettingsService:
         value = config.model_dump(mode="json")[name]
         return f"/config {name}={json.dumps(value, ensure_ascii=False)}"
 
+    def edit_options(self, name: str) -> tuple[tuple[str, str], ...]:
+        """Offer typed choices where the config schema has a finite domain."""
+        if name not in MiniConfig.model_fields:
+            raise ValueError(f"Unknown config setting: {name}")
+        if name in {"read_only", "instructions", "note", "memory", "auto_review"}:
+            return (("true", "Enabled"), ("false", "Disabled"))
+        if name == "mode":
+            return tuple((f'"{value}"', value) for value in ("act", "build", "plan"))
+        if name == "provider":
+            return (
+                ('"chatgpt"', "ChatGPT account"),
+                ('"openai"', "OpenAI API"),
+            )
+        return ()
+
     def save(self, name: str, raw: str) -> str:
         return self.save_many({name: raw})
 
