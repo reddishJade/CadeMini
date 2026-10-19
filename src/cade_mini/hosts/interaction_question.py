@@ -30,9 +30,10 @@ class QuestionTool:
         "single- or multiple-choice decision, or omit options for free text. "
         "Do this only when a user decision is required."
     )
+
     def __init__(self, answer: AnswerHandler) -> None:
         self.answer = answer
-        parameters: dict[str, Any] = {
+        self.parameters: dict[str, Any] = {
             "type": "object",
             "properties": {
                 "questions": {
@@ -63,7 +64,6 @@ class QuestionTool:
             },
             "required": ["questions"],
         }
-
 
     async def execute(
         self,
