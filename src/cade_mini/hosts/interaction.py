@@ -48,6 +48,7 @@ from cade_mini.safety.review import AutoReviewer
 from cade_mini.tools.history import HistoryTool
 from cade_mini.tools.workspace import resolve_workspace_path
 
+
 class UnavailableProvider:
     """Explicit disconnected terminal state; never substitutes a model call."""
 
@@ -386,7 +387,7 @@ class InteractionService:
         if self.running:
             raise RuntimeError("A task is already running")
         if isinstance(self.provider, UnavailableProvider):
-            raise RuntimeError(self.provider.reason)
+            raise RuntimeError(self.provider.reason)  # noqa: TRY004 - authentication state
         self.running = True
         self.cancel = CancellationToken()
         try:
@@ -626,13 +627,12 @@ class InteractionService:
                 raise ValueError("Usage: /rollover [--force]")
             working_note = self.workspace / "NOTE.md"
             if arg != "--force" and not working_note.is_file():
-                return CommandResult(
-                    (
-                        "Write NOTE.md with the current goal, decisions, "
-                        "verification status and next action before rollover; "
-                        "use /rollover --force to continue without it.",
-                    )
+                message = (
+                    "Write NOTE.md with the current goal, decisions, "
+                    "verification status and next action before rollover; "
+                    "use /rollover --force to continue without it."
                 )
+                return CommandResult((message,))
             handoff = (
                 working_note.read_text(encoding="utf-8")
                 if working_note.is_file()
