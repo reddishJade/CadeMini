@@ -761,6 +761,7 @@ async def test_manual_tool_invocation_emits_foldable_events_and_runs_hooks(
     class ReadTool:
         name = "read"
         description = "Read a file"
+
         def __init__(self) -> None:
             self.parameters = {"type": "object"}
 
