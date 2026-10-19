@@ -9,14 +9,14 @@ only the OpenAI Responses protocol.
 ```text
 ModelProfileConfig
   → build_model_provider()
-  → OpenAIResponsesProvider / OpenAICodexResponsesProvider
+  → OpenAIResponsesProvider / ChatGPTResponsesProvider
   → Responses requests
 ```
 
 ### Components
 
 - [base.py](base.py): model interaction protocols.
-- [responses.py](responses.py): OpenAI Responses API and ChatGPT Codex backend.
+- [responses.py](responses.py): OpenAI Responses API for API keys and SIWC plan usage.
 - [_codec.py](_codec.py): strict schema conversion and tool argument decoding.
 - [registry.py](registry.py): `PROVIDER_REGISTRY` constructor mapping and `build_model_provider`.
 

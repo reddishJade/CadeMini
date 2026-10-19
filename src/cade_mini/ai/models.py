@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Final
+from dataclasses import dataclass
 
 from cade_mini.ai.types import Cost, Model
 
@@ -126,22 +125,6 @@ _MODELS: dict[str, dict[str, Model]] = {
     },
 }
 
-# ChatGPT Codex 模型目录把默认工作窗口与可选最大窗口分开声明；这里使用
-# `context_window`，不能沿用 OpenAI API transport 的窗口，也不能使用
-# `max_context_window` 代替默认值。
-_TRANSPORT_CONTEXT_WINDOWS: Final[dict[str, dict[str, int]]] = {
-    "openai_codex": {
-        "gpt-6-astra": 272_000,
-        "gpt-6-sol": 272_000,
-        "gpt-6.1-sol": 272_000,
-        "gpt-6-luna": 272_000,
-        "gpt-5.6-sol": 272_000,
-        "gpt-5.6-terra": 272_000,
-        "gpt-5.6-luna": 272_000,
-        "gpt-5.5": 272_000,
-    }
-}
-
 
 def get_providers() -> list[str]:
     return list(_MODELS)
@@ -149,18 +132,6 @@ def get_providers() -> list[str]:
 
 def get_models(provider_name: str) -> list[Model]:
     return list(_MODELS.get(provider_name, {}).values())
-
-
-def get_codex_models() -> list[Model]:
-    """返回 ChatGPT 登录时当前支持的 Codex 模型。"""
-    context_windows = _TRANSPORT_CONTEXT_WINDOWS["openai_codex"]
-    return [
-        replace(
-            model,
-            context_window=context_windows.get(model.id, model.context_window),
-        )
-        for model in get_models("openai")
-    ]
 
 
 def get_model(provider_name: str, model_id: str) -> Model | None:
@@ -203,20 +174,10 @@ def resolve_model(provider_name: str, model_id: str) -> Model:
 # ── 模型选择语法解析 ──
 
 
-def get_model_context_window(
-    model: str | None, *, transport: str | None = None
-) -> int | None:
+def get_model_context_window(model: str | None) -> int | None:
     if not model:
         return None
     model_lower = normalize_model_id(model).lower()
-    transport_windows = _TRANSPORT_CONTEXT_WINDOWS.get(transport or "", {})
-    for model_id, context_window in sorted(
-        transport_windows.items(),
-        key=lambda item: len(item[0]),
-        reverse=True,
-    ):
-        if model_id in model_lower:
-            return context_window
     candidates = (
         (model_id, profile)
         for provider_models in _MODELS.values()

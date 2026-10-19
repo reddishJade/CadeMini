@@ -24,8 +24,7 @@ class AuthCredential:
         access: 访问令牌或 API Key。
         refresh: 刷新令牌（OAuth 流程专用）。
         expires: 过期时间戳（秒）。
-        account_id: 账户标识（如 ChatGPT 组织/账户 ID）。
-        provider: 所属服务提供方（如 "openai-codex"）。
+        provider: 所属服务提供方（如 "chatgpt"）。
         extra: 其他扩展元数据。
     """
 
@@ -33,7 +32,6 @@ class AuthCredential:
     access: str = ""
     refresh: str | None = None
     expires: int | None = None
-    account_id: str | None = None
     provider: str = ""
     extra: dict[str, Any] | None = None
 
@@ -56,7 +54,6 @@ class AuthCredential:
             access=data.get("access", ""),
             refresh=data.get("refresh"),
             expires=data.get("expires"),
-            account_id=data.get("account_id") or data.get("accountId"),
             provider=data.get("provider", provider),
             extra=data.get("extra"),
         )
@@ -86,8 +83,14 @@ class AuthProvider(Protocol):
         method: str,
         notify_callback: Callable[..., None] | None = None,
         cancel_event: threading.Event | None = None,
+        existing: AuthCredential | None = None,
+        host_id: str | None = None,
     ) -> AuthCredential:
-        """执行登录；cancel_event 被设置时抛出 LoginCancelledError。"""
+        """执行登录；cancel_event 被设置时抛出 LoginCancelledError。
+
+        existing 提供已保存的凭据用于复用客户端注册；host_id 是宿主提供的
+        稳定标识，用于 SIWC 的 ext_agent_host_id。
+        """
         ...
 
     def refresh(self, credential: AuthCredential) -> AuthCredential: ...

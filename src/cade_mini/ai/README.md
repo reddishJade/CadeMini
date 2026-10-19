@@ -3,7 +3,7 @@
 The AI layer translates the OpenAI Responses protocol and normalizes streaming
 chunks, reasoning, and tool calls into a typed `ProviderEvent` stream for the
 agent. Cade Mini supports only Responses: an API key against `api.openai.com`,
-or ChatGPT Codex OAuth against the ChatGPT backend.
+or Sign in with ChatGPT (SIWC) plan usage against the same endpoint.
 
 ## Data flow
 
@@ -70,4 +70,4 @@ async for event in provider.stream(messages, tools=tools):
 ## Submodules
 
 - [providers/](providers/README.md): Responses adapters and shared encoding helpers.
-- [auth/](auth/README.md): authentication contracts, Codex OAuth and refresh, and pre-request credential resolution. Hosts implement `CredentialStore`; AI does not know authentication file paths or CLI interactions.
+- [auth/](auth/README.md): authentication contracts, SIWC OAuth and refresh, and pre-request credential resolution. Hosts implement `CredentialStore`; AI does not know authentication file paths or CLI interactions.

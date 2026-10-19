@@ -205,20 +205,24 @@ development and for the <code>cade-mini</code> entry point.</p>
 <p>From the repository root:</p>
 <pre><code class="language-bash">uv sync --locked
 </code></pre>
-<p>Cade Mini owns its credential store at <code>~/.cade-mini/auth.json</code>. Log in to
-Codex with a browser or device code:</p>
+<p>Cade Mini owns its credential store at <code>~/.cade-mini/auth.json</code>. Log in with
+Sign in with ChatGPT (SIWC) in a browser:</p>
 <pre><code class="language-bash">uv run --locked cade-mini login
-uv run --locked cade-mini login --method device_code
 </code></pre>
+<p>The browser flow registers Cade Mini on first use and reuses that registration
+on later sign-ins. It stores a stable host ID at <code>~/.cade-mini/host.json</code>. SIWC
+has no device-code flow. On a headless host, complete the login locally, copy
+<code>auth.json</code>, and let the remote host create its own host ID on the next login.
+Or use an API key.</p>
 <p>For an OpenAI API key, use a hidden key prompt or set the environment variable:</p>
 <pre><code class="language-bash">uv run --locked cade-mini login --provider openai
 export OPENAI_API_KEY=...
 uv run --locked cade-mini --provider openai --model gpt-5.5 &quot;Review this project.&quot;
 </code></pre>
-<p>The default provider is <code>openai-codex</code>. Set <code>provider</code> and <code>model</code> in
+<p>The default provider is <code>chatgpt</code>. Set <code>provider</code> and <code>model</code> in
 <code>cade-mini.json</code> to choose other startup defaults. Cade Mini supports only the
-OpenAI Responses protocol: <code>openai-codex</code> for ChatGPT OAuth and <code>openai</code> for an
-API key. Mini does not read Cade's credentials, skills, or settings.</p>
+OpenAI Responses protocol: <code>chatgpt</code> for ChatGPT plan usage and <code>openai</code>
+for an API key. Mini does not read Cade's credentials, skills, or settings.</p>
 <h2>Run one task</h2>
 <pre><code class="language-bash">uv run --locked cade-mini &quot;Read README.md and explain the entry point in three bullets.&quot;
 </code></pre>
@@ -274,13 +278,13 @@ cade-mini exec TASK [options]
 starts the interactive REPL.</p>
 <h2>Login</h2>
 <pre><code class="language-bash">cade-mini login
-cade-mini login --method device_code
 cade-mini login --provider openai
 </code></pre>
-<p><code>--provider</code> defaults to <code>openai-codex</code>. Codex supports <code>browser</code> (default) and
-<code>device_code</code>; <code>openai</code> uses <code>api_key</code> with a hidden input prompt. Credentials
-are stored in <code>~/.cade-mini/auth.json</code>. Login does not change project provider or
-model settings. Cade Mini supports only the OpenAI Responses protocol.</p>
+<p><code>--provider</code> defaults to <code>chatgpt</code>, which uses Sign in with ChatGPT (SIWC)
+in a browser. <code>openai</code> uses <code>api_key</code> with a hidden input prompt. Credentials
+are stored in <code>~/.cade-mini/auth.json</code>; the stable SIWC host ID is stored in
+<code>~/.cade-mini/host.json</code>. Login does not change project provider or model
+settings. Cade Mini supports only the OpenAI Responses protocol.</p>
 <h2>One-shot options</h2>
 <ul>
 <li><code>--project-root PATH</code> sets the workspace. The default is the current
@@ -384,7 +388,7 @@ overrides built-in defaults.</p>
 silently ignored.</p>
 <h2>Example</h2>
 <pre><code class="language-json">{
-  &quot;provider&quot;: &quot;openai-codex&quot;,
+  &quot;provider&quot;: &quot;chatgpt&quot;,
   &quot;model&quot;: &quot;gpt-5.6-luna&quot;,
   &quot;reasoning_effort&quot;: &quot;high&quot;,
   &quot;context_window&quot;: 128000,
@@ -408,9 +412,9 @@ silently ignored.</p>
 </code></pre>
 <h2>Fields</h2>
 <ul>
-<li><code>provider</code>, <code>model</code>: provider name and model identifier. Use <code>openai-codex</code>
-for ChatGPT OAuth or <code>openai</code> for an OpenAI API key. The CLI flags override
-both.</li>
+<li><code>provider</code>, <code>model</code>: provider name and model identifier. Use <code>chatgpt</code>
+for ChatGPT plan usage (Sign in with ChatGPT) or <code>openai</code> for an OpenAI API
+key. The CLI flags override both.</li>
 <li><code>reasoning_effort</code>: provider reasoning effort. The CLI flag is <code>--effort</code>.</li>
 <li><code>context_window</code>: model context window in tokens.</li>
 <li><code>max_steps</code>: maximum model steps in one run.</li>
@@ -554,9 +558,12 @@ re-exports; import the owning submodule directly.</p>
 <p><code>ai/</code> owns provider protocols, streaming adapters, model metadata, and OAuth.
 <code>execution_env/</code> owns local process execution and output capture. Neither layer
 imports application or host modules. The AI layer supports only the OpenAI
-Responses protocol, as recorded in <a href="decisions/0007-responses-only-provider.md">decision 0007</a>.
+Responses protocol, as recorded in <a href="decisions/0007-responses-only-provider.md">decision 0007</a>,
+and uses Sign in with ChatGPT for plan usage, as recorded in
+<a href="decisions/0008-siwc-login.md">decision 0008</a>.
 Mini has no OS sandbox; shell execution uses local host permissions.</p>
-<p>Credentials and user skills use <code>~/.cade-mini/</code>. Sessions, snapshots, goals,
+<p>Credentials and user skills use <code>~/.cade-mini/</code>. The SIWC host ID lives in
+<code>~/.cade-mini/host.json</code>. Sessions, snapshots, goals,
 and project skills use <code>&lt;workspace&gt;/.cade-mini/</code>. Project settings live in
 <code>cade-mini.json</code>. Mini does not discover old Cade state.</p>
 <p>See the <a href="#page-code-map">code map</a> and
@@ -772,7 +779,7 @@ implementation can be replaced without changing the session schema or the loop.<
 <tr>
 <td>Provider</td>
 <td><code>loop.Provider</code> streaming events</td>
-<td>OpenAI Responses, Codex OAuth</td>
+<td>OpenAI Responses, ChatGPT plan (SIWC)</td>
 <td>Loop, compaction, auto-review</td>
 </tr>
 <tr>
@@ -1777,6 +1784,13 @@ narrower jobs.</p>
 <td>Provider credentials</td>
 </tr>
 <tr>
+<td>SIWC host ID</td>
+<td><code>~/.cade-mini/host.json</code></td>
+<td><code>load_or_create_host_id</code></td>
+<td>User</td>
+<td>Stable agent host identifier</td>
+</tr>
+<tr>
 <td>Docs site</td>
 <td><code>docs/index.html</code></td>
 <td>Docs tool</td>
@@ -1921,7 +1935,7 @@ uv run --locked python -m cade_mini.docs check
 </tr>
 <tr>
 <td>Provider and auth</td>
-<td><code>test_mini_provider.py</code>, <code>test_mini_auth.py</code>, <code>test_responses_codex_cache_contract.py</code></td>
+<td><code>test_mini_provider.py</code>, <code>test_mini_auth.py</code>, <code>test_mini_siwc_auth.py</code>, <code>test_responses_siwc_contract.py</code></td>
 </tr>
 <tr>
 <td>Workspace tools</td>
@@ -1966,10 +1980,10 @@ uv run --locked python -m cade_mini.docs check
 </tbody>
 </table>
 <h2>Real-provider checks</h2>
-<p>The acceptance runs use OpenAI Responses or Codex and are not part of the default
-test suite. They cover tool use, resume, compaction, skills, build mode, the web
-host, and Codex write/read. Record the command and observed result in the change
-that adds a new acceptance.</p>
+<p>The acceptance runs use OpenAI Responses with an API key or ChatGPT plan usage
+and are not part of the default test suite. They cover tool use, resume,
+compaction, skills, build mode, the web host, and write/read. Record the command
+and observed result in the change that adds a new acceptance.</p>
 <h2>Docs checks</h2>
 <p><code>test_mini_docs.py</code> and <code>python -m cade_mini.docs check</code> validate the manifest,
 links, anchors, and generated catalogs. The docs job runs in CI.</p>
@@ -2091,7 +2105,7 @@ rules. Branch copies preserve source event versions.</p>
 </code></pre>
 <p><code>assistant.blocks</code> is the only record of a tool call. Do not add a separate
 <code>tool_use</code> event. The <code>tool_result.call_id</code> pairs with it.</p>
-<p>A <code>provider_state</code> is opaque adapter data for Responses/Codex replay. It is
+<p>A <code>provider_state</code> is opaque adapter data for Responses replay. It is
 stored on the assistant fact and passed back to the same adapter. It never enters
 the conversation vocabulary.</p>
 <h3>Log-only events</h3>
@@ -2189,7 +2203,7 @@ hosts can render it differently.</p>
 <h2>Compaction record</h2>
 <pre><code class="language-json">{&quot;v&quot;:2,&quot;id&quot;:&quot;e80&quot;,&quot;parent&quot;:&quot;e79&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;compaction&quot;,
  &quot;data&quot;:{&quot;summary&quot;:&quot;## Goal\n...&quot;,&quot;first_kept_id&quot;:&quot;e52&quot;,&quot;tokens_before&quot;:48210,
-         &quot;model&quot;:&quot;gpt-5.6-luna&quot;,&quot;provider&quot;:&quot;openai-codex&quot;,
+         &quot;model&quot;:&quot;gpt-5.6-luna&quot;,&quot;provider&quot;:&quot;chatgpt&quot;,
          &quot;usage&quot;:{&quot;input&quot;:43000,&quot;output&quot;:1200},&quot;details&quot;:null}}
 </code></pre>
 <p>The summary is model-generated content and must be logged. The original events
@@ -3238,8 +3252,8 @@ complex pipelines are not covered.</li>
 surface than Cade's.</li>
 <li>The OS sandbox is not implemented; Mini relies on path boundaries, modes,
 shell classification, and approvals.</li>
-<li>The live Codex acceptance passed: write created <code>codex.txt</code>, and a resumed
-Codex session read it back.</li>
+<li>The earlier live Codex acceptance passed: write created <code>codex.txt</code>, and a
+resumed Codex session read it back.</li>
 </ul>
 <p>The parity report records the concrete fixtures and observed results. Re-run a
 workflow by creating a clean fixture, running both agents with the same provider
@@ -3403,6 +3417,15 @@ facts. The <a href="#page-readme">upgrade guide</a> documents resume and rollbac
 <h1>Upgrade guide</h1>
 <p>This page records changes that require action from an existing user or
 automation.</p>
+<h2>Sign in with ChatGPT</h2>
+<p>The <code>openai-codex</code> provider ID and <code>openai_codex</code> transport are removed. Use
+<code>chatgpt</code> for ChatGPT plan usage. The new provider uses Sign in with ChatGPT
+(SIWC) instead of the legacy Codex OAuth flow. Update <code>cade-mini.json</code>, CLI
+flags, and scripts that name the old provider, then run <code>cade-mini login</code> again.
+Saved <code>openai-codex</code> credentials and the old device-code method are not read or
+migrated. On a headless host, complete the login locally, copy <code>auth.json</code>, and
+let the remote host create its own host ID on the next login. Or use an OpenAI
+API key. See <a href="decisions/0008-siwc-login.md">decision 0008</a>.</p>
 <h2>V2 payload validation</h2>
 <p>V2 events now enforce their closed payload schemas on write and read. Invalid
 complete records are rejected instead of being ignored or silently repaired.

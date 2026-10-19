@@ -14,7 +14,7 @@ uv run --locked cade-mini login
 uv run --locked cade-mini "Read README.md and explain how this project runs."
 ```
 
-Login uses Codex OAuth by default. For an OpenAI API key:
+Login uses Sign in with ChatGPT by default. For an OpenAI API key:
 
 ```bash
 uv run --locked cade-mini login --provider openai
@@ -24,7 +24,7 @@ uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project
 Cade Mini supports only the OpenAI Responses protocol. Provider API keys are
 also read from `OPENAI_API_KEY`. Credentials live in `~/.cade-mini/auth.json`;
 Cade credentials and settings are not read. See the
-[quickstart](docs/quickstart.md) for device-code login and setup.
+[quickstart](docs/quickstart.md) for browser login and setup.
 
 To install the command outside the checkout:
 

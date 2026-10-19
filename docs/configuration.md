@@ -11,7 +11,7 @@ silently ignored.
 
 ```json
 {
-  "provider": "openai-codex",
+  "provider": "chatgpt",
   "model": "gpt-5.6-luna",
   "reasoning_effort": "high",
   "context_window": 128000,
@@ -36,9 +36,9 @@ silently ignored.
 
 ## Fields
 
-- `provider`, `model`: provider name and model identifier. Use `openai-codex`
-  for ChatGPT OAuth or `openai` for an OpenAI API key. The CLI flags override
-  both.
+- `provider`, `model`: provider name and model identifier. Use `chatgpt`
+  for ChatGPT plan usage (Sign in with ChatGPT) or `openai` for an OpenAI API
+  key. The CLI flags override both.
 - `reasoning_effort`: provider reasoning effort. The CLI flag is `--effort`.
 - `context_window`: model context window in tokens.
 - `max_steps`: maximum model steps in one run.

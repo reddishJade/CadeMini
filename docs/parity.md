@@ -44,8 +44,8 @@ Resume:
   surface than Cade's.
 - The OS sandbox is not implemented; Mini relies on path boundaries, modes,
   shell classification, and approvals.
-- The live Codex acceptance passed: write created `codex.txt`, and a resumed
-  Codex session read it back.
+- The earlier live Codex acceptance passed: write created `codex.txt`, and a
+  resumed Codex session read it back.
 
 The parity report records the concrete fixtures and observed results. Re-run a
 workflow by creating a clean fixture, running both agents with the same provider

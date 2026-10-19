@@ -1,33 +1,24 @@
-"""保护 Codex Responses Lite 请求格式与会话缓存标识。
+"""保护 SIWC（Sign in with ChatGPT）Responses 请求格式。
 
-输入样例使用固定合成消息，覆盖指令、工具调用和工具结果。
-输出用量取自 cache-lite-probe.json 第 5 条成功响应：2,711 个输入 token、
-2,560 个缓存 token 和 5 个输出 token。
+覆盖 store/stream 约束、被拒绝的请求字段、additional_tools 输入项，
+以及缓存用量解析。
 """
 
 from __future__ import annotations
 
-import uuid
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
 from cade_mini.ai.events import ProviderEvent, UsageUpdate
 from cade_mini.ai.providers.responses import (
-    OpenAICodexResponsesProvider,
+    ChatGPTResponsesProvider,
     OpenAIResponsesProvider,
+    ProviderRequestError,
+    _format_openai_error,
 )
 from cade_mini.ai.types import ProviderConfig, StreamOptions, ToolDefinition
 
-_RESPONSES_LITE_MODELS = (
-    "gpt-5.6-luna",
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "gpt-6-astra",
-    "gpt-6-luna",
-    "gpt-6-sol",
-    "gpt-6.1-sol",
-)
 _RESPONSE_FORMAT = {
     "type": "json_schema",
     "json_schema": {
@@ -100,6 +91,22 @@ class _InjectedClient:
         self.responses = _ResponsesBoundary()
 
 
+class _FailingResponsesBoundary:
+    def create(self, **params: Any) -> list[dict[str, Any]]:
+        return [
+            {
+                "type": "error",
+                "code": "subscription_sharing_usage_limit_exceeded",
+                "message": "The plan usage limit was reached.",
+            }
+        ]
+
+
+class _FailingClient:
+    def __init__(self) -> None:
+        self.responses = _FailingResponsesBoundary()
+
+
 def _config(
     model: str = "gpt-6-luna",
     *,
@@ -109,14 +116,14 @@ def _config(
     return ProviderConfig(
         api_key="",
         model=model,
-        base_url="https://chatgpt.com/backend-api",
+        base_url="https://api.openai.com/v1",
         thinking=thinking,
         response_format=response_format,
     )
 
 
 async def _collect(
-    provider: OpenAICodexResponsesProvider | OpenAIResponsesProvider,
+    provider: ChatGPTResponsesProvider | OpenAIResponsesProvider,
     *,
     messages: list[dict[str, Any]] | None = None,
     tools: list[ToolDefinition] | None = None,
@@ -133,9 +140,9 @@ async def _collect(
 
 
 @pytest.mark.asyncio
-async def test_codex_lite_request_shape_and_usage() -> None:
+async def test_siwc_request_shape_and_usage() -> None:
     client = _InjectedClient()
-    provider = OpenAICodexResponsesProvider(
+    provider = ChatGPTResponsesProvider(
         _config(response_format=_RESPONSE_FORMAT), client=client
     )
     events = await _collect(
@@ -143,32 +150,31 @@ async def test_codex_lite_request_shape_and_usage() -> None:
         messages=_MESSAGES,
         tools=[_TOOL],
         options=StreamOptions(
-            session_id="explicit-session",
-            headers={
-                "SESSION-ID": "caller-header",
-                "Thread-Id": "caller-header",
-                "x-trace-label": "preserved",
-            },
+            temperature=0.2,
+            top_p=0.9,
+            max_tokens=1024,
+            session_id="ignored-session",
+            headers={"x-trace-label": "preserved"},
         ),
     )
 
     request = client.responses.requests[0]
-    headers = request["extra_headers"]
-    assert headers["x-openai-internal-codex-responses-lite"] == "true"
-    assert headers["version"] == "0.163.0"
-    assert headers["session-id"] == "explicit-session"
-    assert headers["thread-id"] == "explicit-session"
-    assert headers["x-trace-label"] == "preserved"
-    assert sum(key.lower() == "session-id" for key in headers) == 1
-    assert sum(key.lower() == "thread-id" for key in headers) == 1
-
-    assert "instructions" not in request
+    assert request["store"] is False
+    assert request["stream"] is True
+    assert request["instructions"] == (
+        "Follow the response schema.\n\nKeep the answer concise."
+    )
     assert "tools" not in request
-    assert request["parallel_tool_calls"] is False
-    assert request["prompt_cache_key"] == "explicit-session"
+    for unsupported in (
+        "max_output_tokens",
+        "stream_options",
+        "temperature",
+        "top_p",
+    ):
+        assert unsupported not in request
+    assert "session-id" not in request.get("extra_headers", {})
+    assert request["extra_headers"] == {"x-trace-label": "preserved"}
     assert request["text"] == _EXPECTED_TEXT_FORMAT
-    assert request["reasoning"]["context"] == "all_turns"
-    assert request["reasoning"]["effort"] == "none"
     assert request["input"] == [
         {
             "type": "additional_tools",
@@ -183,16 +189,6 @@ async def test_codex_lite_request_shape_and_usage() -> None:
                         "properties": {"query": {"type": "string"}},
                     },
                     "strict": False,
-                }
-            ],
-        },
-        {
-            "type": "message",
-            "role": "developer",
-            "content": [
-                {
-                    "type": "input_text",
-                    "text": "Follow the response schema.\n\nKeep the answer concise.",
                 }
             ],
         },
@@ -229,94 +225,49 @@ async def test_codex_lite_request_shape_and_usage() -> None:
     assert provider.cache_hit_rate == 0.9443
 
 
-@pytest.mark.parametrize("model", _RESPONSES_LITE_MODELS)
 @pytest.mark.asyncio
-async def test_supported_codex_lite_models_use_lite_contract(model: str) -> None:
+async def test_siwc_without_tools_keeps_plain_input() -> None:
     client = _InjectedClient()
-    provider = OpenAICodexResponsesProvider(_config(model), client=client)
+    provider = ChatGPTResponsesProvider(_config(), client=client)
     await _collect(provider)
 
     request = client.responses.requests[0]
-    assert request["extra_headers"]["x-openai-internal-codex-responses-lite"] == "true"
-    assert request["parallel_tool_calls"] is False
-    assert request["input"][:2] == [
-        {"type": "additional_tools", "role": "developer", "tools": []},
+    assert request["store"] is False
+    assert request["stream"] is True
+    assert "tools" not in request
+    assert request["input"] == [
         {
             "type": "message",
-            "role": "developer",
-            "content": [{"type": "input_text", "text": ""}],
-        },
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Hi."}],
+        }
     ]
-    assert request["reasoning"]["context"] == "all_turns"
-    assert "instructions" not in request
-    assert "tools" not in request
 
 
 @pytest.mark.asyncio
-async def test_codex_default_session_is_stable_per_provider() -> None:
-    first_client = _InjectedClient()
-    second_client = _InjectedClient()
-    first_provider = OpenAICodexResponsesProvider(_config(), client=first_client)
-    second_provider = OpenAICodexResponsesProvider(_config(), client=second_client)
+async def test_siwc_stream_error_surfaces_code_and_message() -> None:
+    provider = ChatGPTResponsesProvider(_config(), client=_FailingClient())
 
-    await _collect(first_provider)
-    await _collect(first_provider)
-    await _collect(second_provider)
-
-    first_requests = first_client.responses.requests
-    second_requests = second_client.responses.requests
-    first_key = first_requests[0]["prompt_cache_key"]
-    second_provider_key = second_requests[0]["prompt_cache_key"]
-    assert first_key == first_requests[1]["prompt_cache_key"]
-    assert uuid.UUID(first_key)
-    assert first_key != second_provider_key
-    for request in (*first_requests, *second_requests):
-        headers = request["extra_headers"]
-        assert headers["session-id"] == request["prompt_cache_key"]
-        assert headers["thread-id"] == request["prompt_cache_key"]
+    with pytest.raises(
+        ProviderRequestError,
+        match="subscription_sharing_usage_limit_exceeded: The plan usage limit",
+    ):
+        await _collect(provider)
 
 
-@pytest.mark.asyncio
-async def test_codex_session_override_is_isolated_and_bounded() -> None:
-    client = _InjectedClient()
-    provider = OpenAICodexResponsesProvider(_config(), client=client)
-    await _collect(provider, options=StreamOptions(session_id="session-one"))
-    await _collect(provider, options=StreamOptions(session_id="session-two"))
-    await _collect(provider, options=StreamOptions(session_id="s" * 100))
+def test_sdk_error_without_status_keeps_structured_detail() -> None:
+    class _UsageLimitError(Exception):
+        status_code = None
+        body: ClassVar[dict[str, str]] = {
+            "type": "invalid_request_error",
+            "code": "subscription_sharing_usage_limit_exceeded",
+            "message": "The ChatGPT user has reached their usage limit.",
+        }
 
-    first, second, long_session = client.responses.requests
-    assert first["prompt_cache_key"] == "session-one"
-    assert second["prompt_cache_key"] == "session-two"
-    assert first["prompt_cache_key"] != second["prompt_cache_key"]
-    assert len(long_session["prompt_cache_key"]) == 64
-    for request in (first, second, long_session):
-        headers = request["extra_headers"]
-        assert headers["session-id"] == request["prompt_cache_key"]
-        assert headers["thread-id"] == request["prompt_cache_key"]
+    formatted = _format_openai_error(_UsageLimitError())
 
-
-@pytest.mark.asyncio
-async def test_gpt_5_5_keeps_standard_codex_request_shape() -> None:
-    client = _InjectedClient()
-    provider = OpenAICodexResponsesProvider(
-        _config("gpt-5.5", response_format=_RESPONSE_FORMAT), client=client
-    )
-    await _collect(provider, messages=_MESSAGES, tools=[_TOOL])
-
-    request = client.responses.requests[0]
-    headers = request["extra_headers"]
-    assert "x-openai-internal-codex-responses-lite" not in headers
-    assert headers["version"] == "0.163.0"
-    assert request["parallel_tool_calls"] is True
-    assert request["instructions"] == (
-        "Follow the response schema.\n\nKeep the answer concise."
-    )
-    assert request["tools"][0]["name"] == "lookup"
-    assert request["input"][0]["content"][0]["text"] == "Find the first record."
-    assert request["text"] == _EXPECTED_TEXT_FORMAT
-    assert request.get("reasoning", {}).get("context") is None
-    assert request["prompt_cache_key"] == headers["session-id"]
-    assert headers["thread-id"] == request["prompt_cache_key"]
+    assert "subscription_sharing_usage_limit_exceeded" in str(formatted)
+    assert "usage limit" in str(formatted)
 
 
 @pytest.mark.asyncio
@@ -329,7 +280,7 @@ async def test_regular_openai_responses_request_remains_unchanged() -> None:
         provider,
         messages=_MESSAGES,
         tools=[_TOOL],
-        options=StreamOptions(session_id="codex-session"),
+        options=StreamOptions(session_id="chatgpt-session"),
     )
 
     request = client.responses.requests[0]

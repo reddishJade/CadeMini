@@ -58,7 +58,7 @@ A block is one of:
 `assistant.blocks` is the only record of a tool call. Do not add a separate
 `tool_use` event. The `tool_result.call_id` pairs with it.
 
-A `provider_state` is opaque adapter data for Responses/Codex replay. It is
+A `provider_state` is opaque adapter data for Responses replay. It is
 stored on the assistant fact and passed back to the same adapter. It never enters
 the conversation vocabulary.
 
@@ -142,7 +142,7 @@ hosts can render it differently.
 ```json
 {"v":2,"id":"e80","parent":"e79","ts":"...","type":"compaction",
  "data":{"summary":"## Goal\n...","first_kept_id":"e52","tokens_before":48210,
-         "model":"gpt-5.6-luna","provider":"openai-codex",
+         "model":"gpt-5.6-luna","provider":"chatgpt",
          "usage":{"input":43000,"output":1200},"details":null}}
 ```
 

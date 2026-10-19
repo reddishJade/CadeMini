@@ -15,6 +15,7 @@ narrower jobs.
 | Skills | `~/.cade-mini/skills`, `.cade-mini/skills` | Discovery | User or project | `SKILL.md` |
 | Config | `cade-mini.json` | `MiniConfig` | Project | Pydantic, strict |
 | Credentials | `~/.cade-mini/auth.json` | `JsonCredentialStore` | User | Provider credentials |
+| SIWC host ID | `~/.cade-mini/host.json` | `load_or_create_host_id` | User | Stable agent host identifier |
 | Docs site | `docs/index.html` | Docs tool | Repository | Generated |
 | LLM catalogs | `docs/llms*.txt` | Docs tool | Repository | Generated |
 

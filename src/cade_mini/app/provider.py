@@ -12,9 +12,9 @@ from cade_mini.ai.providers.registry import (
     get_environment_api_key,
 )
 from cade_mini.ai.resolver import ModelResolver
-from cade_mini.app.auth import JsonCredentialStore, resolve_codex_credential
+from cade_mini.app.auth import JsonCredentialStore, resolve_chatgpt_credential
 
-DEFAULT_PROVIDER = "openai-codex"
+DEFAULT_PROVIDER = "chatgpt"
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_REASONING_EFFORT = "high"
 
@@ -52,20 +52,29 @@ def build_provider(
     provider = resolution.provider
     base_url = selected.base_url or resolution.default_base_url
     api_key = selected.api_key
-    account_id: str | None = None
     store = JsonCredentialStore(auth_path)
 
-    if transport == "openai_codex":
-        credential = resolve_codex_credential(
+    if transport == "chatgpt":
+        credential = resolve_chatgpt_credential(
             store,
-            provider="openai-codex",
+            provider="chatgpt",
         )
         if credential is None or credential.type != "oauth" or not credential.access:
+            raise RuntimeError("Missing ChatGPT login; run 'cade-mini login' first")
+        extra = credential.extra or {}
+        if not isinstance(extra.get("client_id"), str):
             raise RuntimeError(
-                "Missing openai-codex login; run 'cade-mini login' first"
+                "ChatGPT credentials are missing an issued client ID; "
+                "run 'cade-mini login' again"
+            )
+        scopes = extra.get("scopes")
+        if not isinstance(scopes, list) or "chatgpt.tokens.use.direct" not in scopes:
+            raise RuntimeError(
+                "ChatGPT plan usage is not authorized for this login; "
+                "run 'cade-mini login' again and grant plan usage, or use "
+                "--provider openai with an API key"
             )
         api_key = credential.access
-        account_id = credential.account_id
     else:
         stored = store.get(provider)
         if (
@@ -91,6 +100,5 @@ def build_provider(
         api_key=api_key,
         thinking=selected.thinking,
         reasoning_effort=selected.reasoning_effort,
-        account_id=account_id,
     )
     return build_model_provider(profile)

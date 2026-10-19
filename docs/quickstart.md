@@ -11,13 +11,18 @@ From the repository root:
 uv sync --locked
 ```
 
-Cade Mini owns its credential store at `~/.cade-mini/auth.json`. Log in to
-Codex with a browser or device code:
+Cade Mini owns its credential store at `~/.cade-mini/auth.json`. Log in with
+Sign in with ChatGPT (SIWC) in a browser:
 
 ```bash
 uv run --locked cade-mini login
-uv run --locked cade-mini login --method device_code
 ```
+
+The browser flow registers Cade Mini on first use and reuses that registration
+on later sign-ins. It stores a stable host ID at `~/.cade-mini/host.json`. SIWC
+has no device-code flow. On a headless host, complete the login locally, copy
+`auth.json`, and let the remote host create its own host ID on the next login.
+Or use an API key.
 
 For an OpenAI API key, use a hidden key prompt or set the environment variable:
 
@@ -27,10 +32,10 @@ export OPENAI_API_KEY=...
 uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project."
 ```
 
-The default provider is `openai-codex`. Set `provider` and `model` in
+The default provider is `chatgpt`. Set `provider` and `model` in
 `cade-mini.json` to choose other startup defaults. Cade Mini supports only the
-OpenAI Responses protocol: `openai-codex` for ChatGPT OAuth and `openai` for an
-API key. Mini does not read Cade's credentials, skills, or settings.
+OpenAI Responses protocol: `chatgpt` for ChatGPT plan usage and `openai`
+for an API key. Mini does not read Cade's credentials, skills, or settings.
 
 ## Run one task
 

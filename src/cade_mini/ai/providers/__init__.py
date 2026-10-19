@@ -8,14 +8,14 @@ from .registry import (
     build_model_provider,
     get_environment_api_key,
 )
-from .responses import OpenAICodexResponsesProvider, OpenAIResponsesProvider
+from .responses import ChatGPTResponsesProvider, OpenAIResponsesProvider
 
 __all__ = [
     "PROVIDER_REGISTRY",
+    "ChatGPTResponsesProvider",
     "ModelProfileConfig",
     "ModelProfileProto",
     "ModelProvider",
-    "OpenAICodexResponsesProvider",
     "OpenAIResponsesProvider",
     "StreamProvider",
     "build_model_provider",

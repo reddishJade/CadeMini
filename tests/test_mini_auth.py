@@ -19,11 +19,25 @@ from cade_mini.hosts.cli import main
 def auth_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / ".cade-mini" / "auth.json"
     monkeypatch.setattr(storage, "DEFAULT_AUTH_FILE", path)
+    monkeypatch.setattr(
+        storage, "DEFAULT_HOST_FILE", tmp_path / ".cade-mini" / "host.json"
+    )
     return path
 
 
 def test_default_auth_directory_is_owned_by_mini() -> None:
     assert JsonCredentialStore().path == Path.home() / ".cade-mini" / "auth.json"
+
+
+def test_host_id_is_stable(tmp_path: Path) -> None:
+    path = tmp_path / "host.json"
+
+    first = storage.load_or_create_host_id(path)
+    second = storage.load_or_create_host_id(path)
+
+    assert first == second
+    assert first.startswith("urn:uuid:")
+    assert "ext_agent_host_id" in path.read_text(encoding="utf-8")
 
 
 def test_api_key_login(auth_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -36,22 +50,36 @@ def test_api_key_login(auth_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert credential.access == "test-key"
 
 
-@pytest.mark.parametrize("method", ["browser", "device_code"])
-def test_oauth_login(
-    auth_path: Path, monkeypatch: pytest.MonkeyPatch, method: str
-) -> None:
+def test_oauth_login(auth_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     provider = Mock()
     provider.login.return_value = AuthCredential(
-        provider="openai-codex", access="token", refresh="refresh"
+        provider="chatgpt", access="token", refresh="refresh"
     )
     monkeypatch.setattr(auth, "get_auth_provider", lambda name: provider)
 
-    assert main(["login", "--method", method]) == 0
-    assert provider.login.call_args.kwargs["method"] == method
-    assert (
-        JsonCredentialStore(auth_path).get("openai-codex")
-        == provider.login.return_value
+    assert main(["login", "--method", "browser"]) == 0
+    kwargs = provider.login.call_args.kwargs
+    assert kwargs["method"] == "browser"
+    assert kwargs["host_id"].startswith("urn:uuid:")
+    assert kwargs["existing"] is None
+    assert JsonCredentialStore(auth_path).get("chatgpt") == provider.login.return_value
+
+
+def test_oauth_relogin_reuses_saved_credential(
+    auth_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved = AuthCredential(
+        provider="chatgpt",
+        access="old-token",
+        extra={"client_id": "oaiapp_test"},
     )
+    JsonCredentialStore(auth_path).save(saved)
+    provider = Mock()
+    provider.login.return_value = AuthCredential(provider="chatgpt", access="new-token")
+    monkeypatch.setattr(auth, "get_auth_provider", lambda name: provider)
+
+    assert main(["login"]) == 0
+    assert provider.login.call_args.kwargs["existing"].access == "old-token"
 
 
 def test_empty_key_does_not_write(
@@ -76,7 +104,7 @@ def test_oauth_failure_preserves_credentials(
     auth_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = JsonCredentialStore(auth_path)
-    store.save(AuthCredential(provider="openai-codex", access="original"))
+    store.save(AuthCredential(provider="chatgpt", access="original"))
     before = auth_path.read_bytes()
     provider = Mock()
     provider.login.side_effect = RuntimeError("authorization failed")

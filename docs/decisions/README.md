@@ -16,6 +16,7 @@ them.
 - [0005: Keep request admission lossless](0005-explicit-context-reduction.md)
 - [0006: Validate persisted event payloads](0006-validate-event-payloads.md)
 - [0007: The AI layer supports only the OpenAI Responses protocol](0007-responses-only-provider.md)
+- [0008: Use Sign in with ChatGPT for ChatGPT plan usage](0008-siwc-login.md)
 
 ## Adding a record
 

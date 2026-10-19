@@ -1,17 +1,14 @@
 """OpenAI Responses API provider。
 
-支持 OpenAI /v1/responses 与 ChatGPT 后端 API，
-支持 Stateful 对话 (previous_response_id)、扁平 Tool 定义及结构化输出。
+支持 OpenAI API Key 与 ChatGPT 套餐（SIWC）两种凭据，
+支持扁平 Tool 定义、结构化输出与流式事件归一化。
 """
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
-import platform
-import uuid
 from collections import defaultdict
 from collections.abc import AsyncIterator, Iterator, Mapping
 from inspect import isawaitable
@@ -41,20 +38,27 @@ from ._codec import make_schema_strict, parse_tool_arguments
 _LOGGER = logging.getLogger(__name__)
 
 OPENAI_RESPONSES_DEFAULT_BASE_URL = "https://api.openai.com/v1"
-CHATGPT_BACKEND_BASE_URL = "https://chatgpt.com/backend-api"
-_CODEX_PROTOCOL_VERSION = "0.163.0"
-_CODEX_RESPONSES_LITE_MODELS = frozenset(
+# SIWC 明确不支持的请求字段；发送前统一剔除。
+_SIWC_UNSUPPORTED_PARAMS = frozenset(
     {
-        "gpt-6-astra",
-        "gpt-6-sol",
-        "gpt-6.1-sol",
-        "gpt-6-luna",
-        "gpt-5.6-sol",
-        "gpt-5.6-terra",
-        "gpt-5.6-luna",
+        "background",
+        "conversation",
+        "max_output_tokens",
+        "max_tool_calls",
+        "metadata",
+        "moderation",
+        "multi_agent",
+        "prompt",
+        "prompt_cache_retention",
+        "safety_identifier",
+        "stream_options",
+        "temperature",
+        "top_logprobs",
+        "top_p",
+        "truncation",
+        "user",
     }
 )
-_PROMPT_CACHE_KEY_MAX_LENGTH = 64
 
 
 def _next_response_event(iterator: Iterator[Any]) -> tuple[bool, Any | None]:
@@ -88,32 +92,8 @@ class ProviderRequestError(RuntimeError):
         self.status_code = status_code
 
 
-def _codex_sdk_base_url(base_url: str) -> str:
-    """把用户配置的 ChatGPT 后端地址转换为 SDK 所需的 Codex 根地址。"""
-    normalized = base_url.rstrip("/")
-    if normalized.endswith("/codex/responses"):
-        return normalized.removesuffix("/responses")
-    if normalized.endswith("/codex"):
-        return normalized
-    return f"{normalized}/codex"
-
-
-def _codex_user_agent() -> str:
-    """生成稳定且可辨识的 ChatGPT Codex 客户端标识。"""
-    system = platform.system() or "unknown"
-    release = platform.release() or "unknown"
-    machine = platform.machine() or "unknown"
-    return f"cade-mini ({system} {release}; {machine})"
-
-
-def _codex_cache_session_id(session_id: str) -> str:
-    if len(session_id) <= _PROMPT_CACHE_KEY_MAX_LENGTH:
-        return session_id
-    return hashlib.sha256(session_id.encode()).hexdigest()
-
-
 def _format_openai_error(exc: BaseException) -> ProviderRequestError:
-    """压缩 OpenAI SDK 异常，避免把 Cloudflare HTML 整页输出到终端。"""
+    """压缩 OpenAI SDK 异常，避免把 HTML 错误页整页输出到终端。"""
     status_code = getattr(exc, "status_code", None)
     if not isinstance(status_code, int):
         status_code = None
@@ -131,13 +111,13 @@ def _format_openai_error(exc: BaseException) -> ProviderRequestError:
 
     if status_code == 403 and looks_like_challenge:
         message = (
-            "ChatGPT backend returned a Cloudflare challenge (HTTP 403). "
+            "The API returned an HTML challenge (HTTP 403). "
             "The request was stopped cleanly; retry after changing the proxy route "
             "or sign in again."
         )
     elif status_code == 401:
         message = (
-            "ChatGPT authentication expired or was rejected (HTTP 401); sign in again."
+            "OpenAI authentication expired or was rejected (HTTP 401); sign in again."
         )
     elif status_code is not None:
         message = f"OpenAI request failed with HTTP {status_code}."
@@ -145,6 +125,8 @@ def _format_openai_error(exc: BaseException) -> ProviderRequestError:
             message = f"{message} {detail}"
     else:
         message = f"OpenAI request failed: {type(exc).__name__}."
+        if detail:
+            message = f"{message} {detail}"
 
     request_id = getattr(exc, "request_id", None)
     if request_id:
@@ -160,19 +142,29 @@ def _safe_openai_error_detail(body: object) -> str | None:
     if not isinstance(error, dict):
         return None
     code = error.get("code")
-    context_code = None
-    if isinstance(code, str) and code in {
-        "context_length_exceeded",
-        "context_window_exceeded",
-    }:
-        context_code = code
+    known_code = (
+        code
+        if isinstance(code, str)
+        and code
+        in {
+            "context_length_exceeded",
+            "context_window_exceeded",
+            "subscription_sharing_invalid_user",
+            "subscription_sharing_route_not_supported",
+            "subscription_sharing_unsupported_capability",
+            "subscription_sharing_usage_limit_exceeded",
+            "subscription_sharing_usage_unavailable",
+            "subscription_sharing_user_not_eligible",
+        }
+        else None
+    )
     detail = error.get("message")
     if not isinstance(detail, str):
-        return context_code
+        return known_code
     normalized = " ".join(detail.split())
     if not normalized or "<html" in normalized.lower():
-        return context_code
-    return f"{context_code}: {normalized[:450]}" if context_code else normalized[:500]
+        return known_code
+    return f"{known_code}: {normalized[:450]}" if known_code else normalized[:500]
 
 
 # ── 消息转换工具 ──
@@ -711,14 +703,6 @@ class OpenAIResponsesProvider:
         base_url = self.config.base_url or OPENAI_RESPONSES_DEFAULT_BASE_URL
         headers: dict[str, str] = {}
 
-        account_id = self.config.extra.get("account_id")
-        if account_id:
-            headers["chatgpt-account-id"] = str(account_id)
-        if self.config.extra.get("originator"):
-            headers["originator"] = str(self.config.extra["originator"])
-        else:
-            headers["originator"] = "cade-mini"
-
         if not api_key:
             import os
 
@@ -953,6 +937,27 @@ class OpenAIResponsesProvider:
                 if call_id and full_args is not None:
                     function_calls[call_id]["arguments"] = str(full_args)
 
+            elif event_type in {"response.failed", "error"}:
+                response = _response_value(event, "response")
+                error = _response_value(response, "error") or _response_value(
+                    event, "error"
+                )
+                code = _response_value(error, "code") or _response_value(event, "code")
+                message = _response_value(error, "message") or _response_value(
+                    event, "message"
+                )
+                parts = [
+                    str(value)
+                    for value in (code, message)
+                    if isinstance(value, str) and value
+                ]
+                detail = ": ".join(parts) if parts else ""
+                raise ProviderRequestError(
+                    f"OpenAI response failed. {detail}"
+                    if detail
+                    else "OpenAI response failed without an error detail."
+                )
+
             elif event_type in (
                 "response.completed",
                 "response.done",
@@ -1095,10 +1100,12 @@ class OpenAIResponsesProvider:
             )
 
 
-class OpenAICodexResponsesProvider(OpenAIResponsesProvider):
-    """使用 ChatGPT 登录态调用 Codex Responses 后端。"""
+class ChatGPTResponsesProvider(OpenAIResponsesProvider):
+    """使用 ChatGPT 套餐额度调用公开 Responses API。
 
-    supports_output_token_limit = False
+    SIWC 要求 ``store=false``、``stream=true``，并拒绝部分请求字段。
+    工具通过 ``additional_tools`` 输入项传递，符合 SIWC 的请求约束。
+    """
 
     def __init__(
         self,
@@ -1107,89 +1114,39 @@ class OpenAICodexResponsesProvider(OpenAIResponsesProvider):
         client: Any | None = None,
     ) -> None:
         super().__init__(config, client=client)
-        self.transport = "openai_codex"
+        self.transport = "chatgpt"
         self._metrics["transport"] = self.transport
-        self._default_session_id = str(uuid.uuid4())
 
     def _get_client_and_headers(self) -> tuple[Any, dict[str, str]]:
-        """获取 ChatGPT Codex 客户端和请求头。"""
+        """构建使用 OAuth Access Token 的 Responses 客户端。"""
         if self._client is not None:
-            return self._client, self._codex_headers()
+            return self._client, {}
 
         import os
 
         from openai import AsyncOpenAI as _OpenAIClient
 
         api_key = self.config.api_key or os.environ.get("OPENAI_API_KEY", "")
-        configured_url = self.config.base_url or CHATGPT_BACKEND_BASE_URL
-        headers = self._codex_headers()
         client = _OpenAIClient(
             api_key=api_key or "sk-dummy-no-key",
-            base_url=_codex_sdk_base_url(configured_url),
-            default_headers=headers,
+            base_url=self.config.base_url or OPENAI_RESPONSES_DEFAULT_BASE_URL,
             max_retries=0,
         )
-        return client, headers
-
-    def _codex_headers(self) -> dict[str, str]:
-        headers = {
-            "Accept": "text/event-stream",
-            "Content-Type": "application/json",
-            "OpenAI-Beta": "responses=experimental",
-            "version": _CODEX_PROTOCOL_VERSION,
-            "User-Agent": _codex_user_agent(),
-            "originator": str(self.config.extra.get("originator") or "cade-mini"),
-        }
-        if self.config.model in _CODEX_RESPONSES_LITE_MODELS:
-            headers["x-openai-internal-codex-responses-lite"] = "true"
-        account_id = self.config.extra.get("account_id")
-        if account_id:
-            headers["chatgpt-account-id"] = str(account_id)
-        return headers
+        return client, {}
 
     def _finalize_request_params(self, params: dict[str, Any]) -> None:
-        params.pop("stream_options", None)
+        for name in _SIWC_UNSUPPORTED_PARAMS:
+            params.pop(name, None)
         params["store"] = False
-        params["include"] = ["reasoning.encrypted_content"]
-        uses_responses_lite = self.config.model in _CODEX_RESPONSES_LITE_MODELS
-        params["parallel_tool_calls"] = not uses_responses_lite
-        params.setdefault("tool_choice", "auto")
+        params["stream"] = True
 
-        options = self._current_options
-        requested_session_id = (
-            options.session_id
-            if options and options.session_id
-            else self._default_session_id
-        )
-        session_id = _codex_cache_session_id(requested_session_id)
-        request_headers = params.setdefault("extra_headers", {})
-        for header in ("session-id", "thread-id"):
-            for existing in tuple(request_headers):
-                if existing.lower() == header:
-                    del request_headers[existing]
-            request_headers[header] = session_id
-        params["prompt_cache_key"] = session_id
-
-        if uses_responses_lite:
-            instructions = params.pop("instructions", None) or ""
-            tools = params.pop("tools", [])
+        tools = params.pop("tools", None)
+        if tools:
             params["input"] = [
                 {"type": "additional_tools", "role": "developer", "tools": tools},
-                {
-                    "type": "message",
-                    "role": "developer",
-                    "content": [{"type": "input_text", "text": instructions}],
-                },
                 *params.get("input", []),
             ]
-            reasoning = params.setdefault("reasoning", {})
-            reasoning.setdefault("effort", self.config.reasoning_effort or "none")
-            reasoning.setdefault("summary", "auto")
-            reasoning["context"] = "all_turns"
-        elif self.config.thinking:
-            reasoning = params.setdefault("reasoning", {})
-            reasoning.setdefault("summary", "auto")
 
     def _strict_tools(self) -> bool:
-        """Codex 显式关闭 strict，保留工具的可选参数与联合 schema。"""
+        """保留工具的可选参数与联合 schema。"""
         return False

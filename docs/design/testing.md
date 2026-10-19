@@ -23,7 +23,7 @@ uv run --locked python -m cade_mini.docs check
 | Projection and pairing | `test_mini_projection.py` |
 | Budget, pruning, wire format | `test_mini_request.py` |
 | Loop, approvals, retries, windows | `test_mini_loop.py` |
-| Provider and auth | `test_mini_provider.py`, `test_mini_auth.py`, `test_responses_codex_cache_contract.py` |
+| Provider and auth | `test_mini_provider.py`, `test_mini_auth.py`, `test_mini_siwc_auth.py`, `test_responses_siwc_contract.py` |
 | Workspace tools | `test_mini_tools.py` |
 | Compaction and windows | `test_mini_compaction.py`, `test_mini_window.py` |
 | CLI and config | `test_mini_cli.py`, `test_mini_config.py` |
@@ -37,10 +37,10 @@ uv run --locked python -m cade_mini.docs check
 
 ## Real-provider checks
 
-The acceptance runs use OpenAI Responses or Codex and are not part of the default
-test suite. They cover tool use, resume, compaction, skills, build mode, the web
-host, and Codex write/read. Record the command and observed result in the change
-that adds a new acceptance.
+The acceptance runs use OpenAI Responses with an API key or ChatGPT plan usage
+and are not part of the default test suite. They cover tool use, resume,
+compaction, skills, build mode, the web host, and write/read. Record the command
+and observed result in the change that adds a new acceptance.
 
 ## Docs checks
 

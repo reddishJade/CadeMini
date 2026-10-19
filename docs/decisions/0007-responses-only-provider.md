@@ -21,12 +21,16 @@ Cade Mini supports only the OpenAI Responses protocol. Two transports remain:
 
 - `openai_responses` uses an API key from `OPENAI_API_KEY` or
   `cade-mini login --provider openai`.
-- `openai_codex` uses ChatGPT OAuth from `cade-mini login`.
+- `chatgpt` uses Sign in with ChatGPT (SIWC) from `cade-mini login`.
 
 `build_model_provider` in `ai/providers/registry.py` constructs exactly these
 two adapters. The model registry contains OpenAI models only. The
 `tenacity` and `python-dotenv` dependencies are removed because the remaining
 adapter uses neither.
+
+The SIWC login contract is defined in
+[0008](0008-siwc-login.md). Both transports call the public Responses API;
+`chatgpt` differs only in its OAuth credential and request constraints.
 
 ## Consequences
 
@@ -36,9 +40,9 @@ adapter uses neither.
   record, not a new entry in a long registry.
 - Existing DeepSeek, ChatGLM, MiMo, and OpenAI Chat Completions configurations
   are rejected or resolve to Responses behavior. Users must select
-  `openai-codex` or `openai`.
+  `chatgpt` or `openai`.
 - `tests/test_mini_provider.py`, `tests/test_mini_auth.py`,
-  `tests/test_mini_config.py`, and `tests/test_responses_codex_cache_contract.py`
+  `tests/test_mini_config.py`, and `tests/test_responses_siwc_contract.py`
   enforce the transport and login surface.
 
 The invariant is documented in [Architecture](../architecture.md) and the

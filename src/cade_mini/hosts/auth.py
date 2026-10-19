@@ -10,9 +10,9 @@ from collections.abc import Sequence
 import httpx
 
 from cade_mini.ai.auth import AuthCredential, LoginCancelledError, get_auth_provider
-from cade_mini.app.auth import JsonCredentialStore
+from cade_mini.app.auth import JsonCredentialStore, load_or_create_host_id
 
-_PROVIDERS = ("openai-codex", "openai")
+_PROVIDERS = ("chatgpt", "openai")
 
 
 def login(argv: Sequence[str]) -> int:
@@ -21,14 +21,13 @@ def login(argv: Sequence[str]) -> int:
         prog="cade-mini login",
         description="Save credentials to ~/.cade-mini/auth.json.",
     )
-    parser.add_argument("--provider", choices=_PROVIDERS, default="openai-codex")
-    parser.add_argument("--method", choices=("browser", "device_code", "api_key"))
+    parser.add_argument("--provider", choices=_PROVIDERS, default="chatgpt")
+    parser.add_argument("--method", choices=("browser", "api_key"))
     args = parser.parse_args(argv)
-    method = args.method or (
-        "browser" if args.provider == "openai-codex" else "api_key"
-    )
-    if (args.provider == "openai-codex") == (method == "api_key"):
-        parser.error("openai-codex requires OAuth; openai requires api_key")
+    method = args.method or ("browser" if args.provider == "chatgpt" else "api_key")
+    if (args.provider == "chatgpt") == (method == "api_key"):
+        parser.error("ChatGPT requires OAuth; openai requires api_key")
+    store = JsonCredentialStore()
     try:
         if method == "api_key":
             key = getpass.getpass(f"API key for {args.provider}: ").strip()
@@ -41,10 +40,14 @@ def login(argv: Sequence[str]) -> int:
             auth = get_auth_provider(args.provider)
             if auth is None:
                 raise ValueError(f"OAuth is not supported for {args.provider}")
-            credential = auth.login(method=method, notify_callback=_notify)
+            credential = auth.login(
+                method=method,
+                notify_callback=_notify,
+                existing=store.get(args.provider),
+                host_id=load_or_create_host_id(),
+            )
             if not credential.access:
                 raise ValueError("Authorization returned an empty access token")
-        store = JsonCredentialStore()
         store.save(credential)
     except (KeyboardInterrupt, LoginCancelledError):
         print("cade-mini: login cancelled", file=sys.stderr)

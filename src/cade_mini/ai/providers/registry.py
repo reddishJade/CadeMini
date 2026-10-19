@@ -1,25 +1,25 @@
 """Provider 注册表与工厂。
 
-Cade Mini 只支持 OpenAI Responses 协议，包括 API Key 与 Codex OAuth。
+Cade Mini 只支持 OpenAI Responses 协议，包括 API Key 与 ChatGPT 套餐登录。
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 from cade_mini.ai.providers.base import ModelProvider
 from cade_mini.ai.resolver import ModelResolver
 from cade_mini.ai.types import ProviderConfig
 
-from .responses import OpenAICodexResponsesProvider, OpenAIResponsesProvider
+from .responses import ChatGPTResponsesProvider, OpenAIResponsesProvider
 
 # ── 注册表 ──
 
 PROVIDER_REGISTRY: dict[str, type] = {
     "openai_responses": OpenAIResponsesProvider,
-    "openai_codex": OpenAICodexResponsesProvider,
+    "chatgpt": ChatGPTResponsesProvider,
 }
 
 
@@ -44,8 +44,6 @@ class ModelProfileProto(Protocol):
     def thinking(self) -> bool: ...
     @property
     def reasoning_effort(self) -> str | None: ...
-    @property
-    def account_id(self) -> str | None: ...
 
 
 @dataclass(frozen=True)
@@ -58,7 +56,6 @@ class ModelProfileConfig:
     context_window: int | None = None
     thinking: bool = True
     reasoning_effort: str | None = None
-    account_id: str | None = None
 
 
 # ── 环境变量工具 ──
@@ -84,11 +81,6 @@ def build_model_provider(profile: ModelProfileProto) -> ModelProvider:
             f"Available: {', '.join(PROVIDER_REGISTRY)}"
         )
 
-    extra: dict[str, Any] = {}
-    account_id = getattr(profile, "account_id", None)
-    if account_id:
-        extra["account_id"] = account_id
-
     config = ProviderConfig(
         api_key=profile.api_key,
         model=profile.chat_model,
@@ -96,6 +88,5 @@ def build_model_provider(profile: ModelProfileProto) -> ModelProvider:
         context_window=profile.context_window,
         thinking=profile.thinking,
         reasoning_effort=profile.reasoning_effort,
-        extra=extra,
     )
     return provider_cls(config)

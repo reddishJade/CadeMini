@@ -1,7 +1,7 @@
 """模型与 Transport 解析器（单一事实源）。
 
 只支持 OpenAI Responses 协议：API Key 使用 `openai_responses`，
-ChatGPT 登录使用 `openai_codex`。
+ChatGPT 登录使用 `chatgpt`。
 """
 
 from __future__ import annotations
@@ -10,25 +10,17 @@ import os
 from dataclasses import dataclass
 from typing import Final
 
-from cade_mini.ai.models import get_codex_models, normalize_model_id
+from cade_mini.ai.models import normalize_model_id
 
 # 别名映射：不区分大小写，映射到规范 model ID
 MODEL_ALIASES: Final[dict[str, str]] = {
-    "codex": "gpt-5.6-luna",
-    "openai-codex": "gpt-5.6-luna",
     "gpt-6": "gpt-6-sol",
     "gpt-5.6": "gpt-5.6-sol",
 }
 
-# Provider 别名映射
-PROVIDER_ALIASES: Final[dict[str, str]] = {
-    "codex": "openai-codex",
-    "openai-codex": "openai-codex",
-}
-
 PROVIDER_TRANSPORTS: Final[dict[str, str]] = {
     "openai": "openai_responses",
-    "openai-codex": "openai_codex",
+    "chatgpt": "chatgpt",
 }
 
 
@@ -42,7 +34,7 @@ def provider_for_transport(transport: str) -> str:
 
 # 默认 Base URL
 DEFAULT_BASE_URLS: Final[dict[str, str]] = {
-    "openai_codex": "https://chatgpt.com/backend-api",
+    "chatgpt": "https://api.openai.com/v1",
     "openai_responses": "https://api.openai.com/v1",
 }
 
@@ -50,11 +42,6 @@ DEFAULT_BASE_URLS: Final[dict[str, str]] = {
 BASE_URL_ENV_VARS: Final[dict[str, str]] = {
     "openai_responses": "OPENAI_BASE_URL",
 }
-
-# ChatGPT 登录的 Codex 只接受当前模型清单，不再按名称前缀猜测可用性。
-CODEX_EXPLICIT_MODELS: Final[frozenset[str]] = frozenset(
-    model.id for model in get_codex_models()
-)
 
 
 @dataclass(frozen=True)
@@ -78,20 +65,17 @@ class ModelResolver:
 
     @staticmethod
     def normalize_provider(provider: str | None) -> str | None:
-        """规范化 provider 别名。"""
+        """规范化 provider 名称。"""
         if not provider:
             return None
-        p_lower = provider.strip().lower()
-        return PROVIDER_ALIASES.get(p_lower, p_lower)
+        return provider.strip().lower()
 
     @classmethod
     def infer_provider(cls, model: str) -> str | None:
         """根据模型名称或前缀推断其归属 Provider。"""
         resolved_name = cls.resolve_alias(model).lower()
 
-        if resolved_name in ("codex", "openai-codex") or resolved_name.startswith(
-            ("gpt-", "codex-", "chat-", "o1", "o3", "o4")
-        ):
+        if resolved_name.startswith(("gpt-", "chat-", "o1", "o3", "o4")):
             return "openai"
 
         from cade_mini.ai.models import _MODELS
@@ -101,12 +85,6 @@ class ModelResolver:
                 return p_name
 
         return None
-
-    @classmethod
-    def is_codex_supported(cls, model: str) -> bool:
-        """判定指定模型是否支持通过 ChatGPT Plus/Pro OAuth (openai-codex) 访问。"""
-        resolved = cls.resolve_alias(model).lower()
-        return resolved in CODEX_EXPLICIT_MODELS
 
     @staticmethod
     def get_default_base_url(transport: str) -> str:
@@ -125,12 +103,7 @@ class ModelResolver:
         fallback_transport: str | None = None,
     ) -> str:
         """推断最合适的 transport。"""
-        raw_model = model.strip().lower()
-        selected = cls.normalize_provider(provider) or (
-            "openai-codex"
-            if raw_model in ("codex", "openai-codex")
-            else cls.infer_provider(model)
-        )
+        selected = cls.normalize_provider(provider) or cls.infer_provider(model)
         if selected in PROVIDER_TRANSPORTS:
             return PROVIDER_TRANSPORTS[selected]
         return fallback_transport or "openai_responses"
@@ -155,11 +128,10 @@ class ModelResolver:
         resolved_model = cls.resolve_alias(raw_name)
         if extracted_provider is None:
             if (
-                raw_name.lower() in ("codex", "openai-codex")
-                or fallback_transport == "openai_codex"
+                fallback_transport == "chatgpt"
                 and cls.infer_provider(resolved_model) == "openai"
             ):
-                extracted_provider = "openai-codex"
+                extracted_provider = "chatgpt"
             elif cls.infer_provider(resolved_model) is None and fallback_transport:
                 extracted_provider = provider_for_transport(fallback_transport)
         norm_provider = (

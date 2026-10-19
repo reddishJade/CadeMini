@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from .openai_codex import OpenAICodexAuthProvider
+from .chatgpt import ChatGPTAuthProvider
 from .types import AuthProvider
 
-_OPENAI_CODEX_AUTH = OpenAICodexAuthProvider()
+_CHATGPT_AUTH = ChatGPTAuthProvider()
 
 AUTH_PROVIDER_REGISTRY: Mapping[str, AuthProvider] = {
-    _OPENAI_CODEX_AUTH.id: _OPENAI_CODEX_AUTH,
+    _CHATGPT_AUTH.id: _CHATGPT_AUTH,
 }
 
 
