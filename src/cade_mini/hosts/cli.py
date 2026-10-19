@@ -28,9 +28,11 @@ from cade_mini.core.loop import (
     CancellationToken,
     LoopEvent,
     Provider,
+    ReasoningDeltaEvent,
     RunResult,
     TextDeltaEvent,
     Tool,
+    ToolEndEvent,
     ToolStartEvent,
     run,
 )
@@ -127,6 +129,28 @@ def main(
             file=sys.stderr,
         )
         return 2
+    if (
+        provider is None
+        and not one_shot
+        and not args.list_sessions
+        and not args.undo
+        and args.tui is not False
+        and sys.stdin.isatty()
+        and sys.stdout.isatty()
+        and args.config is None
+        and not (args.provider or args.model)
+        and not (project_root / "cade-mini.json").is_file()
+    ):
+        from cade_mini.hosts.tui.setup import run_first_time_setup
+
+        try:
+            if not run_first_time_setup(project_root):
+                print("cade-mini: setup cancelled", file=sys.stderr)
+                return 130
+        except (OSError, RuntimeError, ValueError, KeyboardInterrupt) as exc:
+            print(f"cade-mini: setup failed: {exc}", file=sys.stderr)
+            return 1
+
     try:
         config = MiniConfig.load(project_root, args.config)
     except ValueError as exc:
@@ -203,13 +227,37 @@ def main(
         return 2
 
     try:
-        selected = provider or build_provider(
-            ProviderConfig(
+        if provider is not None:
+            selected = provider
+        else:
+            requested = ProviderConfig(
                 provider=provider_name,
                 model=model_name,
                 reasoning_effort=effort,
             )
-        )
+            try:
+                selected = build_provider(requested)
+            except RuntimeError as exc:
+                interactive = (
+                    not one_shot
+                    and (
+                        args.tui is True
+                        or (
+                            args.tui is None
+                            and sys.stdin.isatty()
+                            and sys.stdout.isatty()
+                        )
+                    )
+                )
+                if not interactive:
+                    raise
+                from cade_mini.hosts.interaction import UnavailableProvider
+
+                selected = UnavailableProvider(
+                    model=model_name,
+                    transport=provider_name,
+                    reason=str(exc),
+                )
         budget = Budget(
             context_window=args.context_window
             or config.context_window
@@ -330,6 +378,45 @@ def main(
                 print(f"[{result.termination}] {result.error}", file=sys.stderr)
         return 0 if result.termination == "completed" else 1
 
+    if args.tui is True or (
+        args.tui is None and sys.stdin.isatty() and sys.stdout.isatty()
+    ):
+        from cade_mini.hosts.interaction import InteractionService
+        from cade_mini.hosts.tui.app import run_tui
+
+        return run_tui(
+            InteractionService(
+                log=log,
+                sessions_dir=sessions_dir,
+                system_prompt=system_prompt,
+                provider=selected,
+                provider_config=ProviderConfig(
+                    provider=provider_name,
+                    model=model_name,
+                    reasoning_effort=effort,
+                ),
+                tools=base_tools,
+                skills=skills,
+                workspace=project_root,
+                snapshots=snapshots,
+                goals=goals,
+                policy=policy,
+                budget=budget,
+                context=context,
+                max_steps=max_steps,
+                compactor=compactor,
+                hooks=hooks,
+                window=fallback_window,
+                approval_router=approval_router,
+                automatic_approver=approve if args.yes or use_auto_review else None,
+                config_path=args.config,
+                context_window_explicit=(
+                    args.context_window is not None
+                    or config.context_window is not None
+                ),
+            )
+        )
+
     return _repl(
         log,
         sessions_dir,
@@ -443,6 +530,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--context-window", type=int, default=None)
+    parser.add_argument(
+        "--tui",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Use the interactive terminal workspace (default for terminals)",
+    )
     parser.add_argument("--json", action="store_true", help="Emit JSONL events")
     return parser
 
@@ -1144,7 +1237,7 @@ def _human_event(event: LoopEvent) -> None:
         print(event.text, end="", flush=True)
     elif isinstance(event, ToolStartEvent):
         print(f"\n[ tool {event.name} started ]", file=sys.stderr)
-    else:
+    elif isinstance(event, ToolEndEvent):
         status = "failed" if event.is_error else "done"
         print(f"[ tool {event.call_id} {status} ]", file=sys.stderr)
 
@@ -1158,11 +1251,19 @@ def _json_event(event: LoopEvent) -> None:
             "call_id": event.call_id,
             "name": event.name,
         }
-    else:
+    elif isinstance(event, ToolEndEvent):
         payload = {
             "type": "tool_end",
             "call_id": event.call_id,
             "is_error": event.is_error,
+        }
+    elif isinstance(event, ReasoningDeltaEvent):
+        payload = {"type": "reasoning", "text": event.text}
+    else:
+        payload = {
+            "type": "usage",
+            "input_tokens": event.input_tokens,
+            "output_tokens": event.output_tokens,
         }
     print(json.dumps(payload, ensure_ascii=False), flush=True)
 
