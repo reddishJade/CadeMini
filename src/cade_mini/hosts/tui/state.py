@@ -19,6 +19,7 @@ from cade_mini.core.loop import (
     UsageEvent,
 )
 
+from .chrome import welcome_ansi_lines, welcome_text
 from .rendering import markdown_ansi_lines, wrap_ansi_lines
 
 type EntryType = Literal[
@@ -52,9 +53,21 @@ def _is_exploration(entry: TranscriptEntry) -> bool:
 class Transcript:
     """Display state can be rebuilt from durable facts after session changes."""
 
-    def __init__(self, workspace: Path, session: str) -> None:
+    def __init__(
+        self,
+        workspace: Path,
+        session: str,
+        *,
+        tools: tuple[str, ...] = (),
+        skills: tuple[str, ...] = (),
+        instructions: tuple[Path, ...] = (),
+    ) -> None:
         self.workspace = workspace
         self.session = session
+        self.tools = tools
+        self.skills = skills
+        self.instructions = instructions
+        self.compact_welcome = False
         self.entries: list[TranscriptEntry] = []
         self.tools_expanded = False
         self.thinking_expanded = False
@@ -67,13 +80,13 @@ class Transcript:
         self._generation += 1
 
     def welcome(self) -> None:
-        self.entries = [
-            TranscriptEntry(
-                "welcome",
-                f"✦ Cade Mini   {self.workspace.name}\nSession {self.session}\n/ commands · @ files · $ skills · ! shell · Ctrl+O tools · Ctrl+T thinking",
-            ),
-        ]
+        self.entries = [TranscriptEntry("welcome")]
         self._changed()
+
+    def set_compact_welcome(self, compact: bool) -> None:
+        if self.compact_welcome != compact:
+            self.compact_welcome = compact
+            self._changed()
 
     def restore(self, log: SessionLog) -> None:
         """Rebuild the *visible* timeline from durable facts, including old context.
@@ -261,7 +274,17 @@ class Transcript:
                     result.append("")
                     continue
             if entry.kind == "welcome":
-                result.extend(entry.text.splitlines())
+                result.extend(
+                    welcome_ansi_lines(
+                        welcome_text(
+                            tools=self.tools,
+                            instructions=self.instructions,
+                            skills=self.skills,
+                            width=width,
+                            compact=self.compact_welcome,
+                        )
+                    )
+                )
             elif entry.kind == "user":
                 result.extend("› " + line for line in entry.text.splitlines() or [""])
             elif entry.kind in {"assistant", "side"}:

@@ -12,11 +12,13 @@ import json
 import subprocess
 import threading
 import time
+from pathlib import Path
 from typing import Any, cast
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.formatted_text.utils import fragment_list_width
 from prompt_toolkit.input.base import Input
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout import (
@@ -25,11 +27,13 @@ from prompt_toolkit.layout import (
     FormattedTextControl,
     HSplit,
     Layout,
+    ScrollOffsets,
     Window,
 )
 from prompt_toolkit.layout.margins import ScrollbarMargin
 from prompt_toolkit.output.base import Output
 from prompt_toolkit.styles import Style
+from prompt_toolkit.utils import get_cwidth
 from prompt_toolkit.widgets import RadioList, TextArea
 
 from cade_mini.ai.auth import LoginCancelledError
@@ -39,30 +43,38 @@ from cade_mini.core.types import ToolCallBlock
 from cade_mini.hosts.interaction import InteractionService, UnavailableProvider
 from cade_mini.hosts.interaction_question import Question, QuestionTool
 
-from .completion import CadeCompleter, score
+from .chrome import TUI_STYLES, compact_path, fit_text, status_line
+from .completion import CadeCompleter, CommandArgsSuggester, score
 from .inline_renderer import InlineRenderer
 from .platform import preserve_console_input_mode
 from .rendering import wrap_ansi_lines
 from .state import Transcript
+from .widgets import TuiCompletionControl, TuiInputLexer, input_prompt
 
-_STYLE = Style.from_dict(
-    {
-        "input": "bg:#212633 #f0f1f3",
-        "prompt": "bold #88b4ff",
-        "status": "bg:#262b32 #a8b1bd",
-        "accent": "bold #7eb9ff",
-        "user": "bold #8ebcff",
-        "welcome": "bold #89b4fa",
-        "error": "bold #f38ba8",
-        "tool": "#b9c1cf",
-        "tool-title": "#bbd9a8",
-        "thinking": "italic #9da7b6",
-        "border": "#637083",
-        "completion-menu": "bg:#343a46",
-        "picker": "bg:#313846",
-        "hint": "#798ba0",
-    }
-)
+_STYLE = Style.from_dict(TUI_STYLES)
+
+_SHORTCUT_HELP = """Shortcuts
+  ?              show this help
+  Ctrl+C         clear input or interrupt the active task
+  Ctrl+D         exit on double press with an empty prompt
+  Ctrl+Q         exit
+  Shift+Tab      cycle act → build → plan
+  Ctrl+T         toggle thinking details
+  Ctrl+O         toggle tool details
+  Ctrl+K         searchable command palette
+  Ctrl+P         select model
+  Ctrl+G         select session
+  ! command      run a shell command
+  $skill [task]  invoke a skill
+  /command       run a slash command
+  Up/Down        navigate input history and completion
+  Tab            complete commands, skills and @file references
+  Enter          send or queue a follow-up task
+  Alt+Enter      steer the active task
+  Ctrl+J         insert a newline
+  Esc Enter      newline when idle, steer while running
+  Mouse wheel    browse terminal history
+"""
 
 
 class CadeTui:
@@ -78,7 +90,19 @@ class CadeTui:
         self.service = service
         if service.approval_router is not None:
             service.approval_router.target = self._approve
-        self.transcript = Transcript(service.workspace, service.log.session_id)
+        service.question_tool = QuestionTool(self._ask_questions)
+        known_context = tuple(
+            service.workspace / name
+            for name in ("AGENTS.md", "NOTE.md")
+            if (service.workspace / name).is_file()
+        )
+        self.transcript = Transcript(
+            service.workspace,
+            service.log.session_id,
+            tools=tuple(tool.name for tool in service.tools),
+            skills=tuple(skill.name for skill in service.skills),
+            instructions=known_context,
+        )
         self.transcript.restore(service.log)
         if isinstance(service.provider, UnavailableProvider):
             self.transcript.notice(service.provider.reason, error=True)
@@ -95,7 +119,6 @@ class CadeTui:
         self._question_multiple = False
         self._question_selected: set[str] = set()
         self._question_text_active = False
-        service.question_tool = QuestionTool(self._ask_questions)
         self._secret_provider: str | None = None
         self._oauth_cancel: threading.Event | None = None
         self._picker_effort = service.provider_config.reasoning_effort
@@ -122,15 +145,27 @@ class CadeTui:
             history = None
         self._input = TextArea(
             height=lambda: Dimension.exact(self._input_height()),
-            prompt="› ",
+            prompt=lambda: input_prompt(self._input.text.lstrip().startswith("!")),
             multiline=True,
             completer=CadeCompleter(service),
+            lexer=TuiInputLexer(),
             complete_while_typing=True,
+            auto_suggest=CommandArgsSuggester(),
             history=history,
             scrollbar=False,
             style="class:input",
         )
         self._input.buffer.on_text_changed += lambda _buffer: self._refresh()
+        self._input.buffer.on_completions_changed += lambda _buffer: self._refresh()
+        self._completion_panel = ConditionalContainer(
+            Window(
+                TuiCompletionControl(),
+                height=lambda: Dimension.exact(self._completion_height()),
+                scroll_offsets=ScrollOffsets(top=1, bottom=1),
+                style="class:completion-menu",
+            ),
+            filter=Condition(lambda: self._completion_height() > 0),
+        )
         self._picker: RadioList[str] = RadioList(
             [("", "")],
             show_numbers=True,
@@ -288,7 +323,10 @@ class CadeTui:
             filter=Condition(lambda: self._secret_provider is not None),
         )
         self._input_panel = ConditionalContainer(
-            HSplit([Window(height=1), self._input, Window(height=1)]),
+            HSplit(
+                [Window(height=1), self._input, Window(height=1)],
+                style="class:input",
+            ),
             filter=Condition(
                 lambda: (
                     self._approval is None
@@ -299,7 +337,7 @@ class CadeTui:
             ),
         )
         self._hint = Window(
-            FormattedTextControl(text=self._hint_text),
+            FormattedTextControl(text=lambda: fit_text(self._hint_text(), self._width())),
             height=1,
             style="class:hint",
         )
@@ -317,8 +355,12 @@ class CadeTui:
                         self._picker_panel,
                         self._question_text_panel,
                         self._secret_panel,
+                        self._completion_panel,
                         self._input_panel,
-                        self._hint,
+                        ConditionalContainer(
+                            self._hint,
+                            filter=Condition(lambda: self._hint_height() > 0),
+                        ),
                         self._status,
                     ]
                 )
@@ -354,32 +396,60 @@ class CadeTui:
         return max(20, self.app.output.get_size().columns)
 
     def _input_height(self) -> int:
-        width = max(20, self._width() - 2)
-        return max(
-            3,
-            min(
-                6,
-                sum(
-                    max(1, (len(part) + width - 1) // width)
-                    for part in self._input.text.split("\n")
-                ),
-            ),
+        columns = max(1, self._width() - 1)
+        prompt_width = fragment_list_width(
+            input_prompt(self._input.text.lstrip().startswith("!"))
+        )
+        lines = 0
+        for index, line in enumerate(self._input.text.split("\n")):
+            display_width = get_cwidth(line)
+            if index == 0:
+                display_width += prompt_width
+            quotient, remainder = divmod(display_width, columns)
+            lines += max(1, quotient + bool(remainder))
+        return min(5, lines)
+
+    def _has_modal(self) -> bool:
+        return (
+            self._approval is not None
+            or self._picker_kind is not None
+            or self._secret_provider is not None
+            or self._question_text_active
+        )
+
+    def _completion_height(self) -> int:
+        state = self._input.buffer.complete_state
+        if state is None or self._has_modal():
+            return 0
+        available = self.app.output.get_size().rows - self._input_height() - 9
+        return max(0, min(8, len(state.completions), available))
+
+    def _hint_height(self) -> int:
+        return int(
+            self.service.running
+            or self._has_modal()
+            or self._oauth_cancel is not None
+            or self._completion_height() > 0
         )
 
     def _output_height(self) -> int:
         rows = self.app.output.get_size().rows
-        lower = 4 + (
-            self._approval_height() + 3
-            if self._approval is not None
-            else self._picker_height()
-            if self._picker_kind is not None
-            else self._question_title_height() + 3
-            if self._question_text_active
-            else 3
-            if self._secret_provider is not None
-            else self._input_height() + 2
+        if self._approval is not None:
+            panel_height = self._approval_height() + 3
+        elif self._picker_kind is not None:
+            panel_height = self._picker_height()
+        elif self._question_text_active:
+            panel_height = self._question_title_height() + 3
+        elif self._secret_provider is not None:
+            panel_height = 3
+        else:
+            panel_height = self._input_height() + 2
+        available = max(
+            1,
+            rows - 1 - 2 - panel_height
+            - self._completion_height() - self._hint_height(),
         )
-        return max(1, min(rows - lower, self.transcript.line_count(self._width()) + 1))
+        return min(available, self.transcript.line_count(self._width()) + 1)
 
     def _question_title_height(self) -> int:
         width = max(20, self._width() - 4)
@@ -433,43 +503,49 @@ class CadeTui:
 
     def _status_text(self) -> FormattedText:
         service = self.service
-        size = self._width()
-        context = f"{service.budget.input_budget:,} input tokens"
-        branch = f" · {self._branch}" if self._branch else ""
-        left = f" {service.workspace.name}{branch} · {service.log.session_id} "
-        right = f"{context} "
-        line1 = (
-            (left[: max(0, size - len(right))]).ljust(max(0, size - len(right))) + right
+        width = self._width()
+        project = compact_path(service.workspace)
+        if self._branch:
+            project += f" ({self._branch})"
+        last = service.last_usage
+        context = (
+            f"context: {last['input']:,} / {service.budget.context_window:,}"
+            if last else f"context: {service.budget.context_window:,}"
         )
-        status = "● Ready"
+        if last and width >= 90:
+            context += f"  in {last.get('input', 0):,} · out {last.get('output', 0):,}"
+        first = status_line(
+            project,
+            context,
+            width,
+            keep_left_end=True,
+            left_style="class:status-accent",
+        )
+        status = f"● Ready · {service.policy.mode}"
         if self._working_since is not None:
             elapsed = time.monotonic() - self._working_since
-            frames = ("◐", "◓", "◑", "◒")
-            symbol = frames[int(elapsed * 5) % len(frames)]
-            status = f"{symbol} Running {elapsed:.0f}s"
-        elif service.running:
-            status = "● Running"
-        if self._approval is not None:
-            status = "● Awaiting approval"
-        elif isinstance(service.provider, UnavailableProvider):
-            status = "● Sign in required"
+            symbol = ("◐", "◓", "◑", "◒")[int(elapsed * 5) % 4]
+            status = f"{symbol} Running {elapsed:.0f}s  {status}"
+        elif self._approval is not None:
+            status = "Awaiting approval"
         elif self._question_future is not None:
-            status = "● Awaiting answer"
-        last = service.last_usage
-        usage = (
-            f" · in {last.get('input', 0):,} / out {last.get('output', 0):,}"
-            if last
-            else ""
+            status = "Awaiting answer"
+        elif isinstance(service.provider, UnavailableProvider):
+            status = "Sign in required"
+        elif service.running:
+            status = f"● Running  {status}"
+        model = service.provider.model
+        effort = service.provider_config.reasoning_effort
+        if effort:
+            model += f" · {effort}"
+        second = status_line(
+            status,
+            model,
+            width,
+            left_style="class:status-mode",
+            right_style="class:status",
         )
-        model = f"{service.provider.model} · {service.provider_config.reasoning_effort or 'auto'}"
-        line2 = f" {status} · {service.policy.mode}  {model}{usage} "
-        return FormattedText(
-            [
-                ("class:accent", line1[:size]),
-                ("", "\n"),
-                ("class:status", line2[:size].ljust(size)),
-            ]
-        )
+        return FormattedText([*first, ("", "\n"), *second])
 
     def _hint_text(self) -> str:
         if self._question_text_active:
@@ -482,6 +558,8 @@ class CadeTui:
             return " Enter choose · Esc deny · Ctrl+O expand · PgUp/PgDn scroll "
         if self._picker_kind is not None:
             return " ↑↓ select · Enter confirm · Esc cancel · ←→ effort (models) "
+        if self._completion_height() > 0:
+            return " ↑↓ choose · Enter accept · Esc close "
         if isinstance(self.service.provider, UnavailableProvider):
             return " /login to reconnect · Ctrl+K commands · Ctrl+P models "
         if self.service.running:
@@ -510,6 +588,7 @@ class CadeTui:
         )
 
     def _prepare_frame(self) -> None:
+        self.transcript.set_compact_welcome(self.app.output.get_size().rows < 28)
         self._output_control.text = self._renderer.prepare(
             self.transcript.ansi_lines(self._width()),
             self._output_height(),
@@ -575,8 +654,12 @@ class CadeTui:
         bindings.add(
             "?",
             filter=palette_ready & Condition(lambda: not self._input.text),
-        )(lambda _event: self._open_picker("commands"))
+        )(lambda _event: self._show_shortcuts())
         return bindings
+
+    def _show_shortcuts(self) -> None:
+        self.transcript.notice(_SHORTCUT_HELP.rstrip())
+        self._refresh()
 
     def _schedule(self, coroutine: Any) -> None:
         self.app.create_background_task(coroutine)
@@ -647,7 +730,7 @@ class CadeTui:
     async def _submit(self, value: str) -> None:
         try:
             if value.startswith("/"):
-                if value.startswith("/tool "):
+                if value.startswith("/tool ") and value.strip() != "/tool list":
                     await self._invoke_tool(value[len("/tool ") :])
                 else:
                     await self._dispatch(value)
@@ -677,8 +760,10 @@ class CadeTui:
         result = await self.service.command(value)
         if result.changed_session:
             self.transcript.restore(self.service.log)
-        for line in result.lines:
-            self.transcript.notice(line)
+        if result.lines:
+            self.transcript.notice("\n".join(result.lines))
+        if result.login_provider:
+            self._begin_login(result.login_provider)
         if result.draft:
             self._input.text = result.draft
         if result.picker is not None:
@@ -711,6 +796,12 @@ class CadeTui:
         else:
             choices = self.service.choices(kind)
         if kind == "model":
+            current = (
+                f"{self.service.provider_config.provider}/"
+                f"{self.service.provider.model}"
+            )
+            if current not in {name for name, _ in choices}:
+                choices = ((current, f"{current} · current model"), *choices)
             choices = (
                 *choices,
                 ("__custom__", "Custom model ID · enter manually"),
@@ -723,6 +814,16 @@ class CadeTui:
         self._picker_effort = self.service.provider_config.reasoning_effort
         self._picker_search.buffer.reset()
         self._filter_picker()
+        if kind == "model":
+            chosen = (
+                f"{self.service.provider_config.provider}/"
+                f"{self.service.provider.model}"
+            )
+            for index, (name, _) in enumerate(self._picker.values):
+                if name == chosen:
+                    self._picker._selected_index = index
+                    self._picker.current_value = chosen
+                    break
         self.app.layout.focus(self._picker_search)
         self._refresh()
 
@@ -841,6 +942,7 @@ class CadeTui:
             return
         prefix = {
             "sessions": "/resume",
+            "fork": "/fork",
             "tree": "/tree",
             "mode": "/mode",
             "effort": "/effort",
@@ -854,12 +956,7 @@ class CadeTui:
         elif kind == "config":
             self._input.text = self.service.settings.edit_command(str(choice))
         elif kind == "login":
-            if choice == "chatgpt":
-                self._schedule(self._login_chatgpt())
-            else:
-                self._secret_provider = str(choice)
-                self._secret_input.buffer.reset()
-                self.app.layout.focus(self._secret_input)
+            self._begin_login(str(choice))
         elif kind == "logout":
             self._schedule(self._submit(f"/logout {choice}"))
         elif kind == "skill":
@@ -867,6 +964,17 @@ class CadeTui:
         elif kind == "tool":
             self._input.text = "/tool " + str(choice) + " "
         self._refresh()
+
+    def _begin_login(self, provider: str) -> None:
+        if provider == "chatgpt":
+            self._schedule(self._login_chatgpt())
+        elif provider == "openai":
+            self._secret_provider = provider
+            self._secret_input.buffer.reset()
+            self.app.layout.focus(self._secret_input)
+            self._refresh()
+        else:
+            self.transcript.notice(f"Unknown provider: {provider}", error=True)
 
     async def _ask_questions(
         self, questions: tuple[Question, ...]
