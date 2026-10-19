@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from cade_mini.core.loop import CancellationToken, ToolResult
 from cade_mini.core.types import JsonValue, ToolCallBlock
@@ -30,7 +30,7 @@ class QuestionTool:
         "single- or multiple-choice decision, or omit options for free text. "
         "Do this only when a user decision is required."
     )
-    parameters: dict[str, Any] = {
+    parameters: ClassVar[dict[str, Any]] = {
         "type": "object",
         "properties": {
             "questions": {
@@ -94,7 +94,7 @@ def parse_questions(raw: JsonValue | None) -> tuple[Question, ...]:
     parsed: list[Question] = []
     for value in raw:
         if not isinstance(value, dict):
-            raise ValueError("each question must be an object")
+            raise TypeError("each question must be an object")
         question = value.get("question")
         if not isinstance(question, str) or not question.strip():
             raise ValueError("question text must be non-empty")
@@ -107,16 +107,16 @@ def parse_questions(raw: JsonValue | None) -> tuple[Question, ...]:
         if multiple is None:
             multiple = False
         if not isinstance(multiple, bool):
-            raise ValueError("question multiple must be boolean")
+            raise TypeError("question multiple must be boolean")
         raw_options = value.get("options")
         if raw_options is None:
             raw_options = []
         if not isinstance(raw_options, list):
-            raise ValueError("question options must be an array")
+            raise TypeError("question options must be an array")
         options: list[tuple[str, str]] = []
         for item in raw_options:
             if not isinstance(item, dict):
-                raise ValueError("question option must be an object")
+                raise TypeError("question option must be an object")
             label = item.get("label")
             if not isinstance(label, str) or not label.strip():
                 raise ValueError("question option label is required")
@@ -124,7 +124,7 @@ def parse_questions(raw: JsonValue | None) -> tuple[Question, ...]:
             if description is None:
                 description = ""
             if not isinstance(description, str):
-                raise ValueError("question description must be text")
+                raise TypeError("question description must be text")
             options.append((label.strip(), description.strip()))
         if len({name for name, _ in options}) != len(options):
             raise ValueError("question options must have unique labels")
