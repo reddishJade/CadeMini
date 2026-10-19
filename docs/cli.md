@@ -1,7 +1,6 @@
 # CLI
 
-The `cade-mini` entry point runs one task, starts a REPL, manages sessions, or
-serves the web host.
+The `cade-mini` entry point runs one task, starts a REPL, or manages sessions.
 
 ```bash
 cade-mini [TASK] [options]
@@ -54,11 +53,9 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 
 `--continue` and `--resume` cannot be combined.
 
-## Goals and web host
+## Goals
 
 - `--goal TEXT` sets the workspace goal before running.
-- `--web` starts the local web host instead of the REPL.
-- `--host` and `--port` bind the web host. The default is `127.0.0.1:8765`.
 
 ## REPL commands
 
@@ -120,5 +117,4 @@ cade-mini --continue "Summarize the current state."
 cade-mini --undo
 cade-mini --mode plan "Find the smallest fix for the failing test."
 cade-mini --mode build --yes "Fix the test and run pytest."
-cade-mini --web --port 8765
 ```

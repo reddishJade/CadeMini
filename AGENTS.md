@@ -47,7 +47,7 @@ Use complete type annotations and standard four-space Python indentation. Ruff e
 ## Language and writing style
 
 - Write code comments and docstrings in Simplified Chinese. Follow the `zh-tech-writing` skill. Keep comments and docstrings direct, specific, and concise.
-- Write all other natural-language content in English, including documentation, prompts, CLI and web UI text, and error messages. Follow the [Google developer documentation style guide](https://developers.google.com/style). Use active voice, sentence case, consistent terms, and short, direct instructions.
+- Write all other natural-language content in English, including documentation, prompts, CLI text, and error messages. Follow the [Google developer documentation style guide](https://developers.google.com/style). Use active voice, sentence case, consistent terms, and short, direct instructions.
 - Preserve Chinese test data when it verifies Chinese-language handling. Do not translate identifiers, protocol fields, or other machine-readable contracts as prose.
 - Reply to the maintainer in the language they use. This repository content policy does not change the conversation language.
 

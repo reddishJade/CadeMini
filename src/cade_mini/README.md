@@ -9,7 +9,6 @@ It owns all runtime code and does not depend on Cade.
 cade-mini
 python -m cade_mini
 cade-mini login
-cade-mini --web --port 8765
 ```
 
 `cade_mini.hosts.cli:main` is the console script target. Import the owning
@@ -26,7 +25,7 @@ cade_mini/
   safety/         policy, shell, grants, approval, review
   extensions/     skills, memory, hooks, mcp, subagents, snapshots, goal
   app/            config, provider, credential storage, prompts, instructions, note
-  hosts/          cli, auth, web
+  hosts/          cli, auth
   docs.py
   __main__.py
 ```

@@ -89,15 +89,12 @@ flowchart LR
   hosts_cli --> extensions_skills
   hosts_cli --> extensions_snapshots
   hosts_cli --> extensions_subagents
-  hosts_cli --> hosts_web
   hosts_cli --> safety_approval
   hosts_cli --> safety_grants
   hosts_cli --> safety_policy
   hosts_cli --> safety_review
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
-  hosts_web --> core_log
-  hosts_web --> core_loop
   safety_approval --> core_types
   safety_approval --> safety_grants
   safety_grants --> core_types

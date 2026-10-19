@@ -10,9 +10,9 @@ when it became independent. They are no longer shared runtime dependencies.
 
 ## Mini's product boundary
 
-Mini provides a terminal REPL, one-shot execution, and a local web host. Its
-core separates append-only session facts, deterministic projection, request
-admission, and the run loop.
+Mini provides a terminal REPL and one-shot execution. Its core separates
+append-only session facts, deterministic projection, request admission, and the
+run loop.
 
 Intentional limits include:
 

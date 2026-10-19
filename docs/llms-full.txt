@@ -21,7 +21,7 @@ process restarts without inventing history.
 ## Start here
 
 - [Quickstart](quickstart.md) installs and runs the first task.
-- [CLI](cli.md) lists one-shot, REPL, session, web, and recovery commands.
+- [CLI](cli.md) lists one-shot, REPL, session, and recovery commands.
 - [Configuration](configuration.md) documents `cade-mini.json`.
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
@@ -32,7 +32,7 @@ process restarts without inventing history.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
 - [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
 - [Hooks, MCP, and subagents](hooks-mcp-subagents.md) covers extensions.
-- [Hosts](hosts.md) covers the CLI REPL and the local web host.
+- [Hosts](hosts.md) covers the terminal CLI and its REPL.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.
 
@@ -191,16 +191,6 @@ uv run --locked cade-mini --resume SESSION_ID "Continue the task."
 Omitting the task starts the interactive REPL. See [CLI](cli.md) for all REPL
 commands.
 
-## Open the web host
-
-```bash
-uv run --locked cade-mini --web --port 8765
-```
-
-Open `http://127.0.0.1:8765`. The web host has no terminal prompt, so writes and
-shell commands are denied unless you start it with `--yes` or use rules. The
-host serves one durable session for its lifetime.
-
 ## Build the docs
 
 ```bash
@@ -217,8 +207,7 @@ Open `docs/index.html`. The docs source is under `docs/`.
 
 # CLI
 
-The `cade-mini` entry point runs one task, starts a REPL, manages sessions, or
-serves the web host.
+The `cade-mini` entry point runs one task, starts a REPL, or manages sessions.
 
 ```bash
 cade-mini [TASK] [options]
@@ -271,11 +260,9 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 
 `--continue` and `--resume` cannot be combined.
 
-## Goals and web host
+## Goals
 
 - `--goal TEXT` sets the workspace goal before running.
-- `--web` starts the local web host instead of the REPL.
-- `--host` and `--port` bind the web host. The default is `127.0.0.1:8765`.
 
 ## REPL commands
 
@@ -337,7 +324,6 @@ cade-mini --continue "Summarize the current state."
 cade-mini --undo
 cade-mini --mode plan "Find the smallest fix for the failing test."
 cade-mini --mode build --yes "Fix the test and run pytest."
-cade-mini --web --port 8765
 ```
 
 # Configuration
@@ -546,7 +532,7 @@ fallback are decisions expressed as new log facts.
   `extensions/goal.py`: add-ons and durable host state.
 - `app/config.py`, `app/provider.py`, `app/auth.py`, `app/prompts.py`,
   `app/instructions.py`, `app/note.py`: startup and request context.
-- `hosts/cli.py`, `hosts/web.py`, `docs.py`: hosts and documentation.
+- `hosts/cli.py`, `docs.py`: hosts and documentation.
 
 Mini owns `cade_mini.ai` and `cade_mini.execution_env` as lower layers for
 provider protocols and local process execution. It does not depend on the
@@ -708,9 +694,8 @@ Resuming opens the same file and appends new facts.
 
 ## Interfaces
 
-The terminal host runs one task or a REPL. The web host serves a page and a
-small JSON API. Both call the same loop and share policy, tools, and session
-storage.
+The terminal host runs one task or a REPL. It calls the same loop and shares
+policy, tools, and session storage with every other entry path.
 
 ## Extensions
 
@@ -750,7 +735,7 @@ src/cade_mini/
   safety/         policy, shell analysis, grants, approval, review
   extensions/     skills, memory, hooks, mcp, subagents, snapshots, goal
   app/            config, provider assembly, credentials, request context
-  hosts/          cli, auth, web
+  hosts/          cli, auth
   docs.py
   __main__.py
 tests/            regression and integration tests
@@ -767,7 +752,6 @@ uv run --locked cade-mini
 uv run --locked cade-mini exec "Fix the failing test."
 uv run --locked python -m cade_mini
 uv run --locked cade-mini login
-uv run --locked cade-mini --web --port 8765
 ```
 
 The console script and Python module call `cade_mini.hosts.cli:main`. Login
@@ -807,9 +791,9 @@ when it became independent. They are no longer shared runtime dependencies.
 
 ## Mini's product boundary
 
-Mini provides a terminal REPL, one-shot execution, and a local web host. Its
-core separates append-only session facts, deterministic projection, request
-admission, and the run loop.
+Mini provides a terminal REPL and one-shot execution. Its core separates
+append-only session facts, deterministic projection, request admission, and the
+run loop.
 
 Intentional limits include:
 
@@ -841,7 +825,7 @@ implementation can be replaced without changing the session schema or the loop.
 | Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
 | Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |
 | Recovery | `SnapshotStore` capture and undo | File snapshot store | Tools, CLI |
-| Host | A task runner over the loop | CLI, web host | Users |
+| Host | A task runner over the loop | CLI | Users |
 
 ## Provider
 
@@ -878,8 +862,8 @@ state.
 ## Host
 
 A host owns presentation, input, and the event loop boundary. It does not own
-the agent loop or the schema. The CLI and web host differ only in how they run a
-task and render events.
+the agent loop or the schema. The CLI renders events and runs tasks without
+changing either.
 
 ## Tests as contracts
 
@@ -1205,15 +1189,12 @@ flowchart LR
   hosts_cli --> extensions_skills
   hosts_cli --> extensions_snapshots
   hosts_cli --> extensions_subagents
-  hosts_cli --> hosts_web
   hosts_cli --> safety_approval
   hosts_cli --> safety_grants
   hosts_cli --> safety_policy
   hosts_cli --> safety_review
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
-  hosts_web --> core_log
-  hosts_web --> core_loop
   safety_approval --> core_types
   safety_approval --> safety_grants
   safety_grants --> core_types
@@ -1643,7 +1624,6 @@ uv run --locked python -m cade_mini.docs check
 | Safety and modes | `test_mini_policy.py`, `test_mini_shell.py`, `test_mini_grants.py` |
 | Extensions | `test_mini_hooks.py`, `test_mini_mcp.py`, `test_mini_subagents.py` |
 | Recovery | `test_mini_snapshots.py`, `test_mini_goal.py` |
-| Hosts | `test_mini_web.py` |
 | Docs | `test_mini_docs.py` |
 | Import firewall | `test_mini_boundary.py` |
 
@@ -1651,8 +1631,8 @@ uv run --locked python -m cade_mini.docs check
 
 The acceptance runs use OpenAI Responses with an API key or ChatGPT plan usage
 and are not part of the default test suite. They cover tool use, resume,
-compaction, skills, build mode, the web host, and write/read. Record the command
-and observed result in the change that adds a new acceptance.
+compaction, skills, build mode, and write/read. Record the command and observed
+result in the change that adds a new acceptance.
 
 ## Docs checks
 
@@ -2208,8 +2188,8 @@ state, not session facts.
 
 ## Hosts
 
-The CLI runs one-shot and REPL sessions. The web host serves a page and a small
-JSON API over one session. Both use the same loop and policy.
+The CLI runs one-shot and REPL sessions. It uses the same loop and policy as
+every other entry path.
 
 ## Limits
 
@@ -2220,8 +2200,7 @@ Subagents are sequential and share the parent approval context.
 ## Tests
 
 `test_mini_skills.py`, `test_mini_memory.py`, `test_mini_hooks.py`,
-`test_mini_mcp.py`, `test_mini_subagents.py`, `test_mini_snapshots.py`,
-`test_mini_goal.py`, and `test_mini_web.py`.
+`test_mini_mcp.py`, `test_mini_subagents.py`, `test_mini_snapshots.py`, and `test_mini_goal.py`.
 
 # Tools and security
 
@@ -2805,8 +2784,8 @@ that hangs is killed after the configured timeout.
 
 # Hosts
 
-Cade Mini has two hosts: the terminal CLI and a local web host. Both use the
-same session log, request builder, tools, and policy.
+Cade Mini has one host: the terminal CLI. It uses the session log, request
+builder, tools, and policy.
 
 ## Terminal
 
@@ -2827,40 +2806,12 @@ cade-mini exec "Fix the failing test."
 
 One-shot mode supports `--json` for a JSONL event stream. The REPL does not.
 
-## Web
+## Choosing a mode
 
-```bash
-cade-mini --web --host 127.0.0.1 --port 8765
-```
+Use the REPL for interactive review and approvals. Use one-shot mode for scripts
+and CI, with `--read-only` or explicit rules rather than a blanket `--yes`.
 
-Open `http://127.0.0.1:8765`. The page submits tasks and displays the final
-answer.
-
-Endpoints:
-
-- `GET /` serves the page.
-- `POST /api/task` accepts `{"task": "..."}` and returns the answer,
-  termination, steps, error, and session ID.
-- `GET /api/sessions` returns the session list.
-
-The web host serves one session for its lifetime. Requests are serialized so two
-browser tabs cannot interleave turns.
-
-Security:
-
-- The server binds to loopback by default.
-- There is no terminal to answer an approval prompt. Without `--yes` or a rule,
-  writes and shell commands are denied while reads still work.
-- `--read-only` denies mutations explicitly.
-
-## Choosing a host
-
-Use the terminal for interactive review and approvals. Use the web host for a
-small local console or a demo. Use one-shot mode for scripts and CI, with
-`--read-only` or explicit rules rather than a blanket `--yes`.
-
-There is no separate TUI workbench. The REPL provides terminal interaction, and
-the web host provides a browser surface.
+There is no separate TUI workbench. The REPL provides terminal interaction.
 
 # Development
 

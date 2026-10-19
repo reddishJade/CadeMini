@@ -82,16 +82,6 @@ uv run --locked cade-mini --resume SESSION_ID "Continue the task."
 Omitting the task starts the interactive REPL. See [CLI](cli.md) for all REPL
 commands.
 
-## Open the web host
-
-```bash
-uv run --locked cade-mini --web --port 8765
-```
-
-Open `http://127.0.0.1:8765`. The web host has no terminal prompt, so writes and
-shell commands are denied unless you start it with `--yes` or use rules. The
-host serves one durable session for its lifetime.
-
 ## Build the docs
 
 ```bash

@@ -47,8 +47,8 @@ state, not session facts.
 
 ## Hosts
 
-The CLI runs one-shot and REPL sessions. The web host serves a page and a small
-JSON API over one session. Both use the same loop and policy.
+The CLI runs one-shot and REPL sessions. It uses the same loop and policy as
+every other entry path.
 
 ## Limits
 
@@ -59,5 +59,4 @@ Subagents are sequential and share the parent approval context.
 ## Tests
 
 `test_mini_skills.py`, `test_mini_memory.py`, `test_mini_hooks.py`,
-`test_mini_mcp.py`, `test_mini_subagents.py`, `test_mini_snapshots.py`,
-`test_mini_goal.py`, and `test_mini_web.py`.
+`test_mini_mcp.py`, `test_mini_subagents.py`, `test_mini_snapshots.py`, and `test_mini_goal.py`.

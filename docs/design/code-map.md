@@ -15,7 +15,7 @@ src/cade_mini/
   safety/         policy, shell analysis, grants, approval, review
   extensions/     skills, memory, hooks, mcp, subagents, snapshots, goal
   app/            config, provider assembly, credentials, request context
-  hosts/          cli, auth, web
+  hosts/          cli, auth
   docs.py
   __main__.py
 tests/            regression and integration tests
@@ -32,7 +32,6 @@ uv run --locked cade-mini
 uv run --locked cade-mini exec "Fix the failing test."
 uv run --locked python -m cade_mini
 uv run --locked cade-mini login
-uv run --locked cade-mini --web --port 8765
 ```
 
 The console script and Python module call `cade_mini.hosts.cli:main`. Login

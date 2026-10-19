@@ -13,7 +13,7 @@ implementation can be replaced without changing the session schema or the loop.
 | Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
 | Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |
 | Recovery | `SnapshotStore` capture and undo | File snapshot store | Tools, CLI |
-| Host | A task runner over the loop | CLI, web host | Users |
+| Host | A task runner over the loop | CLI | Users |
 
 ## Provider
 
@@ -50,8 +50,8 @@ state.
 ## Host
 
 A host owns presentation, input, and the event loop boundary. It does not own
-the agent loop or the schema. The CLI and web host differ only in how they run a
-task and render events.
+the agent loop or the schema. The CLI renders events and runs tasks without
+changing either.
 
 ## Tests as contracts
 

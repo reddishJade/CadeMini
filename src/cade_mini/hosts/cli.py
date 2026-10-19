@@ -54,7 +54,6 @@ from cade_mini.extensions.subagents import (
     SubagentRunner,
     SubagentTool,
 )
-from cade_mini.hosts.web import WebHost
 from cade_mini.safety.approval import SessionApprover
 from cade_mini.safety.grants import GrantStore
 from cade_mini.safety.policy import Mode, WorkspacePolicy, filter_tools
@@ -306,39 +305,6 @@ def main(
         return 2
     tools = _tools_for(base_tools, project_root, log)
 
-    if args.web:
-        web_approve = SessionApprover(
-            auto_approve=args.yes,
-            is_tty=lambda: False,
-        )
-
-        def web_runner(task: str) -> RunResult:
-            return _run_task(
-                log,
-                task,
-                selected,
-                tools,
-                policy,
-                web_approve,
-                budget,
-                context(),
-                max_steps,
-                lambda event: None,
-                compactor,
-                hooks,
-                fallback_window,
-            )
-
-        approval_router.target = web_approve
-        WebHost(
-            runner=web_runner,
-            log=log,
-            sessions_dir=sessions_dir,
-            host=args.host,
-            port=args.port,
-        ).serve_forever()
-        return 0
-
     if one_shot:
         result = _run_task(
             log,
@@ -438,13 +404,6 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Restore the latest file snapshot and exit",
     )
-    parser.add_argument(
-        "--web",
-        action="store_true",
-        help="Start the local web host instead of the REPL",
-    )
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
     parser.add_argument(
         "--instructions",
         action=argparse.BooleanOptionalAction,

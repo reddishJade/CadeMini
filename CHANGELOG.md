@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Removed the local web host and the `--web`, `--host`, and `--port` options.
 - Made Cade Mini an independent `cade-mini` distribution and `cade_mini` Python
   package, with its own provider adapters and process execution code.
 - Removed the old Cade runtime, command, tests, and documentation from this

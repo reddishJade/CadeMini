@@ -31,7 +31,6 @@ uv run --locked python -m cade_mini.docs check
 | Safety and modes | `test_mini_policy.py`, `test_mini_shell.py`, `test_mini_grants.py` |
 | Extensions | `test_mini_hooks.py`, `test_mini_mcp.py`, `test_mini_subagents.py` |
 | Recovery | `test_mini_snapshots.py`, `test_mini_goal.py` |
-| Hosts | `test_mini_web.py` |
 | Docs | `test_mini_docs.py` |
 | Import firewall | `test_mini_boundary.py` |
 
@@ -39,8 +38,8 @@ uv run --locked python -m cade_mini.docs check
 
 The acceptance runs use OpenAI Responses with an API key or ChatGPT plan usage
 and are not part of the default test suite. They cover tool use, resume,
-compaction, skills, build mode, the web host, and write/read. Record the command
-and observed result in the change that adds a new acceptance.
+compaction, skills, build mode, and write/read. Record the command and observed
+result in the change that adds a new acceptance.
 
 ## Docs checks
 

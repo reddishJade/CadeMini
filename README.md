@@ -1,8 +1,8 @@
 # Cade Mini
 
 Cade Mini is a standalone Python coding agent with a durable, append-only
-session log. It runs one-shot tasks, an interactive terminal REPL, or a local
-web host. It does not require Cade.
+session log. It runs one-shot tasks or an interactive terminal REPL. It does
+not require Cade.
 
 ## Install and start
 
@@ -40,7 +40,6 @@ cade-mini
 cade-mini exec "Review recent changes"
 cade-mini --continue "Continue work"
 cade-mini --mode build "Fix the bug"
-cade-mini --web --port 8765
 ```
 
 Act mode is the default. Writes and mutating shell commands require approval.

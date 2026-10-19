@@ -13,7 +13,7 @@ process restarts without inventing history.
 ## Start here
 
 - [Quickstart](quickstart.md) installs and runs the first task.
-- [CLI](cli.md) lists one-shot, REPL, session, web, and recovery commands.
+- [CLI](cli.md) lists one-shot, REPL, session, and recovery commands.
 - [Configuration](configuration.md) documents `cade-mini.json`.
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
@@ -24,7 +24,7 @@ process restarts without inventing history.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
 - [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
 - [Hooks, MCP, and subagents](hooks-mcp-subagents.md) covers extensions.
-- [Hosts](hosts.md) covers the CLI REPL and the local web host.
+- [Hosts](hosts.md) covers the terminal CLI and its REPL.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.
 

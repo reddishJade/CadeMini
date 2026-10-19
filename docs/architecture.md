@@ -80,7 +80,7 @@ fallback are decisions expressed as new log facts.
   `extensions/goal.py`: add-ons and durable host state.
 - `app/config.py`, `app/provider.py`, `app/auth.py`, `app/prompts.py`,
   `app/instructions.py`, `app/note.py`: startup and request context.
-- `hosts/cli.py`, `hosts/web.py`, `docs.py`: hosts and documentation.
+- `hosts/cli.py`, `docs.py`: hosts and documentation.
 
 Mini owns `cade_mini.ai` and `cade_mini.execution_env` as lower layers for
 provider protocols and local process execution. It does not depend on the
