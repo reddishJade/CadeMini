@@ -40,55 +40,13 @@ from cade_mini.extensions.hooks import HookRunner
 from cade_mini.extensions.skills import Skill
 from cade_mini.extensions.snapshots import SnapshotStore
 from cade_mini.extensions.subagents import DelegateTool, SubagentTool
+from cade_mini.hosts.command_catalog import COMMANDS, command_help
 from cade_mini.hosts.interaction_question import QuestionTool
 from cade_mini.hosts.interaction_settings import AuthenticationService, SettingsService
 from cade_mini.safety.policy import WorkspacePolicy, filter_tools
 from cade_mini.safety.review import AutoReviewer
 from cade_mini.tools.history import HistoryTool
 from cade_mini.tools.workspace import resolve_workspace_path
-
-COMMANDS: dict[str, str] = {
-    "/new": "New session",
-    "/clear": "Start a new session",
-    "/rename": "Rename the current session",
-    "/revert": "Restore file snapshots",
-    "/continue": "Latest session",
-    "/resume": "Resume by ID",
-    "/sessions": "Session picker",
-    "/fork": "Fork before a user turn",
-    "/clone": "Clone session",
-    "/tree": "Session history",
-    "/rewind": "Rewind recent turns",
-    "/undo": "Restore file snapshots",
-    "/mode": "Execution mode",
-    "/model": "Provider/model picker",
-    "/effort": "Reasoning effort",
-    "/thinking": "Toggle thinking",
-    "/context": "Token and context status",
-    "/context-window": "Set context budget",
-    "/compact": "Compact history",
-    "/rollover": "Fresh context",
-    "/new-context": "Fresh context",
-    "/permissions": "Session grants",
-    "/config": "Project configuration",
-    "/auth": "Authentication",
-    "/login": "Provider login",
-    "/logout": "Provider logout",
-    "/skill": "Activate skill",
-    "/tool": "Run tool",
-    "/mcp": "Connected MCP tools",
-    "/hooks": "Hook status",
-    "/memory": "Workspace memory",
-    "/goal": "Goal tracking",
-    "/btw": "Ask an independent side question",
-    "/steer": "Guide active task",
-    "/queue": "Queue next task",
-    "/stop": "Cancel active task",
-    "/help": "Command reference",
-    "/exit": "Exit",
-    "/quit": "Exit",
-}
-
 
 class UnavailableProvider:
     """Explicit disconnected terminal state; never substitutes a model call."""
@@ -123,6 +81,7 @@ class CommandResult:
     quit: bool = False
     task: str | None = None
     side_question: str | None = None
+    login_provider: str | None = None
 
 
 def _count(value: str) -> int:
@@ -223,6 +182,15 @@ class InteractionService:
     def choices(self, kind: str) -> tuple[tuple[str, str], ...]:
         if kind == "commands":
             return tuple(COMMANDS.items())
+        if kind == "fork":
+            users = [entry for entry in self.log.branch() if entry.type == "user"]
+            return tuple(
+                (
+                    item.id,
+                    f"{index}. {preview(item)}",
+                )
+                for index, item in enumerate(reversed(users[-40:]), 1)
+            )
         if kind == "sessions":
             return tuple(
                 (s.id, f"{s.title[:65]}  ·  {s.id}")
@@ -258,7 +226,31 @@ class InteractionService:
                 )
             )
         if kind == "queue":
-            return tuple((x, x) for x in ("followup", "steer", "interrupt"))
+            return tuple(
+                (name, description)
+                for name, description in (
+                    ("followup", "Queue input for after the current turn"),
+                    ("steer", "Guide the model on its next step"),
+                    ("interrupt", "Stop the current task and replace it"),
+                )
+            )
+        if kind == "thinking":
+            return (("on", "Show reasoning summaries"), ("off", "Hide reasoning summaries"))
+        if kind == "auth":
+            return (
+                ("status", "List connected accounts"),
+                ("login", "Connect a provider"),
+                ("logout", "Disconnect a provider"),
+            )
+        if kind == "goal":
+            return (
+                ("pause", "Pause the active goal"),
+                ("resume", "Resume a paused goal"),
+                ("done", "Mark goal complete"),
+                ("clear", "Remove workspace goal"),
+            )
+        if kind == "context-window":
+            return (("default", "Use the selected model limit"),)
         if kind == "mode":
             return tuple((m, m) for m in ("act", "build", "plan"))
         if kind == "skill":
@@ -507,12 +499,7 @@ class InteractionService:
         if command in {"/quit", "/exit"}:
             return CommandResult(quit=True)
         if command == "/help":
-            return CommandResult(
-                tuple(
-                    f"{name:<18} {description}"
-                    for name, description in COMMANDS.items()
-                )
-            )
+            return CommandResult(command_help())
         if command in {"/new", "/clear"}:
             self._new()
             return CommandResult(
@@ -550,6 +537,8 @@ class InteractionService:
             details = json.dumps(entry.data, ensure_ascii=False, indent=2)
             return CommandResult((f"{entry.type} · {entry.id}\n{details}",))
         if command in {"/clone", "/fork", "/rewind"}:
+            if command == "/fork" and not arg:
+                return CommandResult(picker="fork")
             draft = None
             if command == "/fork":
                 turn = self._turn(arg)
@@ -596,6 +585,7 @@ class InteractionService:
             self.provider_config = ProviderConfig(
                 provider=self.provider_config.provider,
                 model=self.provider_config.model,
+                base_url=self.provider_config.base_url,
                 reasoning_effort=self.provider_config.reasoning_effort,
                 thinking=(arg == "on") if arg else not self.provider_config.thinking,
             )
@@ -632,8 +622,24 @@ class InteractionService:
                 ("Compacted" if ok else "Nothing to compact",), changed_session=ok
             )
         if command in {"/rollover", "/new-context"}:
+            if arg and arg != "--force":
+                raise ValueError("Usage: /rollover [--force]")
+            working_note = self.workspace / "NOTE.md"
+            if arg != "--force" and not working_note.is_file():
+                return CommandResult(
+                    (
+                        "Write NOTE.md with the current goal, decisions, "
+                        "verification status and next action before rollover; "
+                        "use /rollover --force to continue without it.",
+                    )
+                )
+            handoff = (
+                working_note.read_text(encoding="utf-8")
+                if working_note.is_file()
+                else None
+            )
             with self.log.run_lock():
-                ok = reset_window(self.log, handoff=arg or None, reason="manual")
+                ok = reset_window(self.log, handoff=handoff, reason="manual")
             return CommandResult(
                 ("Context reset" if ok else "No task to reset",), changed_session=ok
             )
@@ -649,6 +655,14 @@ class InteractionService:
                 )
             raise ValueError("Usage: /permissions [list|clear]")
         if command in {"/undo", "/revert"}:
+            if arg == "--list":
+                snapshots = self.snapshots.list()
+                return CommandResult(
+                    tuple(
+                        f"{item.created_at}  {item.path}"
+                        for item in reversed(snapshots)
+                    ) or ("No snapshots available",)
+                )
             messages = []
             for _ in range(_count(arg)):
                 restored = self.snapshots.undo_last()
@@ -664,11 +678,18 @@ class InteractionService:
                 )
             if arg == "clear":
                 self.goals.clear()
-            elif arg == "done":
-                self.goals.complete()
+                return CommandResult(("Goal cleared",))
+            if arg == "done":
+                goal = self.goals.complete()
+            elif arg == "pause":
+                goal = self.goals.pause()
+            elif arg == "resume":
+                goal = self.goals.resume()
             else:
-                self.goals.set(arg)
-            return CommandResult((f"Goal: {arg}",))
+                goal = self.goals.set(arg)
+            return CommandResult(
+                (f"{goal.status}: {goal.objective}" if goal else "No goal is set",)
+            )
         if command == "/btw":
             if not arg:
                 raise ValueError("Usage: /btw QUESTION")
@@ -702,14 +723,14 @@ class InteractionService:
                 CommandResult(task="$" + arg) if arg else CommandResult(picker="skill")
             )
         if command == "/tool":
-            return (
-                CommandResult(picker="tool")
-                if not arg
-                else CommandResult(
-                    (
-                        "Use /tool NAME JSON to invoke a tool; arguments are shown before execution.",
-                    )
+            if not arg:
+                return CommandResult(picker="tool")
+            if arg == "list":
+                return CommandResult(
+                    tuple(f"{tool.name} · {tool.description}" for tool in self.tools)
                 )
+            return CommandResult(
+                ("Use /tool NAME JSON to invoke a tool.",)
             )
         if command == "/mcp":
             return CommandResult(
@@ -727,12 +748,23 @@ class InteractionService:
                 return CommandResult(picker="config")
             name, sep, value = arg.partition("=")
             if not sep:
-                raise ValueError("Usage: /config KEY=VALUE")
+                return CommandResult(draft=self.settings.edit_command(name.strip()))
             return CommandResult((self.settings.save(name.strip(), value.strip()),))
         if command == "/auth":
-            return CommandResult(self.auth.status())
-        if command == "/login":
-            return CommandResult(picker="login")
+            sub, _, details = arg.partition(" ")
+            if sub in {"", "status"}:
+                return CommandResult(self.auth.status())
+            if sub in {"login", "connect"}:
+                return await self.command("/login " + details)
+            if sub == "logout":
+                return await self.command("/logout " + details)
+            raise ValueError("Usage: /auth [status|login|logout]")
+        if command in {"/login", "/connect"}:
+            if not arg:
+                return CommandResult(picker="login")
+            if arg not in self.auth.PROVIDERS:
+                raise ValueError(f"Unknown provider: {arg}")
+            return CommandResult(login_provider=arg)
         if command == "/logout":
             return CommandResult(
                 (self.auth.logout(arg),) if arg else (),

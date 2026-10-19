@@ -18,7 +18,7 @@ _GOAL_PATH = Path(".cade-mini") / "goal.json"
 @dataclass(frozen=True)
 class Goal:
     objective: str
-    status: Literal["active", "done"]
+    status: Literal["active", "paused", "done"]
     updated_at: str
 
 
@@ -42,7 +42,7 @@ class GoalStore:
         status = raw.get("status")
         if not isinstance(objective, str) or not objective.strip():
             return None
-        if status not in {"active", "done"}:
+        if status not in {"active", "paused", "done"}:
             return None
         return Goal(
             objective=objective.strip(),
@@ -70,6 +70,34 @@ class GoalStore:
         )
         self._write(done)
         return done
+
+    def pause(self) -> Goal | None:
+        goal = self.load()
+        if goal is None:
+            return None
+        if goal.status == "done":
+            raise ValueError("Cannot pause a completed goal")
+        paused = Goal(
+            objective=goal.objective,
+            status="paused",
+            updated_at=datetime.now(UTC).isoformat(),
+        )
+        self._write(paused)
+        return paused
+
+    def resume(self) -> Goal | None:
+        goal = self.load()
+        if goal is None:
+            return None
+        if goal.status == "done":
+            raise ValueError("Cannot resume a completed goal")
+        active = Goal(
+            objective=goal.objective,
+            status="active",
+            updated_at=datetime.now(UTC).isoformat(),
+        )
+        self._write(active)
+        return active
 
     def clear(self) -> None:
         self.path.unlink(missing_ok=True)
@@ -107,7 +135,7 @@ class GoalTool:
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["get", "set", "complete", "clear"],
+                    "enum": ["get", "set", "pause", "resume", "complete", "clear"],
                 },
                 "objective": {"type": "string"},
             },
@@ -134,6 +162,14 @@ class GoalTool:
             goal = self.store.set(_text_arg(call.args, "objective"))
             return ToolResult(
                 content=f"Goal set: {goal.objective}",
+                metadata={"status": goal.status},
+            )
+        if action in {"pause", "resume"}:
+            goal = self.store.pause() if action == "pause" else self.store.resume()
+            if goal is None:
+                return ToolResult(content="No goal is set.", is_error=True)
+            return ToolResult(
+                content=f"Goal {goal.status}: {goal.objective}",
                 metadata={"status": goal.status},
             )
         if action == "complete":

@@ -8,10 +8,13 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
+from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
+from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
 
-from cade_mini.hosts.interaction import COMMANDS, InteractionService
+from cade_mini.hosts.command_catalog import COMMANDS, COMMAND_INDEX
+from cade_mini.hosts.interaction import InteractionService
 
 _BLOCKED = frozenset(
     {".git", ".cade-mini", ".venv", "node_modules", "__pycache__", "dist", "build"}
@@ -36,6 +39,19 @@ def score(query: str, candidate: str) -> tuple[int, int, int] | None:
         indices.append(at)
         offset = at + 1
     return (2, (indices[-1] - indices[0]) if indices else 0, len(text))
+
+
+class CommandArgsSuggester(AutoSuggest):
+    """Show the same inline slash-command argument hints as Cade."""
+
+    def get_suggestion(
+        self, buffer: Buffer, document: Document
+    ) -> Suggestion | None:
+        command = document.text.strip()
+        spec = COMMAND_INDEX.get(command)
+        if spec is None or not spec.args:
+            return None
+        return Suggestion(" " + spec.args)
 
 
 class CadeCompleter(Completer):
@@ -100,6 +116,19 @@ class CadeCompleter(Completer):
                     "/mode": "mode",
                     "/effort": "effort",
                     "/resume": "sessions",
+                    "/sessions": "sessions",
+                    "/fork": "fork",
+                    "/tree": "tree",
+                    "/thinking": "thinking",
+                    "/auth": "auth",
+                    "/login": "login",
+                    "/connect": "login",
+                    "/logout": "logout",
+                    "/config": "config",
+                    "/context-window": "context-window",
+                    "/permissions": "permissions",
+                    "/queue": "queue",
+                    "/goal": "goal",
                     "/skill": "skill",
                     "/tool": "tool",
                 }.get(name)
