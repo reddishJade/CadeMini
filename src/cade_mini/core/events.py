@@ -33,6 +33,7 @@ class _Meta(_Payload):
     session: NonEmpty
     project: NonEmpty
     created: NonEmpty
+    title: str | None = None
 
 
 class _System(_Payload):

@@ -14,6 +14,7 @@ from cade_mini.ai.events import (
     ProviderEvent,
     ProviderFailure,
     ProviderReplayPayload,
+    ReasoningDelta,
     TextDelta,
     ToolCallEvent,
     UsageUpdate,
@@ -123,6 +124,17 @@ class TextDeltaEvent:
 
 
 @dataclass(frozen=True)
+class ReasoningDeltaEvent:
+    text: str
+
+
+@dataclass(frozen=True)
+class UsageEvent:
+    input_tokens: int
+    output_tokens: int
+
+
+@dataclass(frozen=True)
 class ToolStartEvent:
     call_id: str
     name: str
@@ -136,7 +148,9 @@ class ToolEndEvent:
     is_error: bool
 
 
-type LoopEvent = TextDeltaEvent | ToolStartEvent | ToolEndEvent
+type LoopEvent = (
+    TextDeltaEvent | ReasoningDeltaEvent | UsageEvent | ToolStartEvent | ToolEndEvent
+)
 
 
 @dataclass(frozen=True)
@@ -360,6 +374,8 @@ async def run(
                     cancel.reason,
                 )
 
+            # Show the call while permission is pending, including denied calls.
+            _emit(on_event, ToolStartEvent(call.id, call.name, call.args))
             decision = await _decide(policy, approve, call)
             if decision == "deny":
                 content = f"Permission denied: {call.name}"
@@ -382,7 +398,6 @@ async def run(
                     _emit(on_event, ToolEndEvent(call.id, content, True))
                     continue
 
-            _emit(on_event, ToolStartEvent(call.id, call.name, call.args))
             tool_result = await _execute_tool(tool, call, cancel, tool_timeout_seconds)
             content = _truncate(tool_result.content)
             _append_tool_result(log, call, content, tool_result.is_error)
@@ -496,11 +511,14 @@ async def _call_provider(
                             args=cast(dict[str, JsonValue], dict(call.input)),
                         )
                     )
+            elif isinstance(event, ReasoningDelta):
+                _emit(on_event, ReasoningDeltaEvent(event.chunk))
             elif isinstance(event, UsageUpdate):
                 usage = {
                     "input": event.input_tokens,
                     "output": event.output_tokens,
                 }
+                _emit(on_event, UsageEvent(event.input_tokens, event.output_tokens))
             elif isinstance(event, FinalMessage):
                 stop_reason = event.stop_reason
                 replay = event.replay_payload

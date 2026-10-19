@@ -290,6 +290,12 @@ def _now() -> str:
 
 def session_title(entries: Sequence[LogEntry]) -> str:
     """取第一条非空用户输入作为会话标题。"""
+    for entry in reversed(entries):
+        if entry.type != "meta":
+            continue
+        explicit = entry.data.get("title")
+        if isinstance(explicit, str) and explicit.strip():
+            return explicit
     for entry in entries:
         if entry.type != "user":
             continue
