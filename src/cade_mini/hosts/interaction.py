@@ -83,6 +83,7 @@ class CommandResult:
     task: str | None = None
     side_question: str | None = None
     login_provider: str | None = None
+    config_field: str | None = None
 
 
 def _count(value: str) -> int:
@@ -752,7 +753,8 @@ class InteractionService:
                 return CommandResult(picker="config")
             name, sep, value = arg.partition("=")
             if not sep:
-                return CommandResult(draft=self.settings.edit_command(name.strip()))
+                self.settings.edit_command(name.strip())
+                return CommandResult(config_field=name.strip())
             return CommandResult((self.settings.save(name.strip(), value.strip()),))
         if command == "/auth":
             sub, _, details = arg.partition(" ")
