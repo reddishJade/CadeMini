@@ -16,7 +16,7 @@ from cade_mini.tools.workspace import resolve_workspace_path
 type Mode = Literal["plan", "build", "act"]
 
 _PLAN_TOOLS = frozenset(
-    {"read", "glob", "grep", "history", "skill", "delegate", "bash"}
+    {"read", "glob", "grep", "history", "skill", "delegate", "bash", "question"}
 )
 
 
@@ -92,6 +92,7 @@ class WorkspacePolicy:
             "skill",
             "subagent",
             "delegate",
+            "question",
         }:
             return "allow"
         if call.name == "read":
