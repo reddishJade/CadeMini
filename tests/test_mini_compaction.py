@@ -13,6 +13,7 @@ from cade_mini.ai.events import (
     ProviderEvent,
     ProviderFailure,
     TextDelta,
+    UsageUpdate,
 )
 from cade_mini.ai.types import StreamOptions, ToolDefinition
 from cade_mini.core.compaction import CompactionConfig, Compactor
@@ -252,3 +253,48 @@ async def test_compaction_config_rejects_bad_values() -> None:
         CompactionConfig(keep_recent_tokens=0)
     with pytest.raises(ValueError):
         CompactionConfig(max_summary_chars=0)
+
+
+@pytest.mark.parametrize(
+    "failed,fallback", [(False, False), (True, True), (True, False)]
+)
+async def test_run_counts_compaction_usage(
+    tmp_path: Path, failed: bool, fallback: bool
+) -> None:
+    log = _log(tmp_path)
+    log.append("user", {"text": "old " * 5_000})
+    old_answer = _assistant("old answer " * 5_000)
+    old_answer["usage"] = {"input": 999, "output": 999}
+    log.append("assistant", old_answer)
+    summary: list[ProviderEvent] = [UsageUpdate(100, 20)]
+    summary += (
+        [ProviderFailure("summary failed", "Error")]
+        if failed
+        else _summary_response("summary")
+    )
+    provider = FakeProvider([summary, [UsageUpdate(30, 4), *_summary_response("done")]])
+    result = await run(
+        log,
+        "new task",
+        provider=provider,
+        tools=(),
+        budget=Budget(2_000, output_reserve=0, headroom_tokens=0),
+        compact=Compactor(provider),
+        window=(lambda log: reset_window(log, reason="fallback")) if fallback else None,
+    )
+    admitted = not failed or fallback
+    expected = (
+        {"input": 130, "output": 24} if admitted else {"input": 100, "output": 20}
+    )
+    assert result.termination == ("completed" if admitted else "context_error")
+    assert result.usage == expected
+    assert log.branch()[-1].data["usage"] == expected
+
+    resumed = await run(
+        SessionLog.open(log.path),
+        "follow up",
+        provider=FakeProvider([[UsageUpdate(7, 2), *_summary_response("next")]]),
+        tools=(),
+        budget=Budget(100_000),
+    )
+    assert resumed.usage == {"input": 7, "output": 2}

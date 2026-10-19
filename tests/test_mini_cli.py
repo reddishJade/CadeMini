@@ -22,6 +22,7 @@ from cade_mini.ai.events import (
     TextDelta,
     ToolCall,
     ToolCallEvent,
+    UsageUpdate,
 )
 from cade_mini.ai.types import StreamOptions, ToolDefinition
 from cade_mini.core.log import SessionLog
@@ -71,6 +72,37 @@ class FakeProvider:
                 yield event
 
         return events()
+
+
+def test_cli_final_usage_includes_compaction(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    log = SessionLog.create(tmp_path / ".cade-mini" / "sessions")
+    log.append("user", {"text": "old task " * 10_000})
+    provider = FakeProvider(
+        [
+            [UsageUpdate(100, 20), TextDelta("summary"), FinalMessage("", "end_turn")],
+            [UsageUpdate(30, 4), TextDelta("done"), FinalMessage("", "end_turn")],
+        ]
+    )
+    code = main(
+        [
+            "exec",
+            "next task",
+            "--project-root",
+            str(tmp_path),
+            "--resume",
+            log.session_id,
+            "--json",
+            "--context-window",
+            "30000",
+        ],
+        provider=provider,
+    )
+    assert code == 0
+    final = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert final["termination"] == "completed"
+    assert final["usage"] == {"input": 130, "output": 24}
 
 
 def _text(text: str) -> list[ProviderEvent]:

@@ -555,6 +555,47 @@ async def test_run_reports_usage_and_max_tokens(tmp_path: Path) -> None:
     assert run_entry.data["usage"] == {"input": 10, "output": 5}
 
 
+async def test_failed_attempt_preserves_reported_usage(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+    result = await run(
+        log,
+        "hi",
+        provider=FakeProvider(
+            [
+                [UsageUpdate(10, 2), ProviderFailure("timeout", "TimeoutError")],
+                [UsageUpdate(20, 3), *_text_response("recovered")],
+            ]
+        ),
+        tools=(),
+        budget=Budget(100_000),
+        retry_delay_seconds=0,
+    )
+    assert result.termination == "completed"
+    assert result.usage == {"input": 30, "output": 5}
+    attempt = next(entry for entry in log.branch() if entry.type == "attempt")
+    assert attempt.data["usage"] == {"input": 10, "output": 2}
+
+
+async def test_cancellation_keeps_usage_from_finished_step(tmp_path: Path) -> None:
+    token = CancellationToken()
+
+    def cancel_after_tool(event: object) -> None:
+        if isinstance(event, ToolEndEvent):
+            token.cancel()
+
+    result = await run(
+        _log(tmp_path),
+        "hi",
+        provider=FakeProvider([[UsageUpdate(10, 2), *_tool_response("c1")]]),
+        tools=(EchoTool(),),
+        budget=Budget(100_000),
+        cancel=token,
+        on_event=cancel_after_tool,
+    )
+    assert result.termination == "aborted"
+    assert result.usage == {"input": 10, "output": 2}
+
+
 async def test_run_empty_response_is_a_provider_error(tmp_path: Path) -> None:
     provider = FakeProvider([[FinalMessage("", "end_turn")]])
     log = _log(tmp_path)

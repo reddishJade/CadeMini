@@ -189,6 +189,7 @@ async def run(
     每次 provider 调用前把请求审计写入日志；只有 assistant 与 tool_result
     进入投影。上下文超限时先调用 compact 钩子；压缩后仍超预算时再调用
     window 钩子丢弃更早的历史。
+    用量汇总包含本次运行的摘要调用；失败尝试保留已上报的用量。
     """
     if max_steps <= 0:
         raise ValueError("max_steps must be positive")
@@ -211,7 +212,14 @@ async def run(
 
     for step in range(1, max_steps + 1):
         if cancel is not None and cancel.cancelled:
-            return _finish(log, "aborted", step, last_answer, None, cancel.reason)
+            return _finish(
+                log,
+                "aborted",
+                step,
+                last_answer,
+                _usage(total_usage, has_usage),
+                cancel.reason,
+            )
 
         if steering is not None:
             while True:
@@ -224,14 +232,21 @@ async def run(
                         {"text": message.strip(), "source": "runtime"},
                     )
 
-        conversation = project(log.branch())
+        entries = log.branch()
+        conversation = project(entries)
         full_tokens = estimate(conversation, tools=definitions, context=context)
-        if (
-            full_tokens > budget.input_budget
-            and compact is not None
-            and await compact(log, budget)
-        ):
-            conversation = project(log.branch())
+        if full_tokens > budget.input_budget and compact is not None:
+            compacted = await compact(log, budget)
+            updated_entries = log.branch()
+            # 只统计本次压缩新增的调用，失败摘要也可能已产生用量。
+            for entry in updated_entries[len(entries) :]:
+                usage = entry.data.get("usage")
+                if entry.type in {"compaction", "attempt"} and isinstance(usage, dict):
+                    total_usage["input"] += cast(int, usage["input"])
+                    total_usage["output"] += cast(int, usage["output"])
+                    has_usage = True
+            if compacted:
+                conversation = project(updated_entries)
         request = build(
             conversation,
             tools=definitions,
@@ -281,7 +296,7 @@ async def run(
             )
 
         if result.failure is not None:
-            _append_attempt(log, provider, result.failure)
+            _append_attempt(log, provider, result.failure, result.usage)
             if retries < max_provider_retries and _retryable(result.failure):
                 retries += 1
                 if retry_delay_seconds > 0:
@@ -301,7 +316,7 @@ async def run(
                 message="empty model response",
                 exception_type="EmptyResponse",
             )
-            _append_attempt(log, provider, failure)
+            _append_attempt(log, provider, failure, result.usage)
             return _finish(
                 log,
                 "provider_error",
@@ -564,6 +579,7 @@ def _append_attempt(
     log: SessionLog,
     provider: Provider,
     failure: ProviderFailure,
+    usage: dict[str, int] | None = None,
 ) -> None:
     log.append(
         "attempt",
@@ -571,7 +587,7 @@ def _append_attempt(
             "model": provider.model,
             "provider": provider.transport,
             "error": failure.message,
-            "usage": None,
+            "usage": cast(JsonValue, usage),
         },
     )
 
