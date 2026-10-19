@@ -1,30 +1,45 @@
 # Hosts
 
-Cade Mini has one host: the terminal CLI. It uses the session log, request
-builder, tools, and policy.
+Cade Mini runs one shared session log, request builder, tools and policy.
+The terminal host has three modes: inline TUI, line-oriented REPL and one-shot.
 
 ## Terminal
 
-Without a task, the CLI starts a REPL:
+Running `cade-mini` on an interactive terminal opens the main-screen inline
+TUI with native scrollback, streamed Markdown, a multiline editor, completion,
+searchable session/model/configuration pickers, grouped exploration tools,
+streamed Markdown, reasoning folding, and interactive approvals:
 
 ```bash
 cade-mini
 ```
 
-The REPL prints tool progress to stderr, streams assistant text to stdout, and
-accepts the commands listed in [CLI](cli.md). With a task, it runs once and
-exits:
+For scripts or terminals without rich interaction, use the line-based REPL:
+
+```bash
+cade-mini --no-tui
+```
+
+Pass a task to run once, independently of either interactive mode:
 
 ```bash
 cade-mini "Fix the failing test."
 cade-mini exec "Fix the failing test."
 ```
 
-One-shot mode supports `--json` for a JSONL event stream. The REPL does not.
+The TUI also provides an interactive `question` tool for single-choice,
+multiple-choice and multiline free-text answers during agent execution.
+Ctrl+K searches commands, Ctrl+P selects a model and Ctrl+G selects a session.
+When an existing workspace needs fresh credentials, the terminal remains
+available and prompts for `/login` before running a model task. Manual `!shell`
+and `/tool` calls use the same authorization and hook lifecycle as agent tools.
+
+One-shot mode supports `--json` for a JSONL event stream. The interactive
+hosts do not. First-time TUI setup selects a model and configures SIWC
+ChatGPT browser authentication or an OpenAI API key when needed.
 
 ## Choosing a mode
 
-Use the REPL for interactive review and approvals. Use one-shot mode for scripts
-and CI, with `--read-only` or explicit rules rather than a blanket `--yes`.
-
-There is no separate TUI workbench. The REPL provides terminal interaction.
+The inline TUI is the default for everyday terminal work. Choose one-shot for
+scripts and CI, with `--read-only` or explicit rules rather than a blanket
+`--yes`. `--no-tui` preserves line-based terminal interaction.

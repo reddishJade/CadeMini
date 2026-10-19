@@ -1,8 +1,9 @@
 # Cade Mini
 
 Cade Mini is a standalone Python coding agent with a durable, append-only
-session log. It runs one-shot tasks or an interactive terminal REPL. It does
-not require Cade.
+session log. It runs one-shot tasks or an inline terminal TUI with native
+scrollback, streaming output, and interactive session controls. It does not
+require Cade.
 
 ## Install and start
 
@@ -10,7 +11,8 @@ You need Python 3.12+ and [uv](https://docs.astral.sh/uv/). From this checkout:
 
 ```bash
 uv sync --locked
-uv run --locked cade-mini login
+uv run --locked cade-mini             # interactive terminal and first-run setup
+uv run --locked cade-mini login       # alternative: configure credentials first
 uv run --locked cade-mini "Read README.md and explain how this project runs."
 ```
 
@@ -38,9 +40,16 @@ cade-mini --help
 ```bash
 cade-mini
 cade-mini exec "Review recent changes"
+cade-mini --no-tui                  # legacy line-based REPL
 cade-mini --continue "Continue work"
 cade-mini --mode build "Fix the bug"
 ```
+
+In an interactive terminal, `cade-mini` opens the inline TUI; `--no-tui` keeps
+the legacy REPL. The TUI offers session/model selectors, `@file`/`$skill`
+completion, `!shell`, in-terminal approvals, Ctrl+O tool detail, Ctrl+T
+reasoning, Ctrl+K command search, Ctrl+P model selection, Alt+Enter steering,
+Ctrl+J newline, interactive user questions, and busy-task queueing.
 
 Act mode is the default. Writes and mutating shell commands require approval.
 Permission checks are not an OS sandbox. Sessions and snapshots live in the

@@ -95,6 +95,43 @@ flowchart LR
   hosts_cli --> safety_review
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
+  hosts_interaction --> ai_events
+  hosts_interaction --> ai_models
+  hosts_interaction --> app_provider
+  hosts_interaction --> core_compaction
+  hosts_interaction --> core_log
+  hosts_interaction --> core_loop
+  hosts_interaction --> core_projection
+  hosts_interaction --> core_request
+  hosts_interaction --> core_types
+  hosts_interaction --> core_window
+  hosts_interaction --> extensions_goal
+  hosts_interaction --> extensions_hooks
+  hosts_interaction --> extensions_skills
+  hosts_interaction --> extensions_snapshots
+  hosts_interaction --> extensions_subagents
+  hosts_interaction --> hosts_interaction_question
+  hosts_interaction --> hosts_interaction_settings
+  hosts_interaction --> safety_policy
+  hosts_interaction --> safety_review
+  hosts_interaction --> tools_history
+  hosts_interaction --> tools_workspace
+  hosts_interaction_question --> core_loop
+  hosts_interaction_question --> core_types
+  hosts_interaction_settings --> ai_auth
+  hosts_interaction_settings --> app_auth
+  hosts_interaction_settings --> app_config
+  hosts_tui_app --> ai_auth
+  hosts_tui_app --> ai_models
+  hosts_tui_app --> core_loop
+  hosts_tui_app --> core_types
+  hosts_tui_app --> hosts_interaction
+  hosts_tui_app --> hosts_interaction_question
+  hosts_tui_completion --> hosts_interaction
+  hosts_tui_setup --> ai_models
+  hosts_tui_setup --> hosts_interaction_settings
+  hosts_tui_state --> core_log
+  hosts_tui_state --> core_loop
   safety_approval --> core_types
   safety_approval --> safety_grants
   safety_grants --> core_types

@@ -1,6 +1,6 @@
 # CLI
 
-The `cade-mini` entry point runs one task, starts a REPL, or manages sessions.
+The `cade-mini` entry point runs one task, starts an interactive TUI, or manages sessions.
 
 ```bash
 cade-mini [TASK] [options]
@@ -8,7 +8,42 @@ cade-mini exec TASK [options]
 ```
 
 `exec` is an explicit alias for a one-shot task. Without a task, `cade-mini`
-starts the interactive REPL.
+starts the inline TUI on an interactive terminal. Use `--no-tui` for the
+legacy REPL.
+
+## Interactive terminal
+
+The TUI uses main-screen terminal scrollback, streamed Markdown, tool/reasoning
+folding and project/session/model selectors. A new project can be configured
+using the provider/model setup wizard; ChatGPT uses SIWC browser login and
+OpenAI uses an API key. Existing login credentials remain in the Mini store.
+
+- Enter sends a prompt; while busy, Enter queues, Alt+Enter steers, Ctrl+C cancels.
+- Ctrl+J inserts a newline; Ctrl+O expands tool details (and approval previews);
+  Ctrl+T expands model reasoning.
+- PageUp/PageDown scroll a long approval preview; Enter accepts the selected
+  decision; Esc denies it.
+- / commands, @file references, $skills, !shell, and model selection have
+  in-terminal completion.
+- Shift+Tab changes mode; Ctrl+D twice exits on an empty prompt. Ctrl+Q exits.
+- /btw QUESTION asks an isolated streaming side question without logging it.
+- Ctrl+K opens the searchable command palette, Ctrl+P the model selector, and
+  Ctrl+G the session selector; ? opens the palette at an empty prompt.
+- Session, model, configuration and tool selectors support fuzzy search;
+  use ↑/↓ and Enter, Tab to focus the list, Esc to close.
+- The model selector includes a custom model ID entry.
+- Consecutive completed read/search tool calls are grouped in compact view;
+  Ctrl+O expands their individual calls, results and edit diffs.
+- When the model invokes `question`, the TUI collects single choices, multiple
+  choices or a free-text answer without restarting the agent. Ctrl+J inserts a
+  newline in a free-text answer; Enter submits it.
+- An existing workspace with missing or expired credentials still opens the TUI
+  in an explicit sign-in-required state; use `/login` to reconnect. One-shot
+  tasks keep their fail-fast authentication behavior.
+- `/tool NAME JSON` runs one tool interactively with the same hooks, approvals,
+  and folded output as model-initiated tools.
+
+A task or `exec TASK` continues to run once and exit, without opening the TUI.
 
 ## Login
 
@@ -28,7 +63,8 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 - `--project-root PATH` sets the workspace. The default is the current
   directory.
 - `--config PATH` selects a config file. The default is
-  `<project-root>/cade-mini.json`.
+  `<project-root>/cade-mini.json`. In the TUI, `/config` edits this same file
+  rather than silently writing the default.
 - `--provider NAME`, `--model NAME`, and `--effort EFFORT` override provider
   defaults.
 - `--mode plan|build|act` selects the execution mode.
@@ -38,6 +74,7 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 - `--max-steps N` bounds model steps.
 - `--context-window N` overrides the model context window.
 - `--json` emits JSONL events for a one-shot task.
+- `--tui` / `--no-tui` forces or disables the inline interactive terminal.
 - `--steer TEXT` injects guidance at the next model step; repeatable.
 - `--queue TEXT` queues a REPL task to run after the current task; repeatable.
 
@@ -57,7 +94,7 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 
 - `--goal TEXT` sets the workspace goal before running.
 
-## REPL commands
+## Interactive commands (TUI and legacy REPL)
 
 - `/new` starts a new session.
 - `/resume [ID]` resumes the latest or a specific session.
@@ -79,7 +116,7 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 - `/help` prints the command list.
 - `/exit` or `/quit` exits.
 
-## REPL input
+## Interactive input
 
 - `@path` attaches a workspace file to the task.
 - `$skill` loads a skill body into the task.

@@ -207,7 +207,7 @@ Open `docs/index.html`. The docs source is under `docs/`.
 
 # CLI
 
-The `cade-mini` entry point runs one task, starts a REPL, or manages sessions.
+The `cade-mini` entry point runs one task, starts an interactive TUI, or manages sessions.
 
 ```bash
 cade-mini [TASK] [options]
@@ -215,7 +215,42 @@ cade-mini exec TASK [options]
 ```
 
 `exec` is an explicit alias for a one-shot task. Without a task, `cade-mini`
-starts the interactive REPL.
+starts the inline TUI on an interactive terminal. Use `--no-tui` for the
+legacy REPL.
+
+## Interactive terminal
+
+The TUI uses main-screen terminal scrollback, streamed Markdown, tool/reasoning
+folding and project/session/model selectors. A new project can be configured
+using the provider/model setup wizard; ChatGPT uses SIWC browser login and
+OpenAI uses an API key. Existing login credentials remain in the Mini store.
+
+- Enter sends a prompt; while busy, Enter queues, Alt+Enter steers, Ctrl+C cancels.
+- Ctrl+J inserts a newline; Ctrl+O expands tool details (and approval previews);
+  Ctrl+T expands model reasoning.
+- PageUp/PageDown scroll a long approval preview; Enter accepts the selected
+  decision; Esc denies it.
+- / commands, @file references, $skills, !shell, and model selection have
+  in-terminal completion.
+- Shift+Tab changes mode; Ctrl+D twice exits on an empty prompt. Ctrl+Q exits.
+- /btw QUESTION asks an isolated streaming side question without logging it.
+- Ctrl+K opens the searchable command palette, Ctrl+P the model selector, and
+  Ctrl+G the session selector; ? opens the palette at an empty prompt.
+- Session, model, configuration and tool selectors support fuzzy search;
+  use ↑/↓ and Enter, Tab to focus the list, Esc to close.
+- The model selector includes a custom model ID entry.
+- Consecutive completed read/search tool calls are grouped in compact view;
+  Ctrl+O expands their individual calls, results and edit diffs.
+- When the model invokes `question`, the TUI collects single choices, multiple
+  choices or a free-text answer without restarting the agent. Ctrl+J inserts a
+  newline in a free-text answer; Enter submits it.
+- An existing workspace with missing or expired credentials still opens the TUI
+  in an explicit sign-in-required state; use `/login` to reconnect. One-shot
+  tasks keep their fail-fast authentication behavior.
+- `/tool NAME JSON` runs one tool interactively with the same hooks, approvals,
+  and folded output as model-initiated tools.
+
+A task or `exec TASK` continues to run once and exit, without opening the TUI.
 
 ## Login
 
@@ -235,7 +270,8 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 - `--project-root PATH` sets the workspace. The default is the current
   directory.
 - `--config PATH` selects a config file. The default is
-  `<project-root>/cade-mini.json`.
+  `<project-root>/cade-mini.json`. In the TUI, `/config` edits this same file
+  rather than silently writing the default.
 - `--provider NAME`, `--model NAME`, and `--effort EFFORT` override provider
   defaults.
 - `--mode plan|build|act` selects the execution mode.
@@ -245,6 +281,7 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 - `--max-steps N` bounds model steps.
 - `--context-window N` overrides the model context window.
 - `--json` emits JSONL events for a one-shot task.
+- `--tui` / `--no-tui` forces or disables the inline interactive terminal.
 - `--steer TEXT` injects guidance at the next model step; repeatable.
 - `--queue TEXT` queues a REPL task to run after the current task; repeatable.
 
@@ -264,7 +301,7 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 
 - `--goal TEXT` sets the workspace goal before running.
 
-## REPL commands
+## Interactive commands (TUI and legacy REPL)
 
 - `/new` starts a new session.
 - `/resume [ID]` resumes the latest or a specific session.
@@ -286,7 +323,7 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 - `/help` prints the command list.
 - `/exit` or `/quit` exits.
 
-## REPL input
+## Interactive input
 
 - `@path` attaches a workspace file to the task.
 - `$skill` loads a skill body into the task.
@@ -1195,6 +1232,43 @@ flowchart LR
   hosts_cli --> safety_review
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
+  hosts_interaction --> ai_events
+  hosts_interaction --> ai_models
+  hosts_interaction --> app_provider
+  hosts_interaction --> core_compaction
+  hosts_interaction --> core_log
+  hosts_interaction --> core_loop
+  hosts_interaction --> core_projection
+  hosts_interaction --> core_request
+  hosts_interaction --> core_types
+  hosts_interaction --> core_window
+  hosts_interaction --> extensions_goal
+  hosts_interaction --> extensions_hooks
+  hosts_interaction --> extensions_skills
+  hosts_interaction --> extensions_snapshots
+  hosts_interaction --> extensions_subagents
+  hosts_interaction --> hosts_interaction_question
+  hosts_interaction --> hosts_interaction_settings
+  hosts_interaction --> safety_policy
+  hosts_interaction --> safety_review
+  hosts_interaction --> tools_history
+  hosts_interaction --> tools_workspace
+  hosts_interaction_question --> core_loop
+  hosts_interaction_question --> core_types
+  hosts_interaction_settings --> ai_auth
+  hosts_interaction_settings --> app_auth
+  hosts_interaction_settings --> app_config
+  hosts_tui_app --> ai_auth
+  hosts_tui_app --> ai_models
+  hosts_tui_app --> core_loop
+  hosts_tui_app --> core_types
+  hosts_tui_app --> hosts_interaction
+  hosts_tui_app --> hosts_interaction_question
+  hosts_tui_completion --> hosts_interaction
+  hosts_tui_setup --> ai_models
+  hosts_tui_setup --> hosts_interaction_settings
+  hosts_tui_state --> core_log
+  hosts_tui_state --> core_loop
   safety_approval --> core_types
   safety_approval --> safety_grants
   safety_grants --> core_types
@@ -2784,34 +2858,49 @@ that hangs is killed after the configured timeout.
 
 # Hosts
 
-Cade Mini has one host: the terminal CLI. It uses the session log, request
-builder, tools, and policy.
+Cade Mini runs one shared session log, request builder, tools and policy.
+The terminal host has three modes: inline TUI, line-oriented REPL and one-shot.
 
 ## Terminal
 
-Without a task, the CLI starts a REPL:
+Running `cade-mini` on an interactive terminal opens the main-screen inline
+TUI with native scrollback, streamed Markdown, a multiline editor, completion,
+searchable session/model/configuration pickers, grouped exploration tools,
+streamed Markdown, reasoning folding, and interactive approvals:
 
 ```bash
 cade-mini
 ```
 
-The REPL prints tool progress to stderr, streams assistant text to stdout, and
-accepts the commands listed in [CLI](cli.md). With a task, it runs once and
-exits:
+For scripts or terminals without rich interaction, use the line-based REPL:
+
+```bash
+cade-mini --no-tui
+```
+
+Pass a task to run once, independently of either interactive mode:
 
 ```bash
 cade-mini "Fix the failing test."
 cade-mini exec "Fix the failing test."
 ```
 
-One-shot mode supports `--json` for a JSONL event stream. The REPL does not.
+The TUI also provides an interactive `question` tool for single-choice,
+multiple-choice and multiline free-text answers during agent execution.
+Ctrl+K searches commands, Ctrl+P selects a model and Ctrl+G selects a session.
+When an existing workspace needs fresh credentials, the terminal remains
+available and prompts for `/login` before running a model task. Manual `!shell`
+and `/tool` calls use the same authorization and hook lifecycle as agent tools.
+
+One-shot mode supports `--json` for a JSONL event stream. The interactive
+hosts do not. First-time TUI setup selects a model and configures SIWC
+ChatGPT browser authentication or an OpenAI API key when needed.
 
 ## Choosing a mode
 
-Use the REPL for interactive review and approvals. Use one-shot mode for scripts
-and CI, with `--read-only` or explicit rules rather than a blanket `--yes`.
-
-There is no separate TUI workbench. The REPL provides terminal interaction.
+The inline TUI is the default for everyday terminal work. Choose one-shot for
+scripts and CI, with `--read-only` or explicit rules rather than a blanket
+`--yes`. `--no-tui` preserves line-based terminal interaction.
 
 # Development
 
