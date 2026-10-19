@@ -119,6 +119,9 @@ class CadeTui:
         self._question_selected: set[str] = set()
         self._question_text_active = False
         self._secret_provider: str | None = None
+        self._config_field: str | None = None
+        self._config_options: tuple[tuple[str, str], ...] = ()
+        self._config_form_active = False
         self._oauth_cancel: threading.Event | None = None
         self._picker_effort = service.provider_config.reasoning_effort
         self._last_refresh = 0.0
@@ -314,6 +317,36 @@ class CadeTui:
             HSplit([Window(height=1), self._secret_input, Window(height=1)]),
             filter=Condition(lambda: self._secret_provider is not None),
         )
+        config_bindings = KeyBindings()
+        config_bindings.add("enter")(
+            lambda _event: self._save_config_form()
+        )
+        config_bindings.add("escape", eager=True)(
+            lambda _event: self._cancel_config_form()
+        )
+        self._config_input = TextArea(
+            height=1,
+            prompt="Value › ",
+            multiline=False,
+            scrollbar=False,
+            style="class:input",
+        )
+        self._config_input.control.key_bindings = config_bindings
+        self._config_form_panel = ConditionalContainer(
+            HSplit(
+                [
+                    Window(
+                        FormattedTextControl(
+                            text=lambda: f"Configure · {self._config_field or ''}"
+                        ),
+                        height=1,
+                        style="class:accent",
+                    ),
+                    self._config_input,
+                ]
+            ),
+            filter=Condition(lambda: self._config_form_active),
+        )
         self._input_panel = ConditionalContainer(
             HSplit(
                 [Window(height=1), self._input, Window(height=1)],
@@ -325,6 +358,7 @@ class CadeTui:
                     and self._picker_kind is None
                     and self._secret_provider is None
                     and not self._question_text_active
+                    and not self._config_form_active
                 )
             ),
         )
@@ -349,6 +383,7 @@ class CadeTui:
                         self._picker_panel,
                         self._question_text_panel,
                         self._secret_panel,
+                        self._config_form_panel,
                         self._completion_panel,
                         self._input_panel,
                         ConditionalContainer(
@@ -409,6 +444,7 @@ class CadeTui:
             or self._picker_kind is not None
             or self._secret_provider is not None
             or self._question_text_active
+            or self._config_form_active
         )
 
     def _completion_height(self) -> int:
@@ -436,6 +472,8 @@ class CadeTui:
             panel_height = self._question_title_height() + 3
         elif self._secret_provider is not None:
             panel_height = 3
+        elif self._config_form_active:
+            panel_height = 2
         else:
             panel_height = self._input_height() + 2
         available = max(
@@ -545,6 +583,8 @@ class CadeTui:
         return FormattedText([*first, ("", "\n"), *second])
 
     def _hint_text(self) -> str:
+        if self._config_form_active:
+            return " Enter save setting · Esc back to settings "
         if self._question_text_active:
             return " Enter answer · Ctrl+J newline · Esc skip this question "
         if self._secret_provider is not None:
@@ -637,6 +677,7 @@ class CadeTui:
                 and self._approval is None
                 and self._question_future is None
                 and self._secret_provider is None
+                and not self._config_form_active
             )
         )
         bindings.add("c-k", filter=palette_ready)(
