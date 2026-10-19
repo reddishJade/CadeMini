@@ -16,7 +16,7 @@ from cade_mini.core.log import SessionLog
 from cade_mini.core.request import Budget
 from cade_mini.extensions.goal import GoalStore
 from cade_mini.extensions.snapshots import SnapshotStore
-from cade_mini.hosts.command_catalog import COMMANDS, COMMAND_INDEX, command_help
+from cade_mini.hosts.command_catalog import COMMAND_INDEX, COMMANDS, command_help
 from cade_mini.hosts.interaction import InteractionService
 from cade_mini.hosts.tui.app import CadeTui
 from cade_mini.hosts.tui.chrome import fit_text, welcome_ansi_lines, welcome_text
