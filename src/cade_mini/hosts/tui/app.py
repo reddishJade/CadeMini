@@ -666,7 +666,9 @@ class CadeTui:
             bindings.add("s-enter")(self._newline)
         except ValueError:
             pass
-        bindings.add("escape", "enter", filter=Condition(lambda: not self._has_modal()))(self._alt_enter)
+        bindings.add(
+            "escape", "enter", filter=Condition(lambda: not self._has_modal())
+        )(self._alt_enter)
         bindings.add(
             "escape",
             eager=True,
