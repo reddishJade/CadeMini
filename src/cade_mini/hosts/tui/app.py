@@ -1108,17 +1108,13 @@ class CadeTui:
             self._refresh()
             return
         if kind == "model":
-
-            async def switch() -> None:
-                try:
-                    self.transcript.notice(
-                        self.service.select_model(str(choice), effort=effort)
-                    )
-                except (RuntimeError, ValueError) as exc:
-                    self.transcript.notice(str(exc), error=True)
-                self._refresh()
-
-            self._schedule(switch())
+            try:
+                self.transcript.notice(
+                    self.service.select_model(str(choice), effort=effort)
+                )
+            except (OSError, RuntimeError, ValueError) as exc:
+                self.transcript.notice(str(exc), error=True)
+            self._refresh()
             return
         prefix = {
             "sessions": "/resume",

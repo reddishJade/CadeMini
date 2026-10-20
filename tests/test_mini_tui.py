@@ -1424,3 +1424,27 @@ async def test_repeated_login_starts_only_one_oauth_flow(tmp_path: Path) -> None
     release.set()
     await asyncio.gather(*tasks)
     assert terminal._oauth_cancel is None
+
+
+def test_model_picker_applies_selection_before_return(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prompt_toolkit.output import DummyOutput
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    host = service(tmp_path)
+
+    class SelectedProvider(FakeProvider):
+        model = "gpt-6-luna"
+
+    monkeypatch.setattr(
+        "cade_mini.hosts.interaction.build_provider",
+        lambda _config: SelectedProvider(),
+    )
+    terminal = CadeTui(host, output=DummyOutput())
+    terminal._open_picker("model")
+    terminal._picker.current_value = "openai/gpt-6-luna"
+    terminal._pick()
+    assert terminal._picker_kind is None
+    assert host.provider.model == "gpt-6-luna"
+    assert host.provider_config.model == "gpt-6-luna"
