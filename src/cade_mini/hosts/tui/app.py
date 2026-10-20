@@ -118,6 +118,7 @@ class CadeTui:
         self._approval: asyncio.Future[bool] | None = None
         self._approval_call: ToolCallBlock | None = None
         self._exit_armed = 0.0
+        self._exit_key = ""
         self._launch_pending = False
         self._manual_action_running = False
         self._picker_kind: str | None = None
@@ -742,6 +743,7 @@ class CadeTui:
 
     def _input_changed(self) -> None:
         self._exit_armed = 0.0
+        self._exit_key = ""
         self._refresh()
 
     def _is_busy(self) -> bool:
@@ -1363,18 +1365,27 @@ class CadeTui:
         elif self.service.cancel is not None:
             self.service.cancel.cancel("Interrupted by user")
             self.transcript.notice("Stopping current task…")
-        else:
+        elif self._input.text:
             self._input.buffer.reset()
+        else:
+            now = time.monotonic()
+            if self._exit_key == "ctrl-c" and now - self._exit_armed <= 2:
+                self._exit()
+                return
+            self._exit_armed = now
+            self._exit_key = "ctrl-c"
+            self.transcript.notice("Press Ctrl+C again to exit.")
         self._refresh()
 
     def _eof(self, _event: Any) -> None:
         if self._is_busy() or self._input.text or self._has_modal():
             return
         now = time.monotonic()
-        if now - self._exit_armed <= 2:
+        if self._exit_key == "ctrl-d" and now - self._exit_armed <= 2:
             self._exit()
         else:
             self._exit_armed = now
+            self._exit_key = "ctrl-d"
             self.transcript.notice("Press Ctrl+D again to exit.")
             self._refresh()
 

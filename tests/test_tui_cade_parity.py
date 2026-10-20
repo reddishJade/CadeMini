@@ -359,3 +359,18 @@ def test_resume_command_preserves_workspace_and_custom_locations(
     assert "--config" in command
     assert "custom config.json" in command
     assert service.log.session_id in command
+
+
+def test_ctrl_c_idle_exit_requires_matching_second_press(tmp_path: Path) -> None:
+    terminal = CadeTui(host(tmp_path), output=DummyOutput())
+    terminal._cancel(None)
+    assert terminal._exit_key == "ctrl-c"
+    assert terminal._exit_armed > 0
+    terminal._eof(None)
+    assert terminal._exit_key == "ctrl-d"
+    assert any(
+        "Ctrl+D again" in entry.text for entry in terminal.transcript.entries
+    )
+    terminal._input.text = "Unsent message"
+    assert terminal._exit_key == ""
+    assert terminal._exit_armed == 0.0
