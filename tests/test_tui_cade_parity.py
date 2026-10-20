@@ -185,9 +185,11 @@ async def test_command_handlers_open_native_actions(tmp_path: Path) -> None:
     assert (await service.command("/auth status")).lines
     assert (await service.command("/tool list")).lines
     assert (await service.command("/undo --list")).lines == ("No snapshots available",)
-    draft = await service.command("/config mode")
-    assert draft.draft is not None
-    assert draft.draft.startswith("/config mode=")
+    setting = await service.command("/config mode")
+    assert setting.config_field == "mode"
+    assert service.settings.edit_command(setting.config_field).startswith(
+        "/config mode="
+    )
 
     await service.command("/goal Implement a prompt")
     assert "paused:" in (await service.command("/goal pause")).lines[0]

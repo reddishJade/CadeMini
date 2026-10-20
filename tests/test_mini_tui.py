@@ -834,8 +834,14 @@ def test_configuration_picker_prefills_existing_validated_value(
     terminal._open_picker("config")
     terminal._picker.current_value = "context_window"
     terminal._pick()
-    assert terminal._input.text == "/config context_window=250000"
+    assert terminal._config_form_active
+    assert terminal._config_field == "context_window"
+    assert terminal._config_input.text == "250000"
     assert terminal._picker_kind is None
+    terminal._config_input.text = "180000"
+    terminal._save_config_form()
+    assert host.settings._load().context_window == 180000
+    assert terminal._picker_kind == "config"
 
 
 @pytest.mark.asyncio
