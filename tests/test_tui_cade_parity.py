@@ -216,7 +216,7 @@ def test_tui_has_compact_editor_and_contextual_hint(
     terminal._open_picker("model")
     assert terminal._picker.current_value == "openai/test-model"
     model_labels = dict(terminal._picker_source)
-    assert "__custom__" not in model_labels
+    assert model_labels["__custom__"] == "Enter a custom model name…"
     assert "openai/test-model" in model_labels
     assert model_labels["openai/test-model"].count("test-model") == 1
     terminal._close_picker()
