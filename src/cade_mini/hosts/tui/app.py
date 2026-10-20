@@ -564,7 +564,7 @@ class CadeTui:
             keep_left_end=True,
             left_style="class:status-accent",
         )
-        status = f"● Ready · {service.policy.mode}"
+        status = f"● {service.policy.mode}"
         if self._working_since is not None:
             elapsed = time.monotonic() - self._working_since
             symbol = ("◐", "◓", "◑", "◒")[int(elapsed * 5) % 4]
@@ -661,13 +661,19 @@ class CadeTui:
     def _bindings(self) -> KeyBindings:
         bindings = KeyBindings()
         bindings.add("enter")(self._enter)
-        bindings.add("c-j")(self._newline)
+        bindings.add("c-j", filter=Condition(lambda: not self._has_modal()))(self._newline)
         try:
             bindings.add("s-enter")(self._newline)
         except ValueError:
             pass
-        bindings.add("escape", "enter")(self._alt_enter)
-        bindings.add("s-tab", filter=Condition(lambda: not self.service.running))(
+        bindings.add("escape", "enter", filter=Condition(lambda: not self._has_modal()))(self._alt_enter)
+        bindings.add("escape", filter=Condition(lambda: not self._has_modal()))(
+            self._dismiss_completion
+        )
+        bindings.add(
+            "s-tab",
+            filter=Condition(lambda: not self.service.running and not self._has_modal()),
+        )(
             lambda _event: self._schedule(self._cycle_mode())
         )
         bindings.add("c-o", eager=True)(lambda _event: self._toggle_tools())
@@ -710,6 +716,11 @@ class CadeTui:
     def _newline(self, _event: Any) -> None:
         self._input.buffer.insert_text("\n")
 
+    def _dismiss_completion(self, _event: Any) -> None:
+        if self._input.buffer.complete_state is not None:
+            self._input.buffer.cancel_completion()
+            self._refresh()
+
     def _alt_enter(self, _event: Any) -> None:
         value = self._input.text.strip()
         if not value:
@@ -734,7 +745,11 @@ class CadeTui:
             self._pick()
             return
         complete = self._input.buffer.complete_state
-        if complete is not None and complete.completions:
+        if (
+            complete is not None
+            and complete.completions
+            and self._completion_height() > 0
+        ):
             self._input.buffer.go_to_completion(complete.complete_index or 0)
             self._input.buffer.complete_state = None
             self._refresh()
