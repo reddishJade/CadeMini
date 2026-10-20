@@ -881,7 +881,9 @@ class CadeTui:
                 self._model_efforts[name] = (
                     preferred
                     if preferred in levels
-                    else "high" if "high" in levels else levels[0]
+                    else "high"
+                    if "high" in levels
+                    else levels[0]
                 )
             choices = tuple(
                 (name, self._model_label(name)) for name in self._model_labels

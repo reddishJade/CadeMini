@@ -1169,13 +1169,11 @@ def test_model_picker_filters_credentials_and_adjusts_effort_per_row(
     terminal._open_picker("model")
 
     assert all(
-        not name.startswith("chatgpt/")
-        for name, _label in terminal._picker_source
+        not name.startswith("chatgpt/") for name, _label in terminal._picker_source
     )
     target = "openai/gpt-6-luna"
     index = next(
-        i for i, (name, _label) in enumerate(terminal._picker.values)
-        if name == target
+        i for i, (name, _label) in enumerate(terminal._picker.values) if name == target
     )
     terminal._picker._selected_index = index
     terminal._picker.current_value = target
@@ -1184,9 +1182,7 @@ def test_model_picker_filters_credentials_and_adjusts_effort_per_row(
     terminal._adjust_picker_effort(1)
     assert terminal._model_efforts[target] == "high"
     assert terminal._picker.current_value == target
-    label = next(
-        label for name, label in terminal._picker.values if name == target
-    )
+    label = next(label for name, label in terminal._picker.values if name == target)
     assert label.count("gpt-6-luna") == 1
     assert "‹ high ›" in label
     assert terminal._hint_height() == 0

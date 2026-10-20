@@ -105,10 +105,7 @@ class SettingsService:
         if name in {"read_only", "instructions", "note", "memory", "auto_review"}:
             return (("true", "On"), ("false", "Off"))
         if name == "mode":
-            return tuple(
-                (json.dumps(mode), mode)
-                for mode in ("act", "build", "plan")
-            )
+            return tuple((json.dumps(mode), mode) for mode in ("act", "build", "plan"))
         if name == "provider":
             return tuple(
                 (json.dumps(provider), provider)
@@ -123,9 +120,7 @@ class SettingsService:
                 return ((json.dumps(current), f"{current} · configured"),) + tuple(
                     (json.dumps(model.id), model.name) for model in models
                 )
-            return tuple(
-                (json.dumps(model.id), model.name) for model in models
-            )
+            return tuple((json.dumps(model.id), model.name) for model in models)
         if name == "reasoning_effort":
             model = config.model or ProviderConfig().model
             return tuple(
