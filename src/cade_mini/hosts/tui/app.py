@@ -318,9 +318,7 @@ class CadeTui:
             filter=Condition(lambda: self._secret_provider is not None),
         )
         config_bindings = KeyBindings()
-        config_bindings.add("enter")(
-            lambda _event: self._save_config_form()
-        )
+        config_bindings.add("enter")(lambda _event: self._save_config_form())
         config_bindings.add("escape", eager=True)(
             lambda _event: self._cancel_config_form()
         )
@@ -802,6 +800,8 @@ class CadeTui:
             self.transcript.notice("\n".join(result.lines))
         if result.login_provider:
             self._begin_login(result.login_provider)
+        if result.config_field:
+            self._edit_config_field(result.config_field)
         if result.draft:
             self._input.text = result.draft
         if result.picker is not None:
@@ -831,6 +831,8 @@ class CadeTui:
             )
             if self._question_multiple:
                 choices = (*choices, ("__done__", "Done · confirm selections"))
+        elif kind == "config_value":
+            choices = self._config_options
         else:
             choices = self.service.choices(kind)
         if kind == "model":
@@ -895,12 +897,17 @@ class CadeTui:
 
     def _close_picker(self, *, cancel_question: bool = True) -> None:
         is_question = self._picker_kind == "question"
+        is_config_value = self._picker_kind == "config_value"
         self._picker_kind = None
         self._picker_source = ()
         self._picker_search.buffer.reset()
         self.app.layout.focus(self._input)
         if is_question and cancel_question:
             self._complete_question([])
+        elif is_config_value:
+            self._config_field = None
+            self._config_options = ()
+            self._open_picker("config")
         self._refresh()
 
     def _adjust_picker_effort(self, step: int) -> None:
@@ -951,6 +958,12 @@ class CadeTui:
                 self._complete_question([str(choice)])
             self._refresh()
             return
+        if kind == "config_value":
+            field = self._config_field
+            self._close_picker()
+            if field is not None:
+                self._schedule(self._submit(f"/config {field}={choice}"))
+            return
         effort = self._picker_effort
         if kind == "model" and choice != "__custom__":
             selected_model = str(choice).split("/", 1)[-1]
@@ -990,7 +1003,7 @@ class CadeTui:
         elif kind == "commands":
             self._input.text = str(choice)
         elif kind == "config":
-            self._input.text = self.service.settings.edit_command(str(choice))
+            self._edit_config_field(str(choice))
         elif kind == "login":
             self._begin_login(str(choice))
         elif kind == "logout":
@@ -1000,6 +1013,39 @@ class CadeTui:
         elif kind == "tool":
             self._input.text = "/tool " + str(choice) + " "
         self._refresh()
+
+    def _edit_config_field(self, field: str) -> None:
+        options = self.service.settings.edit_options(field)
+        self._config_field = field
+        self._config_options = options
+        if options:
+            self._open_picker("config_value")
+            return
+        draft = self.service.settings.edit_command(field)
+        self._config_input.text = draft.split("=", 1)[1]
+        self._config_form_active = True
+        self.app.layout.focus(self._config_input)
+        self._refresh()
+
+    def _cancel_config_form(self) -> None:
+        self._config_form_active = False
+        self._config_field = None
+        self._config_input.buffer.reset()
+        self.app.layout.focus(self._input)
+        self._open_picker("config")
+
+    def _save_config_form(self) -> None:
+        field = self._config_field
+        if field is None:
+            return
+        try:
+            result = self.service.settings.save(field, self._config_input.text)
+        except (OSError, ValueError) as exc:
+            self.transcript.notice(str(exc), error=True)
+            self._refresh()
+            return
+        self.transcript.notice(result)
+        self._cancel_config_form()
 
     def _begin_login(self, provider: str) -> None:
         if provider == "chatgpt":
