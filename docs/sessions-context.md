@@ -35,7 +35,7 @@ Idle double Esc with empty input opens the separate `/rewind` checkpoint selecto
 entry directly. Exact entry IDs take precedence over numeric turn selectors.
 The selected input returns to the editor in the new session.
 `/clone` clears the editor and copies only the active path, not other branches.
-Copies receive new entry IDs, preserve timestamps and source record versions,
+Copies receive new entry IDs and preserve timestamps,
 and remap compaction/window references. Navigation and checkpoint controls are
 omitted. Copies do not inherit the source's workspace undo stack.
 
@@ -44,9 +44,8 @@ source session unchanged. They do not implement conversation/file undo and do
 not generate an automatic summary of the abandoned branch. Run history changes
 only when no task is active.
 
-See the [session schema](reference/session-schema.md) and
-[upgrade guide](upgrade/README.md#session-v4-and-workspace-recovery) before
-opening existing sessions with the new writer.
+See the [session schema](reference/session-schema.md) for persistent fields and
+[recovery](snapshots-goals.md#checkpoint-recovery) for file restoration boundaries.
 
 ## Checkpoint recovery
 

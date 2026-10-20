@@ -23,7 +23,7 @@ The log stores facts:
   conversation messages. A branch event also preserves a selected input for
   editing after restart.
 
-The schema is closed and versioned. See [Session log schema](reference/session-schema.md).
+The schema is closed. See [Session log schema](reference/session-schema.md).
 
 ## Projection
 
@@ -67,7 +67,7 @@ fallback are decisions expressed as new log facts.
 ## Package map
 
 - `core/types.py`: log, message, block, and error types.
-- `core/events.py`: strict v2/v3/v4 event payload validation.
+- `core/events.py`: strict event payload validation.
 - `core/log.py`: append, lock, tail repair, navigation, session listing, fork/clone.
 - `core/history.py`: pure full-tree projection for history selection.
 - `app/recovery.py`: turn checkpoints, LIFO actions, and coordinated recovery.

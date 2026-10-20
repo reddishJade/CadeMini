@@ -320,7 +320,7 @@ def test_pending_recovery_preserves_a_third_external_state(
     assert recovery.store.pending_path.exists()
 
 
-def test_legacy_root_recovery_keeps_saved_system_prompt_after_restart(
+def test_root_recovery_keeps_saved_system_prompt_after_restart(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from cade_mini.hosts.cli import _open_log
@@ -331,7 +331,6 @@ def test_legacy_root_recovery_keeps_saved_system_prompt_after_restart(
     path.write_text(
         json.dumps(
             {
-                "v": 1,
                 "id": "legacy-user",
                 "parent": None,
                 "ts": "2020-01-01T00:00:00Z",

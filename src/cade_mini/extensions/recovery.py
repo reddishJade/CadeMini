@@ -18,7 +18,6 @@ class Record(BaseModel):
     """磁盘记录拒绝未知字段和隐式类型转换。"""
 
     model_config = ConfigDict(extra="forbid", strict=True)
-    v: Literal[1] = 1
 
 
 class FileChange(Record):

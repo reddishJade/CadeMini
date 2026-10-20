@@ -172,15 +172,11 @@ def test_clone_copies_only_active_path_and_remaps_context_cuts(tmp_path: Path) -
     assert {e.id for e in clone.entries()}.isdisjoint(e.id for e in log.entries())
 
 
-@pytest.mark.parametrize("version", [1, 2, 3])
-def test_navigation_appends_current_version_without_rewriting_legacy_records(
-    tmp_path: Path, version: int
-) -> None:
-    path = tmp_path / "sessions" / "session-legacy.jsonl"
+def test_navigation_and_copy_preserve_records_and_timestamps(tmp_path: Path) -> None:
+    path = tmp_path / "sessions" / "session-original.jsonl"
     path.parent.mkdir()
     records = [
         {
-            "v": version,
             "id": "old-user",
             "parent": None,
             "ts": "2026-10-18T00:00:00Z",
@@ -188,7 +184,6 @@ def test_navigation_appends_current_version_without_rewriting_legacy_records(
             "data": {"text": "legacy task"},
         },
         {
-            "v": version,
             "id": "old-answer",
             "parent": "old-user",
             "ts": "2026-10-18T00:00:01Z",
@@ -203,7 +198,6 @@ def test_navigation_appends_current_version_without_rewriting_legacy_records(
     log = SessionLog.open(path)
     log.switch_branch("old-user")
     assert path.read_bytes().startswith(original)
-    assert log.entries()[-1].v == 4
     assert log.entries()[-1].parent is None
     assert log.navigation_draft == "legacy task"
     assert _users(log) == []
@@ -213,7 +207,6 @@ def test_navigation_appends_current_version_without_rewriting_legacy_records(
     assert log.navigation_draft == ""
     clone = log.copy_branch(tmp_path / "sessions")
     copied = [e for e in clone.entries() if e.type != "meta"]
-    assert [e.v for e in copied] == [version, version]
     assert [e.ts for e in copied] == [record["ts"] for record in records]
     info = next(
         info
@@ -247,18 +240,14 @@ def test_navigation_and_copy_refuse_active_run_lock(tmp_path: Path) -> None:
     assert log.path.read_bytes() == original
 
 
-@pytest.mark.parametrize(
-    "damage", ["legacy-version", "missing-target", "wrong-parent", "unknown-field"]
-)
+@pytest.mark.parametrize("damage", ["missing-target", "wrong-parent", "unknown-field"])
 def test_read_rejects_invalid_navigation_facts(tmp_path: Path, damage: str) -> None:
     log, turns = _session(tmp_path)
     log.switch_branch(turns[2].id)
     records = [
         json.loads(line) for line in log.path.read_text(encoding="utf-8").splitlines()
     ]
-    if damage == "legacy-version":
-        records[-1]["v"] = 2
-    elif damage == "missing-target":
+    if damage == "missing-target":
         records[-1]["data"]["selected_id"] = "missing"
     elif damage == "wrong-parent":
         records[-1]["parent"] = turns[3].id

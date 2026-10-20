@@ -550,7 +550,7 @@ The log stores facts:
   conversation messages. A branch event also preserves a selected input for
   editing after restart.
 
-The schema is closed and versioned. See [Session log schema](reference/session-schema.md).
+The schema is closed. See [Session log schema](reference/session-schema.md).
 
 ## Projection
 
@@ -594,7 +594,7 @@ fallback are decisions expressed as new log facts.
 ## Package map
 
 - `core/types.py`: log, message, block, and error types.
-- `core/events.py`: strict v2/v3/v4 event payload validation.
+- `core/events.py`: strict event payload validation.
 - `core/log.py`: append, lock, tail repair, navigation, session listing, fork/clone.
 - `core/history.py`: pure full-tree projection for history selection.
 - `app/recovery.py`: turn checkpoints, LIFO actions, and coordinated recovery.
@@ -705,7 +705,7 @@ Idle double Esc with empty input opens the separate `/rewind` checkpoint selecto
 entry directly. Exact entry IDs take precedence over numeric turn selectors.
 The selected input returns to the editor in the new session.
 `/clone` clears the editor and copies only the active path, not other branches.
-Copies receive new entry IDs, preserve timestamps and source record versions,
+Copies receive new entry IDs and preserve timestamps,
 and remap compaction/window references. Navigation and checkpoint controls are
 omitted. Copies do not inherit the source's workspace undo stack.
 
@@ -714,9 +714,8 @@ source session unchanged. They do not implement conversation/file undo and do
 not generate an automatic summary of the abandoned branch. Run history changes
 only when no task is active.
 
-See the [session schema](reference/session-schema.md) and
-[upgrade guide](upgrade/README.md#session-v4-and-workspace-recovery) before
-opening existing sessions with the new writer.
+See the [session schema](reference/session-schema.md) for persistent fields and
+[recovery](snapshots-goals.md#checkpoint-recovery) for file restoration boundaries.
 
 ## Checkpoint recovery
 
@@ -1663,9 +1662,9 @@ narrower jobs.
 
 | Artifact | Default location | Owner | Lifetime | Schema |
 | --- | --- | --- | --- | --- |
-| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Write v4; read v1/v2/v3/v4 |
+| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Current closed structure |
 | Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
-| Recovery | `.cade-mini/recovery/` | Recovery coordinator | Workspace | Closed v1 records; action journal and pending plan |
+| Recovery | `.cade-mini/recovery/` | Recovery coordinator | Workspace | Closed records; action journal and pending plan |
 | Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
 | Working note | `NOTE.md` | Project | Project | Markdown |
 | Memory | `MEMORY.md` | `MemoryTool` | Project | Markdown |
@@ -1679,7 +1678,7 @@ narrower jobs.
 
 ## The session log
 
-The log is append-only and versioned. It stores model-visible facts and audit
+The log is append-only. It stores model-visible facts and audit
 facts in one tree. It is the only artifact needed to reconstruct the
 conversation and active history position. Compaction, windows, and branch
 navigation are log entries, not rewrites.
@@ -1687,7 +1686,7 @@ navigation are log entries, not rewrites.
 ## Snapshots
 
 Snapshots are an undo journal for file changes. They cover `write`, `edit`, and
-common single-command shell mutations. Format v2 uses an atomically replaced
+common single-command shell mutations. It uses an atomically replaced
 JSONL index, immutable before/after records, and content-addressed original blobs.
 See [Snapshots and goals](../snapshots-goals.md) for conflict and legacy behavior.
 Snapshots are not part of the session branch.
@@ -1880,20 +1879,19 @@ should be present. See the [validation guidelines](../testing.md).
 
 # Cade Mini session schema
 
-> Current writer: v4. Readers accept v1, v2, v3, and v4, including mixed-version logs.
-> This is the persistent format and projection contract.
+> This is the current persistent structure and projection contract.
+> Records have no format-version field.
 
 ## Envelope
 
 One JSON object per line in `session-<id>.jsonl`:
 
 ```json
-{"v":4,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
+{"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
 ```
 
 | Field | Type | Contract |
 | --- | --- | --- |
-| `v` | `1`, `2`, `3`, or `4` | Read all four versions; append v4; reject other values |
 | `id` | string | Unique in the file; 12 lowercase hex characters |
 | `parent` | string or null | Previous head normally; selected continuation for navigation; null for a root |
 | `ts` | string | ISO 8601 UTC timestamp |
@@ -1901,18 +1899,17 @@ One JSON object per line in `session-<id>.jsonl`:
 | `data` | object | Type-specific payload |
 
 The head is the last physical event. A normal event points to the previous head.
-A v3 `branch` event instead points to a selected historical continuation point.
+A `branch` event instead points to a selected historical continuation point.
 Other paths remain in the same file. Non-null parents must precede their children.
 
-Unknown event types are a version error. Do not ignore them.
+Unknown event types are invalid. Do not ignore them.
 
-V2, v3, and v4 payloads are validated on append and read. Unknown fields, wrong primitive
+Payloads are validated on append and read. Unknown fields, wrong primitive
 types, invalid enums, and non-finite numbers are rejected. Missing optional
 fields are allowed but defaults are not written into the record. `user.source`
 defaults to `user`; assistant model/provider/usage/replay metadata and nullable
 artifact/handoff/usage/details fields may be absent. Cross-event call pairing
-and context-cut references are validated by projection. V1 keeps legacy reading
-rules. Branch copies preserve source event versions.
+and context-cut references are validated by projection.
 
 ## Event types
 
@@ -1950,19 +1947,18 @@ These are recorded but never projected.
 | Type | Payload | Purpose |
 | --- | --- | --- |
 | `meta` | `{"session": str, "project": str, "created": str}` | First event; identifies the session |
-| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit; v2 adds the normalized snapshot below |
+| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit with normalized inputs |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | Run outcome |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | Failed model attempt that produced no message |
-| `branch` | `{"selected_id": str}` | Navigation control since v3; never a model message |
-| `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | V4 turn ownership and completion audit |
-| `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | V4 recovery commit and conversation position |
+| `branch` | `{"selected_id": str}` | Navigation control; never a model message |
+| `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | Turn ownership and completion audit |
+| `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | Recovery commit and conversation position |
 
-The v2 `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
+The `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
 `report`. `budget` records the context window, output reserve, and headroom;
 `report` records the admission result. Options omit API keys, all headers,
 cancellation signals, and callbacks. This is the provider-interface input, not
-an HTTP capture. The remaining request data is not redacted. A v1 request has no
-snapshot; do not infer it from current provider behavior.
+an HTTP capture. The remaining request data is not redacted.
 
 A failed attempt does not become an assistant message. A run result does not
 duplicate the final answer; the answer is the last assistant text.
@@ -2000,7 +1996,7 @@ is no mutable cursor sidecar.
 
 Navigation and path copying acquire the whole-session run lock. Invalid targets
 fail before tail repair or append. Fork and clone copy one connected path into a
-new file, omit navigation/checkpoint/recovery controls, preserve record versions and timestamps, and
+new file, omit navigation/checkpoint/recovery controls, preserve timestamps, and
 remap entry IDs and context cuts.
 
 ## Checkpoints and coordinated recovery
@@ -2020,8 +2016,8 @@ returns to the editor. New conversation messages consume the historical draft.
 If a legacy root restore lacks a system fact, the pending plan supplies the
 current system prompt as a new explicit fact before the action is acknowledged.
 
-The workspace action journal and `pending.json` plan use closed v1 models,
-independent of the session envelope version. A stable operation ID deduplicates
+The workspace action journal and `pending.json` plan use closed models.
+A stable operation ID deduplicates
 session and action commits after interruption. Unknown external file states stop
 recovery and block new writes. See [Checkpoint recovery](../snapshots-goals.md#checkpoint-recovery).
 
@@ -2068,7 +2064,7 @@ hosts can render it differently.
 ## Compaction record
 
 ```json
-{"v":4,"id":"e80","parent":"e79","ts":"...","type":"compaction",
+{"id":"e80","parent":"e79","ts":"...","type":"compaction",
  "data":{"summary":"## Goal\n...","first_kept_id":"e52","tokens_before":48210,
          "model":"gpt-5.6-luna","provider":"chatgpt",
          "usage":{"input":43000,"output":1200},"details":null}}
@@ -2081,20 +2077,18 @@ previous one and may include the previous summary in its input.
 ## Window record
 
 ```json
-{"v":4,"id":"e90","parent":"e89","ts":"...","type":"window",
+{"id":"e90","parent":"e89","ts":"...","type":"window",
  "data":{"start_id":"e88","reason":"manual","handoff":"Optional note."}}
 ```
 
 A window is the hard fallback. Compaction is the default. A window is explicit
 through `/new-context`, or automatic when compaction cannot reduce enough.
 
-## Versioning
+## Development changes
 
-`v` is the only compatibility switch. A change to an existing payload, a new
-conversation event type, or a change to projection semantics requires a new `v`
-and a migration note. Adding a log-only event type is a new `v` as well, because
-older readers must reject it rather than ignore it. See the
-[upgrade guide](../upgrade/README.md) for v1 resume and rollback.
+There is one current structure, with no format-version field, compatibility
+reader, or migration layer. Breaking changes update producers, readers, tests,
+and documentation together. See [Change policy](../persistence/change-policy.md).
 
 # Subsystems
 
@@ -2132,7 +2126,7 @@ A subsystem page describes current behavior. Historical decisions belong in
 
 - `SessionLog.create(directory, session_id=None)` creates a unique file and
   writes a `meta` entry.
-- `SessionLog.open(path)` validates v1/v2/v3/v4 envelopes, v2/v3/v4 payloads, and
+- `SessionLog.open(path)` validates envelopes, payloads, and
   navigation references. Reads ignore a
   torn final line; the next valid append truncates that tail.
 - The session ID is derived from the file name when not supplied.
@@ -2141,10 +2135,10 @@ A subsystem page describes current behavior. Historical decisions belong in
 
 `append(type, data)`:
 
-1. Validates the v4 payload without modifying the file.
+1. Validates the payload without modifying the file.
 2. Takes an exclusive file lock.
 3. Reads current entries and validates the selected parent and references.
-4. Builds a v4 entry, then repairs a torn tail only after validation succeeds.
+4. Builds an entry, then repairs a torn tail only after validation succeeds.
 5. Appends one JSON line, flushes, and calls `fsync`.
 6. Releases the lock.
 
@@ -2170,10 +2164,10 @@ provides a pure, depth-annotated view of all visible branches.
 
 `copy_branch()` copies one connected path, including an inactive path selected
 for fork, under the source run lock. It remaps IDs and context cuts, preserves
-versions and timestamps, and omits navigation/checkpoint/recovery controls and siblings. The copy
+timestamps, and omits navigation/checkpoint/recovery controls and siblings. The copy
 is written as one snapshot, or remains deferred when it has no conversation.
 
-V4 adds log-only checkpoint and restore events. Checkpoints link an earlier
+Log-only checkpoint and restore events coordinate recovery. Checkpoints link an earlier
 user entry and pre-turn ancestor. Restore parents identify the committed target;
 code-only restore must preserve the preceding head. File effects and LIFO state
 belong to the workspace coordinator, not conversation projection.
@@ -2192,7 +2186,7 @@ historical timestamps do not make a newly created session appear old.
 - IDs are unique within a file.
 - A parent precedes its child.
 - The file ends with exactly one newline.
-- The schema version is closed; new event types require a decision record.
+- The schema is closed; new event types require a decision record.
 
 ## Tests
 
@@ -2240,7 +2234,7 @@ compaction and window decisions, then rejects any remaining overflow.
 
 The system message carries base instructions plus, in order: instructions,
 skill catalog, NOTE, memory, and goal. These inputs are request-only; the
-v2 request audit records their full text, the admitted messages, tool definitions,
+The request audit records their full text, the admitted messages, tool definitions,
 non-authentication options, and budget. Session files can contain sensitive input.
 
 ## Tests
@@ -2634,8 +2628,7 @@ external file writers before any restoration.
 
 Undo checks that the current file matches the recorded post-change state. It
 rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
-A rejected undo leaves the file and index unchanged. Legacy snapshots have no
-post-change state and require manual inspection; automatic undo rejects them.
+A rejected undo leaves the file and index unchanged.
 
 Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.
@@ -2671,7 +2664,7 @@ Unselected files and the user's Git index remain untouched. Directory trees,
 untracked shell/hook changes, and external side effects are not restored.
 
 Cooperating operations share `.cade-mini/recovery/workspace.lock`. The action
-journal and checkpoint links use closed v1 records under that directory. A
+journal and checkpoint links use closed records under that directory. A
 `pending.json` plan stores both images before restoration begins. Files use
 atomic per-file replacement; a multi-file restore is not a filesystem-wide
 atomic operation. On interruption, resume the named session to finish the plan
@@ -3656,40 +3649,32 @@ See [Projection and request](../subsystems/projection-request.md).
 
 # Persistence
 
-Cade Mini has one durable conversation format: the session log. The rest are
-host-state files with narrow scopes.
+Cade Mini stores conversation history in a session log. Other stores have
+separate responsibilities.
 
-## Current format
+## Current structure
 
-- Session log: write closed schema v4; read v1, v2, v3, and v4. See [Session log schema](../reference/session-schema.md).
-- Entry file: one JSON object per line; a trailing newline is required.
-- Session directory: `.cade-mini/sessions`.
-- Compaction, windows, and same-session navigation are entries, not rewrites.
-- Snapshots, goals, NOTE, memory, and config are separate artifacts.
+- Session logs use one closed schema without a format-version field. See
+  [Session log schema](../reference/session-schema.md).
+- Each entry is one JSON object followed by a newline.
+- Sessions live under `.cade-mini/sessions`.
+- Compaction, windows, navigation, and recovery are entries, not history rewrites.
+- File images live under `.cade-mini/snapshots`; recovery actions and pending
+  transactions live under `.cade-mini/recovery`.
+- Goals, NOTE, memory, and config remain separate artifacts.
 
-## Compatibility
-
-A reader must reject an unknown schema version rather than guess. A writer must
-not add fields that change the meaning of existing fields. Additive diagnostic
-fields are allowed only when old readers can ignore them.
-
-## History
-
-V2 adds normalized request audits. V3 adds persistent branch navigation. V4 adds
-checkpoint and coordinated recovery facts. None rewrites older facts. Resume and rollback are described in the
-[upgrade guide](../upgrade/README.md).
+Development changes can break persisted structures. Readers and writers support
+only the current structure. There are no compatibility readers or migrations.
+See [Change policy](change-policy.md).
 
 ## Verification
 
 `test_mini_log.py`, `test_mini_session_history.py`, `test_mini_projection.py`, and
-`test_mini_acceptance.py` exercise the current format. A schema change must add a
-test that opens an old fixture and one that rejects a future version.
+`test_mini_recovery.py` verify validation, projection, copies, and interrupted
+recovery. Invalid input must fail before changing durable state.
 
-## Related
-
-- [Persistence catalog](../design/persistence-catalog.md)
-- [Change policy](change-policy.md)
-- [Session log schema](../reference/session-schema.md)
+See the [Persistence catalog](../design/persistence-catalog.md) for ownership and
+locations.
 
 # Change policy
 
@@ -3697,38 +3682,25 @@ test that opens an old fixture and one that rejects a future version.
 
 # Change policy
 
-A persisted format change is a public interface change. It needs a decision,
-tests, and a migration path.
-
-## Before changing the schema
-
-1. Write a decision record under `docs/decisions/`.
-2. State whether the change is additive, transformative, or breaking.
-3. Describe how an old session is read and whether it is rewritten.
-4. Define the new schema version and the reader's rejection rule.
-5. Add an old-format fixture and a migration test.
+Cade Mini is under active development. Persisted data has one current, closed
+structure with no format-version fields. Breaking changes are allowed. Do not
+add compatibility readers, migration commands, or special handling for earlier
+formats.
 
 ## Rules
 
-- Never rewrite a user's session file in place without an explicit migration.
-- Never infer a missing field from a provider's current behavior.
-- Keep audit facts out of the projection unless the schema says otherwise.
-- Bump the version for any change that an old reader cannot ignore.
-- Update [Persistence](README.md), the [schema](../reference/session-schema.md), and
-  the [upgrade guide](../upgrade/README.md) in the same change.
+- Update producers, readers, tests, and field-level documentation together.
+- Validate records before modifying durable state.
+- Keep conversation history append-only during normal operation.
+- Never infer missing request contents from current provider behavior.
+- Keep audit facts out of conversation projection.
+- Document each new field's owner and lifetime.
+- Use a decision record for changes to durable behavior or ownership.
 
-## Review checklist
-
-- Old fixture opens and projects identically.
-- Unknown future version fails with a clear error.
-- Migration is idempotent and can be interrupted.
-- New fields have a documented owner and lifetime.
-- Session size and compaction behavior remain bounded.
-
-## Current status
-
-Writers use closed schema v4. Readers accept v1, v2, v3, and v4 without rewriting old
-facts. The [upgrade guide](../upgrade/README.md) documents resume and rollback.
+Verify current behavior and failure recovery with focused tests. Generated
+catalogs and documentation must match the implementation. See
+[Session log schema](../reference/session-schema.md) and
+[Persistence](README.md).
 
 # Upgrade guide
 
@@ -3736,115 +3708,41 @@ facts. The [upgrade guide](../upgrade/README.md) documents resume and rollback.
 
 # Upgrade guide
 
-This page records changes that require action from an existing user or
-automation.
+Cade Mini is under active development. Breaking changes are allowed. Persisted
+records have one current structure, with no compatibility or migration layer.
+See [Change policy](../persistence/change-policy.md).
 
 ## Sign in with ChatGPT
 
-The `openai-codex` provider ID and `openai_codex` transport are removed. Use
-`chatgpt` for ChatGPT plan usage. The new provider uses Sign in with ChatGPT
-(SIWC) instead of the legacy Codex OAuth flow. Update `cade-mini.json`, CLI
-flags, and scripts that name the old provider, then run `cade-mini login` again.
-Saved `openai-codex` credentials and the old device-code method are not read or
-migrated. On a headless host, complete the login locally, copy `auth.json`, and
-let the remote host create its own host ID on the next login. Or use an OpenAI
-API key. See [decision 0008](../decisions/0008-siwc-login.md).
+Use `chatgpt` for ChatGPT plan usage and `cade-mini login` for Sign in with
+ChatGPT. For API-key authentication, use `openai` or `deepseek`. Credentials live
+under `~/.cade-mini/`. See [CLI authentication](../cli.md#login).
 
-## V2 payload validation
+## Session and workspace recovery
 
-V2 events now enforce their closed payload schemas on write and read. Invalid
-complete records are rejected instead of being ignored or silently repaired.
-V1 keeps its legacy reading rules. Branch copies preserve each event's version.
-See [decision 0006](../decisions/0006-validate-event-payloads.md).
+`/tree` preserves conversation branches. `/undo` and `/redo` reverse or reapply
+one action. `/rewind` selects a checkpoint and restoration scope; idle double
+Esc opens its selector. `/revert` restores selected tracked file changes without
+trimming conversation.
+
+Checkpoint ownership and action history belong to their original session.
+Copied conversations do not inherit a workspace undo stack. The file-only
+`--undo` operation remains separate. See
+[Sessions and context](../sessions-context.md) and
+[Recovery coverage](../snapshots-goals.md#checkpoint-recovery).
 
 ## Explicit context reduction
 
-Request construction no longer trims tool outputs or old turns. The loop first
-tries compaction, then a logged window fallback. If the current task, instructions,
-or tools still exceed the budget, the run returns `context_error`. Reduce the
-input or start a new task; no hidden request-only truncation occurs.
+The loop tries compaction, then a logged window fallback. If the request remains
+over budget, it returns `context_error`. It does not silently trim request-only
+history. See [Sessions and context](../sessions-context.md#request-admission).
 
-## Session v4 and workspace recovery
+## Development changes
 
-New session facts use v4. Readers accept v1/v2/v3/v4 without rewriting older
-records. V4 adds log-only checkpoint and restore facts for persistent stepwise
-undo/redo, scoped rewind, and selected-file revert. File images and action
-records live under `.cade-mini/snapshots/` and `.cade-mini/recovery/`.
-
-Back up the complete `.cade-mini/` directory before upgrading if rollback
-matters. V1/v2/v3-only releases reject v4 appends. Do not relabel events or remove
-pending recovery files. Historical and copied prompts without owned checkpoints
-remain conversation-restorable only; old global file snapshots are not assigned
-to turns retroactively. Existing `--undo` remains a separate file-only operation.
-
-Idle double Esc now opens `/rewind`, not `/tree`. Rewind asks for conversation,
-tracked code, or both, then confirmation. Read the
-[coverage and recovery procedure](../snapshots-goals.md#checkpoint-recovery) and
-[decision 0012](../decisions/0012-reversible-workspace-recovery.md).
-
-## Session v3 and history navigation
-
-V3 introduced persistent branch navigation and reading mixed v1/v2/v3 logs.
-V3 adds a `branch` control event for persistent same-session navigation; request
-and conversation payloads retain their v2 contracts. Opening an old file does not
-rewrite it. That release appended v3 records. Fork and clone
-preserve each copied fact's version and timestamp, omit navigation controls, and
-remap IDs rather than modifying the source file.
-
-Back up `.cade-mini/` before resuming if rollback matters. V1/v2-only releases
-reject a session after any v3 fact is appended, even without using `/tree`.
-Restore the backup to roll back; do not delete navigation lines or relabel v3
-records as v2. No migration command or separate cursor file is required.
-
-`/tree` preserves all branches and the active position across restart. It also
-restores a selected historical input for editing. `/fork` and `/clone` create
-independent sessions; none restores workspace files. See
-[Sessions and context](../sessions-context.md#tree-fork-and-clone) and
-[decision 0011](../decisions/0011-persistent-session-navigation.md).
-
-## Earlier session v2 and snapshot v2
-
-V2 introduced normalized request snapshots. Legacy v1 audits stay v1 when copied;
-they are not relabeled as normalized snapshots. See
-[decision 0004](../decisions/0004-normalized-request-audit.md).
-
-Snapshot v2 records before/after file state. Old snapshots remain available for
-manual inspection but cannot be undone automatically. New snapshots can be
-recorded above them. See [Snapshots and goals](../snapshots-goals.md).
-
-## Standalone project
-
-Cade Mini now installs as `cade-mini`, with Python imports under `cade_mini`.
-The old `cade` command and `cade.mini` namespace are removed. No compatibility
-or migration tools are provided.
-
-Authenticate again with `cade-mini login`. Credentials and skills use
-`~/.cade-mini/`; project skills use `.cade-mini/skills/`. Mini no longer
-reads `.cade` directories. This earlier packaging change retained schema v1.
-
-## When an upgrade is needed
-
-An upgrade entry is required when:
-
-- the session schema version changes;
-- a config key is renamed or removed;
-- a CLI flag changes meaning;
-- a tool name or parameter becomes incompatible;
-- a persisted host-state file changes shape.
-
-## Procedure for a future upgrade
-
-1. Read the relevant decision record.
-2. Back up `.cade-mini/` before migrating.
-3. Run the documented migration command once.
-4. Open a session and verify the projection and `history` tool.
-5. Keep the old directory until the new version has passed a real task.
-
-## Compatibility promise
-
-Additive optional config fields are not breaking. A new event type is breaking
-because the schema is closed. A removed tool or a changed parameter is breaking.
-The change policy is in [Persistence](../persistence/change-policy.md).
+Update callers, tests, and documentation with each breaking change. Do not
+invent missing historical data or rewrite sessions during normal operation.
+Pending workspace recovery must complete before new agent writes are allowed;
+see the recovery guide for interruption handling.
 
 # Cade Mini: a full refactor of Cade's core
 

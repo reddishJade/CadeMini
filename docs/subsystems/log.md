@@ -6,7 +6,7 @@
 
 - `SessionLog.create(directory, session_id=None)` creates a unique file and
   writes a `meta` entry.
-- `SessionLog.open(path)` validates v1/v2/v3/v4 envelopes, v2/v3/v4 payloads, and
+- `SessionLog.open(path)` validates envelopes, payloads, and
   navigation references. Reads ignore a
   torn final line; the next valid append truncates that tail.
 - The session ID is derived from the file name when not supplied.
@@ -15,10 +15,10 @@
 
 `append(type, data)`:
 
-1. Validates the v4 payload without modifying the file.
+1. Validates the payload without modifying the file.
 2. Takes an exclusive file lock.
 3. Reads current entries and validates the selected parent and references.
-4. Builds a v4 entry, then repairs a torn tail only after validation succeeds.
+4. Builds an entry, then repairs a torn tail only after validation succeeds.
 5. Appends one JSON line, flushes, and calls `fsync`.
 6. Releases the lock.
 
@@ -44,10 +44,10 @@ provides a pure, depth-annotated view of all visible branches.
 
 `copy_branch()` copies one connected path, including an inactive path selected
 for fork, under the source run lock. It remaps IDs and context cuts, preserves
-versions and timestamps, and omits navigation/checkpoint/recovery controls and siblings. The copy
+timestamps, and omits navigation/checkpoint/recovery controls and siblings. The copy
 is written as one snapshot, or remains deferred when it has no conversation.
 
-V4 adds log-only checkpoint and restore events. Checkpoints link an earlier
+Log-only checkpoint and restore events coordinate recovery. Checkpoints link an earlier
 user entry and pre-turn ancestor. Restore parents identify the committed target;
 code-only restore must preserve the preceding head. File effects and LIFO state
 belong to the workspace coordinator, not conversation projection.
@@ -66,7 +66,7 @@ historical timestamps do not make a newly created session appear old.
 - IDs are unique within a file.
 - A parent precedes its child.
 - The file ends with exactly one newline.
-- The schema version is closed; new event types require a decision record.
+- The schema is closed; new event types require a decision record.
 
 ## Tests
 

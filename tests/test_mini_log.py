@@ -13,7 +13,6 @@ from typing import cast
 import pytest
 
 from cade_mini.core.log import SessionLog, list_sessions, session_title
-from cade_mini.core.projection import project
 from cade_mini.core.request import Budget, build
 from cade_mini.core.types import EventType, JsonValue, LogError, UserMessage
 
@@ -171,14 +170,17 @@ def test_append_writes_one_complete_line_per_fact(tmp_path: Path) -> None:
     assert raw.endswith(b"\n")
     lines = raw.splitlines()
     assert len(lines) == 3
-    assert all(json.loads(line)["v"] == 4 for line in lines)
+    assert all(
+        set(json.loads(line)) == {"id", "parent", "ts", "type", "data"}
+        for line in lines
+    )
 
 
 def test_incomplete_tail_is_ignored_and_repaired(tmp_path: Path) -> None:
     log = SessionLog.create(_sessions(tmp_path), session_id="s3")
     log.append("user", {"text": "kept", "source": "user"})
     with log.path.open("ab") as stream:
-        stream.write(b'{"v":1,"id":"broken"')
+        stream.write(b'{"id":"broken"')
 
     assert [entry.type for entry in log.entries()] == ["meta", "user"]
 
@@ -187,32 +189,6 @@ def test_incomplete_tail_is_ignored_and_repaired(tmp_path: Path) -> None:
     assert [entry.type for entry in entries] == ["meta", "user", "user"]
     assert entries[-1].data["text"] == "after crash"
     assert b"broken" not in log.path.read_bytes()
-
-
-def test_v1_session_resumes_without_rewriting_old_facts(tmp_path: Path) -> None:
-    path = _sessions(tmp_path) / "session-legacy.jsonl"
-    path.parent.mkdir()
-    original = (
-        b'{"v":1,"id":"old","parent":null,"ts":"2026-10-18T00:00:00+00:00",'
-        b'"type":"user","data":{"text":"legacy task","source":"user"}}\n'
-    )
-    path.write_bytes(original)
-    log = SessionLog.open(path)
-    before = project(log.branch())
-    entry = log.append("assistant", {"blocks": [{"type": "text", "text": "answer"}]})
-    assert entry.v == 4
-    assert entry.parent == "old"
-    assert path.read_bytes().startswith(original)
-    assert project(SessionLog.open(path).branch())[:1] == before
-
-
-def test_future_session_version_is_rejected(tmp_path: Path) -> None:
-    log = SessionLog.create(_sessions(tmp_path), session_id="future")
-    record = json.loads(log.path.read_text(encoding="utf-8"))
-    record["v"] = 5
-    log.path.write_text(json.dumps(record) + "\n", encoding="utf-8")
-    with pytest.raises(LogError, match="invalid session record"):
-        SessionLog.open(log.path)
 
 
 @pytest.mark.parametrize(
@@ -309,30 +285,11 @@ def test_request_payload_validates_nested_snapshot(
     assert log.path.read_bytes() == before
 
 
-def test_copy_preserves_legacy_audit_version_without_inventing_snapshot(
-    tmp_path: Path,
-) -> None:
-    path = _sessions(tmp_path) / "session-legacy-audit.jsonl"
-    path.parent.mkdir()
-    path.write_text(
-        '{"v":1,"id":"old","parent":null,"ts":"2026-10-18T00:00:00+00:00",'
-        '"type":"request","data":{"model":"m","provider":"p",'
-        '"tools_digest":"t","conversation_digest":"c","context":[],"estimated_tokens":1,"dropped":[]}}\n',
-        encoding="utf-8",
-    )
-    copied = SessionLog.open(path).copy_branch(_sessions(tmp_path))
-    audit = next(entry for entry in copied.branch() if entry.type == "request")
-    assert audit.v == 1
-    assert "snapshot" not in audit.data
-
-
-@pytest.mark.parametrize("version", [2, 3, 4])
-def test_read_rejects_invalid_validated_payload(tmp_path: Path, version: int) -> None:
+def test_read_rejects_invalid_payload(tmp_path: Path) -> None:
     log = SessionLog.create(_sessions(tmp_path), session_id="invalid-data")
     records = [
         json.loads(line) for line in log.path.read_text(encoding="utf-8").splitlines()
     ]
-    records[0]["v"] = version
     records[0]["data"]["session"] = False
     log.path.write_text(
         "".join(json.dumps(record) + "\n" for record in records), encoding="utf-8"
@@ -354,7 +311,6 @@ def test_read_rejects_forward_parent(tmp_path: Path) -> None:
     path.write_text(
         json.dumps(
             {
-                "v": 1,
                 "id": "e1",
                 "parent": "missing",
                 "ts": "2026-10-18T00:00:00+00:00",
@@ -413,7 +369,7 @@ def test_list_sessions_skips_corrupt_files(tmp_path: Path) -> None:
     valid = SessionLog.create(sessions, session_id="valid")
     valid.append("user", {"text": "kept", "source": "user"})
     (sessions / "session-bad.jsonl").write_text(
-        '{"v":1,"id":"broken"}\n',
+        '{"id":"broken"}\n',
         encoding="utf-8",
     )
 

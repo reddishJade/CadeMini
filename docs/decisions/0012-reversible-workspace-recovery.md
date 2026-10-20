@@ -12,8 +12,7 @@ prompt and choosing conversation, code, or both.
 
 ## Decision
 
-Write session v4; read v1/v2/v3/v4 without rewriting old records. Add log-only
-checkpoint and restore facts. Conversation restore changes ancestry and retains
+Use log-only checkpoint and restore facts. Conversation restore changes ancestry and retains
 all abandoned facts. Copying a session omits workspace recovery controls and
 never imports another session's workspace undo stack.
 
@@ -50,7 +49,6 @@ until recovered. Symlinks, hard links, protected metadata, corrupt payloads, and
 unknown mutation outcomes are not automatically restored. External editors do
 not honor the workspace lock and must be stopped during recovery.
 
-Historical turns without checkpoints remain conversation-restorable only.
-V1/v2/v3-only readers reject v4 appends; rollback requires an earlier backup.
+Copied turns without owned checkpoints remain conversation-restorable only.
 Checkpoint ownership, LIFO behavior, restart, conflict preflight, interruption,
 subagents, and real TUI input require regression coverage before shipping.

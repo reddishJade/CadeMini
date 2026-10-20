@@ -1,19 +1,18 @@
 # Cade Mini session schema
 
-> Current writer: v4. Readers accept v1, v2, v3, and v4, including mixed-version logs.
-> This is the persistent format and projection contract.
+> This is the current persistent structure and projection contract.
+> Records have no format-version field.
 
 ## Envelope
 
 One JSON object per line in `session-<id>.jsonl`:
 
 ```json
-{"v":4,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
+{"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
 ```
 
 | Field | Type | Contract |
 | --- | --- | --- |
-| `v` | `1`, `2`, `3`, or `4` | Read all four versions; append v4; reject other values |
 | `id` | string | Unique in the file; 12 lowercase hex characters |
 | `parent` | string or null | Previous head normally; selected continuation for navigation; null for a root |
 | `ts` | string | ISO 8601 UTC timestamp |
@@ -21,18 +20,17 @@ One JSON object per line in `session-<id>.jsonl`:
 | `data` | object | Type-specific payload |
 
 The head is the last physical event. A normal event points to the previous head.
-A v3 `branch` event instead points to a selected historical continuation point.
+A `branch` event instead points to a selected historical continuation point.
 Other paths remain in the same file. Non-null parents must precede their children.
 
-Unknown event types are a version error. Do not ignore them.
+Unknown event types are invalid. Do not ignore them.
 
-V2, v3, and v4 payloads are validated on append and read. Unknown fields, wrong primitive
+Payloads are validated on append and read. Unknown fields, wrong primitive
 types, invalid enums, and non-finite numbers are rejected. Missing optional
 fields are allowed but defaults are not written into the record. `user.source`
 defaults to `user`; assistant model/provider/usage/replay metadata and nullable
 artifact/handoff/usage/details fields may be absent. Cross-event call pairing
-and context-cut references are validated by projection. V1 keeps legacy reading
-rules. Branch copies preserve source event versions.
+and context-cut references are validated by projection.
 
 ## Event types
 
@@ -70,19 +68,18 @@ These are recorded but never projected.
 | Type | Payload | Purpose |
 | --- | --- | --- |
 | `meta` | `{"session": str, "project": str, "created": str}` | First event; identifies the session |
-| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit; v2 adds the normalized snapshot below |
+| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit with normalized inputs |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | Run outcome |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | Failed model attempt that produced no message |
-| `branch` | `{"selected_id": str}` | Navigation control since v3; never a model message |
-| `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | V4 turn ownership and completion audit |
-| `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | V4 recovery commit and conversation position |
+| `branch` | `{"selected_id": str}` | Navigation control; never a model message |
+| `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | Turn ownership and completion audit |
+| `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | Recovery commit and conversation position |
 
-The v2 `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
+The `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
 `report`. `budget` records the context window, output reserve, and headroom;
 `report` records the admission result. Options omit API keys, all headers,
 cancellation signals, and callbacks. This is the provider-interface input, not
-an HTTP capture. The remaining request data is not redacted. A v1 request has no
-snapshot; do not infer it from current provider behavior.
+an HTTP capture. The remaining request data is not redacted.
 
 A failed attempt does not become an assistant message. A run result does not
 duplicate the final answer; the answer is the last assistant text.
@@ -120,7 +117,7 @@ is no mutable cursor sidecar.
 
 Navigation and path copying acquire the whole-session run lock. Invalid targets
 fail before tail repair or append. Fork and clone copy one connected path into a
-new file, omit navigation/checkpoint/recovery controls, preserve record versions and timestamps, and
+new file, omit navigation/checkpoint/recovery controls, preserve timestamps, and
 remap entry IDs and context cuts.
 
 ## Checkpoints and coordinated recovery
@@ -140,8 +137,8 @@ returns to the editor. New conversation messages consume the historical draft.
 If a legacy root restore lacks a system fact, the pending plan supplies the
 current system prompt as a new explicit fact before the action is acknowledged.
 
-The workspace action journal and `pending.json` plan use closed v1 models,
-independent of the session envelope version. A stable operation ID deduplicates
+The workspace action journal and `pending.json` plan use closed models.
+A stable operation ID deduplicates
 session and action commits after interruption. Unknown external file states stop
 recovery and block new writes. See [Checkpoint recovery](../snapshots-goals.md#checkpoint-recovery).
 
@@ -188,7 +185,7 @@ hosts can render it differently.
 ## Compaction record
 
 ```json
-{"v":4,"id":"e80","parent":"e79","ts":"...","type":"compaction",
+{"id":"e80","parent":"e79","ts":"...","type":"compaction",
  "data":{"summary":"## Goal\n...","first_kept_id":"e52","tokens_before":48210,
          "model":"gpt-5.6-luna","provider":"chatgpt",
          "usage":{"input":43000,"output":1200},"details":null}}
@@ -201,17 +198,15 @@ previous one and may include the previous summary in its input.
 ## Window record
 
 ```json
-{"v":4,"id":"e90","parent":"e89","ts":"...","type":"window",
+{"id":"e90","parent":"e89","ts":"...","type":"window",
  "data":{"start_id":"e88","reason":"manual","handoff":"Optional note."}}
 ```
 
 A window is the hard fallback. Compaction is the default. A window is explicit
 through `/new-context`, or automatic when compaction cannot reduce enough.
 
-## Versioning
+## Development changes
 
-`v` is the only compatibility switch. A change to an existing payload, a new
-conversation event type, or a change to projection semantics requires a new `v`
-and a migration note. Adding a log-only event type is a new `v` as well, because
-older readers must reject it rather than ignore it. See the
-[upgrade guide](../upgrade/README.md) for v1 resume and rollback.
+There is one current structure, with no format-version field, compatibility
+reader, or migration layer. Breaking changes update producers, readers, tests,
+and documentation together. See [Change policy](../persistence/change-policy.md).

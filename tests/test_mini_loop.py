@@ -326,7 +326,6 @@ async def test_request_is_persisted_before_provider_call(tmp_path: Path) -> None
         async def stream(self, messages, tools, options=None):
             saved = log.branch()[-1]
             assert saved.type == "request"
-            assert saved.v == 4
             snapshot = saved.data["snapshot"]
             assert isinstance(snapshot, dict)
             assert snapshot["messages"] == messages
