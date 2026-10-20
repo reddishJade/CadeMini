@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -62,12 +63,41 @@ class CadeCompleter(Completer):
         if self._cache and now - self._cache[0] < _CACHE_SECONDS:
             return self._cache[1]
         root = self.service.workspace
+        try:
+            indexed = subprocess.run(
+                [
+                    "git", "-C", str(root), "ls-files",
+                    "-z", "--cached", "--others", "--exclude-standard",
+                ],
+                capture_output=True,
+                check=False,
+                timeout=1.5,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            indexed = None
+        if indexed is not None and indexed.returncode == 0:
+            files = (
+                path.decode("utf-8", errors="surrogateescape")
+                for path in indexed.stdout.split(b"\\x00")
+                if path
+            )
+            visible = tuple(
+                path
+                for path in files
+                if not self._blocked_path(path)
+                and not (root / path).is_symlink()
+            )
+            self._cache = (now, visible[:15_000])
+            return self._cache[1]
+
         files: list[str] = []
         for directory, folders, names in os.walk(root, followlinks=False):
             folders[:] = [
                 name
                 for name in folders
-                if name not in _BLOCKED and not (Path(directory) / name).is_symlink()
+                if name not in _BLOCKED
+                and not name.startswith(".env")
+                and not (Path(directory) / name).is_symlink()
             ]
             for name in names:
                 path = Path(directory) / name
@@ -80,6 +110,13 @@ class CadeCompleter(Completer):
                 break
         self._cache = (now, tuple(files))
         return self._cache[1]
+
+    @staticmethod
+    def _blocked_path(path: str) -> bool:
+        return any(
+            part in _BLOCKED or part.startswith(".env")
+            for part in Path(path).parts
+        )
 
     def _matches(
         self,

@@ -1372,3 +1372,26 @@ async def test_session_change_discards_stale_busy_inbox_and_usage(tmp_path: Path
     await host.command("/clone")
     assert not host.steering
     assert not host.pending
+
+
+def test_git_file_completion_avoids_ignored_and_secret_paths(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    import pytest
+
+    initialized = subprocess.run(
+        ["git", "init", "-q", str(tmp_path)],
+        capture_output=True, check=False,
+    )
+    if initialized.returncode:
+        pytest.skip("git is unavailable")
+    (tmp_path / ".gitignore").write_text("ignored.py\\n", encoding="utf-8")
+    (tmp_path / "visible.py").write_text("pass\\n", encoding="utf-8")
+    (tmp_path / "ignored.py").write_text("pass\\n", encoding="utf-8")
+    (tmp_path / ".env.local").write_text("TOKEN=secret\\n", encoding="utf-8")
+    comp = CadeCompleter(service(tmp_path))
+    assert "@visible.py" in completions(comp, "Read @visible")
+    assert "@ignored.py" not in completions(comp, "Read @ignored")
+    assert "@.env.local" not in completions(comp, "Read @.env")
