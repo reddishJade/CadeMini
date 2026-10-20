@@ -80,9 +80,13 @@ modes, configuration, and permissions.
 - `/continue` opens the same saved-conversation picker as `/sessions`.
 - `/resume` opens the saved-conversation picker; `/resume ID` resumes that session.
 - `/sessions` opens the same picker as `/resume`.
+- `/tree [ENTRY]` navigates the full history tree within the same session.
+  Selecting a user input restores it for editing; other entries continue after
+  the selected point. The position survives restart and old branches remain.
 - `/fork [N|ENTRY]` copies history before a user turn into a new session and puts
-  that input in the editor. `N=1` selects the latest turn. Files stay unchanged.
-- `/clone` copies the current branch to a new session.
+  that input in the editor. It can select inactive branches; `N=1` selects the
+  latest recorded input. Files stay unchanged.
+- `/clone` copies only the active path to a new session and clears the editor.
 - `/compact [INSTRUCTIONS]` summarizes older turns and applies optional guidance.
 - `/model [PROVIDER/MODEL]` switches an exact authenticated model or searches the
   model picker for a partial name.
@@ -105,9 +109,9 @@ modes, configuration, and permissions.
 - `/skill [NAME]` activates a skill for the next task.
 - `/exit` or `/quit` exits.
 
-The TUI does not register `/tree`, `/rewind`, `/undo`, `/revert`, `/rename`, or
-`/mcp`. Persistent branch navigation, coordinated message/file undo, editable
-session metadata, and MCP server management require separate core support.
+The TUI does not register `/rewind`, `/undo`, `/revert`, `/rename`, or `/mcp`.
+Coordinated message/file undo, editable session metadata, and MCP server
+management remain outside the history-navigation feature.
 `--undo` remains the existing one-shot file-snapshot operation; it is not a
 conversation undo command.
 
@@ -133,9 +137,8 @@ During a task, the TUI keeps reading input:
   within 500 ms to exit.
 - Other text is queued as a follow-up task.
 
-When idle with empty input, press `Esc` twice within 500 ms to open the `/fork`
-user-input selector. This uses Pi's fork-style double-Escape action, not
-same-session tree navigation.
+When idle with empty input, press `Esc` twice within 500 ms to open `/tree`.
+Tree navigation, fork, and clone do not restore workspace files.
 Inside a picker or form, `Esc` closes that interaction instead. Clearing input
 with `Ctrl+C` is separate from cancelling a task with `Esc`.
 

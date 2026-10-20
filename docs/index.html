@@ -339,9 +339,13 @@ modes, configuration, and permissions.</p>
 <li><code>/continue</code> opens the same saved-conversation picker as <code>/sessions</code>.</li>
 <li><code>/resume</code> opens the saved-conversation picker; <code>/resume ID</code> resumes that session.</li>
 <li><code>/sessions</code> opens the same picker as <code>/resume</code>.</li>
+<li><code>/tree [ENTRY]</code> navigates the full history tree within the same session.
+Selecting a user input restores it for editing; other entries continue after
+the selected point. The position survives restart and old branches remain.</li>
 <li><code>/fork [N|ENTRY]</code> copies history before a user turn into a new session and puts
-that input in the editor. <code>N=1</code> selects the latest turn. Files stay unchanged.</li>
-<li><code>/clone</code> copies the current branch to a new session.</li>
+that input in the editor. It can select inactive branches; <code>N=1</code> selects the
+latest recorded input. Files stay unchanged.</li>
+<li><code>/clone</code> copies only the active path to a new session and clears the editor.</li>
 <li><code>/compact [INSTRUCTIONS]</code> summarizes older turns and applies optional guidance.</li>
 <li><code>/model [PROVIDER/MODEL]</code> switches an exact authenticated model or searches the
 model picker for a partial name.</li>
@@ -364,9 +368,9 @@ selected stored credential, not environment variables.</li>
 <li><code>/skill [NAME]</code> activates a skill for the next task.</li>
 <li><code>/exit</code> or <code>/quit</code> exits.</li>
 </ul>
-<p>The TUI does not register <code>/tree</code>, <code>/rewind</code>, <code>/undo</code>, <code>/revert</code>, <code>/rename</code>, or
-<code>/mcp</code>. Persistent branch navigation, coordinated message/file undo, editable
-session metadata, and MCP server management require separate core support.
+<p>The TUI does not register <code>/rewind</code>, <code>/undo</code>, <code>/revert</code>, <code>/rename</code>, or <code>/mcp</code>.
+Coordinated message/file undo, editable session metadata, and MCP server
+management remain outside the history-navigation feature.
 <code>--undo</code> remains the existing one-shot file-snapshot operation; it is not a
 conversation undo command.</p>
 <h2>Interactive input</h2>
@@ -389,9 +393,8 @@ output. Undelivered queued inputs return to the editor with any current draft.</
 within 500 ms to exit.</li>
 <li>Other text is queued as a follow-up task.</li>
 </ul>
-<p>When idle with empty input, press <code>Esc</code> twice within 500 ms to open the <code>/fork</code>
-user-input selector. This uses Pi's fork-style double-Escape action, not
-same-session tree navigation.
+<p>When idle with empty input, press <code>Esc</code> twice within 500 ms to open <code>/tree</code>.
+Tree navigation, fork, and clone do not restore workspace files.
 Inside a picker or form, <code>Esc</code> closes that interaction instead. Clearing input
 with <code>Ctrl+C</code> is separate from cancelling a task with <code>Esc</code>.</p>
 <p>Steering is applied between steps, not inside a provider stream or a running
@@ -532,15 +535,17 @@ with four stages. Each stage has one owner and one direction of data flow.</p>
 </code></pre>
 <h2>Session log</h2>
 <p><code>SessionLog</code> is an append-only JSONL file. Each entry has an ID, timestamp,
-type, parent ID, and data. The active branch ends at the latest entry. A tree is
-possible, but the loop follows one branch.</p>
+type, parent ID, and data. The active branch ends at the latest entry. <code>/tree</code>
+appends a navigation event whose parent identifies the continuation point;
+alternatives remain in the same file. The loop follows only that active path.</p>
 <p>The log stores facts:</p>
 <ul>
 <li><code>system</code>, <code>user</code>, <code>assistant</code>, and <code>tool_result</code> are model-visible facts.</li>
 <li><code>compaction</code> records a summary and <code>first_kept_id</code>.</li>
 <li><code>window</code> records a new context start and an optional handoff.</li>
-<li><code>request</code>, <code>run</code>, and <code>attempt</code> are audit facts. They never become
-conversation messages.</li>
+<li><code>request</code>, <code>run</code>, <code>attempt</code>, and <code>branch</code> are audit facts. They never become
+conversation messages. A branch event also preserves a selected input for
+editing after restart.</li>
 </ul>
 <p>The schema is closed and versioned. See <a href="#page-session-schema">Session log schema</a>.</p>
 <h2>Projection</h2>
@@ -579,8 +584,9 @@ fallback are decisions expressed as new log facts.</p>
 <h2>Package map</h2>
 <ul>
 <li><code>core/types.py</code>: log, message, block, and error types.</li>
-<li><code>core/events.py</code>: strict v2 event payload validation.</li>
-<li><code>core/log.py</code>: append, lock, tail repair, session listing, copy/fork.</li>
+<li><code>core/events.py</code>: strict v2/v3 event payload validation.</li>
+<li><code>core/log.py</code>: append, lock, tail repair, navigation, session listing, fork/clone.</li>
+<li><code>core/history.py</code>: pure full-tree projection for history selection.</li>
 <li><code>core/projection.py</code>: deterministic conversation projection.</li>
 <li><code>core/request.py</code>: budget, admission, wire conversion.</li>
 <li><code>core/loop.py</code>: provider stream, tool execution, retries, facts.</li>
@@ -640,17 +646,48 @@ cade-mini --resume SESSION_ID &quot;Explain the current state.&quot;
 <p><code>--continue</code> and <code>--resume</code> open the latest or a specific session. Existing
 sessions keep their original system fact; a new <code>cade-mini.json</code> does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.</p>
-<h2>Fork and clone</h2>
-<ul>
-<li><code>/clone</code> copies the active branch into a new session.</li>
-<li><code>/fork</code> selects a user message and copies the preceding history into a new
-session. The selected input returns to the editor for editing and resending.
-<code>/fork N</code> selects the Nth recent input; <code>/fork ENTRY</code> selects an entry directly.</li>
-</ul>
-<p>These operations leave workspace files unchanged and preserve the original
-session. They are not conversation undo or same-session tree navigation, which
-the TUI does not yet expose.
-Compaction and window references are remapped when entries are copied.</p>
+<h2>Tree, fork, and clone</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/tree [ENTRY]</code></td>
+<td>Switch position within the same session, preserving all branches</td>
+</tr>
+<tr>
+<td><code>/fork [N|ENTRY]</code></td>
+<td>Copy history before a selected user input into a new session</td>
+</tr>
+<tr>
+<td><code>/clone</code></td>
+<td>Copy the complete current active path into a new session</td>
+</tr>
+</tbody>
+</table>
+<p><code>/tree</code> displays the full history tree. Selecting a user input restores its text
+in the editor and continues from its parent. Selecting another entry continues
+after that entry with an empty editor. Navigation and pending historical input
+survive restart. The next model request contains only the selected path. Idle
+double Esc with empty input opens this selector.</p>
+<p><code>/fork</code> can select user inputs from inactive branches as well as the active one.
+<code>/fork N</code> selects the Nth most recently recorded input; <code>/fork ENTRY</code> selects an
+entry directly. Exact entry IDs take precedence over numeric turn selectors.
+The selected input returns to the editor in the new session.
+<code>/clone</code> clears the editor and copies only the active path, not other branches.
+Copies receive new entry IDs, preserve timestamps and source record versions,
+and remap compaction/window references. Navigation control records are omitted.</p>
+<p>All three operations leave workspace files unchanged. Fork and clone leave the
+source session unchanged. They do not implement conversation/file undo and do
+not generate an automatic summary of the abandoned branch. Run history changes
+only when no task is active.</p>
+<p>See the <a href="#page-session-schema">session schema</a> and
+<a href="#page-readme">upgrade guide</a> before
+opening existing sessions with the new writer.</p>
 <h2>Compaction</h2>
 <p>When the full conversation exceeds the input budget, <code>Compactor</code>:</p>
 <ol>
@@ -1350,6 +1387,11 @@ and window fallback.</li>
 <td>No</td>
 <td>Provider attempt, retry, or failure</td>
 </tr>
+<tr>
+<td><code>branch</code></td>
+<td>No</td>
+<td>Unclassified</td>
+</tr>
 </tbody>
 </table>
 
@@ -1389,6 +1431,7 @@ and window fallback.</li>
   core_compaction --&gt; core_types
   core_events --&gt; ai_types
   core_events --&gt; core_types
+  core_history --&gt; core_types
   core_log --&gt; core_events
   core_log --&gt; core_types
   core_loop --&gt; ai_events
@@ -1464,6 +1507,7 @@ and window fallback.</li>
   hosts_interaction --&gt; ai_models
   hosts_interaction --&gt; app_provider
   hosts_interaction --&gt; core_compaction
+  hosts_interaction --&gt; core_history
   hosts_interaction --&gt; core_log
   hosts_interaction --&gt; core_loop
   hosts_interaction --&gt; core_permissions
@@ -1874,7 +1918,7 @@ narrower jobs.</p>
 <td><code>.cade-mini/sessions/session-*.jsonl</code></td>
 <td><code>SessionLog</code></td>
 <td>Project</td>
-<td>Write v2; read v1/v2</td>
+<td>Write v3; read v1/v2/v3</td>
 </tr>
 <tr>
 <td>Snapshots</td>
@@ -1958,7 +2002,8 @@ narrower jobs.</p>
 <h2>The session log</h2>
 <p>The log is append-only and versioned. It stores model-visible facts and audit
 facts in one tree. It is the only artifact needed to reconstruct the
-conversation. Compaction and windows are log entries, not rewrites.</p>
+conversation and active history position. Compaction, windows, and branch
+navigation are log entries, not rewrites.</p>
 <h2>Snapshots</h2>
 <p>Snapshots are an undo journal for file changes. They cover <code>write</code>, <code>edit</code>, and
 common single-command shell mutations. Format v2 uses an atomically replaced
@@ -2142,12 +2187,12 @@ should be present. See the <a href="#page-testing">validation guidelines</a>.</p
 <section class="page" id="page-session-schema" data-title="Cade Mini session schema">
 <h1>Cade Mini session schema</h1>
 <blockquote>
-<p>Current writer: v2. Readers accept v1 and v2, including mixed-version logs.
+<p>Current writer: v3. Readers accept v1, v2, and v3, including mixed-version logs.
 This is the persistent format and projection contract.</p>
 </blockquote>
 <h2>Envelope</h2>
 <p>One JSON object per line in <code>session-&lt;id&gt;.jsonl</code>:</p>
-<pre><code class="language-json">{&quot;v&quot;:2,&quot;id&quot;:&quot;e2&quot;,&quot;parent&quot;:&quot;e1&quot;,&quot;ts&quot;:&quot;2026-10-18T03:00:00+00:00&quot;,&quot;type&quot;:&quot;user&quot;,&quot;data&quot;:{&quot;text&quot;:&quot;Fix the test&quot;,&quot;source&quot;:&quot;user&quot;}}
+<pre><code class="language-json">{&quot;v&quot;:3,&quot;id&quot;:&quot;e2&quot;,&quot;parent&quot;:&quot;e1&quot;,&quot;ts&quot;:&quot;2026-10-18T03:00:00+00:00&quot;,&quot;type&quot;:&quot;user&quot;,&quot;data&quot;:{&quot;text&quot;:&quot;Fix the test&quot;,&quot;source&quot;:&quot;user&quot;}}
 </code></pre>
 <table>
 <thead>
@@ -2160,8 +2205,8 @@ This is the persistent format and projection contract.</p>
 <tbody>
 <tr>
 <td><code>v</code></td>
-<td><code>1</code> or <code>2</code></td>
-<td>Read both versions; append v2; reject other values</td>
+<td><code>1</code>, <code>2</code>, or <code>3</code></td>
+<td>Read all three versions; append v3; reject other values</td>
 </tr>
 <tr>
 <td><code>id</code></td>
@@ -2171,7 +2216,7 @@ This is the persistent format and projection contract.</p>
 <tr>
 <td><code>parent</code></td>
 <td>string or null</td>
-<td>Previous head; null only for the first event</td>
+<td>Previous head normally; selected continuation for navigation; null for a root</td>
 </tr>
 <tr>
 <td><code>ts</code></td>
@@ -2190,10 +2235,11 @@ This is the persistent format and projection contract.</p>
 </tr>
 </tbody>
 </table>
-<p>The first increment has one active branch: the head is the last event. <code>parent</code>
-is stored from day one so fork and rewind do not need a schema change.</p>
+<p>The head is the last physical event. A normal event points to the previous head.
+A v3 <code>branch</code> event instead points to a selected historical continuation point.
+Other paths remain in the same file. Non-null parents must precede their children.</p>
 <p>Unknown event types are a version error. Do not ignore them.</p>
-<p>V2 payloads are validated on append and read. Unknown fields, wrong primitive
+<p>V2 and v3 payloads are validated on append and read. Unknown fields, wrong primitive
 types, invalid enums, and non-finite numbers are rejected. Missing optional
 fields are allowed but defaults are not written into the record. <code>user.source</code>
 defaults to <code>user</code>; assistant model/provider/usage/replay metadata and nullable
@@ -2284,6 +2330,11 @@ the conversation vocabulary.</p>
 <td><code>{&quot;model&quot;: str, &quot;provider&quot;: str, &quot;error&quot;: str, &quot;usage&quot;: object|null}</code></td>
 <td>Failed model attempt that produced no message</td>
 </tr>
+<tr>
+<td><code>branch</code></td>
+<td><code>{&quot;selected_id&quot;: str}</code></td>
+<td>V3-only navigation control; never a model message</td>
+</tr>
 </tbody>
 </table>
 <p>The v2 <code>request.snapshot</code> contains <code>messages</code>, <code>tools</code>, <code>options</code>, <code>budget</code>, and
@@ -2311,6 +2362,21 @@ the window.</li>
 <li><strong>The latest system event wins.</strong> It is projected first and is not shadowed by
 compaction or a window.</li>
 </ol>
+<h2>Branch navigation</h2>
+<p><code>branch.selected_id</code> must reference an earlier entry in the same file. When that
+entry is a user input, the navigation event's parent must equal the input's
+parent. Otherwise, its parent must equal the selected entry's ID. Selecting a
+legacy root user can produce a navigation event with a null parent.</p>
+<p>The navigation event becomes the physical head. <code>branch()</code> follows its parent
+chain to reconstruct the active path. No sibling facts are deleted or copied,
+and <code>project()</code> ignores navigation records. The latest navigation on the active
+path restores selected user text after restart until a subsequent user or
+assistant entry consumes it. Non-user selection restores an empty draft. There
+is no mutable cursor sidecar.</p>
+<p>Navigation and path copying acquire the whole-session run lock. Invalid targets
+fail before tail repair or append. Fork and clone copy one connected path into a
+new file, omit navigation controls, preserve record versions and timestamps, and
+remap entry IDs and context cuts.</p>
 <h2>Projection</h2>
 <p><code>project(branch) -&gt; list[Message]</code> is pure and deterministic.</p>
 <ol>
@@ -2321,7 +2387,7 @@ non-empty <code>handoff</code> for a summary message.</li>
 its summary and start the tail at <code>first_kept_id</code>.</li>
 <li>Walk the retained entries in order. Emit <code>user</code>, <code>assistant</code>, and
 <code>tool_result</code> messages. Skip <code>system</code>, <code>meta</code>, <code>window</code>, <code>compaction</code>,
-<code>request</code>, <code>run</code>, and <code>attempt</code>.</li>
+<code>request</code>, <code>run</code>, <code>attempt</code>, and <code>branch</code>.</li>
 <li>Pair tool calls with results by call ID.</li>
 <li>For an open call at the end, synthesize one interrupted result. Do not write
 it to the log. Insert it after the assistant message that contains the call.</li>
@@ -2349,7 +2415,7 @@ A cancelled first request still keeps its user message on disk.</li>
 <li>No rewrite, no in-place edit.</li>
 </ul>
 <h2>Compaction record</h2>
-<pre><code class="language-json">{&quot;v&quot;:2,&quot;id&quot;:&quot;e80&quot;,&quot;parent&quot;:&quot;e79&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;compaction&quot;,
+<pre><code class="language-json">{&quot;v&quot;:3,&quot;id&quot;:&quot;e80&quot;,&quot;parent&quot;:&quot;e79&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;compaction&quot;,
  &quot;data&quot;:{&quot;summary&quot;:&quot;## Goal\n...&quot;,&quot;first_kept_id&quot;:&quot;e52&quot;,&quot;tokens_before&quot;:48210,
          &quot;model&quot;:&quot;gpt-5.6-luna&quot;,&quot;provider&quot;:&quot;chatgpt&quot;,
          &quot;usage&quot;:{&quot;input&quot;:43000,&quot;output&quot;:1200},&quot;details&quot;:null}}
@@ -2358,7 +2424,7 @@ A cancelled first request still keeps its user message on disk.</li>
 before <code>first_kept_id</code> stay in the log. A later compaction starts after the
 previous one and may include the previous summary in its input.</p>
 <h2>Window record</h2>
-<pre><code class="language-json">{&quot;v&quot;:2,&quot;id&quot;:&quot;e90&quot;,&quot;parent&quot;:&quot;e89&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;window&quot;,
+<pre><code class="language-json">{&quot;v&quot;:3,&quot;id&quot;:&quot;e90&quot;,&quot;parent&quot;:&quot;e89&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;window&quot;,
  &quot;data&quot;:{&quot;start_id&quot;:&quot;e88&quot;,&quot;reason&quot;:&quot;manual&quot;,&quot;handoff&quot;:&quot;Optional note.&quot;}}
 </code></pre>
 <p>A window is the hard fallback. Compaction is the default. A window is explicit
@@ -2399,32 +2465,46 @@ goals, and hosts.</li>
 <ul>
 <li><code>SessionLog.create(directory, session_id=None)</code> creates a unique file and
 writes a <code>meta</code> entry.</li>
-<li><code>SessionLog.open(path)</code> validates the envelope and v2 payloads. Reads ignore a
+<li><code>SessionLog.open(path)</code> validates v1/v2/v3 envelopes, v2/v3 payloads, and
+navigation references. Reads ignore a
 torn final line; the next valid append truncates that tail.</li>
 <li>The session ID is derived from the file name when not supplied.</li>
 </ul>
 <h2>Append</h2>
 <p><code>append(type, data)</code>:</p>
 <ol>
-<li>Validates the v2 payload without modifying the file.</li>
+<li>Validates the v3 payload without modifying the file.</li>
 <li>Takes an exclusive file lock.</li>
-<li>Repairs a torn tail and reads the current entries to get the parent ID.</li>
-<li>Builds an entry with ID, timestamp, parent, type, and data.</li>
+<li>Reads current entries and validates the selected parent and references.</li>
+<li>Builds a v3 entry, then repairs a torn tail only after validation succeeds.</li>
 <li>Appends one JSON line, flushes, and calls <code>fsync</code>.</li>
 <li>Releases the lock.</li>
 </ol>
 <p><code>fsync</code> is deliberate: a returned append is durable enough to resume. A failed
 write raises <code>LogError</code> and does not return a fake entry.</p>
 <p><code>run_lock()</code> protects a whole turn separately from individual appends. It rejects
-competing operations immediately with <code>LogError</code>. <code>run()</code> and manual CLI context
-changes use it; other multi-event storage clients must acquire it explicitly.</p>
+competing operations immediately with <code>LogError</code>. <code>run()</code>, manual CLI context
+changes, navigation, and path copying use it; other multi-event storage clients
+must acquire it explicitly.</p>
 <h2>Branch</h2>
 <p><code>branch()</code> follows parent IDs from the last entry back to the root and reverses
-the list. It rejects cycles, missing parents, and duplicate IDs.</p>
+the list. <code>branch(entry_id)</code> reads the path ending at a historical entry. Reads
+reject cycles, missing parents, duplicate IDs, and invalid navigation targets.</p>
+<p><code>switch_branch(selected_id)</code> appends a v3 navigation event in the same file.
+User selection continues before that input and exposes its text through
+<code>navigation_draft</code>; other selection continues after the entry with an empty
+draft. A subsequent user or assistant entry consumes the draft. <code>history_tree()</code>
+provides a pure, depth-annotated view of all visible branches.</p>
+<p><code>copy_branch()</code> copies one connected path, including an inactive path selected
+for fork, under the source run lock. It remaps IDs and context cuts, preserves
+versions and timestamps, and omits navigation controls and siblings. The copy
+is written as one snapshot, or remains deferred when it has no conversation.</p>
 <h2>Listing and titles</h2>
 <p><code>list_sessions(directory)</code> returns session ID, update time, and a title derived
-from the first user text. Corrupt files are skipped so one bad session cannot
-break the list.</p>
+from the first user text across the full file, even when navigation currently
+precedes that input. Corrupt files are skipped so one bad session cannot
+break the list. Update time and ordering use file modification time, so copied
+historical timestamps do not make a newly created session appear old.</p>
 <h2>Invariants</h2>
 <ul>
 <li>Entries are never rewritten in place.</li>
@@ -2434,8 +2514,10 @@ break the list.</p>
 <li>The schema version is closed; new event types require a decision record.</li>
 </ul>
 <h2>Tests</h2>
-<p><code>test_mini_log.py</code> covers create, append, resume, tail repair, branching, and
-listing. <code>test_mini_projection.py</code> covers malformed branches.</p>
+<p><code>test_mini_log.py</code> covers create, append, resume, tail repair, and listing.
+<code>test_mini_session_history.py</code> covers navigation, old-format recovery, inactive
+forks, and independent copies. <code>test_mini_projection.py</code> covers malformed paths.
+<code>test_mini_history_e2e.py</code> verifies the public commands through real TUI input.</p>
 
 </section>
 <section class="page" id="page-projection-request" data-title="Projection and request">
@@ -3530,10 +3612,10 @@ See <a href="#page-projection-request">Projection and request</a>.</p>
 host-state files with narrow scopes.</p>
 <h2>Current format</h2>
 <ul>
-<li>Session log: write closed schema v2; read v1 and v2. See <a href="#page-session-schema">Session log schema</a>.</li>
+<li>Session log: write closed schema v3; read v1, v2, and v3. See <a href="#page-session-schema">Session log schema</a>.</li>
 <li>Entry file: one JSON object per line; a trailing newline is required.</li>
 <li>Session directory: <code>.cade-mini/sessions</code>.</li>
-<li>Compaction and windows are entries, not file rewrites.</li>
+<li>Compaction, windows, and same-session navigation are entries, not rewrites.</li>
 <li>Snapshots, goals, NOTE, memory, and config are separate artifacts.</li>
 </ul>
 <h2>Compatibility</h2>
@@ -3541,10 +3623,11 @@ host-state files with narrow scopes.</p>
 not add fields that change the meaning of existing fields. Additive diagnostic
 fields are allowed only when old readers can ignore them.</p>
 <h2>History</h2>
-<p>V2 adds normalized request audits without rewriting v1 facts. Resume and rollback
-are described in the <a href="#page-readme">upgrade guide</a>.</p>
+<p>V2 adds normalized request audits. V3 adds persistent branch navigation. Neither
+rewrites older facts. Resume and rollback are described in the
+<a href="#page-readme">upgrade guide</a>.</p>
 <h2>Verification</h2>
-<p><code>test_mini_log.py</code>, <code>test_mini_projection.py</code>, and
+<p><code>test_mini_log.py</code>, <code>test_mini_session_history.py</code>, <code>test_mini_projection.py</code>, and
 <code>test_mini_acceptance.py</code> exercise the current format. A schema change must add a
 test that opens an old fixture and one that rejects a future version.</p>
 <h2>Related</h2>
@@ -3585,7 +3668,7 @@ the <a href="#page-readme">upgrade guide</a> in the same change.</li>
 <li>Session size and compaction behavior remain bounded.</li>
 </ul>
 <h2>Current status</h2>
-<p>Writers use closed schema v2. Readers accept v1 and v2 without rewriting old
+<p>Writers use closed schema v3. Readers accept v1, v2, and v3 without rewriting old
 facts. The <a href="#page-readme">upgrade guide</a> documents resume and rollback.</p>
 
 </section>
@@ -3612,14 +3695,26 @@ See <a href="decisions/0006-validate-event-payloads.md">decision 0006</a>.</p>
 tries compaction, then a logged window fallback. If the current task, instructions,
 or tools still exceed the budget, the run returns <code>context_error</code>. Reduce the
 input or start a new task; no hidden request-only truncation occurs.</p>
-<h2>Session v2 and snapshot v2</h2>
-<p>New session facts use v2. This reader also accepts v1 and mixed-version branches.
-Resume an old session normally; its existing bytes remain unchanged. Request
-audits now contain normalized request inputs, excluding authentication and runtime
-objects. See <a href="decisions/0004-normalized-request-audit.md">decision 0004</a>.</p>
-<p>Older releases reject sessions after v2 facts are appended. Back up <code>.cade-mini/</code>
-before resuming if rollback is needed. Rollback uses that backup; do not remove
-v2 records manually. No migration command is required.</p>
+<h2>Session v3 and history navigation</h2>
+<p>New session facts use v3. Readers accept v1, v2, v3, and mixed-version logs.
+V3 adds a <code>branch</code> control event for persistent same-session navigation; request
+and conversation payloads retain their v2 contracts. Opening an old file does not
+rewrite it. Navigation and subsequent work append v3 records. Fork and clone
+preserve each copied fact's version and timestamp, omit navigation controls, and
+remap IDs rather than modifying the source file.</p>
+<p>Back up <code>.cade-mini/</code> before resuming if rollback matters. V1/v2-only releases
+reject a session after any v3 fact is appended, even without using <code>/tree</code>.
+Restore the backup to roll back; do not delete navigation lines or relabel v3
+records as v2. No migration command or separate cursor file is required.</p>
+<p><code>/tree</code> preserves all branches and the active position across restart. It also
+restores a selected historical input for editing. <code>/fork</code> and <code>/clone</code> create
+independent sessions; none restores workspace files. See
+<a href="#page-sessions-context">Sessions and context</a> and
+<a href="decisions/0011-persistent-session-navigation.md">decision 0011</a>.</p>
+<h2>Earlier session v2 and snapshot v2</h2>
+<p>V2 introduced normalized request snapshots. Legacy v1 audits stay v1 when copied;
+they are not relabeled as normalized snapshots. See
+<a href="decisions/0004-normalized-request-audit.md">decision 0004</a>.</p>
 <p>Snapshot v2 records before/after file state. Old snapshots remain available for
 manual inspection but cannot be undone automatically. New snapshots can be
 recorded above them. See <a href="#page-snapshots-goals">Snapshots and goals</a>.</p>

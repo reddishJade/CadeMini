@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 type JsonScalar = str | int | float | bool | None
 type JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
@@ -20,6 +20,7 @@ type EventType = Literal[
     "request",
     "run",
     "attempt",
+    "branch",
 ]
 
 
@@ -102,12 +103,19 @@ class LogEntry(BaseModel):
     """会话日志中的一行；data 的具体形状由 type 决定。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
-    v: Literal[1, 2] = 2
+    v: Literal[1, 2, 3] = 3
     id: str
     parent: str | None = None
     ts: str
     type: EventType
     data: dict[str, JsonValue]
+
+    @model_validator(mode="after")
+    def validate_version(self) -> LogEntry:
+        """旧版本不得借用新版本才定义的导航事件。"""
+        if self.type == "branch" and self.v < 3:
+            raise ValueError("branch events require session v3")
+        return self
 
 
 class MiniError(RuntimeError):

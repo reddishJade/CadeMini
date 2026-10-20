@@ -1,6 +1,6 @@
 # Cade Mini session schema
 
-> Current writer: v2. Readers accept v1 and v2, including mixed-version logs.
+> Current writer: v3. Readers accept v1, v2, and v3, including mixed-version logs.
 > This is the persistent format and projection contract.
 
 ## Envelope
@@ -8,24 +8,25 @@
 One JSON object per line in `session-<id>.jsonl`:
 
 ```json
-{"v":2,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
+{"v":3,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
 ```
 
 | Field | Type | Contract |
 | --- | --- | --- |
-| `v` | `1` or `2` | Read both versions; append v2; reject other values |
+| `v` | `1`, `2`, or `3` | Read all three versions; append v3; reject other values |
 | `id` | string | Unique in the file; 12 lowercase hex characters |
-| `parent` | string or null | Previous head; null only for the first event |
+| `parent` | string or null | Previous head normally; selected continuation for navigation; null for a root |
 | `ts` | string | ISO 8601 UTC timestamp |
 | `type` | string | One of the event types below |
 | `data` | object | Type-specific payload |
 
-The first increment has one active branch: the head is the last event. `parent`
-is stored from day one so fork and rewind do not need a schema change.
+The head is the last physical event. A normal event points to the previous head.
+A v3 `branch` event instead points to a selected historical continuation point.
+Other paths remain in the same file. Non-null parents must precede their children.
 
 Unknown event types are a version error. Do not ignore them.
 
-V2 payloads are validated on append and read. Unknown fields, wrong primitive
+V2 and v3 payloads are validated on append and read. Unknown fields, wrong primitive
 types, invalid enums, and non-finite numbers are rejected. Missing optional
 fields are allowed but defaults are not written into the record. `user.source`
 defaults to `user`; assistant model/provider/usage/replay metadata and nullable
@@ -72,6 +73,7 @@ These are recorded but never projected.
 | `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit; v2 adds the normalized snapshot below |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | Run outcome |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | Failed model attempt that produced no message |
+| `branch` | `{"selected_id": str}` | V3-only navigation control; never a model message |
 
 The v2 `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
 `report`. `budget` records the context window, output reserve, and headroom;
@@ -100,6 +102,25 @@ duplicate the final answer; the answer is the last assistant text.
 7. **The latest system event wins.** It is projected first and is not shadowed by
    compaction or a window.
 
+## Branch navigation
+
+`branch.selected_id` must reference an earlier entry in the same file. When that
+entry is a user input, the navigation event's parent must equal the input's
+parent. Otherwise, its parent must equal the selected entry's ID. Selecting a
+legacy root user can produce a navigation event with a null parent.
+
+The navigation event becomes the physical head. `branch()` follows its parent
+chain to reconstruct the active path. No sibling facts are deleted or copied,
+and `project()` ignores navigation records. The latest navigation on the active
+path restores selected user text after restart until a subsequent user or
+assistant entry consumes it. Non-user selection restores an empty draft. There
+is no mutable cursor sidecar.
+
+Navigation and path copying acquire the whole-session run lock. Invalid targets
+fail before tail repair or append. Fork and clone copy one connected path into a
+new file, omit navigation controls, preserve record versions and timestamps, and
+remap entry IDs and context cuts.
+
 ## Projection
 
 `project(branch) -> list[Message]` is pure and deterministic.
@@ -111,7 +132,7 @@ duplicate the final answer; the answer is the last assistant text.
    its summary and start the tail at `first_kept_id`.
 4. Walk the retained entries in order. Emit `user`, `assistant`, and
    `tool_result` messages. Skip `system`, `meta`, `window`, `compaction`,
-   `request`, `run`, and `attempt`.
+   `request`, `run`, `attempt`, and `branch`.
 5. Pair tool calls with results by call ID.
 6. For an open call at the end, synthesize one interrupted result. Do not write
    it to the log. Insert it after the assistant message that contains the call.
@@ -143,7 +164,7 @@ hosts can render it differently.
 ## Compaction record
 
 ```json
-{"v":2,"id":"e80","parent":"e79","ts":"...","type":"compaction",
+{"v":3,"id":"e80","parent":"e79","ts":"...","type":"compaction",
  "data":{"summary":"## Goal\n...","first_kept_id":"e52","tokens_before":48210,
          "model":"gpt-5.6-luna","provider":"chatgpt",
          "usage":{"input":43000,"output":1200},"details":null}}
@@ -156,7 +177,7 @@ previous one and may include the previous summary in its input.
 ## Window record
 
 ```json
-{"v":2,"id":"e90","parent":"e89","ts":"...","type":"window",
+{"v":3,"id":"e90","parent":"e89","ts":"...","type":"window",
  "data":{"start_id":"e88","reason":"manual","handoff":"Optional note."}}
 ```
 

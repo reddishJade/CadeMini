@@ -285,6 +285,7 @@ class CommandContext:
     app: MiniInteractionApp
     output: TerminalCommandOutput
     state: InteractionState = field(default_factory=InteractionState)
+    changed_session: bool = False
 
 
 @dataclass(frozen=True)

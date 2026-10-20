@@ -44,12 +44,14 @@ def fork_input_text(entry: SessionEntry) -> str:
 def handle_command(command: str, ctx: CommandContext) -> bool:
     """执行一条斜杠命令；返回是否退出 TUI。"""
     service = ctx.app.service
+    ctx.changed_session = False
     try:
         result = asyncio.run(service.command(command))
     except (OSError, RuntimeError, ValueError) as exc:
         ctx.output.write(f"[error] {exc}")
         return False
 
+    ctx.changed_session = result.changed_session
     for line in result.lines:
         ctx.output.write(line)
     if result.draft is not None:

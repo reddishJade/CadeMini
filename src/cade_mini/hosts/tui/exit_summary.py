@@ -23,7 +23,7 @@ def print_exit_summary(
     minutes, seconds = divmod(seconds, 60)
     duration = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
     info = [Text(f"Time {duration}", style="#8b949e")]
-    saved = any(entry.type == "user" for entry in store.build_branch())
+    saved = store.current_path.is_file()
     if saved:
         args = ["cade-mini", "--resume", store.session_id]
         if project_root.resolve() != Path.cwd().resolve():

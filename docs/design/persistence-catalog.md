@@ -6,7 +6,7 @@ narrower jobs.
 
 | Artifact | Default location | Owner | Lifetime | Schema |
 | --- | --- | --- | --- | --- |
-| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Write v2; read v1/v2 |
+| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Write v3; read v1/v2/v3 |
 | Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
 | Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
 | Working note | `NOTE.md` | Project | Project | Markdown |
@@ -23,7 +23,8 @@ narrower jobs.
 
 The log is append-only and versioned. It stores model-visible facts and audit
 facts in one tree. It is the only artifact needed to reconstruct the
-conversation. Compaction and windows are log entries, not rewrites.
+conversation and active history position. Compaction, windows, and branch
+navigation are log entries, not rewrites.
 
 ## Snapshots
 
