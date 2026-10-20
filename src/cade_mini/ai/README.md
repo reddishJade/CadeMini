@@ -27,7 +27,7 @@ Model request: messages and tools
 - `FinalMessage`: termination with reasons such as `end_turn`, `tool_use`, or `max_tokens`.
 - `ProviderFailure`: structured network or HTTP failures.
 
-[types.py](types.py) defines `ProviderConfig`, including `api_key`, `model`, `base_url`, `thinking`, and `reasoning_effort`. [models.py](models.py) resolves aliases and window sizes; [cache.py](cache.py) tracks prompt cache statistics.
+[types.py](types.py) defines `ProviderConfig`, including `api_key`, `model`, `base_url`, `thinking`, and `reasoning_effort`. [models.py](models.py) holds the built-in model registry, resolves aliases, and requires `context_window` and `max_tokens` for every entry; [cache.py](cache.py) tracks prompt cache statistics.
 
 ## Invariants
 

@@ -221,18 +221,22 @@ def _main(
         return 2
 
     try:
+        context_window = args.context_window or config.context_window
         selected = provider or build_provider(
             ProviderConfig(
                 provider=provider_name,
                 model=model_name,
                 reasoning_effort=effort,
+                context_window=context_window,
             )
         )
-        budget = Budget(
-            context_window=args.context_window
-            or config.context_window
-            or (getattr(selected, "context_window", None) or 200_000)
-        )
+        resolved_window = context_window or getattr(selected, "context_window", None)
+        if resolved_window is None:
+            raise ValueError(
+                "Model context window is unknown; register the model with "
+                "metadata or pass --context-window"
+            )
+        budget = Budget(context_window=resolved_window)
     except (RuntimeError, ValueError) as exc:
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from cade_mini.ai.models import get_model_context_window
+from cade_mini.ai.models import get_model
 from cade_mini.ai.providers.base import ModelProvider
 from cade_mini.ai.providers.registry import (
     ModelProfileConfig,
@@ -31,12 +31,15 @@ class ProviderConfig:
     reasoning_effort: str | None = DEFAULT_REASONING_EFFORT
     thinking: bool = True
     api_key: str | None = None
+    context_window: int | None = None
 
     def __post_init__(self) -> None:
         if not self.provider.strip():
             raise ValueError("provider must not be empty")
         if not self.model.strip():
             raise ValueError("model must not be empty")
+        if self.context_window is not None and self.context_window <= 0:
+            raise ValueError("context_window must be positive")
 
 
 def build_provider(
@@ -94,13 +97,24 @@ def build_provider(
                 f"or set {api_key_env_var(provider)}"
             )
 
+    metadata = get_model(provider, resolution.model)
+    context_window = selected.context_window
+    if context_window is None:
+        if metadata is None:
+            raise ValueError(
+                f"Model '{resolution.model}' is not registered for provider "
+                f"'{provider}'; add it to ai/models.py with context_window and "
+                "max_tokens, or pass --context-window / set context_window"
+            )
+        context_window = metadata.context_window
+
     profile = ModelProfileConfig(
         provider=provider,
         transport=transport,
         chat_model=resolution.model,
         base_url=base_url,
         api_key=api_key,
-        context_window=get_model_context_window(resolution.model),
+        context_window=context_window,
         thinking=selected.thinking,
         reasoning_effort=selected.reasoning_effort,
     )

@@ -41,7 +41,8 @@ model settings. Cade Mini supports only the Responses protocol.
 - `--yes` approves asks. Use it only in trusted, non-interactive contexts.
 - `--auto-review` / `--no-auto-review` lets the model review ask-level calls.
 - `--max-steps N` bounds model steps.
-- `--context-window N` overrides the model context window.
+- `--context-window N` overrides the model context window. It is required for
+  models that are not in the built-in registry.
 - `--json` emits JSONL events for a one-shot task.
 - `--steer TEXT` injects guidance at the next model step; repeatable.
 - `--queue TEXT` queues a REPL task to run after the current task; repeatable.

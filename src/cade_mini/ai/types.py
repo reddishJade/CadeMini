@@ -49,13 +49,19 @@ class Model:
     name: str
     api: str
     provider: str
+    context_window: int
+    max_tokens: int
     base_url: str = ""
     reasoning: bool = False
-    context_window: int = 0
-    max_tokens: int = 0
     cost: Cost = field(default_factory=Cost)
     thinking_level_map: dict[str, str | None] | None = None
     reasoning_efforts: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.context_window <= 0:
+            raise ValueError("context_window must be positive")
+        if self.max_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
 
 
 @dataclass(frozen=True)
