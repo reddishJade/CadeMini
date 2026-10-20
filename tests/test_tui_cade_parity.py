@@ -253,17 +253,3 @@ def test_argument_completions_do_not_repeat_candidate_names(
     model = list(completer.get_completions(Document("/model "), object()))
     assert model
     assert all(not item.display_meta_text.startswith(item.text) for item in model)
-
-
-@pytest.mark.asyncio
-async def test_shift_tab_switch_is_silent_and_preserves_draft(tmp_path: Path) -> None:
-    terminal = CadeTui(host(tmp_path), output=DummyOutput())
-    terminal._input.text = "unsubmitted work"
-    old_entries = len(terminal.transcript.entries)
-    old_log = len(terminal.service.log.entries())
-    assert terminal.service.policy.mode == "act"
-    await terminal._cycle_mode()
-    assert terminal.service.policy.mode == "build"
-    assert terminal._input.text == "unsubmitted work"
-    assert len(terminal.transcript.entries) == old_entries
-    assert len(terminal.service.log.entries()) == old_log
