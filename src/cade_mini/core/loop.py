@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Sequence
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from functools import wraps
 from threading import Lock
@@ -30,7 +31,7 @@ from cade_mini.core.permissions import (
 )
 from cade_mini.core.projection import project
 from cade_mini.core.request import Budget, Request, build, estimate
-from cade_mini.core.types import JsonValue, ToolCallBlock, ToolResultMessage
+from cade_mini.core.types import JsonValue, LogEntry, ToolCallBlock, ToolResultMessage
 from cade_mini.execution_env.sandbox import execution_scope
 
 type Termination = Literal[
@@ -101,6 +102,16 @@ class Hooks(Protocol):
         content: str,
         is_error: bool,
     ) -> None: ...
+
+
+class TurnLifecycle(Protocol):
+    """宿主提供轮次检查点；核心不依赖工作区存储。"""
+
+    def record(self, log: SessionLog) -> AbstractContextManager[None]: ...
+
+    def started(self, log: SessionLog, user: LogEntry) -> None: ...
+
+    def request_context(self, log: SessionLog) -> Sequence[str]: ...
 
 
 class CancellationToken:
@@ -200,7 +211,11 @@ def _exclusive_session[**P](
 
     @wraps(operation)
     async def locked(log: SessionLog, *args: P.args, **kwargs: P.kwargs) -> RunResult:
-        with log.run_lock():
+        lifecycle = cast(TurnLifecycle | None, kwargs.get("lifecycle"))
+        with (
+            log.run_lock(),
+            lifecycle.record(log) if lifecycle is not None else nullcontext(),
+        ):
             return await operation(log, *args, **kwargs)
 
     return locked
@@ -228,6 +243,7 @@ async def run(
     window: Callable[[SessionLog], bool] | None = None,
     hooks: Hooks | None = None,
     steering: Callable[[], str | None] | None = None,
+    lifecycle: TurnLifecycle | None = None,
 ) -> RunResult:
     """追加用户输入并驱动模型/工具循环，直到完成或终止。
 
@@ -249,7 +265,10 @@ async def run(
     )
 
     _recover_tool_calls(log)
-    log.append("user", {"text": text, "source": "user"})
+    user = log.append("user", {"text": text, "source": "user"})
+    if lifecycle is not None:
+        lifecycle.started(log, user)
+        context = (*context, *lifecycle.request_context(log))
     total_usage = {"input": 0, "output": 0}
     has_usage = False
     last_answer = ""

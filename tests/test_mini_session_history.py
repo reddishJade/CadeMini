@@ -172,8 +172,8 @@ def test_clone_copies_only_active_path_and_remaps_context_cuts(tmp_path: Path) -
     assert {e.id for e in clone.entries()}.isdisjoint(e.id for e in log.entries())
 
 
-@pytest.mark.parametrize("version", [1, 2])
-def test_navigation_appends_v3_without_rewriting_legacy_records(
+@pytest.mark.parametrize("version", [1, 2, 3])
+def test_navigation_appends_current_version_without_rewriting_legacy_records(
     tmp_path: Path, version: int
 ) -> None:
     path = tmp_path / "sessions" / "session-legacy.jsonl"
@@ -203,7 +203,7 @@ def test_navigation_appends_v3_without_rewriting_legacy_records(
     log = SessionLog.open(path)
     log.switch_branch("old-user")
     assert path.read_bytes().startswith(original)
-    assert log.entries()[-1].v == 3
+    assert log.entries()[-1].v == 4
     assert log.entries()[-1].parent is None
     assert log.navigation_draft == "legacy task"
     assert _users(log) == []

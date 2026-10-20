@@ -118,15 +118,15 @@ class SessionLog:
             lock.release()
 
     def append(self, event_type: EventType, data: dict[str, JsonValue]) -> LogEntry:
-        """校验并追加 v3 事实，fsync 后返回已提交的条目。"""
-        return self._append(event_type, data, version=3)
+        """校验并追加 v4 事实，fsync 后返回已提交的条目。"""
+        return self._append(event_type, data, version=4)
 
     def _append(
         self,
         event_type: EventType,
         data: dict[str, JsonValue],
         *,
-        version: Literal[1, 2, 3],
+        version: Literal[1, 2, 3, 4],
     ) -> LogEntry:
         if version >= 2:
             try:
@@ -146,6 +146,8 @@ class SessionLog:
                 if selected is None:
                     raise LogError(f"session entry not found: {data['selected_id']}")
                 parent = selected.parent if selected.type == "user" else selected.id
+            if event_type == "restore":
+                parent = _restore_parent(data, {e.id: e for e in entries})
             entry = LogEntry(
                 v=version,
                 id=uuid4().hex[:12],
@@ -154,6 +156,8 @@ class SessionLog:
                 type=event_type,
                 data=data,
             )
+            if event_type == "checkpoint":
+                _validate_entries([*entries, entry], self.path)
             if self._pending is None:
                 self._repair_tail()
                 with self.path.open("a", encoding="utf-8", newline="\n") as stream:
@@ -195,6 +199,12 @@ class SessionLog:
         for entry in reversed(branch):
             if entry.type in {"user", "assistant"}:
                 return None
+            if entry.type == "restore":
+                draft_id = entry.data["draft_id"]
+                return next(
+                    (str(e.data.get("text", "")) for e in entries if e.id == draft_id),
+                    "",
+                )
             if entry.type == "branch":
                 selected = next(e for e in entries if e.id == entry.data["selected_id"])
                 return (
@@ -234,7 +244,7 @@ class SessionLog:
                 if entry.type == "meta":
                     id_map[entry.id] = copied_entries[0].id
                     continue
-                if entry.type == "branch":
+                if entry.type in {"branch", "checkpoint", "restore"}:
                     continue
                 data = dict(entry.data)
                 for key in ("first_kept_id", "start_id"):
@@ -340,7 +350,37 @@ def _validate_entries(entries: list[LogEntry], path: Path) -> None:
                 raise LogError(
                     f"navigation parent does not match selected entry: {entry.id}"
                 )
+        if entry.type == "restore" and entry.parent != _restore_parent(
+            entry.data, seen
+        ):
+            raise LogError(f"invalid restore parent: {entry.id}")
+        if entry.type == "checkpoint":
+            user = seen.get(str(entry.data["user_id"]))
+            if user is None or user.type != "user":
+                raise LogError(f"invalid checkpoint user: {entry.id}")
+            anchor = entry.data["anchor_id"]
+            current = user.parent
+            while current is not None and current != anchor:
+                current = seen[current].parent
+            if current != anchor:
+                raise LogError(f"invalid checkpoint anchor: {entry.id}")
         seen[entry.id] = entry
+
+
+def _restore_parent(
+    data: dict[str, JsonValue], seen: dict[str, LogEntry]
+) -> str | None:
+    target = data["target_id"]
+    if data["scope"] == "code" and target != next(reversed(seen), None):
+        raise LogError("Code-only restore cannot change conversation ancestry")
+    if target is not None and (not isinstance(target, str) or target not in seen):
+        raise LogError("Restore target must reference an earlier entry")
+    draft = data["draft_id"]
+    if draft is not None and (
+        not isinstance(draft, str) or draft not in seen or seen[draft].type != "user"
+    ):
+        raise LogError("Restore draft must reference an earlier user input")
+    return target if isinstance(target, str) else None
 
 
 def _branch(entries: Sequence[LogEntry], entry_id: str | None = None) -> list[LogEntry]:
