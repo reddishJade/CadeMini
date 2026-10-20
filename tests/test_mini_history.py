@@ -114,4 +114,4 @@ async def test_history_finds_compacted_evidence(tmp_path: Path) -> None:
 def test_policy_allows_history(tmp_path: Path) -> None:
     policy = WorkspacePolicy(tmp_path)
 
-    assert policy.check(_call({"query": "anything"})) == "allow"
+    assert policy.check(_call({"query": "anything"})).decision == "allow"

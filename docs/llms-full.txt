@@ -238,8 +238,12 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
   `<project-root>/cade-mini.json`.
 - `--provider NAME`, `--model NAME`, and `--effort EFFORT` override provider
   defaults.
-- `--mode plan|build|act` selects the execution mode.
-- `--read-only` / `--no-read-only` denies or permits writes and shell commands.
+- `--mode plan|build|ask` selects the work mode. Default is `build`.
+- `--sandbox read-only|workspace-write|danger-full-access` selects filesystem
+  scope. Default is `workspace-write`; Windows skips OS confinement.
+- `--network` / `--no-network` controls sandbox networking. Default is enabled.
+- `--read-only` / `--no-read-only` controls mutation denial. Read-only shell
+  commands remain available.
 - `--yes` approves asks. Use it only in trusted, non-interactive contexts.
 - `--auto-review` / `--no-auto-review` lets the model review ask-level calls.
 - `--max-steps N` bounds model steps.
@@ -349,7 +353,9 @@ silently ignored.
   "context_window": 128000,
   "max_steps": 30,
   "sessions_dir": ".cade-mini/sessions",
-  "mode": "act",
+  "mode": "build",
+  "sandbox": "workspace-write",
+  "network": true,
   "read_only": false,
   "instructions": true,
   "note": true,
@@ -376,8 +382,12 @@ silently ignored.
 - `max_steps`: maximum model steps in one run.
 - `sessions_dir`: session directory. Relative paths resolve against the project
   root.
-- `mode`: `plan`, `build`, or `act`.
-- `read_only`: deny writes and shell commands.
+- `mode`: `plan`, `build`, or `ask`. Default is `build`; replace old `act` values with `ask`.
+- `sandbox`: `read-only`, `workspace-write` (default), or `danger-full-access`.
+  Windows skips OS confinement regardless of this setting.
+- `network`: allow tool network access. Default is true. OS enforcement of false
+  requires Linux/macOS confinement.
+- `read_only`: deny mutations and allow only classified read-only shell commands.
 - `instructions`: load `AGENTS.md` or `CLAUDE.md` into request context.
 - `note`: load `NOTE.md` working state.
 - `memory`: load `MEMORY.md` durable facts.
@@ -387,8 +397,10 @@ silently ignored.
 
 ## Rules
 
-Rules are evaluated last match first. A rule matches a tool name or `*`, and
-optionally a path or command prefix. `decision` is `allow`, `deny`, or `ask`.
+Rules match a tool name or `*`, optionally a normalized path subtree or command
+prefix. All matches participate: `deny` takes precedence over `ask`, then
+`allow`. Order does not matter. `allow` overrides mode defaults, not an effective
+explicit deny.
 
 ```json
 {
@@ -400,8 +412,11 @@ optionally a path or command prefix. `decision` is `allow`, `deny`, or `ask`.
 }
 ```
 
-Hard boundaries win over rules: a path outside the workspace is denied even if a
-rule allows the tool. `read_only` also wins over grants and rules.
+In this example, `git status` is denied because the broader deny still matches.
+Remove or narrow that deny to allow it. Plan constraints, protected paths, and
+`read_only` win over grants and rules. External writes request additional
+permissions instead of being unconditionally denied. See
+[Tools and security](tools-security.md) for scopes and approval behavior.
 
 ## Hooks
 
@@ -548,7 +563,10 @@ imports application or host modules. The AI layer supports only the OpenAI
 Responses protocol, as recorded in [decision 0007](decisions/0007-responses-only-provider.md),
 and uses Sign in with ChatGPT for plan usage, as recorded in
 [decision 0008](decisions/0008-siwc-login.md).
-Mini has no OS sandbox; shell execution uses local host permissions.
+`execution_env/sandbox.py` owns bubblewrap and Seatbelt process wrapping.
+`core/permissions.py` carries structured approval results and per-call scopes.
+The CLI confines shell and file workers on Linux/macOS; Windows runs directly.
+See [Tools and security](tools-security.md) for boundaries and trusted extensions.
 
 Credentials and user skills use `~/.cade-mini/`. The SIWC host ID lives in
 `~/.cade-mini/host.json`. Sessions, snapshots, goals,
@@ -707,9 +725,9 @@ session schema.
 ## Trust and permissions
 
 Every tool call passes through a policy. Modes, static rules, session grants,
-shell classification, and approvals decide whether a call runs. Cade Mini has
-no OS sandbox; the path boundary, mode, shell classification, and approvals are
-the active safety layer.
+shell classification, and approvals decide whether a call runs. Linux/macOS
+shell and file tools also use OS confinement; Windows runs directly. See
+[Tools and security](../tools-security.md) for scopes and limitations.
 
 See [Architecture](../architecture.md) for the invariant and
 [Capability seams](capability-seams.md) for the contracts.
@@ -743,7 +761,8 @@ tests/            regression and integration tests
 
 Provider and execution modules originated in Cade and are now owned and
 maintained here. Mini includes only the process execution code it uses, not
-Cade's filesystem or Linux sandbox implementation. Mini has no OS sandbox.
+Cade's filesystem or Linux sandbox implementation. Mini's own process wrapper
+uses installed bubblewrap on Linux and Seatbelt on macOS; Windows runs directly.
 
 ## Entry points
 
@@ -800,7 +819,7 @@ Intentional limits include:
 - No full-screen TUI, plugin runtime, RPC, or SDK.
 - No artifact store or parallel tool scheduler.
 - No permanent approval grants; durable rules belong in project config.
-- No OS sandbox; permissions and shell classification are application checks.
+- No Windows OS sandbox; Linux uses bubblewrap and macOS uses Seatbelt.
 
 The [historical parity acceptance](../parity.md) records workflows tested
 before separation. It is not a promise of future feature parity. See the
@@ -819,8 +838,9 @@ implementation can be replaced without changing the session schema or the loop.
 | --- | --- | --- | --- |
 | Provider | `loop.Provider` streaming events | OpenAI Responses, ChatGPT plan (SIWC) | Loop, compaction, auto-review |
 | Tool | `loop.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
-| Policy | `loop.Policy.check` returns allow, deny, or ask | `WorkspacePolicy` | Loop |
-| Approval | Callable returning bool or awaitable bool | `SessionApprover`, `AutoReviewer` | Loop |
+| Policy | `permissions.Policy.check` returns decision, reason, and scope | `WorkspacePolicy` | Loop, CLI shell |
+| Approval | `ApprovalRequest` to `ApprovalResult`, optionally async | `SessionApprover`, `AutoReviewer` | Authorization |
+| Execution scope | `ExecutionScope` and `PlatformSandbox.wrap` | bubblewrap, Seatbelt, Windows direct | Workspace tools |
 | Hooks | `loop.Hooks.before/after` | `HookRunner` | Loop |
 | Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
 | Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |
@@ -982,8 +1002,11 @@ flowchart LR
 3. An `ask` decision is resolved by the host: TTY prompt, `--yes`, auto-review,
    or denial.
 4. `before_tool` hooks run. A non-zero exit denies the call.
-5. The tool executes with a timeout and cancellation token.
+5. The tool executes within the approved per-call scope, with a timeout and
+   cancellation token. Linux/macOS workspace tools use OS confinement.
 6. The result is truncated, appended as a `tool_result` fact, and rendered.
+   Its `artifact.authorization` records decision, reason, and scope without
+   adding that metadata to the model transcript.
 7. `after_tool` hooks run and their output is ignored.
 
 ## Denials and errors
@@ -1038,7 +1061,9 @@ Top-level fields. Nested types follow the table.
 | `memory` | `boolean` | `true` |
 | `auto_review` | `boolean` | `false` |
 | `prompt_modules` | `list[string] \| null` | `null` |
-| `mode` | `plan \| build \| act` | `"act"` |
+| `mode` | `plan \| build \| ask` | `"build"` |
+| `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
+| `network` | `boolean` | `true` |
 | `rules` | `list[RuleConfig]` | `required` |
 | `hooks` | `list[HookConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
@@ -1140,9 +1165,13 @@ flowchart LR
   core_loop --> ai_events
   core_loop --> ai_types
   core_loop --> core_log
+  core_loop --> core_permissions
   core_loop --> core_projection
   core_loop --> core_request
   core_loop --> core_types
+  core_loop --> execution_env_sandbox
+  core_permissions --> core_types
+  core_permissions --> execution_env_sandbox
   core_projection --> core_types
   core_request --> ai_types
   core_request --> core_types
@@ -1163,6 +1192,7 @@ flowchart LR
   extensions_skills --> tools_workspace
   extensions_subagents --> core_log
   extensions_subagents --> core_loop
+  extensions_subagents --> core_permissions
   extensions_subagents --> core_request
   extensions_subagents --> core_types
   extensions_subagents --> safety_policy
@@ -1178,10 +1208,12 @@ flowchart LR
   hosts_cli --> core_compaction
   hosts_cli --> core_log
   hosts_cli --> core_loop
+  hosts_cli --> core_permissions
   hosts_cli --> core_projection
   hosts_cli --> core_request
   hosts_cli --> core_types
   hosts_cli --> core_window
+  hosts_cli --> execution_env_sandbox
   hosts_cli --> extensions_goal
   hosts_cli --> extensions_hooks
   hosts_cli --> extensions_mcp
@@ -1195,17 +1227,25 @@ flowchart LR
   hosts_cli --> safety_review
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
-  safety_approval --> core_types
+  safety_approval --> core_permissions
   safety_approval --> safety_grants
   safety_grants --> core_types
   safety_policy --> app_config
   safety_policy --> core_loop
+  safety_policy --> core_permissions
   safety_policy --> core_types
+  safety_policy --> execution_env_paths
+  safety_policy --> execution_env_sandbox
   safety_policy --> safety_grants
   safety_policy --> safety_shell
-  safety_policy --> tools_workspace
   safety_review --> ai_events
   safety_review --> core_loop
+  safety_review --> core_permissions
+  safety_review --> core_request
+  safety_review --> core_types
+  tools__worker --> core_loop
+  tools__worker --> execution_env_sandbox
+  tools__worker --> tools_workspace
   tools_history --> core_log
   tools_history --> core_loop
   tools_history --> core_types
@@ -1213,6 +1253,9 @@ flowchart LR
   tools_workspace --> core_loop
   tools_workspace --> core_types
   tools_workspace --> execution_env
+  tools_workspace --> execution_env_paths
+  tools_workspace --> execution_env_sandbox
+  tools_workspace --> execution_env_subprocess
   tools_workspace --> extensions_snapshots
   tools_workspace --> safety_shell
 ```
@@ -1228,26 +1271,27 @@ The built-in tool surface. MCP tools are discovered at startup and named
 
 | Tool | Parameters | Side effect | Default policy |
 | --- | --- | --- | --- |
-| `read` | `path`, `offset`, `limit` | None | Allow inside workspace |
-| `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in act, allow in build |
-| `edit` | `path`, `old`, `new` | Replaces one occurrence; snapshot first | Ask in act, allow in build |
+| `read` | `path`, `offset`, `limit` | None | Allow except protected paths |
+| `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in ask, allow in build |
+| `edit` | `path`, `old`, `new` | Replaces one occurrence; snapshot first | Ask in ask, allow in build |
 | `glob` | `pattern`, `path` | None | Allow |
 | `grep` | `pattern`, `path`, `include` | None | Allow |
-| `bash` | `command`, `workdir`, `timeout_ms` | Arbitrary process; snapshot common mutations | Ask except read-only shell |
+| `bash` | `command`, `workdir`, `timeout_ms`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
 | `history` | `query`, `entry_id`, `call_id`, `limit` | None | Allow |
 | `skill` | `name` | None; loads a skill body | Allow |
 | `memory` | `text` | Appends to `MEMORY.md` | Allow; denied read-only |
 | `goal` | `action`, `objective` | Updates `.cade-mini/goal.json` | Allow |
-| `subagent` | `prompt`, `description` | Creates a child session | Allow; hidden in plan |
+| `subagent` | `prompt`, `description` | Creates a child session | Allow; inherits parent limits |
 | `delegate` | `prompt` or `tasks`, `mode`, `description` | Creates one or more child sessions | Allow |
 | `mcp__*` | Server-defined | Remote side effects | Ask; denied plan and read-only |
 
 ## Reading the table
 
 - "Side effect" is what the tool can change, not what it always changes.
-- `write` and `edit` fail closed if the snapshot cannot be taken.
+- Workspace `write` and `edit` fail closed if the snapshot cannot be taken.
+  External writes require permission and have no workspace snapshot.
 - `bash` read-only classification is conservative; unknown commands ask in
-  build and act and are denied in plan.
+  ask mode and are denied in plan. Build permits ordinary development commands.
 - MCP tools are dynamic. A rule can allow a specific tool; the default is ask.
 
 ## Parameters
@@ -1546,7 +1590,7 @@ or pruning.
 
 ## mode
 
-`plan`, `build`, or `act`. A mode selects the default policy for tools and shell
+`plan`, `build`, or `ask`. A mode selects the default policy for tools and shell
 commands.
 
 ## rule
@@ -2009,73 +2053,54 @@ cancellation, context errors, and window fallback.
 
 # Tools and policy
 
-## Tool contract
+## Contracts
 
-A tool has a name, description, JSON parameter schema, and async execute. Results
-carry content, an error flag, and optional metadata. The loop records results; a
-tool never appends to the log.
+A tool declares a name, description, JSON schema, and async `execute`. The loop
+records content and the error flag; tools do not append session facts.
 
-## Built-in tools
+`core.permissions.Policy.check` returns a `PermissionCheck` with a decision
+(`allow`, `deny`, or `ask`), reason, and `ExecutionScope`. `authorize` resolves
+only asks using an `ApprovalRequest` and `ApprovalResult`.
+The loop and CLI direct-shell path use the same authorization function.
 
-- Workspace: `read`, `write`, `edit`, `glob`, `grep`, `bash`.
-- Evidence and context: `history`, `skill`, `memory`, `goal`.
-- Delegation: `subagent`.
-- Remote: `mcp__<server>__<tool>`.
+`WorkspacePolicy` applies mode constraints and protected paths before explicit
+rules, grants, and mode defaults. Matching rules use deny > ask > allow.
+Subagent modes cannot expand parent permissions. See
+[Tools and security](../tools-security.md) for user-facing semantics.
 
-`write` and `edit` snapshot the target before changing it. `bash` snapshots
-common single-command mutation targets.
+## Execution
 
-## Policy
+The loop installs the authorized scope in a context variable only while the
+specific tool runs. This scope is preserved across async tasks and worker
+threads and reset afterward. It never changes the default workspace or grants.
 
-`WorkspacePolicy.check` returns allow, deny, or ask.
+The CLI constructs a `PlatformSandbox` with the project root, private temp,
+network setting, and protected paths. `SubprocessShell` wraps commands before
+spawning. File tools use the same backend through `tools._worker`; snapshot
+storage remains host-owned. External file changes have no workspace snapshot.
+Cancellation signals reach the subprocess launcher, and tools wait for process
+termination before returning or cleaning up request files.
 
-Hard checks run first:
+Linux uses bubblewrap, macOS uses Seatbelt, and Windows runs directly. Backend
+errors become tool errors, not unsandboxed retries. Hooks and MCP server
+processes are trusted host extensions outside this boundary.
 
-- `read` and file writes must stay inside the workspace.
-- `bash` workdir must stay inside the workspace.
-- Unknown tools are denied.
-- `read_only` denies writes, edits, shell, memory, and MCP.
+## Reviewer
 
-Then:
-
-1. A matching static rule decides.
-2. A matching session grant allows.
-3. The mode default decides.
-
-Modes:
-
-- `plan`: read tools and read-only shell; writes and mutations denied.
-- `build`: writes allowed; read-only shell allowed; mutating shell asks.
-- `act`: writes and shell ask.
-
-## Shell classification
-
-`classify_command` labels a command read-only, mutating, or unknown. Pipelines,
-redirections, command lists, substitutions, and unknown binaries are unknown.
-Plan mode denies unknown; build asks; act asks.
-
-## Grants
-
-`GrantStore` records a path or command for the exact tool. A grant is
-process-local. `/permissions` lists and clears it. Durable policy belongs in
-rules.
-
-## Approvals
-
-The host resolves ask. `SessionApprover` prompts a TTY with yes/no/always.
-`AutoReviewer` makes one tool-free model call and requires an `ALLOW` prefix.
-Non-interactive hosts deny unless `--yes` or a rule allows.
-
-## Process isolation
-
-There is no OS sandbox. Shell commands run with the Cade Mini process
-permissions. The path boundary, mode, shell classification, and approvals are
-the safety layer.
+`AutoReviewer` receives the authorization reason, exact arguments, retained
+conversation, ancestor conversations, and context constraints. It uses a
+separate tool-free request. Oversized input is rejected rather than silently
+truncated. Output is a strict object with `allowed: bool` and `reason: str`.
+Rejections and failures return their reasons to the model as tool errors.
 
 ## Tests
 
-`test_mini_tools.py`, `test_mini_policy.py`, `test_mini_grants.py`, and
-`test_mini_shell.py`.
+- `test_mini_policy.py`: mode constraints, precedence, and write scope.
+- `test_mini_grants.py`: exact grants and scope isolation.
+- `test_mini_review.py`: strict responses and model-visible denial reasons.
+- `test_mini_subagents.py`: child permission ceilings.
+- `test_mini_sandbox.py`: real OS file/network isolation, worker integration,
+  cancellation, Windows bypass, and unavailable backends.
 
 # Context and compaction
 
@@ -2173,7 +2198,9 @@ that cannot start is reported and skipped.
 gets the parent provider, budget, policy, approver, hooks, context, and base
 tools plus its own history. It cannot spawn another subagent and is limited to
 20 steps. The parent records only the call and summary. `DelegateTool` runs one
-or more child tasks sequentially and optionally applies a child mode.
+or more child tasks sequentially and optionally applies a more restrictive
+child mode. Reviewer requests retain ancestor conversations so a child prompt
+cannot replace human restrictions.
 
 ## Snapshots
 
@@ -2210,83 +2237,107 @@ Subagents are sequential and share the parent approval context.
 
 ## Workspace tools
 
-- `read`: read a UTF-8 file with line numbers. Files are capped.
+- `read`: read a UTF-8 file or list a directory. Output is capped.
 - `write`: write UTF-8 text and create parent directories.
 - `edit`: replace one exact occurrence of old text.
-- `glob`: list files matching a workspace glob.
-- `grep`: search file contents with a regular expression.
-- `bash`: run a shell command in the workspace.
+- `glob`: list workspace files matching a glob.
+- `grep`: search workspace text files with a regular expression.
+- `bash`: run a shell command, optionally with a workdir and
+  `additional_write_paths` that request extra permissions for this call.
 
-## Context and extension tools
-
-- `history`: retrieve evidence outside the current context boundary.
-- `skill`: load the full body of an available `SKILL.md`.
-- `memory`: append a durable fact to `MEMORY.md`.
-- `goal`: read, set, complete, or clear the workspace goal.
-- `subagent`: run one child task in its own session.
-- `delegate`: run one or more child tasks sequentially, optionally in a mode.
-- `mcp__<server>__<tool>`: tools discovered from a configured MCP server.
+The workspace is the fixed project root, not the shell's current directory or
+an alias for the entire home directory. Reads can use external paths, except
+protected files. Workspace writes have snapshots; external writes do not.
 
 ## Modes
 
-`plan` exposes read, glob, grep, history, skill, and bash. Writes and edits are
-hidden and denied. Only classified read-only shell commands are allowed.
+- `build` is the default. Normal edits, tests, builds, and shell pipelines run
+  automatically. Detected destructive, privileged, publishing, or external-send
+  operations require approval.
+- `ask` allows classified read-only operations and asks before changes or
+  unclassified shell commands.
+- `plan` supports exploration and discussion, not implementation. Project
+  changes, memory changes, goal changes, and MCP calls are denied. File tools
+  can write under `<workspace>/.cade-mini-plans/` only after approval for a
+  user-requested plan. Implementation requires the user to switch modes.
 
-`build` exposes all tools. Writes and edits are allowed. Read-only shell
-commands are allowed; mutating or unknown commands ask.
-
-`act` exposes all tools. Writes, edits, and shell commands ask.
-
-`--read-only` denies writes, edits, shell commands, memory, and MCP regardless of
-mode. It does not block reads, search, history, skills, or goal state.
+Subagents inherit the parent's limits. A child mode can only narrow them.
+`--read-only` and `--sandbox read-only` deny mutations while allowing classified
+read-only shell commands. These constraints cannot be overridden by rules,
+grants, `--yes`, or Reviewer approval.
 
 ## Rules and grants
 
-Static rules live in `cade-mini.json`. They are evaluated last match first and
-can match tool, path prefix, and command prefix. A hard path boundary always
-wins.
+Rules in `cade-mini.json` match a tool, normalized path subtree, or command
+prefix. All matching rules participate: `deny` wins over `ask`, which wins over
+`allow`. An explicit allow overrides a default ask, not an effective deny.
+Remove or change a deny rule to revoke it; an approval answer cannot do that.
 
-A session grant is created when an approval answer is `a` (always). The grant
-matches the same tool and the same path or command. `/permissions` lists grants;
-`/permissions clear` removes them. Grants last for the process only. Use rules
-for durable policy.
+A TTY answer of `a` creates a process-local session grant. File grants match the
+same tool and path. Shell grants also match workdir and extra write paths;
+MCP grants match the complete arguments. A grant can answer an ask but cannot
+bypass a deny. `/permissions` lists grants; `/permissions clear` removes them.
 
-## Shell classification
+## Approvals and Reviewer
 
-The shell analyzer labels a command as `read_only`, `mutating`, or `unknown`.
-It is deliberately conservative:
+Only an `ask` enters approval:
 
-- `ls`, `cat`, `grep`, `rg`, `git status`, `git diff`, and similar commands are
-  read-only.
-- `rm`, `mv`, `cp`, `git commit`, `python`, and other mutating commands are
-  mutating.
-- Pipelines, redirections, command lists, substitutions, and unknown binaries
-  are unknown.
+- `--yes` approves asks, not denials.
+- `--auto-review` sends the pending action, authorization reason, retained
+  conversation, parent conversations, and context constraints to a tool-free
+  Reviewer call. The response must contain a strict boolean `allowed` and a
+  non-empty `reason`.
+- Otherwise, a TTY prompts for `y` once, `n` deny, or `a` always.
+- Without an available approver, the action is denied.
 
-Plan mode denies unknown commands. Build and act ask.
+Reviewer rejection, timeout, provider failure, and malformed responses become
+error tool results with reasons. They return to the acting model without an
+automatic human prompt. The model must respect the denial while adjusting its
+approach. Reviewer does not inspect every ordinary development operation.
 
-## Approvals
+Shell classification and risk detection are conservative heuristics, not a
+security boundary or a complete analysis of arbitrary scripts. They cannot
+identify every destructive or external effect hidden inside programs.
 
-An ask is answered by:
+## OS sandbox
 
-- `--yes`: approve.
-- `--auto-review`: ask the model for `ALLOW` or `DENY`; failures deny.
-- Otherwise a TTY prompt: `y` once, `n` deny, `a` always for this exact call.
-- Non-TTY without `--yes` or auto-review: deny.
+Filesystem scope is independent of mode and approval:
 
-## Process isolation
+| Policy | Scope |
+| --- | --- |
+| `workspace-write` (default) | Write in the project and private session temp directory |
+| `read-only` | No regular file writes |
+| `danger-full-access` | Skip OS confinement; explicit deny rules still apply |
 
-Cade Mini does not implement an OS sandbox. `bash` runs with the permissions of
-the Cade Mini process. The path boundary, modes, shell classification, and
-approvals are the safety layer; do not run untrusted commands or repositories
-with `--yes`.
+Linux uses installed `bwrap` (bubblewrap). macOS uses system `sandbox-exec`
+(Seatbelt). Missing backends and startup failures return tool errors; neither
+platform silently retries without confinement. Windows skips OS confinement
+and retains application policy and approval checks without extra prompts.
 
-## Best practices
+The CLI routes shell commands and file tools through the same execution
+policy. On Linux/macOS, file tools execute in a fixed-operation sandboxed Python
+worker. Approving an external file write grants that target for this call.
+Shell `additional_write_paths` must name existing files or directories; a
+directory grant includes its descendants. Changing workdir does not expand
+write permissions. Approvals never silently grant full host access.
 
-- Use `plan` for review and `build` for scoped edits.
-- Prefer explicit rules over `--yes` in shared repositories.
-- Keep commands simple so the classifier can reason about them.
-- Use `--read-only` for inspection-only automation.
+Network access is independent and enabled by default. `--no-network` disables
+sandbox network access; approving network access does not grant external file
+writes. Windows and `danger-full-access` do not provide OS-level network
+restriction. The provider connection runs outside the tool sandbox.
+
+On Linux/macOS, the CLI hides existing user and project `.cade-mini` directories
+from sandboxed commands and protects existing Git hooks and Git configuration
+from writes. The home directory is not writable by default. Private temp and
+common tool caches are redirected to a session directory, cleaned on exit.
+Apart from hidden paths, the filesystem remains readable; this is not complete
+secret isolation. Restrict credentials and exposed resources accordingly.
+
+Hooks, MCP server processes, and host-managed state run outside the tool
+sandbox. Treat their configuration and code as trusted. The sandbox is not a
+container or VM, and it does not make an untrusted repository safe.
+
+See [decision 0009](decisions/0009-execution-permissions.md) for the contract.
 
 # Snapshots and goals
 
@@ -2479,7 +2530,7 @@ Policy:
 
 - `plan` mode hides MCP tools and denies them.
 - `read_only` denies them.
-- `build` and `act` ask by default; a rule can allow a specific tool.
+- `build` and `ask` ask by default; a rule can allow a specific tool.
 
 A server that fails to start is reported at startup and skipped. Connections
 are closed at process exit.
@@ -2512,7 +2563,8 @@ keeps the detailed evidence.
 ```
 
 Tasks run sequentially in separate child sessions. Each result includes the
-child session ID; the parent gets one combined tool result.
+child session ID; the parent gets one combined tool result. Child modes cannot
+expand parent permissions: a Plan parent cannot delegate Build work.
 
 ## Limits
 
@@ -2823,7 +2875,13 @@ Cade Mini is maintained independently of Cade. Work from this repository root.
 
 ## Setup
 
-You need Python 3.12+ and uv:
+You need Python 3.12+ and uv. Linux tool execution also requires usable
+bubblewrap (`sudo apt-get install bubblewrap` on Debian/Ubuntu) and a host that
+permits unprivileged user namespaces. Denied UID mappings are sandbox startup
+errors, not approval failures. CI uses Ubuntu 22.04 without disabling host
+security policies. macOS uses system `sandbox-exec`.
+Native sandbox tests run on Linux and macOS; Windows
+skips those tests and executes tools directly.
 
 ```bash
 uv sync --locked --extra dev --extra docs

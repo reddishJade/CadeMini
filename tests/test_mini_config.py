@@ -18,6 +18,9 @@ def test_defaults_when_config_is_missing(tmp_path: Path) -> None:
     assert config.max_steps is None
     assert config.read_only is False
     assert config.instructions is True
+    assert config.mode == "build"
+    assert config.sandbox == "workspace-write"
+    assert config.network is True
 
 
 def test_loads_values(tmp_path: Path) -> None:
@@ -35,6 +38,8 @@ def test_loads_values(tmp_path: Path) -> None:
                 "auto_review": True,
                 "prompt_modules": ["identity"],
                 "mode": "plan",
+                "sandbox": "read-only",
+                "network": False,
                 "rules": [
                     {
                         "tool": "bash",
@@ -68,6 +73,8 @@ def test_loads_values(tmp_path: Path) -> None:
     assert config.auto_review is True
     assert config.prompt_modules == ["identity"]
     assert config.mode == "plan"
+    assert config.sandbox == "read-only"
+    assert config.network is False
     assert config.rules[0].tool == "bash"
     assert config.rules[0].decision == "allow"
     assert config.hooks[0].event == "before_tool"

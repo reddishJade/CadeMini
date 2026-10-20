@@ -50,14 +50,14 @@ async def test_read_directory(tmp_path: Path) -> None:
     assert "sub/" in result.content
 
 
-async def test_read_rejects_escape_and_binary(tmp_path: Path) -> None:
+async def test_read_allows_external_text_but_rejects_binary(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     (tmp_path / "secret.txt").write_text("secret", encoding="utf-8")
     (root / "bin.dat").write_bytes(b"\x00\x01\x02")
     read = _tool(build_tools(root), "read")
 
-    with pytest.raises(ValueError):
-        await read.execute(_call("read", {"path": "../secret.txt"}))
+    result = await read.execute(_call("read", {"path": "../secret.txt"}))
+    assert "secret" in result.content
     with pytest.raises(ValueError):
         await read.execute(_call("read", {"path": "bin.dat"}))
 
@@ -136,33 +136,33 @@ async def test_bash_runs_command_and_reports_exit(tmp_path: Path) -> None:
     assert "exit code: 3" in failed.content
 
 
-async def test_bash_rejects_outside_workdir(tmp_path: Path) -> None:
+async def test_bash_workdir_does_not_define_writable_scope(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     bash = _tool(build_tools(root), "bash")
 
-    with pytest.raises(ValueError):
-        await bash.execute(_call("bash", {"command": "echo hi", "workdir": ".."}))
+    result = await bash.execute(_call("bash", {"command": "echo hi", "workdir": ".."}))
+    assert not result.is_error
 
 
 def test_policy_decisions(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     policy = WorkspacePolicy(root)
 
-    assert policy.check(_call("read", {"path": "a.txt"})) == "allow"
-    assert policy.check(_call("glob", {"pattern": "**/*"})) == "allow"
-    assert policy.check(_call("write", {"path": "a.txt"})) == "ask"
-    assert policy.check(_call("bash", {"command": "echo hi"})) == "ask"
-    assert policy.check(_call("write", {"path": "../a.txt"})) == "deny"
-    assert policy.check(_call("unknown", {})) == "deny"
+    assert policy.check(_call("read", {"path": "a.txt"})).decision == "allow"
+    assert policy.check(_call("glob", {"pattern": "**/*"})).decision == "allow"
+    assert policy.check(_call("write", {"path": "a.txt"})).decision == "allow"
+    assert policy.check(_call("bash", {"command": "echo hi"})).decision == "allow"
+    assert policy.check(_call("write", {"path": "../a.txt"})).decision == "ask"
+    assert policy.check(_call("unknown", {})).decision == "deny"
 
 
 def test_read_only_policy_denies_mutations(tmp_path: Path) -> None:
     root = _workspace(tmp_path)
     policy = WorkspacePolicy(root, read_only=True)
 
-    assert policy.check(_call("read", {"path": "a.txt"})) == "allow"
-    assert policy.check(_call("write", {"path": "a.txt"})) == "deny"
-    assert policy.check(_call("bash", {"command": "echo hi"})) == "deny"
+    assert policy.check(_call("read", {"path": "a.txt"})).decision == "allow"
+    assert policy.check(_call("write", {"path": "a.txt"})).decision == "deny"
+    assert policy.check(_call("bash", {"command": "echo hi"})).decision == "allow"
 
 
 def test_resolve_workspace_path_boundary(tmp_path: Path) -> None:

@@ -27,6 +27,7 @@ from cade_mini.ai.events import (
 from cade_mini.ai.types import StreamOptions, ToolDefinition
 from cade_mini.core.log import SessionLog
 from cade_mini.core.loop import CancellationToken, RunResult, ToolResult
+from cade_mini.core.permissions import ApprovalRequest, ApprovalResult
 from cade_mini.core.request import Budget
 from cade_mini.core.types import ToolCallBlock
 from cade_mini.extensions.goal import GoalStore
@@ -720,7 +721,7 @@ def test_cli_can_disable_note(tmp_path: Path) -> None:
     assert "NOTE STATE" not in system_text
 
 
-def test_cli_plan_mode_hides_write_tools(tmp_path: Path) -> None:
+def test_cli_plan_mode_exposes_plan_tools_and_constraints(tmp_path: Path) -> None:
     provider = FakeProvider([_text("ok")])
 
     code = main(
@@ -742,8 +743,9 @@ def test_cli_plan_mode_hides_write_tools(tmp_path: Path) -> None:
     names = {tool.name for tool in provider.requests[0][1]}
     assert "read" in names
     assert "bash" in names
-    assert "write" not in names
-    assert "edit" not in names
+    assert "write" in names
+    assert "edit" in names
+    assert "Implementation requires" in str(provider.requests[0][0])
 
 
 def test_cli_build_mode_allows_write_without_approval(tmp_path: Path) -> None:
@@ -1007,7 +1009,7 @@ def test_cli_auto_review_allows_write(tmp_path: Path) -> None:
                 ),
                 FinalMessage("", "tool_use"),
             ],
-            _text("ALLOW"),
+            _text('{"allowed":true,"reason":"The user requested this file change."}'),
             _text("done"),
         ]
     )
@@ -1017,6 +1019,8 @@ def test_cli_auto_review_allows_write(tmp_path: Path) -> None:
             "exec",
             "write",
             "--auto-review",
+            "--mode",
+            "ask",
             "--project-root",
             str(workspace),
         ],
@@ -1060,7 +1064,7 @@ def test_shell_input_runs_with_policy(
         "echo hello-shell",
         [tool],
         policy,
-        lambda call: True,
+        lambda request: ApprovalResult(True, "Approved for test"),
     )
 
     assert "hello-shell" in capsys.readouterr().out
@@ -1104,7 +1108,13 @@ def test_host_approver_routes_through_events() -> None:
 
     threading.Thread(target=answer, daemon=True).start()
     assert (
-        approver(ToolCallBlock(id="c1", name="write", args={"path": "a.txt"})) is True
+        approver(
+            ApprovalRequest(
+                ToolCallBlock(id="c1", name="write", args={"path": "a.txt"}),
+                "Change file",
+            )
+        ).allowed
+        is True
     )
 
 

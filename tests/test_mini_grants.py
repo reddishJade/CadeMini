@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from cade_mini.core.permissions import ApprovalRequest
 from cade_mini.core.types import JsonValue, ToolCallBlock
 from cade_mini.safety.approval import SessionApprover
 from cade_mini.safety.grants import GrantStore
@@ -43,5 +44,25 @@ def test_always_adds_a_grant() -> None:
     )
     command = _call("bash", command="echo hi")
 
-    assert approver(command) is True
+    assert approver(ApprovalRequest(command, "Run command")).allowed is True
     assert store.match(command) is True
+
+
+def test_command_grant_does_not_expand_workdir_or_write_scope() -> None:
+    store = GrantStore()
+    store.add(_call("bash", command="python task.py", workdir="src"))
+    assert not store.match(_call("bash", command="python task.py", workdir="other"))
+    assert not store.match(
+        _call(
+            "bash",
+            command="python task.py",
+            workdir="src",
+            additional_write_paths=["/outside"],
+        )
+    )
+
+
+def test_mcp_grant_matches_arguments_not_every_remote_action() -> None:
+    store = GrantStore()
+    store.add(_call("mcp__server__send", destination="one"))
+    assert not store.match(_call("mcp__server__send", destination="two"))

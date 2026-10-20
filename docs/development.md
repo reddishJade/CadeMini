@@ -4,7 +4,13 @@ Cade Mini is maintained independently of Cade. Work from this repository root.
 
 ## Setup
 
-You need Python 3.12+ and uv:
+You need Python 3.12+ and uv. Linux tool execution also requires usable
+bubblewrap (`sudo apt-get install bubblewrap` on Debian/Ubuntu) and a host that
+permits unprivileged user namespaces. Denied UID mappings are sandbox startup
+errors, not approval failures. CI uses Ubuntu 22.04 without disabling host
+security policies. macOS uses system `sandbox-exec`.
+Native sandbox tests run on Linux and macOS; Windows
+skips those tests and executes tools directly.
 
 ```bash
 uv sync --locked --extra dev --extra docs

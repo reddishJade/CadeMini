@@ -23,7 +23,8 @@ tests/            regression and integration tests
 
 Provider and execution modules originated in Cade and are now owned and
 maintained here. Mini includes only the process execution code it uses, not
-Cade's filesystem or Linux sandbox implementation. Mini has no OS sandbox.
+Cade's filesystem or Linux sandbox implementation. Mini's own process wrapper
+uses installed bubblewrap on Linux and Seatbelt on macOS; Windows runs directly.
 
 ## Entry points
 
