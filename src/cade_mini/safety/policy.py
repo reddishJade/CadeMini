@@ -13,7 +13,12 @@ from cade_mini.core.types import ToolCallBlock
 from cade_mini.execution_env.paths import resolve_path
 from cade_mini.execution_env.sandbox import ExecutionScope, SandboxMode
 from cade_mini.safety.grants import GrantStore
-from cade_mini.safety.shell import classify_command, risk_reason
+from cade_mini.safety.sensitive import contains_sensitive_path, is_sensitive_path
+from cade_mini.safety.shell import (
+    classify_command,
+    risk_reason,
+    sensitive_command_reason,
+)
 
 type Mode = Literal["plan", "build", "ask"]
 
@@ -81,11 +86,12 @@ class WorkspacePolicy:
         scope = ExecutionScope(read_only=self.read_only or self.mode == "plan")
         name = call.name
         path: Path | None = None
+        workdir = self.workspace
         try:
             if name in {"read", "write", "edit"}:
                 path = resolve_path(self.workspace, call.args.get("path"))
             elif name == "bash":
-                resolve_path(self.workspace, call.args.get("workdir", "."))
+                workdir = resolve_path(self.workspace, call.args.get("workdir", "."))
         except ValueError as exc:
             return PermissionCheck("deny", str(exc), scope)
         if name not in _PLAN_TOOLS | {"goal", "memory"} and not name.startswith(
@@ -110,6 +116,7 @@ class WorkspacePolicy:
             scope = ExecutionScope(read_only=True, writable_paths=(path,))
         if path is not None and self._protected(path):
             return PermissionCheck("deny", f"Protected path: {path}", scope)
+        sensitive_path = path is not None and self._sensitive(path)
         if name == "bash" and (self.read_only or self.mode == "plan"):
             if classify_command(_command(call)) != "read_only":
                 return PermissionCheck(
@@ -148,12 +155,31 @@ class WorkspacePolicy:
                 additional = (path,)
         if additional:
             scope = ExecutionScope(scope.read_only, additional)
-        plan_write = self.mode == "plan" and name in {"write", "edit"}
         rule = self._match_rule(call, path)
         if rule == "deny":
             return PermissionCheck(
                 "deny", "An explicit permission rule denies this action.", scope
             )
+        if name == "bash":
+            sensitive_reason = sensitive_command_reason(_command(call), workdir)
+            if sensitive_reason:
+                return PermissionCheck("ask", sensitive_reason, scope)
+        if sensitive_path:
+            return PermissionCheck(
+                "ask",
+                f"Sensitive path requires approval: {path}",
+                scope,
+            )
+        if additional and any(
+            self._sensitive(target) or self._contains_sensitive(target)
+            for target in additional
+        ):
+            return PermissionCheck(
+                "ask",
+                "Requested write scope includes sensitive paths.",
+                scope,
+            )
+        plan_write = self.mode == "plan" and name in {"write", "edit"}
         if rule == "ask":
             # 会话 grant 可以回答同一 ask，但不能覆盖任何 deny。
             if not self.grants.match(call):
@@ -191,7 +217,7 @@ class WorkspacePolicy:
                 scope,
             )
         if name == "bash":
-            reason = risk_reason(_command(call))
+            reason = risk_reason(_command(call), self.workspace, workdir=workdir)
             if reason:
                 return PermissionCheck("ask", reason, scope)
             if self.mode == "ask" and classify_command(_command(call)) != "read_only":
@@ -223,7 +249,13 @@ class WorkspacePolicy:
         return any(
             path == root.resolve() or path.is_relative_to(root.resolve())
             for root in roots
-        ) or (path.name.startswith(".env") and path.name != ".env.example")
+        )
+
+    def _sensitive(self, path: Path) -> bool:
+        return is_sensitive_path(path)
+
+    def _contains_sensitive(self, path: Path) -> bool:
+        return contains_sensitive_path(path, self.workspace)
 
     def _contains_protected(self, path: Path) -> bool:
         return any(

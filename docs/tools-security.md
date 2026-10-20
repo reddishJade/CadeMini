@@ -43,6 +43,14 @@ same tool and path. Shell grants also match workdir and extra write paths;
 MCP grants match the complete arguments. A grant can answer an ask but cannot
 bypass a deny. `/permissions` lists grants; `/permissions clear` removes them.
 
+Explicit reads and writes of `.env*` files (except `.env.example`) and common
+home credential paths such as `~/.ssh`, `~/.aws`, and `~/.config/gh` require
+approval on every use. Detected shell access follows the same rule, including
+relative paths resolved from `workdir`. Sensitive approvals do not create or
+reuse session grants, and explicit deny rules still apply. Read-only external
+Git commands remain allowed; detected mutations of external repositories
+require approval. Approval does not expand the OS sandbox's write scope.
+
 ## Approvals and Reviewer
 
 Only an `ask` enters approval:

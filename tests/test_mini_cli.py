@@ -228,6 +228,47 @@ def test_cli_interactive_can_start_disconnected(
     )
 
 
+@pytest.mark.parametrize("sensitive", [False, True])
+def test_tui_sensitive_approval_only_allows_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sensitive: bool
+) -> None:
+    from cade_mini.core.types import ToolCallBlock
+    from cade_mini.hosts.interaction import InteractionService
+    from cade_mini.hosts.tui.bridge import MiniAgent
+    from cade_mini.hosts.tui.compat import ApprovalRequest, HITLResult
+
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+
+    def show(service: InteractionService, root: Path, **kwargs: Any) -> int:
+        agent = MiniAgent(service)
+        call = ToolCallBlock(
+            id="approval",
+            name="bash",
+            args={"command": "cat .env" if sensitive else "rm ordinary.txt"},
+        )
+        requests: list[ApprovalRequest] = []
+
+        def approve(request: ApprovalRequest) -> HITLResult:
+            requests.append(request)
+            return HITLResult("allow", "session")
+
+        agent.user_approval_callback = approve
+        assert asyncio.run(agent.approve(call))
+        assert requests[0].allowed_scopes == (
+            ("once",) if sensitive else ("once", "session")
+        )
+        assert service.policy.grants.match(call) is not sensitive
+        if sensitive:
+            assert "sensitive" in requests[0].reason.lower()
+            assert asyncio.run(agent.approve(call))
+            assert len(requests) == 2
+        return 0
+
+    monkeypatch.setattr("cade_mini.hosts.tui.app.run_tui", show)
+    assert main(["--project-root", str(tmp_path)], provider=FakeProvider([])) == 0
+
+
 def test_cli_interactive_requires_terminal(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

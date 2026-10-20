@@ -1596,6 +1596,7 @@ and window fallback.</li>
   hosts_tui_bridge --&gt; core_loop
   hosts_tui_bridge --&gt; core_types
   hosts_tui_bridge --&gt; hosts_interaction
+  hosts_tui_bridge --&gt; safety_sensitive
   hosts_tui_command_handlers --&gt; hosts_command_catalog
   hosts_tui_config_registry --&gt; ai_models
   hosts_tui_config_registry --&gt; app_config
@@ -1612,6 +1613,7 @@ and window fallback.</li>
   hosts_tui_setup_wizard --&gt; hosts_interaction_settings
   safety_approval --&gt; core_permissions
   safety_approval --&gt; safety_grants
+  safety_approval --&gt; safety_sensitive
   safety_grants --&gt; core_types
   safety_policy --&gt; app_config
   safety_policy --&gt; core_loop
@@ -1620,12 +1622,14 @@ and window fallback.</li>
   safety_policy --&gt; execution_env_paths
   safety_policy --&gt; execution_env_sandbox
   safety_policy --&gt; safety_grants
+  safety_policy --&gt; safety_sensitive
   safety_policy --&gt; safety_shell
   safety_review --&gt; ai_events
   safety_review --&gt; core_loop
   safety_review --&gt; core_permissions
   safety_review --&gt; core_request
   safety_review --&gt; core_types
+  safety_shell --&gt; safety_sensitive
   tools__worker --&gt; core_loop
   tools__worker --&gt; execution_env_sandbox
   tools__worker --&gt; tools_workspace
@@ -2860,6 +2864,13 @@ Remove or change a deny rule to revoke it; an approval answer cannot do that.</p
 same tool and path. Shell grants also match workdir and extra write paths;
 MCP grants match the complete arguments. A grant can answer an ask but cannot
 bypass a deny. <code>/permissions</code> lists grants; <code>/permissions clear</code> removes them.</p>
+<p>Explicit reads and writes of <code>.env*</code> files (except <code>.env.example</code>) and common
+home credential paths such as <code>~/.ssh</code>, <code>~/.aws</code>, and <code>~/.config/gh</code> require
+approval on every use. Detected shell access follows the same rule, including
+relative paths resolved from <code>workdir</code>. Sensitive approvals do not create or
+reuse session grants, and explicit deny rules still apply. Read-only external
+Git commands remain allowed; detected mutations of external repositories
+require approval. Approval does not expand the OS sandbox's write scope.</p>
 <h2>Approvals and Reviewer</h2>
 <p>Only an <code>ask</code> enters approval:</p>
 <ul>

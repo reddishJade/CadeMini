@@ -155,6 +155,7 @@ flowchart LR
   hosts_tui_bridge --> core_loop
   hosts_tui_bridge --> core_types
   hosts_tui_bridge --> hosts_interaction
+  hosts_tui_bridge --> safety_sensitive
   hosts_tui_command_handlers --> hosts_command_catalog
   hosts_tui_config_registry --> ai_models
   hosts_tui_config_registry --> app_config
@@ -171,6 +172,7 @@ flowchart LR
   hosts_tui_setup_wizard --> hosts_interaction_settings
   safety_approval --> core_permissions
   safety_approval --> safety_grants
+  safety_approval --> safety_sensitive
   safety_grants --> core_types
   safety_policy --> app_config
   safety_policy --> core_loop
@@ -179,12 +181,14 @@ flowchart LR
   safety_policy --> execution_env_paths
   safety_policy --> execution_env_sandbox
   safety_policy --> safety_grants
+  safety_policy --> safety_sensitive
   safety_policy --> safety_shell
   safety_review --> ai_events
   safety_review --> core_loop
   safety_review --> core_permissions
   safety_review --> core_request
   safety_review --> core_types
+  safety_shell --> safety_sensitive
   tools__worker --> core_loop
   tools__worker --> execution_env_sandbox
   tools__worker --> tools_workspace

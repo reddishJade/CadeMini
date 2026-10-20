@@ -25,6 +25,7 @@ from cade_mini.core.loop import (
 )
 from cade_mini.core.types import LogEntry, TextBlock, ToolCallBlock
 from cade_mini.hosts.interaction import InteractionService
+from cade_mini.safety.sensitive import is_sensitive_reason
 
 from .compat import (
     AgentHarnessResult,
@@ -289,6 +290,10 @@ class MiniAgent:
         return bool(self._service.pending or self._service.steering)
 
     async def approve(self, call: ToolCallBlock) -> bool:
+        check = self._service.policy.check(call)
+        if check.decision == "deny":
+            return False
+        sensitive = is_sensitive_reason(check.reason)
         if self._service.auto_approve:
             return True
         callback = self.user_approval_callback
@@ -304,14 +309,15 @@ class MiniAgent:
         request = ApprovalRequest(
             tool=tool,
             action_input=dict(call.args),
-            reason="Tool requires approval",
+            allowed_scopes=("once",) if sensitive else ("once", "session"),
+            reason=check.reason or "Tool requires approval",
         )
         result = callback(request)
         if asyncio.iscoroutine(result):
             result = await result
         if getattr(result, "action", result) != "allow":
             return False
-        if getattr(result, "scope", "once") == "session":
+        if getattr(result, "scope", "once") == "session" and not sensitive:
             self._service.policy.grants.add(call)
         return True
 
