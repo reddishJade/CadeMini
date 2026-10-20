@@ -1205,7 +1205,9 @@ def test_nonempty_resume_and_single_label_for_mode_and_tool(
     class ReadTool:
         name = "read"
         description = "Read a workspace file"
-        parameters = {"type": "object"}
+
+        def __init__(self) -> None:
+            self.parameters = {"type": "object"}
 
         async def execute(self, call: ToolCallBlock, signal=None):
             from cade_mini.core.loop import ToolResult
