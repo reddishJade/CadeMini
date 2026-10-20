@@ -413,7 +413,8 @@ silently ignored.</p>
 for ChatGPT plan usage (Sign in with ChatGPT), <code>openai</code> for an OpenAI API
 key, or <code>deepseek</code> for a DeepSeek API key. The CLI flags override both.</li>
 <li><code>reasoning_effort</code>: provider reasoning effort. The CLI flag is <code>--effort</code>.</li>
-<li><code>context_window</code>: model context window in tokens.</li>
+<li><code>context_window</code>: model context window in tokens. The default comes from the
+registered model metadata; unregistered models fall back to 200,000 tokens.</li>
 <li><code>max_steps</code>: maximum model steps in one run.</li>
 <li><code>sessions_dir</code>: session directory. Relative paths resolve against the project
 root.</li>
@@ -1303,6 +1304,7 @@ and window fallback.</li>
   ai_usage --&gt; ai_cache
   ai_usage --&gt; ai_models
   app_auth --&gt; ai_auth
+  app_provider --&gt; ai_models
   app_provider --&gt; ai_providers_base
   app_provider --&gt; ai_providers_registry
   app_provider --&gt; ai_resolver

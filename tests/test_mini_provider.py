@@ -58,6 +58,7 @@ def test_build_chatgpt_provider_uses_stored_oauth(tmp_path: Path) -> None:
 
     assert provider.transport == "chatgpt"
     assert provider.model == "gpt-5.6-luna"
+    assert provider.context_window == 1_050_000
 
 
 def test_build_chatgpt_provider_requires_login(tmp_path: Path) -> None:
@@ -108,6 +109,7 @@ def test_build_responses_provider_with_explicit_key() -> None:
 
     assert provider.transport == "openai_responses"
     assert provider.model == "gpt-5.5"
+    assert provider.context_window == 1_050_000
 
 
 def test_build_responses_provider_uses_stored_api_key(tmp_path: Path) -> None:
@@ -142,6 +144,7 @@ def test_build_deepseek_provider_with_explicit_key(tmp_path: Path) -> None:
     assert provider.transport == "deepseek_responses"
     assert provider.model == "deepseek-flash"
     assert provider.base_url == "https://api.deepseek.com"
+    assert provider.context_window == 1_000_000
 
 
 def test_build_deepseek_provider_uses_environment_key(
@@ -187,6 +190,19 @@ def test_build_deepseek_provider_uses_stored_api_key(tmp_path: Path) -> None:
     )
 
     assert provider.config.api_key == "stored-deepseek-key"
+
+
+def test_unregistered_model_has_no_context_window(tmp_path: Path) -> None:
+    provider = build_provider(
+        ProviderConfig(
+            provider="deepseek",
+            model="deepseek-custom",
+            api_key="deepseek-test-key",
+        ),
+        auth_path=tmp_path / "missing.json",
+    )
+
+    assert provider.context_window is None
 
 
 def test_unsupported_provider_is_rejected(tmp_path: Path) -> None:

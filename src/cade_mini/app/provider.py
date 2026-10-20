@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from cade_mini.ai.models import get_model_context_window
 from cade_mini.ai.providers.base import ModelProvider
 from cade_mini.ai.providers.registry import (
     ModelProfileConfig,
@@ -99,6 +100,7 @@ def build_provider(
         chat_model=resolution.model,
         base_url=base_url,
         api_key=api_key,
+        context_window=get_model_context_window(resolution.model),
         thinking=selected.thinking,
         reasoning_effort=selected.reasoning_effort,
     )
