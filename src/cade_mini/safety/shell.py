@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import shlex
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -141,6 +142,17 @@ def _git_subcommand(tokens: list[str]) -> str:
     return ""
 
 
+def _split_command(command: str) -> list[str]:
+    """按宿主 shell 的转义规则拆分简单命令参数。"""
+    lexer = shlex.shlex(command, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    # PowerShell 使用反引号转义，保留 Windows 路径中的反斜杠。
+    if sys.platform == "win32":
+        lexer.escape = "`"
+    return list(lexer)
+
+
 def classify_command(command: str) -> CommandKind:
     """只把明确只读的单条命令判为 read_only。"""
     text = command.strip()
@@ -149,7 +161,7 @@ def classify_command(command: str) -> CommandKind:
     if any(marker in text for marker in _SHELL_META):
         return "unknown"
     try:
-        tokens = shlex.split(text)
+        tokens = _split_command(text)
     except ValueError:
         return "unknown"
     tool = Path(tokens[0]).name.lower()
@@ -207,9 +219,10 @@ def _sensitive_command_reason(tokens: list[str], workspace: Path | None) -> str 
         raw = token.strip("\"'").lstrip("<>")
         if not raw:
             continue
-        lowered = raw.lower()
+        normalized = raw.replace("\\", "/") if sys.platform == "win32" else raw
+        lowered = normalized.lower()
         if any(marker in lowered for marker in _SENSITIVE_MARKERS) or _ENV_PATH.search(
-            raw
+            normalized
         ):
             return "The command may access sensitive data."
         if raw.startswith(("--git-dir=", "--work-tree=")):
@@ -222,51 +235,77 @@ def _sensitive_command_reason(tokens: list[str], workspace: Path | None) -> str 
     return None
 
 
-def _nested_shell_reason(tokens: list[str], workspace: Path | None) -> str | None:
+def _nested_shell_command(tokens: list[str]) -> str | None:
     if not tokens or Path(tokens[0]).name.lower() not in _SHELLS:
         return None
     try:
         index = tokens.index("-c")
     except ValueError:
         return None
-    if index + 1 >= len(tokens):
-        return None
-    return risk_reason(tokens[index + 1], workspace)
+    return tokens[index + 1] if index + 1 < len(tokens) else None
 
 
 def sensitive_command_reason(command: str, workspace: Path | None = None) -> str | None:
     """只检查命令是否涉及敏感数据，供 grants 之前的强制审批使用。"""
     try:
-        tokens = shlex.split(command, posix=True)
+        tokens = _split_command(command)
     except ValueError:
         return None
-    return _nested_shell_reason(tokens, workspace) or _sensitive_command_reason(
-        tokens, workspace
-    )
+    nested = _nested_shell_command(tokens)
+    if nested is not None:
+        reason = sensitive_command_reason(nested, workspace)
+        if reason:
+            return reason
+    return _sensitive_command_reason(tokens, workspace)
 
 
-def _git_paths(tokens: list[str], workspace: Path | None) -> tuple[Path, ...]:
-    paths: list[Path] = []
-    for index, token in enumerate(tokens):
+def _git_paths(tokens: list[str], workdir: Path) -> tuple[Path, ...]:
+    cwd = workdir
+    targets: list[str] = []
+    index = 1
+    while index < len(tokens):
+        token = tokens[index]
         raw: str | None = None
-        if token in {"-C", "--git-dir", "--work-tree"} and index + 1 < len(tokens):
+        if token in _GIT_GLOBAL_OPTIONS:
+            if index + 1 >= len(tokens):
+                break
             raw = tokens[index + 1]
+            index += 2
         elif token.startswith(("--git-dir=", "--work-tree=")):
-            raw = token.split("=", 1)[1]
+            token, raw = token.split("=", 1)
+            index += 1
+        elif token.startswith("-C") and len(token) > 2:
+            raw = token[2:]
+            token = "-C"
+            index += 1
+        elif token.startswith("-"):
+            index += 1
+        else:
+            break
         if raw is not None:
-            path = _shell_path(raw, workspace)
-            if path is not None:
-                paths.append(path)
+            if token == "-C":
+                path = _shell_path(raw, cwd)
+                if path is not None:
+                    cwd = path
+            elif token in {"--git-dir", "--work-tree"}:
+                targets.append(raw)
+    paths = [cwd]
+    for raw in targets:
+        path = _shell_path(raw, cwd)
+        if path is not None:
+            paths.append(path)
     return tuple(paths)
 
 
-def _external_git_reason(tokens: list[str], workspace: Path | None) -> str | None:
+def _external_git_reason(
+    tokens: list[str], workspace: Path | None, workdir: Path | None
+) -> str | None:
     if workspace is None or not tokens or Path(tokens[0]).name.lower() != "git":
         return None
     if _git_subcommand(tokens) not in _GIT_MUTATING:
         return None
     root = workspace.resolve()
-    for path in _git_paths(tokens, workspace):
+    for path in _git_paths(tokens, workdir or root):
         if path != root and not path.is_relative_to(root):
             return f"The command may modify an external Git repository: {path}."
     return None
@@ -275,10 +314,12 @@ def _external_git_reason(tokens: list[str], workspace: Path | None) -> str | Non
 def risk_reason(
     command: str,
     workspace: Path | None = None,
+    *,
+    workdir: Path | None = None,
 ) -> str | None:
     """识别需要授权的显著风险；分类不是操作系统安全边界。"""
     try:
-        tokens = shlex.split(command, posix=True)
+        tokens = _split_command(command)
     except ValueError:
         return "The command cannot be parsed reliably; review it before execution."
     words = [Path(token).name.lower() for token in tokens]
@@ -298,13 +339,16 @@ def risk_reason(
         return "The command may delete existing files or directories."
     if any(word in privileged for word in words):
         return "The command may change system state, privileges, or security settings."
-    nested = _nested_shell_reason(tokens, workspace)
-    if nested:
-        return nested
-    sensitive = _sensitive_command_reason(tokens, workspace)
+    cwd = workdir or workspace
+    nested = _nested_shell_command(tokens)
+    if nested is not None:
+        reason = risk_reason(nested, workspace, workdir=cwd)
+        if reason:
+            return reason
+    sensitive = _sensitive_command_reason(tokens, cwd)
     if sensitive:
         return sensitive
-    external_git = _external_git_reason(tokens, workspace)
+    external_git = _external_git_reason(tokens, workspace, cwd)
     if external_git:
         return external_git
     if "git" in words and any(

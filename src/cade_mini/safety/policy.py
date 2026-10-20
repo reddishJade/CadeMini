@@ -86,11 +86,12 @@ class WorkspacePolicy:
         scope = ExecutionScope(read_only=self.read_only or self.mode == "plan")
         name = call.name
         path: Path | None = None
+        workdir = self.workspace
         try:
             if name in {"read", "write", "edit"}:
                 path = resolve_path(self.workspace, call.args.get("path"))
             elif name == "bash":
-                resolve_path(self.workspace, call.args.get("workdir", "."))
+                workdir = resolve_path(self.workspace, call.args.get("workdir", "."))
         except ValueError as exc:
             return PermissionCheck("deny", str(exc), scope)
         if name not in _PLAN_TOOLS | {"goal", "memory"} and not name.startswith(
@@ -154,8 +155,13 @@ class WorkspacePolicy:
                 additional = (path,)
         if additional:
             scope = ExecutionScope(scope.read_only, additional)
+        rule = self._match_rule(call, path)
+        if rule == "deny":
+            return PermissionCheck(
+                "deny", "An explicit permission rule denies this action.", scope
+            )
         if name == "bash":
-            sensitive_reason = sensitive_command_reason(_command(call), self.workspace)
+            sensitive_reason = sensitive_command_reason(_command(call), workdir)
             if sensitive_reason:
                 return PermissionCheck("ask", sensitive_reason, scope)
         if sensitive_path:
@@ -174,11 +180,6 @@ class WorkspacePolicy:
                 scope,
             )
         plan_write = self.mode == "plan" and name in {"write", "edit"}
-        rule = self._match_rule(call, path)
-        if rule == "deny":
-            return PermissionCheck(
-                "deny", "An explicit permission rule denies this action.", scope
-            )
         if rule == "ask":
             # 会话 grant 可以回答同一 ask，但不能覆盖任何 deny。
             if not self.grants.match(call):
@@ -216,7 +217,7 @@ class WorkspacePolicy:
                 scope,
             )
         if name == "bash":
-            reason = risk_reason(_command(call), self.workspace)
+            reason = risk_reason(_command(call), self.workspace, workdir=workdir)
             if reason:
                 return PermissionCheck("ask", reason, scope)
             if self.mode == "ask" and classify_command(_command(call)) != "read_only":
