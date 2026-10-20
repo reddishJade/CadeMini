@@ -34,8 +34,7 @@ external file writers before any restoration.
 
 Undo checks that the current file matches the recorded post-change state. It
 rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
-A rejected undo leaves the file and index unchanged. Legacy snapshots have no
-post-change state and require manual inspection; automatic undo rejects them.
+A rejected undo leaves the file and index unchanged.
 
 Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.
@@ -71,7 +70,7 @@ Unselected files and the user's Git index remain untouched. Directory trees,
 untracked shell/hook changes, and external side effects are not restored.
 
 Cooperating operations share `.cade-mini/recovery/workspace.lock`. The action
-journal and checkpoint links use closed v1 records under that directory. A
+journal and checkpoint links use closed records under that directory. A
 `pending.json` plan stores both images before restoration begins. Files use
 atomic per-file replacement; a multi-file restore is not a filesystem-wide
 atomic operation. On interruption, resume the named session to finish the plan

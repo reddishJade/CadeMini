@@ -15,10 +15,6 @@ without an automatic abandoned-branch summary. Workspace rollback is separate.
 
 ## Decision
 
-This is an additive format change with a breaking reader boundary. Write v3;
-read v1/v2/v3, including mixed logs, without rewriting historical bytes. Reject
-unknown versions and reject v3-only events in earlier envelopes.
-
 Append a log-only `branch` event containing `selected_id`. Its parent points to
 the selected user's parent, or to the selected non-user entry itself. The event
 becomes the physical head. Validate targets and parent consistency against earlier
@@ -32,20 +28,17 @@ not hide an existing saved conversation.
 
 Navigation and copying acquire the session run lock. Fork can copy the path before
 an inactive input. Clone copies only the active path. Copies omit branch controls,
-receive independent IDs, remap context cuts, retain fact versions and timestamps,
+receive independent IDs, remap context cuts, retain timestamps,
 and write one snapshot. Empty copies retain deferred persistence.
 
 ## Consequences
 
 Navigation survives restart without file rollback or an extra model request.
-V1/v2-only programs reject files after a v3 append; rollback requires a backup,
-not removal or relabeling of navigation records. See the
-[upgrade guide](../upgrade/README.md#session-v3-and-history-navigation).
 
 [Storage](../../src/cade_mini/core/log.py),
 [tree projection](../../src/cade_mini/core/history.py), and
 [interaction commands](../../src/cade_mini/hosts/interaction.py) own the behavior.
-[Core tests](../../tests/test_mini_session_history.py) cover legacy files,
+[Core tests](../../tests/test_mini_session_history.py) cover record preservation,
 references, locks, alternate branches, and copies.
 [TUI E2E tests](../../tests/test_mini_history_e2e.py) cover real input, restart,
 request isolation, inactive forks, and independent sessions.
