@@ -88,7 +88,7 @@ another subagent.
 
 ## snapshot
 
-A pre-change copy of a file, used by `--undo` and `/undo`.
+A pre-change copy of a file, used by the one-shot `--undo` option.
 
 ## goal
 

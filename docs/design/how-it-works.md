@@ -34,8 +34,8 @@ Resuming opens the same file and appends new facts.
 
 ## Interfaces
 
-The terminal host runs one task or a REPL. It calls the same loop and shares
-policy, tools, and session storage with every other entry path.
+The terminal host runs one task or a TUI. These interfaces call the same loop
+and share policy, tools, and session storage with every other entry path.
 
 ## Extensions
 

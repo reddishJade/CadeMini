@@ -21,7 +21,7 @@ process restarts without inventing history.
 ## Start here
 
 - [Quickstart](quickstart.md) installs and runs the first task.
-- [CLI](cli.md) lists one-shot, REPL, session, and recovery commands.
+- [CLI](cli.md) lists one-shot, TUI, session, and recovery commands.
 - [Configuration](configuration.md) documents `cade-mini.json`.
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
@@ -32,7 +32,7 @@ process restarts without inventing history.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
 - [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
 - [Hooks, MCP, and subagents](hooks-mcp-subagents.md) covers extensions.
-- [Hosts](hosts.md) covers the terminal CLI and its REPL.
+- [Hosts](hosts.md) covers the terminal TUI and one-shot execution.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.
 
@@ -50,8 +50,8 @@ process restarts without inventing history.
 - [Tool catalog](design/tool-catalog.md) lists the built-in tools.
 - [MCP reference servers](design/mcp-reference.md) lists the supported server
   pattern.
-- [Steering and queueing](design/steering-queue.md) explains the concurrent
-  REPL host.
+- [Steering and queueing](design/steering-queue.md) explains concurrent input
+  in the TUI.
 - [Module graph](design/module-graph.md) is generated from imports.
 - [Persistence catalog](design/persistence-catalog.md) maps every artifact.
 - [Glossary](design/glossary.md) defines the vocabulary.
@@ -197,8 +197,8 @@ uv run --locked cade-mini --continue "What did you change?"
 uv run --locked cade-mini --resume SESSION_ID "Continue the task."
 ```
 
-Omitting the task starts the interactive REPL. See [CLI](cli.md) for all REPL
-commands.
+Omitting the task starts the full-screen TUI. See [CLI](cli.md) for interactive
+commands and [Hosts](hosts.md) for key bindings.
 
 ## Build the docs
 
@@ -216,7 +216,8 @@ Open `docs/index.html`. The docs source is under `docs/`.
 
 # CLI
 
-The `cade-mini` entry point runs one task, starts a REPL, or manages sessions.
+The `cade-mini` entry point runs one task, starts an interactive terminal host,
+or manages sessions.
 
 ```bash
 cade-mini [TASK] [options]
@@ -224,7 +225,7 @@ cade-mini exec TASK [options]
 ```
 
 `exec` is an explicit alias for a one-shot task. Without a task, `cade-mini`
-starts the interactive REPL.
+starts the TUI in an interactive terminal.
 
 ## Login
 
@@ -238,7 +239,10 @@ cade-mini login --provider deepseek
 in a browser. `openai` and `deepseek` use `api_key` with a hidden input prompt.
 Credentials are stored in `~/.cade-mini/auth.json`; the stable SIWC host ID is
 stored in `~/.cade-mini/host.json`. Login does not change project provider or
-model settings. Cade Mini supports only the Responses protocol.
+model settings. Cade Mini supports only the Responses protocol. ChatGPT login
+and OpenAI API keys expose the registered OpenAI chat model pool through separate
+authentication routes. A refreshable OAuth token still makes models selectable;
+the provider refreshes it when needed.
 
 ## One-shot options
 
@@ -260,8 +264,8 @@ model settings. Cade Mini supports only the Responses protocol.
 - `--context-window N` overrides the model context window. It is required for
   models that are not in the built-in registry.
 - `--json` emits JSONL events for a one-shot task.
-- `--steer TEXT` injects guidance at the next model step; repeatable.
-- `--queue TEXT` queues a REPL task to run after the current task; repeatable.
+- `--steer TEXT` injects guidance at the next model step of a one-shot task;
+  repeatable.
 
 ## Sessions
 
@@ -273,35 +277,57 @@ model settings. Cade Mini supports only the Responses protocol.
 - `--undo` restores the latest file snapshot and exits without contacting a
   provider.
 
-`--continue` and `--resume` cannot be combined.
+`--continue` and `--resume` cannot be combined. Session listings and automatic
+continuation skip conversations without a nonempty user message. New interactive
+sessions keep setup records in memory until the first user or assistant message;
+opening the TUI or running `/new` alone creates no session file. Existing files
+are not automatically deleted.
 
 ## Goals
 
 - `--goal TEXT` sets the workspace goal before running.
 
-## REPL commands
+## Interactive commands
 
-- `/new` starts a new session.
-- `/resume [ID]` resumes the latest or a specific session.
-- `/sessions` lists project sessions.
-- `/fork [N|ENTRY]` forks before a recent user turn or entry. `N=1` is the latest.
+The TUI accepts these slash commands and provides native selectors for models,
+modes, configuration, and permissions.
+
+- `/new` starts a new session. `/clear` is an alias and keeps saved conversations.
+- `/continue` opens the same saved-conversation picker as `/sessions`.
+- `/resume` opens the saved-conversation picker; `/resume ID` resumes that session.
+- `/sessions` opens the same picker as `/resume`.
+- `/fork [N|ENTRY]` copies history before a user turn into a new session and puts
+  that input in the editor. `N=1` selects the latest turn. Files stay unchanged.
 - `/clone` copies the current branch to a new session.
-- `/tree` shows entries; `*` marks the active branch.
-- `/rewind [N]` creates a session without the latest N user turns.
-- `/compact` summarizes older turns.
-- `/new-context [NOTE]` starts a new window, optionally with a handoff note.
+- `/compact [INSTRUCTIONS]` summarizes older turns and applies optional guidance.
+- `/model [PROVIDER/MODEL]` switches an exact authenticated model or searches the
+  model picker for a partial name.
+- `/thinking [LEVEL]` selects reasoning effort. Use `Ctrl+T` to fold reasoning
+  output without changing effort.
+- `/new-context [--force]` starts a new context window using `NOTE.md` as the
+  handoff. Write that file first, or use `--force` to reset without it.
 - `/mode [MODE]` shows or switches the execution mode.
 - `/permissions [clear]` shows or clears session grants.
-- `/undo [N]` restores the latest N snapshots.
 - `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
 - `/context` prints the session ID, provider, budget, and event count.
 - `/steer TEXT` queues guidance for the next model step.
 - `/queue TEXT` queues a task to run after the current one.
-- `/stop` cancels the current task at the next safe point.
+- `/stop` interrupts a pending model request, including the wait for its first
+  output. Tools stop at their cancellation checks.
 - `/help` prints the command list.
+- `/login` selects an authentication method and provider. `/logout` removes a
+  selected stored credential, not environment variables.
+- `/connect` selects a provider and opens its model picker after authentication.
+- `/skill [NAME]` activates a skill for the next task.
 - `/exit` or `/quit` exits.
 
-## REPL input
+The TUI does not register `/tree`, `/rewind`, `/undo`, `/revert`, `/rename`, or
+`/mcp`. Persistent branch navigation, coordinated message/file undo, editable
+session metadata, and MCP server management require separate core support.
+`--undo` remains the existing one-shot file-snapshot operation; it is not a
+conversation undo command.
+
+## Interactive input
 
 - `@path` attaches a workspace file to the task.
 - `$skill` loads a skill body into the task.
@@ -313,12 +339,21 @@ Review @src/cade_mini/core/loop.py and use $review-only
 !git status
 ```
 
-During a task, the REPL keeps reading input:
+During a task, the TUI keeps reading input:
 
 - `/steer TEXT` appends guidance at the next model step.
 - `/queue TEXT` runs TEXT after the current task.
-- `/stop` cancels at the next safe point.
+- `/stop` or `Esc` interrupts the task without waiting for the next model
+  output. Undelivered queued inputs return to the editor with any current draft.
+- `Ctrl+C` clears the editor without interrupting the task. Press it again
+  within 500 ms to exit.
 - Other text is queued as a follow-up task.
+
+When idle with empty input, press `Esc` twice within 500 ms to open the `/fork`
+user-input selector. This uses Pi's fork-style double-Escape action, not
+same-session tree navigation.
+Inside a picker or form, `Esc` closes that interaction instead. Clearing input
+with `Ctrl+C` is separate from cancelling a task with `Esc`.
 
 Steering is applied between steps, not inside a provider stream or a running
 tool. See [Steering and queueing](design/steering-queue.md).
@@ -620,16 +655,16 @@ cade-mini --resume SESSION_ID "Explain the current state."
 sessions keep their original system fact; a new `cade-mini.json` does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.
 
-## Fork, clone, tree, and rewind
+## Fork and clone
 
 - `/clone` copies the active branch into a new session.
-- `/fork [N|ENTRY]` copies history before a user turn (default: latest) into a
-  new session and prints the forked input.
-- `/tree` lists entries; `*` marks the active branch.
-- `/rewind [N]` creates a new session without the latest N user turns.
-- `/undo [N]` restores the latest N file snapshots.
+- `/fork` selects a user message and copies the preceding history into a new
+  session. The selected input returns to the editor for editing and resending.
+  `/fork N` selects the Nth recent input; `/fork ENTRY` selects an entry directly.
 
-These operations create new sessions; they do not rewrite the original file.
+These operations leave workspace files unchanged and preserve the original
+session. They are not conversation undo or same-session tree navigation, which
+the TUI does not yet expose.
 Compaction and window references are remapped when entries are copied.
 
 ## Compaction
@@ -656,7 +691,7 @@ outside the current context.
 ## Windows
 
 A `window` fact starts a new context at a user entry and may include a handoff.
-The CLI can start one explicitly with `/new-context`. If compaction cannot bring
+The TUI can start one explicitly with `/new-context`. If compaction cannot bring
 a request under budget, the loop can append an automatic window with a fixed
 handoff that points to `NOTE.md` and the history tool.
 
@@ -726,8 +761,8 @@ Resuming opens the same file and appends new facts.
 
 ## Interfaces
 
-The terminal host runs one task or a REPL. It calls the same loop and shares
-policy, tools, and session storage with every other entry path.
+The terminal host runs one task or a TUI. These interfaces call the same loop
+and share policy, tools, and session storage with every other entry path.
 
 ## Extensions
 
@@ -824,13 +859,13 @@ when it became independent. They are no longer shared runtime dependencies.
 
 ## Mini's product boundary
 
-Mini provides a terminal REPL and one-shot execution. Its core separates
+Mini provides a terminal TUI and one-shot execution. Its core separates
 append-only session facts, deterministic projection, request admission, and the
 run loop.
 
 Intentional limits include:
 
-- No full-screen TUI, plugin runtime, RPC, or SDK.
+- No plugin runtime, RPC, or SDK.
 - No artifact store or parallel tool scheduler.
 - No permanent approval grants; durable rules belong in project config.
 - No Windows OS sandbox; Linux uses bubblewrap and macOS uses Seatbelt.
@@ -1224,7 +1259,6 @@ flowchart LR
   hosts_cli --> core_log
   hosts_cli --> core_loop
   hosts_cli --> core_permissions
-  hosts_cli --> core_projection
   hosts_cli --> core_request
   hosts_cli --> core_types
   hosts_cli --> core_window
@@ -1242,6 +1276,63 @@ flowchart LR
   hosts_cli --> safety_review
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
+  hosts_context_report --> ai_types
+  hosts_context_report --> core_projection
+  hosts_context_report --> core_request
+  hosts_context_report --> core_types
+  hosts_context_report --> safety_policy
+  hosts_interaction --> ai_events
+  hosts_interaction --> ai_models
+  hosts_interaction --> app_provider
+  hosts_interaction --> core_compaction
+  hosts_interaction --> core_log
+  hosts_interaction --> core_loop
+  hosts_interaction --> core_permissions
+  hosts_interaction --> core_projection
+  hosts_interaction --> core_request
+  hosts_interaction --> core_types
+  hosts_interaction --> core_window
+  hosts_interaction --> extensions_goal
+  hosts_interaction --> extensions_hooks
+  hosts_interaction --> extensions_skills
+  hosts_interaction --> extensions_snapshots
+  hosts_interaction --> extensions_subagents
+  hosts_interaction --> hosts_command_catalog
+  hosts_interaction --> hosts_context_report
+  hosts_interaction --> hosts_interaction_question
+  hosts_interaction --> hosts_interaction_settings
+  hosts_interaction --> safety_policy
+  hosts_interaction --> safety_review
+  hosts_interaction --> tools_history
+  hosts_interaction --> tools_workspace
+  hosts_interaction_question --> core_loop
+  hosts_interaction_question --> core_types
+  hosts_interaction_settings --> ai_auth
+  hosts_interaction_settings --> ai_models
+  hosts_interaction_settings --> ai_providers_registry
+  hosts_interaction_settings --> app_auth
+  hosts_interaction_settings --> app_config
+  hosts_interaction_settings --> app_provider
+  hosts_tui_app --> hosts_interaction
+  hosts_tui_bridge --> ai_models
+  hosts_tui_bridge --> core_log
+  hosts_tui_bridge --> core_loop
+  hosts_tui_bridge --> core_types
+  hosts_tui_bridge --> hosts_interaction
+  hosts_tui_command_handlers --> hosts_command_catalog
+  hosts_tui_config_registry --> ai_models
+  hosts_tui_config_registry --> app_config
+  hosts_tui_config_registry --> hosts_interaction_settings
+  hosts_tui_context_stats --> core_projection
+  hosts_tui_context_stats --> core_request
+  hosts_tui_interaction_compat --> core_types
+  hosts_tui_interaction_compat --> tools_workspace
+  hosts_tui_login_flow --> ai_auth
+  hosts_tui_settings --> ai_models
+  hosts_tui_setup_wizard --> ai_models
+  hosts_tui_setup_wizard --> ai_providers_registry
+  hosts_tui_setup_wizard --> ai_resolver
+  hosts_tui_setup_wizard --> hosts_interaction_settings
   safety_approval --> core_permissions
   safety_approval --> safety_grants
   safety_grants --> core_types
@@ -1404,85 +1495,79 @@ is closed when Cade Mini exits.
 
 # Steering and queueing
 
-Cade Mini's REPL can read input while a task is running. The host does not block
-the terminal on `_run_task`.
-
-## Why the old REPL blocked
-
-The first REPL called `input()` in the main thread and then ran the async loop
-with `asyncio.run`. While that call was active, the terminal was not read, so
-`/steer` and `/queue` could only affect the next task.
+The TUI keeps accepting input while a task runs. The UI thread renders events
+and handles keys; the bridge runs the task in a worker thread with its own
+`asyncio` event loop.
 
 ## Current design
 
 ```text
-stdin
+prompt_toolkit UI thread
+  |  Enter / Alt+Enter / slash commands
+  v
+InteractionService
+  |  steering, pending, cancel
+  v
+worker thread  --  asyncio.run(run_task)
   |
   v
-_InputPump thread  -- _Line -->  event queue
-                                  |
-task thread  -- _ApprovalRequest / _TaskDone --> event queue
-                                  |
-                                  v
-                         REPL main thread
+structured event queue  -->  UI thread
 ```
 
-- `_InputPump` reads one line at a time and never calls the model.
-- `_run_task` runs in a worker thread with its own `asyncio` event loop.
-- The REPL main thread owns the event queue and the session state.
-- `_HostApprover` sends `_ApprovalRequest` to the main thread and waits. The
-  main thread reads the answer from the same input pump, so approvals do not
-  compete with a second `input()`.
-- `!command` runs in the main thread and uses `_ConsoleApprover`, which reads
-  the answer directly from the event queue.
+- `InteractionService.run_task` calls the same `run` loop as one-shot mode.
+- `service.steering` holds guidance for the next model step.
+- `service.pending` holds follow-up tasks for the next turn.
+- `service.cancel` wakes a pending provider stream immediately, even before its
+  first output. Tools observe the same cancellation token at their safe points.
+- The bridge converts loop events into structured events and queues them for the
+  UI thread. The provider stream never blocks key handling.
 
 ## Commands during a run
 
 | Input | Effect |
 | --- | --- |
+| `Enter` | Use the current busy-input mode: queue, steer, or replace |
+| `Alt+Enter` | Append guidance at the next model step |
 | `/steer TEXT` | Append guidance at the next model step |
-| `/queue TEXT` | Run TEXT as a new task after the current task |
-| `/stop` or `/cancel` | Cancel the current task at the next safe point |
-| other text | Same as `/queue`: run it after the current task |
-| `/exit` | Cancel, wait for the task to settle, then exit |
+| `/queue TEXT` | Queue TEXT as a follow-up task |
+| `/queue followup` | Make `Enter` queue a follow-up task |
+| `/queue steer` | Make `Enter` append guidance |
+| `/queue interrupt` | Make `Enter` stop the task and run the message next |
+| `/stop` or `Esc` | Interrupt work and restore undelivered queued input to the editor |
+| `Ctrl+C` | Clear the editor without cancelling work; press again within 500 ms to exit |
+| `/exit` or `/quit` | Exit the TUI |
+
+A follow-up runs automatically when the current task reaches a terminal state.
+Queue order is FIFO, and queued tasks stay in the same session. Explicit Esc or
+`/stop` cancellation instead returns undelivered inputs to the editor, so they
+do not immediately start another run.
 
 `/steer` is not a prompt injection into a running provider request. The loop
 checks the steering queue before each step, appends a `user` fact with
 `source: runtime`, and builds the next request from the projection. This keeps
 the session log as the source of truth.
 
-## Queue semantics
+## Session commands
 
-- A queued task starts automatically when the current task reaches a terminal
-  state.
-- Queue order is FIFO.
-- A queued task runs in the same session; it is not a fork.
-- `/fork`, `/clone`, `/rewind`, and session commands are main-thread commands.
-  They are only handled when no task is active. During a run they are treated as
-  queued text; finish or stop the run first.
+`/new`, `/resume`, `/fork`, `/clone`, `/compact`, and
+`/new-context` change session state. Run them when no task is active. During a
+run, plain text is queued instead.
 
 ## Limits
 
-- Tools already executing are not killed. `/stop` takes effect at the next
-  cancellation check.
-- The input pump uses plain `input()`, not a full line editor. Editing,
-  history, and completion are terminal features.
-- Approval answers are read as the next line. Do not type a task while an
-  approval prompt is waiting; it is consumed as the answer.
+- File workers finish their current operation before observing cancellation.
+  Shell workers signal their child processes. Neither behavior rolls back file
+  changes; use snapshots when restoration is needed.
+- Steering applies between steps, not inside a provider stream or a running
+  tool.
 - The one-shot `--steer` flag seeds guidance before the first step. It is not a
   substitute for `/steer` during a run.
 
 ## Tests
 
-- `test_live_input_handles_steer_and_queue`
-- `test_live_input_is_read_while_worker_is_running`
-- `test_mid_run_steer_reaches_the_next_provider_request`
-- `test_repl_reads_steer_while_a_bash_tool_is_running`
-- `test_host_approver_routes_through_events`
-- `test_live_input_can_stop_the_task`
-
-The end-to-end test blocks a tool until the host delivers `/steer`, then checks
-that the next provider request contains the steering fact.
+`test_mid_run_steer_reaches_the_next_provider_request` blocks a tool until the
+host delivers guidance, then checks that the next provider request contains the
+steering fact.
 
 # Persistence catalog
 
@@ -1639,7 +1724,7 @@ another subagent.
 
 ## snapshot
 
-A pre-change copy of a file, used by `--undo` and `/undo`.
+A pre-change copy of a file, used by the one-shot `--undo` option.
 
 ## goal
 
@@ -1840,6 +1925,9 @@ hosts can render it differently.
 
 - Directory: `.cade-mini/sessions/` by default.
 - File: `session-<id>.jsonl`.
+- New interactive sessions defer file creation until the first user or assistant
+  message. Setup events stay in memory and are flushed with that message.
+  A cancelled first request still keeps its user message on disk.
 - Append lock: `session-<id>.lock`.
 - Run lock: `session-<id>.run.lock`; concurrent turns are rejected.
 - Append: one line, `flush`, `fsync`.
@@ -2220,7 +2308,7 @@ cannot replace human restrictions.
 ## Snapshots
 
 `SnapshotStore` captures `write`, `edit`, and common single-command shell
-mutations. `--undo` and `/undo` restore the latest snapshot. Snapshots are project
+mutations. The one-shot `--undo` option restores the latest snapshot. Snapshots are project
 state, not session facts.
 
 ## Goals
@@ -2230,8 +2318,8 @@ state, not session facts.
 
 ## Hosts
 
-The CLI runs one-shot and REPL sessions. It uses the same loop and policy as
-every other entry path.
+The terminal host runs one-shot tasks and the TUI. It uses the same loop and
+policy as every other entry path.
 
 ## Limits
 
@@ -2386,9 +2474,11 @@ Not covered:
 cade-mini --undo
 ```
 
-This restores the latest snapshot and exits without contacting a provider. In
-the REPL, use `/undo`. Each call restores one snapshot, so repeated undo walks
-back through the recorded changes. Stop external file writers before undo.
+This restores the latest snapshot and exits without contacting a provider.
+Each call restores one snapshot, so repeated calls walk back through recorded
+file changes. It does not rewind conversation messages. The TUI does not expose
+this as `/undo`; coordinated conversation/file undo is not implemented. Stop
+external file writers before restoring snapshots.
 
 Undo checks that the current file matches the recorded post-change state. It
 rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
@@ -2407,7 +2497,7 @@ objective, a status (`active` or `done`), and an update time.
 cade-mini --goal "Add a regression test for the parser" "Start the task."
 ```
 
-In the REPL:
+In the TUI:
 
 - `/goal` shows the current goal.
 - `/goal TEXT` sets an active goal.
@@ -2692,8 +2782,9 @@ diff reviewable.
 
 ## Undo
 
-If the change is wrong, use `cade-mini --undo` or `/undo` before starting
-another attempt. Undo restores one recorded file change at a time.
+If the change is wrong, use `cade-mini --undo` before starting another attempt.
+This restores one recorded file change at a time; it does not rewind the
+conversation.
 
 ## Keep
 
@@ -2851,34 +2942,51 @@ that hangs is killed after the configured timeout.
 
 # Hosts
 
-Cade Mini has one host: the terminal CLI. It uses the session log, request
-builder, tools, and policy.
+Cade Mini has one terminal host with two modes: an interactive TUI and one-shot
+execution. Both use the same session log, request builder, tools, policy, and
+`InteractionService`.
 
-## Terminal
+## Terminal UI
 
-Without a task, the CLI starts a REPL:
+Without a task, the CLI starts the TUI in an interactive terminal:
 
 ```bash
 cade-mini
 ```
 
-The REPL prints tool progress to stderr, streams assistant text to stdout, and
-accepts the commands listed in [CLI](cli.md). With a task, it runs once and
-exits:
+The TUI keeps the conversation in a scrollable transcript, shows streaming
+assistant text and tool progress, and handles approvals and questions without
+leaving the application. Common keys:
+
+- `Enter` submits the message or queues it while a task is running.
+- `Alt+Enter` steers the running task at the next model step.
+- `Shift+Tab` cycles `ask`, `build`, and `plan`.
+- `Esc` interrupts the running task, including a model request that has not
+  produced output yet. Undelivered queued input returns to the editor.
+- When idle with empty input, double `Esc` opens the fork input selector.
+  Same-session tree navigation is not registered in this release.
+- `Ctrl+C` clears input without interrupting the task; press it again within
+  500 ms to exit.
+- `Ctrl+Q` exits.
+
+The TUI opens native selectors for models, modes, reasoning effort,
+configuration, and permissions. Press `?` or run `/help` for the key and
+command reference.
+
+The TUI requires both stdin and stdout to be terminals. In a pipe or a
+non-interactive process, provide a task instead.
+
+## One-shot
+
+With a task, the CLI runs once and exits:
 
 ```bash
 cade-mini "Fix the failing test."
 cade-mini exec "Fix the failing test."
 ```
 
-One-shot mode supports `--json` for a JSONL event stream. The REPL does not.
-
-## Choosing a mode
-
-Use the REPL for interactive review and approvals. Use one-shot mode for scripts
-and CI, with `--read-only` or explicit rules rather than a blanket `--yes`.
-
-There is no separate TUI workbench. The REPL provides terminal interaction.
+One-shot mode supports `--json` for a JSONL event stream. Use `--read-only` or
+explicit rules rather than a blanket `--yes` in automation and CI.
 
 # Development
 

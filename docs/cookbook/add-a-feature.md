@@ -33,8 +33,9 @@ diff reviewable.
 
 ## Undo
 
-If the change is wrong, use `cade-mini --undo` or `/undo` before starting
-another attempt. Undo restores one recorded file change at a time.
+If the change is wrong, use `cade-mini --undo` before starting another attempt.
+This restores one recorded file change at a time; it does not rewind the
+conversation.
 
 ## Keep
 

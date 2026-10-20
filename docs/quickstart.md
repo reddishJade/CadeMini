@@ -88,8 +88,8 @@ uv run --locked cade-mini --continue "What did you change?"
 uv run --locked cade-mini --resume SESSION_ID "Continue the task."
 ```
 
-Omitting the task starts the interactive REPL. See [CLI](cli.md) for all REPL
-commands.
+Omitting the task starts the full-screen TUI. See [CLI](cli.md) for interactive
+commands and [Hosts](hosts.md) for key bindings.
 
 ## Build the docs
 
