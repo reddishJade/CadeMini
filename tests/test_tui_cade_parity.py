@@ -253,3 +253,22 @@ def test_argument_completions_do_not_repeat_candidate_names(
     model = list(completer.get_completions(Document("/model "), object()))
     assert model
     assert all(not item.display_meta_text.startswith(item.text) for item in model)
+
+
+def test_busy_alt_enter_does_not_steer_commands(tmp_path: Path) -> None:
+    terminal = CadeTui(host(tmp_path), output=DummyOutput())
+    terminal.service.running = True
+    terminal._input.text = "/model openai/gpt-6-luna"
+    terminal._alt_enter(None)
+    assert terminal._input.text == "/model openai/gpt-6-luna"
+    assert not terminal.service.steering
+    assert any("Type a message to steer" in item.text for item in terminal.transcript.entries)
+
+
+def test_modal_shortcuts_do_not_arm_exit(tmp_path: Path) -> None:
+    terminal = CadeTui(host(tmp_path), output=DummyOutput())
+    terminal._open_picker("mode")
+    terminal._eof(None)
+    assert terminal._picker_kind == "mode"
+    assert terminal._exit_armed == 0.0
+    terminal._close_picker()
