@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import re
+import shlex
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from cade_mini.ai.events import FinalMessage, ProviderEvent, ProviderFailure, TextDelta
@@ -17,6 +18,7 @@ from cade_mini.ai.models import (
     get_models,
 )
 from cade_mini.app.provider import ProviderConfig, build_provider
+from cade_mini.app.recovery import WorkspaceRecovery
 from cade_mini.core.compaction import Compactor
 from cade_mini.core.history import HistoryNode, history_tree
 from cade_mini.core.log import SessionLog, list_sessions
@@ -38,6 +40,7 @@ from cade_mini.core.types import LogEntry, ToolCallBlock, UserMessage
 from cade_mini.core.window import reset_window
 from cade_mini.extensions.goal import GoalStore
 from cade_mini.extensions.hooks import HookRunner
+from cade_mini.extensions.recovery import Scope
 from cade_mini.extensions.skills import Skill
 from cade_mini.extensions.snapshots import SnapshotStore
 from cade_mini.extensions.subagents import DelegateTool, SubagentTool
@@ -140,6 +143,9 @@ class InteractionService:
         self.provider, self.provider_config = provider, provider_config
         self.base_tools, self.skills = tuple(tools), tuple(skills)
         self.workspace, self.snapshots, self.goals = workspace, snapshots, goals
+        self.recovery = WorkspaceRecovery(
+            snapshots, system_prompt=system_prompt, read_only=policy.read_only
+        )
         self.policy, self.budget, self.context = policy, budget, context
         self.context_window_explicit = context_window_explicit
         self.max_steps, self.compactor, self.hooks, self.window = (
@@ -183,6 +189,12 @@ class InteractionService:
                     f"{index}. {preview(item)}",
                 )
                 for index, item in enumerate(reversed(users), 1)
+            )
+        if kind in {"rewind", "revert"}:
+            return tuple(
+                (entry.id, preview(entry))
+                for entry in self.log.branch()
+                if entry.type == "user" and entry.data.get("source", "user") == "user"
             )
         if kind == "tree":
             return tuple(
@@ -288,12 +300,13 @@ class InteractionService:
                 raise ValueError("No sessions to resume")
             session_id = sessions[0].id
         self.log = SessionLog.open(self.sessions_dir / f"session-{session_id}.jsonl")
+        self.recovery.recover(self.log)
         if not any(e.type == "system" for e in self.log.branch()):
             self.log.append("system", {"text": self.system_prompt})
         self.policy.grants.clear()
         self.last_usage = {}
 
-    def _turn(self, argument: str) -> LogEntry | None:
+    def resolve_turn(self, argument: str) -> LogEntry | None:
         users = [e for e in self.log.entries() if e.type == "user"]
         if not argument:
             return users[-1] if users else None
@@ -304,6 +317,36 @@ class InteractionService:
             n = int(argument)
             return users[-n] if 1 <= n <= len(users) else None
         return None
+
+    def recovery_arguments(
+        self, line: str
+    ) -> tuple[str, Scope, str | None, list[str] | None]:
+        """解析恢复命令；UI 预览和执行共用同一组参数。"""
+        parts = shlex.split(line)
+        command, args = parts[0], parts[1:]
+        if not args:
+            raise ValueError("Select a historical user prompt")
+        turn = self.resolve_turn(args[0])
+        if turn is None:
+            raise ValueError("User prompt not found")
+        if command == "/rewind":
+            if len(args) != 2 or args[1] not in {"conversation", "code", "both"}:
+                raise ValueError("Usage: /rewind ENTRY conversation|code|both")
+            return turn.id, cast(Scope, args[1]), None, None
+        if command != "/revert":
+            raise ValueError("Unknown recovery command")
+        separator = args.index("--") if "--" in args else len(args)
+        if separator not in {1, 2}:
+            raise ValueError("Usage: /revert START [END] [-- PATH ...]")
+        end = self.resolve_turn(args[1]) if separator == 2 else None
+        if separator == 2 and end is None:
+            raise ValueError("End prompt not found")
+        paths = (
+            [self.snapshots.normalize_path(path) for path in args[separator + 1 :]]
+            if separator < len(args)
+            else None
+        )
+        return turn.id, "code", end.id if end is not None else None, paths
 
     def select_model(self, choice: str, effort: str | None = None) -> str:
         provider_name = self.provider_config.provider
@@ -406,6 +449,7 @@ class InteractionService:
             raise RuntimeError("A task is already running")
         if isinstance(self.provider, UnavailableProvider):
             raise RuntimeError(self.provider.reason)  # noqa: TRY004 - authentication state
+        self.recovery.prepare_run(self.log)
         self.running = True
         self.cancel = self.cancel or CancellationToken()
 
@@ -423,6 +467,7 @@ class InteractionService:
                 policy=self.policy,
                 approve=core_approve,
                 context=self.context(),
+                lifecycle=self.recovery,
                 max_steps=self.max_steps,
                 compact=self.compactor,
                 window=self.window,
@@ -549,6 +594,38 @@ class InteractionService:
                 changed_session=True,
                 draft=self.log.navigation_draft or "",
             )
+        if command in {"/undo", "/redo"}:
+            if arg:
+                raise ValueError(f"Usage: {command}")
+            if self.running:
+                raise RuntimeError("Wait for the active task to finish before recovery")
+            before = self.log.head_id
+            message = self.recovery.step(
+                self.log, "undo" if command == "/undo" else "redo"
+            )
+            changed = before != self.log.head_id
+            return CommandResult(
+                (message,),
+                changed_session=changed,
+                draft=(self.log.navigation_draft or "") if changed else None,
+            )
+        if command in {"/rewind", "/revert"}:
+            if not arg:
+                return CommandResult(picker=command[1:])
+            if self.running:
+                raise RuntimeError("Wait for the active task to finish before recovery")
+            user_id, scope, end_id, paths = self.recovery_arguments(line)
+            message = self.recovery.restore(
+                self.log,
+                user_id,
+                scope=scope,
+                kind="rewind" if command == "/rewind" else "revert",
+                end_id=end_id,
+                paths=paths,
+            )
+            return CommandResult(
+                (message,), changed_session=True, draft=self.log.navigation_draft or ""
+            )
         if command == "/tree":
             if not arg:
                 return CommandResult(picker="tree")
@@ -580,7 +657,7 @@ class InteractionService:
                 return CommandResult(("Nothing to clone yet",))
             draft = ""
             if command == "/fork":
-                turn = self._turn(arg)
+                turn = self.resolve_turn(arg)
                 if turn is None:
                     raise ValueError("No matching user turn")
                 draft = str(turn.data.get("text", ""))

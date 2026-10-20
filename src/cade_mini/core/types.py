@@ -21,6 +21,8 @@ type EventType = Literal[
     "run",
     "attempt",
     "branch",
+    "checkpoint",
+    "restore",
 ]
 
 
@@ -103,7 +105,7 @@ class LogEntry(BaseModel):
     """会话日志中的一行；data 的具体形状由 type 决定。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
-    v: Literal[1, 2, 3] = 3
+    v: Literal[1, 2, 3, 4] = 4
     id: str
     parent: str | None = None
     ts: str
@@ -115,6 +117,8 @@ class LogEntry(BaseModel):
         """旧版本不得借用新版本才定义的导航事件。"""
         if self.type == "branch" and self.v < 3:
             raise ValueError("branch events require session v3")
+        if self.type in {"checkpoint", "restore"} and self.v < 4:
+            raise ValueError("recovery events require session v4")
         return self
 
 

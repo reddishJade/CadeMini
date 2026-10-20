@@ -167,6 +167,24 @@ def test_snapshot_rejects_paths_outside_workspace(tmp_path: Path) -> None:
         store.capture(tmp_path / ".." / "outside.txt")
 
 
+def test_snapshot_retains_both_content_images_and_nested_shell_targets(
+    tmp_path: Path,
+) -> None:
+    store = SnapshotStore(tmp_path)
+    source = tmp_path / "old name.txt"
+    destination = tmp_path / "new name.txt"
+    source.write_text("original", encoding="utf-8")
+    with store.workspace_lock(), store.change(source), store.change(destination):
+        source.rename(destination)
+    records = [store.captured_change(snapshot.id) for snapshot in store.list()]
+    deleted = next(record for record in records if record[0] == "old name.txt")
+    created = next(record for record in records if record[0] == "new name.txt")
+    assert deleted[1] is not None and deleted[2] is None
+    assert created[1] is None and created[2] is not None
+    assert store.verify_payload(created[2]) == b"original"
+    assert deleted[1] == created[2]
+
+
 def test_bash_rm_snapshots_before_change(tmp_path: Path) -> None:
     target = tmp_path / "a.txt"
     target.write_text("old", encoding="utf-8")

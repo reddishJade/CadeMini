@@ -6,7 +6,7 @@
 
 - `SessionLog.create(directory, session_id=None)` creates a unique file and
   writes a `meta` entry.
-- `SessionLog.open(path)` validates v1/v2/v3 envelopes, v2/v3 payloads, and
+- `SessionLog.open(path)` validates v1/v2/v3/v4 envelopes, v2/v3/v4 payloads, and
   navigation references. Reads ignore a
   torn final line; the next valid append truncates that tail.
 - The session ID is derived from the file name when not supplied.
@@ -15,10 +15,10 @@
 
 `append(type, data)`:
 
-1. Validates the v3 payload without modifying the file.
+1. Validates the v4 payload without modifying the file.
 2. Takes an exclusive file lock.
 3. Reads current entries and validates the selected parent and references.
-4. Builds a v3 entry, then repairs a torn tail only after validation succeeds.
+4. Builds a v4 entry, then repairs a torn tail only after validation succeeds.
 5. Appends one JSON line, flushes, and calls `fsync`.
 6. Releases the lock.
 
@@ -36,7 +36,7 @@ must acquire it explicitly.
 the list. `branch(entry_id)` reads the path ending at a historical entry. Reads
 reject cycles, missing parents, duplicate IDs, and invalid navigation targets.
 
-`switch_branch(selected_id)` appends a v3 navigation event in the same file.
+`switch_branch(selected_id)` appends a navigation event in the same file.
 User selection continues before that input and exposes its text through
 `navigation_draft`; other selection continues after the entry with an empty
 draft. A subsequent user or assistant entry consumes the draft. `history_tree()`
@@ -44,8 +44,13 @@ provides a pure, depth-annotated view of all visible branches.
 
 `copy_branch()` copies one connected path, including an inactive path selected
 for fork, under the source run lock. It remaps IDs and context cuts, preserves
-versions and timestamps, and omits navigation controls and siblings. The copy
+versions and timestamps, and omits navigation/checkpoint/recovery controls and siblings. The copy
 is written as one snapshot, or remains deferred when it has no conversation.
+
+V4 adds log-only checkpoint and restore events. Checkpoints link an earlier
+user entry and pre-turn ancestor. Restore parents identify the committed target;
+code-only restore must preserve the preceding head. File effects and LIFO state
+belong to the workspace coordinator, not conversation projection.
 
 ## Listing and titles
 

@@ -28,12 +28,30 @@ tries compaction, then a logged window fallback. If the current task, instructio
 or tools still exceed the budget, the run returns `context_error`. Reduce the
 input or start a new task; no hidden request-only truncation occurs.
 
+## Session v4 and workspace recovery
+
+New session facts use v4. Readers accept v1/v2/v3/v4 without rewriting older
+records. V4 adds log-only checkpoint and restore facts for persistent stepwise
+undo/redo, scoped rewind, and selected-file revert. File images and action
+records live under `.cade-mini/snapshots/` and `.cade-mini/recovery/`.
+
+Back up the complete `.cade-mini/` directory before upgrading if rollback
+matters. V1/v2/v3-only releases reject v4 appends. Do not relabel events or remove
+pending recovery files. Historical and copied prompts without owned checkpoints
+remain conversation-restorable only; old global file snapshots are not assigned
+to turns retroactively. Existing `--undo` remains a separate file-only operation.
+
+Idle double Esc now opens `/rewind`, not `/tree`. Rewind asks for conversation,
+tracked code, or both, then confirmation. Read the
+[coverage and recovery procedure](../snapshots-goals.md#checkpoint-recovery) and
+[decision 0012](../decisions/0012-reversible-workspace-recovery.md).
+
 ## Session v3 and history navigation
 
-New session facts use v3. Readers accept v1, v2, v3, and mixed-version logs.
+V3 introduced persistent branch navigation and reading mixed v1/v2/v3 logs.
 V3 adds a `branch` control event for persistent same-session navigation; request
 and conversation payloads retain their v2 contracts. Opening an old file does not
-rewrite it. Navigation and subsequent work append v3 records. Fork and clone
+rewrite it. That release appended v3 records. Fork and clone
 preserve each copied fact's version and timestamp, omit navigation controls, and
 remap IDs rather than modifying the source file.
 

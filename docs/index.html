@@ -346,6 +346,15 @@ the selected point. The position survives restart and old branches remain.</li>
 that input in the editor. It can select inactive branches; <code>N=1</code> selects the
 latest recorded input. Files stay unchanged.</li>
 <li><code>/clone</code> copies only the active path to a new session and clears the editor.</li>
+<li><code>/undo</code> reverses one user turn or explicit recovery action. <code>/redo</code> reapplies
+one undone action without contacting the model or rerunning tools.</li>
+<li><code>/rewind</code> selects an active-path user prompt and offers conversation, code, or
+both. <code>/rewind ENTRY conversation|code|both</code> selects the scope directly, then
+opens the confirmation preview.</li>
+<li><code>/revert</code> selects a turn range and all or one tracked file without trimming
+conversation. <code>/revert START [END] -- PATH ...</code> selects multiple files; quote
+paths containing spaces and use forward slashes. END is inclusive; omitting it
+includes the latest action. Conflicting later edits block restoration.</li>
 <li><code>/compact [INSTRUCTIONS]</code> summarizes older turns and applies optional guidance.</li>
 <li><code>/model [PROVIDER/MODEL]</code> switches an exact authenticated model or searches the
 model picker for a partial name.</li>
@@ -368,9 +377,9 @@ selected stored credential, not environment variables.</li>
 <li><code>/skill [NAME]</code> activates a skill for the next task.</li>
 <li><code>/exit</code> or <code>/quit</code> exits.</li>
 </ul>
-<p>The TUI does not register <code>/rewind</code>, <code>/undo</code>, <code>/revert</code>, <code>/rename</code>, or <code>/mcp</code>.
-Coordinated message/file undo, editable session metadata, and MCP server
-management remain outside the history-navigation feature.
+<p>The TUI does not register <code>/rename</code> or <code>/mcp</code>. Recovery changes tracked files,
+not arbitrary shell effects, external services, or the user's Git index.
+See <a href="#page-snapshots-goals">recovery coverage and conflicts</a>.
 <code>--undo</code> remains the existing one-shot file-snapshot operation; it is not a
 conversation undo command.</p>
 <h2>Interactive input</h2>
@@ -393,7 +402,7 @@ output. Undelivered queued inputs return to the editor with any current draft.</
 within 500 ms to exit.</li>
 <li>Other text is queued as a follow-up task.</li>
 </ul>
-<p>When idle with empty input, press <code>Esc</code> twice within 500 ms to open <code>/tree</code>.
+<p>When idle with empty input, press <code>Esc</code> twice within 500 ms to open <code>/rewind</code>.
 Tree navigation, fork, and clone do not restore workspace files.
 Inside a picker or form, <code>Esc</code> closes that interaction instead. Clearing input
 with <code>Ctrl+C</code> is separate from cancelling a task with <code>Esc</code>.</p>
@@ -543,7 +552,7 @@ alternatives remain in the same file. The loop follows only that active path.</p
 <li><code>system</code>, <code>user</code>, <code>assistant</code>, and <code>tool_result</code> are model-visible facts.</li>
 <li><code>compaction</code> records a summary and <code>first_kept_id</code>.</li>
 <li><code>window</code> records a new context start and an optional handoff.</li>
-<li><code>request</code>, <code>run</code>, <code>attempt</code>, and <code>branch</code> are audit facts. They never become
+<li><code>request</code>, <code>run</code>, <code>attempt</code>, <code>branch</code>, <code>checkpoint</code>, and <code>restore</code> are audit facts. They never become
 conversation messages. A branch event also preserves a selected input for
 editing after restart.</li>
 </ul>
@@ -584,9 +593,11 @@ fallback are decisions expressed as new log facts.</p>
 <h2>Package map</h2>
 <ul>
 <li><code>core/types.py</code>: log, message, block, and error types.</li>
-<li><code>core/events.py</code>: strict v2/v3 event payload validation.</li>
+<li><code>core/events.py</code>: strict v2/v3/v4 event payload validation.</li>
 <li><code>core/log.py</code>: append, lock, tail repair, navigation, session listing, fork/clone.</li>
 <li><code>core/history.py</code>: pure full-tree projection for history selection.</li>
+<li><code>app/recovery.py</code>: turn checkpoints, LIFO actions, and coordinated recovery.</li>
+<li><code>extensions/recovery.py</code>: action journal and pending transaction records.</li>
 <li><code>core/projection.py</code>: deterministic conversation projection.</li>
 <li><code>core/request.py</code>: budget, admission, wire conversion.</li>
 <li><code>core/loop.py</code>: provider stream, tool execution, retries, facts.</li>
@@ -607,6 +618,17 @@ provider protocols and local process execution. It does not depend on the
 separate Cade project. <code>test_mini_boundary.py</code> rejects old Cade imports and
 application dependencies in these lower layers. There are no top-level
 re-exports; import the owning submodule directly.</p>
+<h2>Recovery</h2>
+<p>Hosts inject a <code>TurnLifecycle</code> into the core loop. It creates a root-turn
+checkpoint before the user fact, links it after that fact, and closes it after
+execution. Tool workers and synchronous subagents inherit capture ownership.
+The core does not import the workspace store. Recovery serializes cooperating
+writers with a workspace lock in addition to the session run lock.</p>
+<p>The native snapshot store retains both file images. An append-only workspace
+action journal drives stepwise undo/redo; the session log remains authoritative
+for conversation ancestry. A durable pending plan coordinates files and the
+conversation commit. Recovery resumes idempotently after interruption and stops
+on unknown external edits. See <a href="#page-snapshots-goals">Snapshots and goals</a>.</p>
 <h2>Lower layers and state</h2>
 <p><code>ai/</code> owns provider protocols, streaming adapters, model metadata, and OAuth.
 <code>execution_env/</code> owns local process execution and output capture. Neither layer
@@ -672,15 +694,16 @@ history. If a resumed session has no system entry, the current prompt is added.<
 <p><code>/tree</code> displays the full history tree. Selecting a user input restores its text
 in the editor and continues from its parent. Selecting another entry continues
 after that entry with an empty editor. Navigation and pending historical input
-survive restart. The next model request contains only the selected path. Idle
-double Esc with empty input opens this selector.</p>
+survive restart. The next model request contains only the selected path.
+Idle double Esc with empty input opens the separate <code>/rewind</code> checkpoint selector.</p>
 <p><code>/fork</code> can select user inputs from inactive branches as well as the active one.
 <code>/fork N</code> selects the Nth most recently recorded input; <code>/fork ENTRY</code> selects an
 entry directly. Exact entry IDs take precedence over numeric turn selectors.
 The selected input returns to the editor in the new session.
 <code>/clone</code> clears the editor and copies only the active path, not other branches.
 Copies receive new entry IDs, preserve timestamps and source record versions,
-and remap compaction/window references. Navigation control records are omitted.</p>
+and remap compaction/window references. Navigation and checkpoint controls are
+omitted. Copies do not inherit the source's workspace undo stack.</p>
 <p>All three operations leave workspace files unchanged. Fork and clone leave the
 source session unchanged. They do not implement conversation/file undo and do
 not generate an automatic summary of the abandoned branch. Run history changes
@@ -688,6 +711,20 @@ only when no task is active.</p>
 <p>See the <a href="#page-session-schema">session schema</a> and
 <a href="#page-readme">upgrade guide</a> before
 opening existing sessions with the new writer.</p>
+<h2>Checkpoint recovery</h2>
+<p><code>/undo</code> and <code>/redo</code> reverse or reapply one action. A root user turn, including
+synchronous subagent edits, is one action. Explicit rewind and revert are also
+single reversible actions. New actions discard the active redo chain; original
+conversation branches remain. Navigation outside the action chain prevents a
+stale undo/redo from being applied; use <code>/rewind</code> to select the intended point.</p>
+<p><code>/rewind</code> restores the position before a selected active-path user prompt and
+asks whether to restore conversation, tracked code, or both. <code>/revert</code> selects
+only code changes over a turn range and file subset. Code-only restoration keeps
+conversation messages and adds an audited request-context notice. It does not
+rewind provider settings, permissions, credentials, or other host state.</p>
+<p>Old or copied turns without owned checkpoints remain conversation-restorable
+only. File coverage, conflicts, and interrupted transactions are described in
+<a href="#page-snapshots-goals">Snapshots and goals</a>.</p>
 <h2>Compaction</h2>
 <p>When the full conversation exceeds the input budget, <code>Compactor</code>:</p>
 <ol>
@@ -1392,6 +1429,16 @@ and window fallback.</li>
 <td>No</td>
 <td>Unclassified</td>
 </tr>
+<tr>
+<td><code>checkpoint</code></td>
+<td>No</td>
+<td>Unclassified</td>
+</tr>
+<tr>
+<td><code>restore</code></td>
+<td>No</td>
+<td>Unclassified</td>
+</tr>
 </tbody>
 </table>
 
@@ -1423,6 +1470,10 @@ and window fallback.</li>
   app_provider --&gt; ai_providers_registry
   app_provider --&gt; ai_resolver
   app_provider --&gt; app_auth
+  app_recovery --&gt; core_log
+  app_recovery --&gt; core_types
+  app_recovery --&gt; extensions_recovery
+  app_recovery --&gt; extensions_snapshots
   core_compaction --&gt; ai_events
   core_compaction --&gt; core_log
   core_compaction --&gt; core_loop
@@ -1459,6 +1510,7 @@ and window fallback.</li>
   extensions_memory --&gt; core_loop
   extensions_memory --&gt; core_types
   extensions_memory --&gt; tools_workspace
+  extensions_recovery --&gt; extensions_snapshots
   extensions_skills --&gt; core_loop
   extensions_skills --&gt; core_types
   extensions_skills --&gt; tools_workspace
@@ -1477,6 +1529,7 @@ and window fallback.</li>
   hosts_cli --&gt; app_note
   hosts_cli --&gt; app_prompts
   hosts_cli --&gt; app_provider
+  hosts_cli --&gt; app_recovery
   hosts_cli --&gt; core_compaction
   hosts_cli --&gt; core_log
   hosts_cli --&gt; core_loop
@@ -1506,6 +1559,7 @@ and window fallback.</li>
   hosts_interaction --&gt; ai_events
   hosts_interaction --&gt; ai_models
   hosts_interaction --&gt; app_provider
+  hosts_interaction --&gt; app_recovery
   hosts_interaction --&gt; core_compaction
   hosts_interaction --&gt; core_history
   hosts_interaction --&gt; core_log
@@ -1517,6 +1571,7 @@ and window fallback.</li>
   hosts_interaction --&gt; core_window
   hosts_interaction --&gt; extensions_goal
   hosts_interaction --&gt; extensions_hooks
+  hosts_interaction --&gt; extensions_recovery
   hosts_interaction --&gt; extensions_skills
   hosts_interaction --&gt; extensions_snapshots
   hosts_interaction --&gt; extensions_subagents
@@ -1918,7 +1973,7 @@ narrower jobs.</p>
 <td><code>.cade-mini/sessions/session-*.jsonl</code></td>
 <td><code>SessionLog</code></td>
 <td>Project</td>
-<td>Write v3; read v1/v2/v3</td>
+<td>Write v4; read v1/v2/v3/v4</td>
 </tr>
 <tr>
 <td>Snapshots</td>
@@ -1926,6 +1981,13 @@ narrower jobs.</p>
 <td><code>SnapshotStore</code></td>
 <td>Project</td>
 <td>Local index</td>
+</tr>
+<tr>
+<td>Recovery</td>
+<td><code>.cade-mini/recovery/</code></td>
+<td>Recovery coordinator</td>
+<td>Workspace</td>
+<td>Closed v1 records; action journal and pending plan</td>
 </tr>
 <tr>
 <td>Goal</td>
@@ -2187,12 +2249,12 @@ should be present. See the <a href="#page-testing">validation guidelines</a>.</p
 <section class="page" id="page-session-schema" data-title="Cade Mini session schema">
 <h1>Cade Mini session schema</h1>
 <blockquote>
-<p>Current writer: v3. Readers accept v1, v2, and v3, including mixed-version logs.
+<p>Current writer: v4. Readers accept v1, v2, v3, and v4, including mixed-version logs.
 This is the persistent format and projection contract.</p>
 </blockquote>
 <h2>Envelope</h2>
 <p>One JSON object per line in <code>session-&lt;id&gt;.jsonl</code>:</p>
-<pre><code class="language-json">{&quot;v&quot;:3,&quot;id&quot;:&quot;e2&quot;,&quot;parent&quot;:&quot;e1&quot;,&quot;ts&quot;:&quot;2026-10-18T03:00:00+00:00&quot;,&quot;type&quot;:&quot;user&quot;,&quot;data&quot;:{&quot;text&quot;:&quot;Fix the test&quot;,&quot;source&quot;:&quot;user&quot;}}
+<pre><code class="language-json">{&quot;v&quot;:4,&quot;id&quot;:&quot;e2&quot;,&quot;parent&quot;:&quot;e1&quot;,&quot;ts&quot;:&quot;2026-10-18T03:00:00+00:00&quot;,&quot;type&quot;:&quot;user&quot;,&quot;data&quot;:{&quot;text&quot;:&quot;Fix the test&quot;,&quot;source&quot;:&quot;user&quot;}}
 </code></pre>
 <table>
 <thead>
@@ -2205,8 +2267,8 @@ This is the persistent format and projection contract.</p>
 <tbody>
 <tr>
 <td><code>v</code></td>
-<td><code>1</code>, <code>2</code>, or <code>3</code></td>
-<td>Read all three versions; append v3; reject other values</td>
+<td><code>1</code>, <code>2</code>, <code>3</code>, or <code>4</code></td>
+<td>Read all four versions; append v4; reject other values</td>
 </tr>
 <tr>
 <td><code>id</code></td>
@@ -2239,7 +2301,7 @@ This is the persistent format and projection contract.</p>
 A v3 <code>branch</code> event instead points to a selected historical continuation point.
 Other paths remain in the same file. Non-null parents must precede their children.</p>
 <p>Unknown event types are a version error. Do not ignore them.</p>
-<p>V2 and v3 payloads are validated on append and read. Unknown fields, wrong primitive
+<p>V2, v3, and v4 payloads are validated on append and read. Unknown fields, wrong primitive
 types, invalid enums, and non-finite numbers are rejected. Missing optional
 fields are allowed but defaults are not written into the record. <code>user.source</code>
 defaults to <code>user</code>; assistant model/provider/usage/replay metadata and nullable
@@ -2333,7 +2395,17 @@ the conversation vocabulary.</p>
 <tr>
 <td><code>branch</code></td>
 <td><code>{&quot;selected_id&quot;: str}</code></td>
-<td>V3-only navigation control; never a model message</td>
+<td>Navigation control since v3; never a model message</td>
+</tr>
+<tr>
+<td><code>checkpoint</code></td>
+<td><code>{&quot;checkpoint_id&quot;: str, &quot;user_id&quot;: str, &quot;anchor_id&quot;: str|null, &quot;phase&quot;: &quot;started&quot;|&quot;completed&quot;|&quot;incomplete&quot;}</code></td>
+<td>V4 turn ownership and completion audit</td>
+</tr>
+<tr>
+<td><code>restore</code></td>
+<td><code>{&quot;operation_id&quot;: str, &quot;target_id&quot;: str|null, &quot;draft_id&quot;: str|null, &quot;scope&quot;: &quot;conversation&quot;|&quot;code&quot;|&quot;both&quot;, &quot;kind&quot;: &quot;undo&quot;|&quot;redo&quot;|&quot;rewind&quot;|&quot;revert&quot;}</code></td>
+<td>V4 recovery commit and conversation position</td>
 </tr>
 </tbody>
 </table>
@@ -2375,8 +2447,26 @@ assistant entry consumes it. Non-user selection restores an empty draft. There
 is no mutable cursor sidecar.</p>
 <p>Navigation and path copying acquire the whole-session run lock. Invalid targets
 fail before tail repair or append. Fork and clone copy one connected path into a
-new file, omit navigation controls, preserve record versions and timestamps, and
+new file, omit navigation/checkpoint/recovery controls, preserve record versions and timestamps, and
 remap entry IDs and context cuts.</p>
+<h2>Checkpoints and coordinated recovery</h2>
+<p>A host lifecycle creates a workspace checkpoint before the user fact. Its
+<code>started</code> event links the saved checkpoint to that earlier user entry and the
+pre-turn ancestor <code>anchor_id</code>. A <code>completed</code> or <code>incomplete</code> event closes the
+turn after execution. Completion describes tracked capture, not model success.
+The core validates user and ancestor references; file
+images and recovery action history belong to the workspace recovery store.</p>
+<p>A restore event is appended only after the pending plan's file writes succeed.
+Its parent equals <code>target_id</code>, which must be an earlier entry or null. Code-only
+restoration must target the immediately preceding physical head, preserving
+conversation ancestry. <code>draft_id</code> is null or an earlier user entry whose text
+returns to the editor. New conversation messages consume the historical draft.
+If a legacy root restore lacks a system fact, the pending plan supplies the
+current system prompt as a new explicit fact before the action is acknowledged.</p>
+<p>The workspace action journal and <code>pending.json</code> plan use closed v1 models,
+independent of the session envelope version. A stable operation ID deduplicates
+session and action commits after interruption. Unknown external file states stop
+recovery and block new writes. See <a href="#page-snapshots-goals">Checkpoint recovery</a>.</p>
 <h2>Projection</h2>
 <p><code>project(branch) -&gt; list[Message]</code> is pure and deterministic.</p>
 <ol>
@@ -2387,7 +2477,7 @@ non-empty <code>handoff</code> for a summary message.</li>
 its summary and start the tail at <code>first_kept_id</code>.</li>
 <li>Walk the retained entries in order. Emit <code>user</code>, <code>assistant</code>, and
 <code>tool_result</code> messages. Skip <code>system</code>, <code>meta</code>, <code>window</code>, <code>compaction</code>,
-<code>request</code>, <code>run</code>, <code>attempt</code>, and <code>branch</code>.</li>
+<code>request</code>, <code>run</code>, <code>attempt</code>, <code>branch</code>, <code>checkpoint</code>, and <code>restore</code>.</li>
 <li>Pair tool calls with results by call ID.</li>
 <li>For an open call at the end, synthesize one interrupted result. Do not write
 it to the log. Insert it after the assistant message that contains the call.</li>
@@ -2415,7 +2505,7 @@ A cancelled first request still keeps its user message on disk.</li>
 <li>No rewrite, no in-place edit.</li>
 </ul>
 <h2>Compaction record</h2>
-<pre><code class="language-json">{&quot;v&quot;:3,&quot;id&quot;:&quot;e80&quot;,&quot;parent&quot;:&quot;e79&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;compaction&quot;,
+<pre><code class="language-json">{&quot;v&quot;:4,&quot;id&quot;:&quot;e80&quot;,&quot;parent&quot;:&quot;e79&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;compaction&quot;,
  &quot;data&quot;:{&quot;summary&quot;:&quot;## Goal\n...&quot;,&quot;first_kept_id&quot;:&quot;e52&quot;,&quot;tokens_before&quot;:48210,
          &quot;model&quot;:&quot;gpt-5.6-luna&quot;,&quot;provider&quot;:&quot;chatgpt&quot;,
          &quot;usage&quot;:{&quot;input&quot;:43000,&quot;output&quot;:1200},&quot;details&quot;:null}}
@@ -2424,7 +2514,7 @@ A cancelled first request still keeps its user message on disk.</li>
 before <code>first_kept_id</code> stay in the log. A later compaction starts after the
 previous one and may include the previous summary in its input.</p>
 <h2>Window record</h2>
-<pre><code class="language-json">{&quot;v&quot;:3,&quot;id&quot;:&quot;e90&quot;,&quot;parent&quot;:&quot;e89&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;window&quot;,
+<pre><code class="language-json">{&quot;v&quot;:4,&quot;id&quot;:&quot;e90&quot;,&quot;parent&quot;:&quot;e89&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;window&quot;,
  &quot;data&quot;:{&quot;start_id&quot;:&quot;e88&quot;,&quot;reason&quot;:&quot;manual&quot;,&quot;handoff&quot;:&quot;Optional note.&quot;}}
 </code></pre>
 <p>A window is the hard fallback. Compaction is the default. A window is explicit
@@ -2465,7 +2555,7 @@ goals, and hosts.</li>
 <ul>
 <li><code>SessionLog.create(directory, session_id=None)</code> creates a unique file and
 writes a <code>meta</code> entry.</li>
-<li><code>SessionLog.open(path)</code> validates v1/v2/v3 envelopes, v2/v3 payloads, and
+<li><code>SessionLog.open(path)</code> validates v1/v2/v3/v4 envelopes, v2/v3/v4 payloads, and
 navigation references. Reads ignore a
 torn final line; the next valid append truncates that tail.</li>
 <li>The session ID is derived from the file name when not supplied.</li>
@@ -2473,10 +2563,10 @@ torn final line; the next valid append truncates that tail.</li>
 <h2>Append</h2>
 <p><code>append(type, data)</code>:</p>
 <ol>
-<li>Validates the v3 payload without modifying the file.</li>
+<li>Validates the v4 payload without modifying the file.</li>
 <li>Takes an exclusive file lock.</li>
 <li>Reads current entries and validates the selected parent and references.</li>
-<li>Builds a v3 entry, then repairs a torn tail only after validation succeeds.</li>
+<li>Builds a v4 entry, then repairs a torn tail only after validation succeeds.</li>
 <li>Appends one JSON line, flushes, and calls <code>fsync</code>.</li>
 <li>Releases the lock.</li>
 </ol>
@@ -2490,15 +2580,19 @@ must acquire it explicitly.</p>
 <p><code>branch()</code> follows parent IDs from the last entry back to the root and reverses
 the list. <code>branch(entry_id)</code> reads the path ending at a historical entry. Reads
 reject cycles, missing parents, duplicate IDs, and invalid navigation targets.</p>
-<p><code>switch_branch(selected_id)</code> appends a v3 navigation event in the same file.
+<p><code>switch_branch(selected_id)</code> appends a navigation event in the same file.
 User selection continues before that input and exposes its text through
 <code>navigation_draft</code>; other selection continues after the entry with an empty
 draft. A subsequent user or assistant entry consumes the draft. <code>history_tree()</code>
 provides a pure, depth-annotated view of all visible branches.</p>
 <p><code>copy_branch()</code> copies one connected path, including an inactive path selected
 for fork, under the source run lock. It remaps IDs and context cuts, preserves
-versions and timestamps, and omits navigation controls and siblings. The copy
+versions and timestamps, and omits navigation/checkpoint/recovery controls and siblings. The copy
 is written as one snapshot, or remains deferred when it has no conversation.</p>
+<p>V4 adds log-only checkpoint and restore events. Checkpoints link an earlier
+user entry and pre-turn ancestor. Restore parents identify the committed target;
+code-only restore must preserve the preceding head. File effects and LIFO state
+belong to the workspace coordinator, not conversation projection.</p>
 <h2>Listing and titles</h2>
 <p><code>list_sessions(directory)</code> returns session ID, update time, and a title derived
 from the first user text across the full file, even when navigation currently
@@ -2852,8 +2946,9 @@ under <code>.cade-mini/snapshots</code> with a JSONL index and one directory per
 <p>Covered changes:</p>
 <ul>
 <li><code>write</code> and <code>edit</code>.</li>
-<li>Common single-command shell mutations: <code>rm</code>, <code>mv</code>, <code>cp</code>, <code>touch</code>, <code>mkdir</code>,
-redirection with <code>&gt;</code>, and <code>sed -i</code>.</li>
+<li>Simple literal-file shell mutations: <code>rm</code>, file-to-file <code>mv</code>/<code>cp</code>, <code>touch</code>,
+<code>echo</code> redirection, and <code>sed -i</code>. Quoted filenames can contain spaces.
+Directory operands, expansions, and unknown command forms are not captured.</li>
 <li>Creating a file records that it did not exist; undo removes it.</li>
 </ul>
 <p>Not covered:</p>
@@ -2867,17 +2962,59 @@ silently skipped.</li>
 <h2>Undo</h2>
 <pre><code class="language-bash">cade-mini --undo
 </code></pre>
-<p>This restores the latest snapshot and exits without contacting a provider.
-Each call restores one snapshot, so repeated calls walk back through recorded
-file changes. It does not rewind conversation messages. The TUI does not expose
-this as <code>/undo</code>; coordinated conversation/file undo is not implemented. Stop
-external file writers before restoring snapshots.</p>
+<p>This legacy CLI operation restores one file snapshot without contacting a
+provider. It does not rewind conversation and is not an alias for TUI <code>/undo</code>.
+It refuses concurrent workspace writes or a pending coordinated recovery. Stop
+external file writers before any restoration.</p>
 <p>Undo checks that the current file matches the recorded post-change state. It
 rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
 A rejected undo leaves the file and index unchanged. Legacy snapshots have no
 post-change state and require manual inspection; automatic undo rejects them.</p>
 <p>Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.</p>
+<h2>Checkpoint recovery</h2>
+<p>Each root user turn creates a checkpoint before execution. Registered file
+mutations retain before/after content, existence, and permissions. Synchronous
+subagents share the parent capture scope. Queued inputs get checkpoints when
+execution starts; steering remains part of the active turn.</p>
+<ul>
+<li><code>/undo</code> reverses one turn or explicit recovery action; <code>/redo</code> reapplies one.
+Neither reruns tools or contacts a provider. History survives restart.</li>
+<li><code>/rewind</code> selects an active-path user prompt, then conversation, code, or both,
+followed by a preview and confirmation. It restores the point before the prompt.</li>
+<li><code>/revert</code> selects a turn range and all or one tracked file. Explicit path
+arguments select multiple files. Conversation stays unchanged.</li>
+</ul>
+<p>A new action discards the active redo chain. Old conversation branches remain.
+Tree navigation never restores files; a stale undo/redo cannot cross a changed
+conversation position. Rewind can still use owned checkpoints and computes code
+changes from actual actions, including intervening undo/redo/revert operations.
+Copied sessions do not inherit workspace actions. Historical prompts without an
+owned checkpoint support conversation-only rewind.</p>
+<p>Recovery checks all selected files and content blobs before modifying a file.
+A changed target, unknown outcome, corrupt blob, symlink, hard link, or protected
+metadata path blocks automatic code restoration. Restoring an older range also
+fails if later edits conflict; there is no automatic reverse-patch merge.
+File limits apply to both images. A missing post-change image makes that turn's
+code checkpoint incomplete rather than pretending that recovery is available.
+Unselected files and the user's Git index remain untouched. Directory trees,
+untracked shell/hook changes, and external side effects are not restored.</p>
+<p>Cooperating operations share <code>.cade-mini/recovery/workspace.lock</code>. The action
+journal and checkpoint links use closed v1 records under that directory. A
+<code>pending.json</code> plan stores both images before restoration begins. Files use
+atomic per-file replacement; a multi-file restore is not a filesystem-wide
+atomic operation. On interruption, resume the named session to finish the plan
+idempotently. A third, externally edited state stops recovery without overwriting
+that edit. Resolve the reported conflict and resume; do not delete the pending
+plan to bypass the write guard. New agent writes remain blocked until it finishes.
+External editors do not honor the lock and must be stopped during recovery.
+Read-only mode blocks code recovery; conversation-only rewind remains available.
+Esc cancels a preview, not a committing file restore. A normal TUI exit waits
+for the recovery commit; a forced process interruption uses the pending plan.</p>
+<p>Code-only restoration keeps model-visible conversation messages. The next
+request receives an audited notice to inspect restored files rather than trust
+older tool effects. Settings, credentials, grants, and external services do not
+rewind with conversation history.</p>
 <h2>Goals</h2>
 <p>A goal is one durable objective stored in <code>.cade-mini/goal.json</code>. It has an
 objective, a status (<code>active</code> or <code>done</code>), and an update time.</p>
@@ -3612,7 +3749,7 @@ See <a href="#page-projection-request">Projection and request</a>.</p>
 host-state files with narrow scopes.</p>
 <h2>Current format</h2>
 <ul>
-<li>Session log: write closed schema v3; read v1, v2, and v3. See <a href="#page-session-schema">Session log schema</a>.</li>
+<li>Session log: write closed schema v4; read v1, v2, v3, and v4. See <a href="#page-session-schema">Session log schema</a>.</li>
 <li>Entry file: one JSON object per line; a trailing newline is required.</li>
 <li>Session directory: <code>.cade-mini/sessions</code>.</li>
 <li>Compaction, windows, and same-session navigation are entries, not rewrites.</li>
@@ -3623,8 +3760,8 @@ host-state files with narrow scopes.</p>
 not add fields that change the meaning of existing fields. Additive diagnostic
 fields are allowed only when old readers can ignore them.</p>
 <h2>History</h2>
-<p>V2 adds normalized request audits. V3 adds persistent branch navigation. Neither
-rewrites older facts. Resume and rollback are described in the
+<p>V2 adds normalized request audits. V3 adds persistent branch navigation. V4 adds
+checkpoint and coordinated recovery facts. None rewrites older facts. Resume and rollback are described in the
 <a href="#page-readme">upgrade guide</a>.</p>
 <h2>Verification</h2>
 <p><code>test_mini_log.py</code>, <code>test_mini_session_history.py</code>, <code>test_mini_projection.py</code>, and
@@ -3668,7 +3805,7 @@ the <a href="#page-readme">upgrade guide</a> in the same change.</li>
 <li>Session size and compaction behavior remain bounded.</li>
 </ul>
 <h2>Current status</h2>
-<p>Writers use closed schema v3. Readers accept v1, v2, and v3 without rewriting old
+<p>Writers use closed schema v4. Readers accept v1, v2, v3, and v4 without rewriting old
 facts. The <a href="#page-readme">upgrade guide</a> documents resume and rollback.</p>
 
 </section>
@@ -3695,11 +3832,25 @@ See <a href="decisions/0006-validate-event-payloads.md">decision 0006</a>.</p>
 tries compaction, then a logged window fallback. If the current task, instructions,
 or tools still exceed the budget, the run returns <code>context_error</code>. Reduce the
 input or start a new task; no hidden request-only truncation occurs.</p>
+<h2>Session v4 and workspace recovery</h2>
+<p>New session facts use v4. Readers accept v1/v2/v3/v4 without rewriting older
+records. V4 adds log-only checkpoint and restore facts for persistent stepwise
+undo/redo, scoped rewind, and selected-file revert. File images and action
+records live under <code>.cade-mini/snapshots/</code> and <code>.cade-mini/recovery/</code>.</p>
+<p>Back up the complete <code>.cade-mini/</code> directory before upgrading if rollback
+matters. V1/v2/v3-only releases reject v4 appends. Do not relabel events or remove
+pending recovery files. Historical and copied prompts without owned checkpoints
+remain conversation-restorable only; old global file snapshots are not assigned
+to turns retroactively. Existing <code>--undo</code> remains a separate file-only operation.</p>
+<p>Idle double Esc now opens <code>/rewind</code>, not <code>/tree</code>. Rewind asks for conversation,
+tracked code, or both, then confirmation. Read the
+<a href="#page-snapshots-goals">coverage and recovery procedure</a> and
+<a href="decisions/0012-reversible-workspace-recovery.md">decision 0012</a>.</p>
 <h2>Session v3 and history navigation</h2>
-<p>New session facts use v3. Readers accept v1, v2, v3, and mixed-version logs.
+<p>V3 introduced persistent branch navigation and reading mixed v1/v2/v3 logs.
 V3 adds a <code>branch</code> control event for persistent same-session navigation; request
 and conversation payloads retain their v2 contracts. Opening an old file does not
-rewrite it. Navigation and subsequent work append v3 records. Fork and clone
+rewrite it. That release appended v3 records. Fork and clone
 preserve each copied fact's version and timestamp, omit navigation controls, and
 remap IDs rather than modifying the source file.</p>
 <p>Back up <code>.cade-mini/</code> before resuming if rollback matters. V1/v2-only releases

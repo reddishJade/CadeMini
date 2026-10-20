@@ -121,7 +121,7 @@ _SHORTCUT_HELP = """Shortcuts
   ?              show this help
   Ctrl+C         clear input; press twice within 500 ms to exit
   Esc            stop the active run; close a picker or form
-  Esc Esc        navigate conversation branches when idle with empty input
+  Esc Esc        choose a rewind checkpoint when idle with empty input
   Ctrl+D         press Ctrl+D twice to exit when idle (empty input)
   Ctrl+Q         exit
   Shift+Tab      cycle execution mode: ask → build → plan
@@ -219,6 +219,7 @@ class _CadeTui:
         self._command_output = TerminalCommandOutput()
         self._login_cancel: Event | None = None
         self._turn_thread: threading.Thread | None = None
+        self._recovery_task: asyncio.Task[None] | None = None
         self._login_thread: threading.Thread | None = None
         self._closing = False
         self._login_flow = TuiLoginFlow(
@@ -863,13 +864,22 @@ class _CadeTui:
         self._arm_exit(now, ExitKeyKind.INTERRUPT)
 
     def _history_key(self, _event: object) -> None:
-        """空闲且输入为空时，双击 Esc 打开历史导航。"""
-        self._submit("/tree")
+        """空闲且输入为空时，双击 Esc 打开回溯检查点。"""
+        self._submit("/rewind")
 
     def _interrupt_key(self, _event: object) -> None:
         """中断当前任务，不清空草稿，也不进入退出确认。"""
         self._exit_pending = 0.0
         self._exit_pending_key = ""
+        if self._recovery_task is not None and not self._recovery_task.done():
+            self._state.log.append(
+                _LogEntry(
+                    "system",
+                    "Recovery is committing; wait for completion. Esc does not interrupt file restoration.",
+                )
+            )
+            self._refresh()
+            return
         if self._login_cancel is not None:
             self._login_cancel.set()
             self._state.log.append(_LogEntry("stop", "Cancelling login..."))
@@ -931,6 +941,8 @@ class _CadeTui:
             for worker in (self._turn_thread, self._login_thread):
                 if worker is not None:
                     await asyncio.to_thread(worker.join)
+            if self._recovery_task is not None:
+                await asyncio.shield(self._recovery_task)
             self._application.exit()
 
         self._application.create_background_task(shutdown())
@@ -991,12 +1003,18 @@ class _CadeTui:
         self._turn_thread = thread
         thread.start()
 
-    def _run_command(self, text: str, *, preserve_running: bool = False) -> None:
+    def _run_command(
+        self,
+        text: str,
+        *,
+        preserve_running: bool = False,
+        recovery_confirmed: bool = False,
+    ) -> None:
         """执行斜杠命令；实时命令不得结束正在运行的 agent 回合。"""
         if text in {"/clear", "/new"}:
             self._clear_session()
             return
-        if self._show_native_command_choice(text):
+        if not recovery_confirmed and self._show_native_command_choice(text):
             return
 
         if not preserve_running:
@@ -1053,7 +1071,9 @@ class _CadeTui:
         if self._application.loop is None:
             asyncio.run(run_inline())
         else:
-            self._application.create_background_task(run_inline())
+            task = self._application.create_background_task(run_inline())
+            if text.split(maxsplit=1)[0] in {"/undo", "/redo", "/rewind", "/revert"}:
+                self._recovery_task = task
 
     def _show_command(self, text: str) -> None:
         """显示命令输入；需要恢复的输入、状态和结果由各自处理器持久化。"""
@@ -1155,6 +1175,31 @@ class _CadeTui:
             query = parts[1].strip() if len(parts) > 1 else ""
             self._open_config_browser(query)
             return True
+        if command in {"/rewind", "/revert"}:
+            parts = text.split()
+            if len(parts) == 1:
+                choices = self._agent_app.service.choices(command[1:])
+                if not choices:
+                    self._state.log.append(
+                        _LogEntry("system", "No user prompts on the active path.")
+                    )
+                    return True
+                callback = (
+                    self._open_rewind_actions
+                    if command == "/rewind"
+                    else self._open_revert_range
+                )
+                self._open_command_choices(
+                    [(label, value) for value, label in choices],
+                    lambda selected: callback(str(selected)),
+                )
+                self._command_choices._selected_index = len(choices) - 1
+                self._command_choices.current_value = choices[-1][0]
+            elif command == "/rewind" and len(parts) == 2:
+                self._open_rewind_actions(parts[1])
+            else:
+                self._confirm_recovery(text)
+            return True
         if command == "/tree" and len(text.split()) == 1:
             service = self._agent_app.service
             choices = service.choices("tree")
@@ -1227,6 +1272,99 @@ class _CadeTui:
             )
             return True
         return False
+
+    def _open_rewind_actions(self, user_id: str) -> None:
+        """先选恢复范围，不在菜单选择时修改状态。"""
+        service = self._agent_app.service
+        turn = service.resolve_turn(user_id)
+        if turn is None:
+            self._state.log.append(_LogEntry("error", "User prompt not found."))
+            return
+        choices = [("Restore conversation", f"/rewind {turn.id} conversation")]
+        description = "Select the state to restore. Workspace restoration covers tracked files only."
+        try:
+            _, changes = service.recovery.plan(service.log, turn.id, scope="both")
+        except (OSError, RuntimeError, ValueError) as exc:
+            description += f" Code restore unavailable: {exc}"
+        else:
+            if changes:
+                choices = [
+                    ("Restore code and conversation", f"/rewind {turn.id} both"),
+                    *choices,
+                    ("Restore code", f"/rewind {turn.id} code"),
+                ]
+        self._open_command_choices(
+            choices,
+            lambda value: self._confirm_recovery(str(value)),
+            describe=lambda _: description,
+        )
+
+    def _open_revert_range(self, user_id: str) -> None:
+        choices = list(self._agent_app.service.choices("revert"))
+        start = next(
+            (i for i, (value, _) in enumerate(choices) if value == user_id), None
+        )
+        if start is None:
+            return
+        ends = [
+            ("Through the latest action", ""),
+            *[(f"Through: {label}", value) for value, label in choices[start:]],
+        ]
+        self._open_command_choices(
+            ends, lambda end: self._open_revert_files(user_id, str(end))
+        )
+
+    def _open_revert_files(self, user_id: str, end_id: str) -> None:
+        import shlex
+
+        command = f"/revert {user_id}" + (f" {end_id}" if end_id else "")
+        service = self._agent_app.service
+        try:
+            _, changes = service.recovery.plan(
+                service.log, user_id, scope="code", end_id=end_id or None
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            self._state.log.append(_LogEntry("error", str(exc)))
+            return
+        if not changes:
+            self._state.log.append(
+                _LogEntry("system", "No tracked file changes in this range.")
+            )
+            return
+        choices = [(f"All {len(changes)} tracked files", command)]
+        choices.extend(
+            (change.path, f"{command} -- {shlex.quote(change.path)}")
+            for change in changes
+        )
+        self._open_command_choices(
+            choices,
+            lambda value: self._confirm_recovery(str(value)),
+            describe=lambda _: (
+                "Choose all files or one file. For multiple selected files, use /revert START [END] -- PATH ..."
+            ),
+        )
+
+    def _confirm_recovery(self, command: str) -> None:
+        service = self._agent_app.service
+        try:
+            user_id, scope, end_id, paths = service.recovery_arguments(command)
+            _, changes = service.recovery.plan(
+                service.log, user_id, scope=scope, end_id=end_id, paths=paths
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            self._state.log.append(_LogEntry("error", str(exc)))
+            return
+        files = ", ".join(change.path for change in changes) or "No file changes"
+        description = f"Scope: {scope}. {files}. Only tracked file mutations are restored; untracked shell, hook, and external effects remain. Conflicting manual edits block the whole restore."
+        self._open_command_choices(
+            [("Cancel", "cancel"), ("Apply restore", "apply")],
+            lambda value: (
+                self._run_command(command, recovery_confirmed=True)
+                if value == "apply"
+                else None
+            ),
+            describe=lambda _: description,
+        )
 
     def _open_model_selector(
         self, query: str = "", provider: str | None = None
@@ -2417,4 +2555,8 @@ def _is_session_history_command(command: str) -> bool:
         "/tree",
         "/clone",
         "/fork",
+        "/undo",
+        "/redo",
+        "/rewind",
+        "/revert",
     }

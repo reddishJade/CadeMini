@@ -18,6 +18,7 @@ from cade_mini.app.instructions import load_project_instructions
 from cade_mini.app.note import load_working_note
 from cade_mini.app.prompts import render_system_prompt
 from cade_mini.app.provider import ProviderConfig, build_provider
+from cade_mini.app.recovery import WorkspaceRecovery
 from cade_mini.core.compaction import Compactor
 from cade_mini.core.log import SessionLog, list_sessions
 from cade_mini.core.loop import (
@@ -299,6 +300,9 @@ def _main(
             parts.append(f"<goal>\n{goal.objective}\n</goal>")
         return tuple(parts)
 
+    recovery = WorkspaceRecovery(
+        snapshots, system_prompt=system_prompt, read_only=policy.read_only
+    )
     subagent_runner = SubagentRunner(
         workspace=project_root,
         provider=selected,
@@ -311,6 +315,7 @@ def _main(
         context=context,
         max_steps=min(max_steps, 20),
         hooks=hooks,
+        lifecycle=recovery,
     )
     base_tools = (
         *core_tools,
@@ -320,8 +325,14 @@ def _main(
 
     try:
         log = _open_log(
-            sessions_dir, resume, system_prompt, project_root, deferred=not one_shot
+            sessions_dir,
+            resume,
+            system_prompt,
+            project_root,
+            deferred=not one_shot,
+            recovery=recovery,
         )
+        recovery.recover(log)
     except (OSError, ValueError, LogError) as exc:
         print(f"cade-mini: {exc}", file=sys.stderr)
         return 2
@@ -343,6 +354,7 @@ def _main(
             hooks,
             fallback_window,
             next_steering,
+            recovery,
         )
         if args.json:
             _final_json(result)
@@ -508,6 +520,7 @@ def _open_log(
     project_root: Path,
     *,
     deferred: bool = False,
+    recovery: WorkspaceRecovery | None = None,
 ) -> SessionLog:
     sessions_dir.mkdir(parents=True, exist_ok=True)
     if resume is None:
@@ -521,6 +534,8 @@ def _open_log(
         log = SessionLog.open(sessions[0].path)
     else:
         log = SessionLog.open(sessions_dir / f"session-{resume}.jsonl")
+    if recovery is not None:
+        recovery.recover(log)
     _ensure_system(log, system_prompt)
     return log
 
@@ -565,6 +580,7 @@ def _run_task(
     hooks: HookRunner | None,
     window: Callable[[SessionLog], bool] | None,
     steering: Callable[[], str | None] | None = None,
+    lifecycle: WorkspaceRecovery | None = None,
 ) -> RunResult:
     tools = filter_tools(tools, policy.mode)
     try:
@@ -578,6 +594,7 @@ def _run_task(
                 policy=policy,
                 approve=approve,
                 context=context,
+                lifecycle=lifecycle,
                 max_steps=max_steps,
                 on_event=on_event,
                 compact=compactor,
@@ -586,7 +603,7 @@ def _run_task(
                 steering=steering,
             )
         )
-    except LogError as exc:
+    except (LogError, OSError, ValueError) as exc:
         return RunResult(answer="", steps=0, termination="aborted", error=str(exc))
 
 

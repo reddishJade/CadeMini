@@ -130,7 +130,8 @@ def test_cli_exec_prints_answer_and_creates_session(
     assert types[0] == "meta"
     assert "system" in types
     assert types.count("user") == 1
-    assert types[-1] == "run"
+    assert types[-1] == "checkpoint"
+    assert types.count("run") == 1
 
 
 def test_cli_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -485,7 +486,9 @@ def test_cli_config_sets_sessions_dir_and_max_steps(tmp_path: Path) -> None:
     assert code == 1
     files = list((workspace / "data" / "sessions").glob("session-*.jsonl"))
     assert len(files) == 1
-    run_entry = SessionLog.open(files[0]).branch()[-1]
+    run_entry = next(
+        e for e in reversed(SessionLog.open(files[0]).branch()) if e.type == "run"
+    )
     assert run_entry.data["termination"] == "step_limit"
 
 

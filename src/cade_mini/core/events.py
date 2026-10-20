@@ -223,6 +223,21 @@ class _Branch(_Payload):
     selected_id: NonEmpty
 
 
+class _Checkpoint(_Payload):
+    checkpoint_id: NonEmpty
+    user_id: NonEmpty
+    anchor_id: NonEmpty | None
+    phase: Literal["started", "completed", "incomplete"]
+
+
+class _Restore(_Payload):
+    operation_id: NonEmpty
+    target_id: NonEmpty | None
+    draft_id: NonEmpty | None
+    scope: Literal["conversation", "code", "both"]
+    kind: Literal["undo", "redo", "rewind", "revert"]
+
+
 _SCHEMAS: dict[EventType, type[_Payload]] = {
     "meta": _Meta,
     "system": _System,
@@ -235,6 +250,8 @@ _SCHEMAS: dict[EventType, type[_Payload]] = {
     "run": _Run,
     "attempt": _Attempt,
     "branch": _Branch,
+    "checkpoint": _Checkpoint,
+    "restore": _Restore,
 }
 
 

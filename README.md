@@ -61,7 +61,9 @@ Sessions and snapshots live in the project's `.cade-mini/` directory.
 Project settings live in `cade-mini.json`.
 
 Mini includes workspace tools, history retrieval, context compaction, skills,
-memory, hooks, MCP tools, subagents, file snapshots, and goals.
+memory, hooks, MCP tools, subagents, file snapshots, and goals. The TUI supports
+stepwise undo/redo, scoped rewind, and selected-file revert. Recovery covers
+tracked file mutations, not arbitrary shell or external side effects.
 
 - [User and developer guides](docs/README.md)
 - [CLI](docs/cli.md) · [Configuration](docs/configuration.md)

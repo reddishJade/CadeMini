@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re
+import os
 import shlex
 from pathlib import Path
 from typing import Literal
@@ -166,7 +166,6 @@ def risk_reason(command: str) -> str | None:
     return None
 
 
-_REDIRECT = re.compile(r"(?:^|\s)(?:>>?|1>)\s*([^\s|;&]+)")
 _SIMPLE_MUTATORS = frozenset(
     {
         "rm",
@@ -192,27 +191,64 @@ def mutation_targets(command: str) -> tuple[str, ...]:
     text = command.strip()
     if not text:
         return ()
-    if any(marker in text for marker in (";", "&&", "||", "|", "`", "$(")):
+    if any(marker in text for marker in (";", "&", "|", "`", "$", "\n", "\r", "<")):
         return ()
-    tokens = text.split()
-    tool = Path(tokens[0].strip("\"'")).name.lower()
+    lexer = shlex.shlex(text, posix=os.name != "nt", punctuation_chars=">")
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return ()
+    if os.name == "nt":
+        tokens = [
+            token[1:-1]
+            if len(token) >= 2 and token[0] == token[-1] and token[0] in "\"'"
+            else token
+            for token in tokens
+        ]
+    if not tokens:
+        return ()
+    words: list[str] = []
     targets: list[str] = []
-    if tool == "echo" or ">" in text:
-        targets.extend(
-            match.group(1).strip("\"'") for match in _REDIRECT.finditer(text)
-        )
-    if tool in _SIMPLE_MUTATORS:
-        args = [token.strip("\"'") for token in tokens[1:]]
-        positional = [arg for arg in args if arg and not arg.startswith("-")]
-        if tool in {"cp", "copy", "copy-item"}:
-            if positional:
-                targets.append(positional[-1])
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in {">", ">>"}:
+            if index + 1 == len(tokens):
+                return ()
+            targets.append(tokens[index + 1])
+            index += 2
         else:
-            targets.extend(positional)
+            words.append(token)
+            index += 1
+    if not words:
+        return ()
+    tool = Path(words[0]).name.lower()
+    if tool in {"mkdir", "md", "rmdir"}:
+        return ()
+    args = words[1:]
+    positional = [arg for arg in args if arg and not arg.startswith("-")]
+    if tool in {"cp", "copy", "copy-item"}:
+        if len(positional) != 2 or any(
+            arg.lower()
+            in {"-path", "-literalpath", "-destination", "-t", "--target-directory"}
+            for arg in args
+        ):
+            return ()
+        targets.append(positional[-1])
+    elif tool in {"mv", "move", "move-item"}:
+        if len(positional) != 2:
+            return ()
+        targets.extend(positional)
+    elif tool in _SIMPLE_MUTATORS:
+        targets.extend(positional)
     elif tool == "sed":
-        args = [token.strip("\"'") for token in tokens[1:]]
-        if "-i" in args:
-            positional = [arg for arg in args if not arg.startswith("-")]
-            if positional:
-                targets.append(positional[-1])
+        if "-i" not in args or len(positional) != 2:
+            return ()
+        targets.append(positional[-1])
+    elif tool != "echo":
+        return ()
+    if any(any(char in target for char in "*?{}") for target in targets):
+        return ()
     return tuple(dict.fromkeys(target for target in targets if target))

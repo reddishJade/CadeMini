@@ -1,6 +1,6 @@
 # Cade Mini session schema
 
-> Current writer: v3. Readers accept v1, v2, and v3, including mixed-version logs.
+> Current writer: v4. Readers accept v1, v2, v3, and v4, including mixed-version logs.
 > This is the persistent format and projection contract.
 
 ## Envelope
@@ -8,12 +8,12 @@
 One JSON object per line in `session-<id>.jsonl`:
 
 ```json
-{"v":3,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
+{"v":4,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
 ```
 
 | Field | Type | Contract |
 | --- | --- | --- |
-| `v` | `1`, `2`, or `3` | Read all three versions; append v3; reject other values |
+| `v` | `1`, `2`, `3`, or `4` | Read all four versions; append v4; reject other values |
 | `id` | string | Unique in the file; 12 lowercase hex characters |
 | `parent` | string or null | Previous head normally; selected continuation for navigation; null for a root |
 | `ts` | string | ISO 8601 UTC timestamp |
@@ -26,7 +26,7 @@ Other paths remain in the same file. Non-null parents must precede their childre
 
 Unknown event types are a version error. Do not ignore them.
 
-V2 and v3 payloads are validated on append and read. Unknown fields, wrong primitive
+V2, v3, and v4 payloads are validated on append and read. Unknown fields, wrong primitive
 types, invalid enums, and non-finite numbers are rejected. Missing optional
 fields are allowed but defaults are not written into the record. `user.source`
 defaults to `user`; assistant model/provider/usage/replay metadata and nullable
@@ -73,7 +73,9 @@ These are recorded but never projected.
 | `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit; v2 adds the normalized snapshot below |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | Run outcome |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | Failed model attempt that produced no message |
-| `branch` | `{"selected_id": str}` | V3-only navigation control; never a model message |
+| `branch` | `{"selected_id": str}` | Navigation control since v3; never a model message |
+| `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | V4 turn ownership and completion audit |
+| `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | V4 recovery commit and conversation position |
 
 The v2 `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
 `report`. `budget` records the context window, output reserve, and headroom;
@@ -118,8 +120,30 @@ is no mutable cursor sidecar.
 
 Navigation and path copying acquire the whole-session run lock. Invalid targets
 fail before tail repair or append. Fork and clone copy one connected path into a
-new file, omit navigation controls, preserve record versions and timestamps, and
+new file, omit navigation/checkpoint/recovery controls, preserve record versions and timestamps, and
 remap entry IDs and context cuts.
+
+## Checkpoints and coordinated recovery
+
+A host lifecycle creates a workspace checkpoint before the user fact. Its
+`started` event links the saved checkpoint to that earlier user entry and the
+pre-turn ancestor `anchor_id`. A `completed` or `incomplete` event closes the
+turn after execution. Completion describes tracked capture, not model success.
+The core validates user and ancestor references; file
+images and recovery action history belong to the workspace recovery store.
+
+A restore event is appended only after the pending plan's file writes succeed.
+Its parent equals `target_id`, which must be an earlier entry or null. Code-only
+restoration must target the immediately preceding physical head, preserving
+conversation ancestry. `draft_id` is null or an earlier user entry whose text
+returns to the editor. New conversation messages consume the historical draft.
+If a legacy root restore lacks a system fact, the pending plan supplies the
+current system prompt as a new explicit fact before the action is acknowledged.
+
+The workspace action journal and `pending.json` plan use closed v1 models,
+independent of the session envelope version. A stable operation ID deduplicates
+session and action commits after interruption. Unknown external file states stop
+recovery and block new writes. See [Checkpoint recovery](../snapshots-goals.md#checkpoint-recovery).
 
 ## Projection
 
@@ -132,7 +156,7 @@ remap entry IDs and context cuts.
    its summary and start the tail at `first_kept_id`.
 4. Walk the retained entries in order. Emit `user`, `assistant`, and
    `tool_result` messages. Skip `system`, `meta`, `window`, `compaction`,
-   `request`, `run`, `attempt`, and `branch`.
+   `request`, `run`, `attempt`, `branch`, `checkpoint`, and `restore`.
 5. Pair tool calls with results by call ID.
 6. For an open call at the end, synthesize one interrupted result. Do not write
    it to the log. Insert it after the assistant message that contains the call.
@@ -164,7 +188,7 @@ hosts can render it differently.
 ## Compaction record
 
 ```json
-{"v":3,"id":"e80","parent":"e79","ts":"...","type":"compaction",
+{"v":4,"id":"e80","parent":"e79","ts":"...","type":"compaction",
  "data":{"summary":"## Goal\n...","first_kept_id":"e52","tokens_before":48210,
          "model":"gpt-5.6-luna","provider":"chatgpt",
          "usage":{"input":43000,"output":1200},"details":null}}
@@ -177,7 +201,7 @@ previous one and may include the previous summary in its input.
 ## Window record
 
 ```json
-{"v":3,"id":"e90","parent":"e89","ts":"...","type":"window",
+{"v":4,"id":"e90","parent":"e89","ts":"...","type":"window",
  "data":{"start_id":"e88","reason":"manual","handoff":"Optional note."}}
 ```
 

@@ -40,6 +40,20 @@ SPECS: tuple[CommandSpec, ...] = (
         "[turn|entry ID]",
     ),
     CommandSpec("/clone", "Copy the active path into a new conversation", "History"),
+    CommandSpec("/undo", "Undo one turn or recovery action", "History"),
+    CommandSpec("/redo", "Redo one undone action without rerunning tools", "History"),
+    CommandSpec(
+        "/rewind",
+        "Choose a checkpoint and recovery scope",
+        "History",
+        "[entry conversation|code|both]",
+    ),
+    CommandSpec(
+        "/revert",
+        "Restore tracked code without trimming conversation",
+        "History",
+        "[start [end] [-- paths...]]",
+    ),
     CommandSpec(
         "/tree",
         "Navigate branches in the current conversation",
