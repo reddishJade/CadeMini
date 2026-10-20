@@ -5,9 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from cade_mini.ai.models import get_model_context_window
 from cade_mini.ai.providers.base import ModelProvider
 from cade_mini.ai.providers.registry import (
     ModelProfileConfig,
+    api_key_env_var,
     build_model_provider,
     get_environment_api_key,
 )
@@ -84,12 +86,12 @@ def build_provider(
             and stored.access
         ):
             api_key = stored.access
-        api_key = api_key or get_environment_api_key()
+        api_key = api_key or get_environment_api_key(provider)
         if not api_key:
             raise RuntimeError(
                 f"Missing API key for provider {provider}; "
                 f"run 'cade-mini login --provider {provider} --method api_key' "
-                "or set OPENAI_API_KEY"
+                f"or set {api_key_env_var(provider)}"
             )
 
     profile = ModelProfileConfig(
@@ -98,6 +100,7 @@ def build_provider(
         chat_model=resolution.model,
         base_url=base_url,
         api_key=api_key,
+        context_window=get_model_context_window(resolution.model),
         thinking=selected.thinking,
         reasoning_effort=selected.reasoning_effort,
     )

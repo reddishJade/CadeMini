@@ -1,4 +1,4 @@
-# 0007: The AI layer supports only the OpenAI Responses protocol
+# 0007: The AI layer supports only the Responses protocol
 
 Status: accepted
 
@@ -17,20 +17,23 @@ dependencies, and provider-specific fields in generic configuration.
 
 ## Decision
 
-Cade Mini supports only the OpenAI Responses protocol. Two transports remain:
+Cade Mini supports only the Responses protocol. Three transports remain:
 
 - `openai_responses` uses an API key from `OPENAI_API_KEY` or
   `cade-mini login --provider openai`.
 - `chatgpt` uses Sign in with ChatGPT (SIWC) from `cade-mini login`.
+- `deepseek_responses` uses an API key from `DEEPSEEK_API_KEY` or
+  `cade-mini login --provider deepseek`.
 
 `build_model_provider` in `ai/providers/registry.py` constructs exactly these
-two adapters. The model registry contains OpenAI models only. The
-`tenacity` and `python-dotenv` dependencies are removed because the remaining
-adapter uses neither.
+three adapters. DeepSeek reuses the Responses decoder but has its own endpoint,
+credential, transport name, and model metadata. The `tenacity` and
+`python-dotenv` dependencies remain removed because no adapter uses them.
 
 The SIWC login contract is defined in
-[0008](0008-siwc-login.md). Both transports call the public Responses API;
-`chatgpt` differs only in its OAuth credential and request constraints.
+[0008](0008-siwc-login.md). All transports call a public Responses API;
+`chatgpt` differs in its OAuth credential and request constraints, and
+`deepseek_responses` differs in its endpoint and stateless request shape.
 
 ## Consequences
 
@@ -38,9 +41,9 @@ The SIWC login contract is defined in
   carries no vendor fields.
 - Adding a provider requires a new adapter and a deliberate change to this
   record, not a new entry in a long registry.
-- Existing DeepSeek, ChatGLM, MiMo, and OpenAI Chat Completions configurations
-  are rejected or resolve to Responses behavior. Users must select
-  `chatgpt` or `openai`.
+- Existing ChatGLM, MiMo, and OpenAI Chat Completions configurations are
+  rejected or resolve to Responses behavior. Users must select `chatgpt`,
+  `openai`, or `deepseek`.
 - `tests/test_mini_provider.py`, `tests/test_mini_auth.py`,
   `tests/test_mini_config.py`, and `tests/test_responses_siwc_contract.py`
   enforce the transport and login surface.

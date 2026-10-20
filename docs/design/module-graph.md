@@ -23,6 +23,7 @@ flowchart LR
   ai_usage --> ai_cache
   ai_usage --> ai_models
   app_auth --> ai_auth
+  app_provider --> ai_models
   app_provider --> ai_providers_base
   app_provider --> ai_providers_registry
   app_provider --> ai_resolver

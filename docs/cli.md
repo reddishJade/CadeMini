@@ -15,13 +15,14 @@ starts the interactive REPL.
 ```bash
 cade-mini login
 cade-mini login --provider openai
+cade-mini login --provider deepseek
 ```
 
 `--provider` defaults to `chatgpt`, which uses Sign in with ChatGPT (SIWC)
-in a browser. `openai` uses `api_key` with a hidden input prompt. Credentials
-are stored in `~/.cade-mini/auth.json`; the stable SIWC host ID is stored in
-`~/.cade-mini/host.json`. Login does not change project provider or model
-settings. Cade Mini supports only the OpenAI Responses protocol.
+in a browser. `openai` and `deepseek` use `api_key` with a hidden input prompt.
+Credentials are stored in `~/.cade-mini/auth.json`; the stable SIWC host ID is
+stored in `~/.cade-mini/host.json`. Login does not change project provider or
+model settings. Cade Mini supports only the Responses protocol.
 
 ## One-shot options
 

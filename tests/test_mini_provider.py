@@ -58,6 +58,7 @@ def test_build_chatgpt_provider_uses_stored_oauth(tmp_path: Path) -> None:
 
     assert provider.transport == "chatgpt"
     assert provider.model == "gpt-5.6-luna"
+    assert provider.context_window == 1_050_000
 
 
 def test_build_chatgpt_provider_requires_login(tmp_path: Path) -> None:
@@ -108,6 +109,7 @@ def test_build_responses_provider_with_explicit_key() -> None:
 
     assert provider.transport == "openai_responses"
     assert provider.model == "gpt-5.5"
+    assert provider.context_window == 1_050_000
 
 
 def test_build_responses_provider_uses_stored_api_key(tmp_path: Path) -> None:
@@ -129,10 +131,84 @@ def test_build_responses_provider_uses_stored_api_key(tmp_path: Path) -> None:
     assert provider.model == "gpt-5.5"
 
 
-def test_unsupported_provider_is_rejected(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="Unsupported provider 'deepseek'"):
+def test_build_deepseek_provider_with_explicit_key(tmp_path: Path) -> None:
+    provider = build_provider(
+        ProviderConfig(
+            provider="deepseek",
+            model="deepseek-flash",
+            api_key="deepseek-test-key",
+        ),
+        auth_path=tmp_path / "missing.json",
+    )
+
+    assert provider.transport == "deepseek_responses"
+    assert provider.model == "deepseek-flash"
+    assert provider.base_url == "https://api.deepseek.com"
+    assert provider.context_window == 1_000_000
+
+
+def test_build_deepseek_provider_uses_environment_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "environment-key")
+
+    provider = build_provider(
+        ProviderConfig(provider="deepseek", model="deepseek-v4-pro"),
+        auth_path=tmp_path / "missing.json",
+    )
+
+    assert provider.transport == "deepseek_responses"
+    assert provider.config.api_key == "environment-key"
+
+
+def test_build_deepseek_provider_does_not_use_openai_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+
+    with pytest.raises(RuntimeError, match="DEEPSEEK_API_KEY"):
         build_provider(
-            ProviderConfig(provider="deepseek", model="deepseek-chat"),
+            ProviderConfig(provider="deepseek", model="deepseek-flash"),
+            auth_path=tmp_path / "missing.json",
+        )
+
+
+def test_build_deepseek_provider_uses_stored_api_key(tmp_path: Path) -> None:
+    auth_path = tmp_path / "auth.json"
+    JsonCredentialStore(auth_path).save(
+        AuthCredential(
+            type="api_key",
+            provider="deepseek",
+            access="stored-deepseek-key",
+        )
+    )
+
+    provider = build_provider(
+        ProviderConfig(provider="deepseek", model="deepseek-flash"),
+        auth_path=auth_path,
+    )
+
+    assert provider.config.api_key == "stored-deepseek-key"
+
+
+def test_unregistered_model_has_no_context_window(tmp_path: Path) -> None:
+    provider = build_provider(
+        ProviderConfig(
+            provider="deepseek",
+            model="deepseek-custom",
+            api_key="deepseek-test-key",
+        ),
+        auth_path=tmp_path / "missing.json",
+    )
+
+    assert provider.context_window is None
+
+
+def test_unsupported_provider_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Unsupported provider 'anthropic'"):
+        build_provider(
+            ProviderConfig(provider="anthropic", model="claude-3"),
             auth_path=tmp_path / "missing.json",
         )
 

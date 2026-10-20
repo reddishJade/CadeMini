@@ -39,6 +39,7 @@ from ._codec import make_schema_strict, parse_tool_arguments
 _LOGGER = logging.getLogger(__name__)
 
 OPENAI_RESPONSES_DEFAULT_BASE_URL = "https://api.openai.com/v1"
+DEEPSEEK_RESPONSES_DEFAULT_BASE_URL = "https://api.deepseek.com"
 # SIWC 明确不支持的请求字段；发送前统一剔除。
 _SIWC_UNSUPPORTED_PARAMS = frozenset(
     {
@@ -1109,6 +1110,47 @@ class OpenAIResponsesProvider:
                     else None
                 ),
             )
+
+
+class DeepSeekResponsesProvider(OpenAIResponsesProvider):
+    """DeepSeek Responses API 适配器。
+
+    DeepSeek 的 Responses 端点是无状态的，并会静默忽略未支持的字段。
+    这里只剔除无意义的 ``stream_options``，用量仍从 ``response.completed`` 读取。
+    """
+
+    def __init__(
+        self,
+        config: ProviderConfig,
+        *,
+        client: Any | None = None,
+    ) -> None:
+        super().__init__(config, client=client)
+        self.transport = "deepseek_responses"
+        self._metrics["transport"] = self.transport
+
+    def _get_client_and_headers(self) -> tuple[Any, dict[str, str]]:
+        """构建使用 DeepSeek API Key 的 Responses 客户端。"""
+        if self._client is not None:
+            return self._client, {}
+
+        import os
+
+        from openai import AsyncOpenAI as _OpenAIClient
+
+        api_key = self.config.api_key or os.environ.get("DEEPSEEK_API_KEY", "")
+        client = _OpenAIClient(
+            api_key=api_key or "sk-dummy-no-key",
+            base_url=self.config.base_url or DEEPSEEK_RESPONSES_DEFAULT_BASE_URL,
+        )
+        return client, {}
+
+    def _finalize_request_params(self, params: dict[str, Any]) -> None:
+        params.pop("stream_options", None)
+
+    def _strict_tools(self) -> bool:
+        """DeepSeek 不提供 strict 工具校验，保留原始可选参数。"""
+        return False
 
 
 class ChatGPTResponsesProvider(OpenAIResponsesProvider):

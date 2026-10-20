@@ -12,7 +12,7 @@ import httpx
 from cade_mini.ai.auth import AuthCredential, LoginCancelledError, get_auth_provider
 from cade_mini.app.auth import JsonCredentialStore, load_or_create_host_id
 
-_PROVIDERS = ("chatgpt", "openai")
+_PROVIDERS = ("chatgpt", "openai", "deepseek")
 
 
 def login(argv: Sequence[str]) -> int:

@@ -21,9 +21,16 @@ uv run --locked cade-mini login --provider openai
 uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project."
 ```
 
-Cade Mini supports only the OpenAI Responses protocol. Provider API keys are
-also read from `OPENAI_API_KEY`. Credentials live in `~/.cade-mini/auth.json`;
-Cade credentials and settings are not read. See the
+For DeepSeek:
+
+```bash
+uv run --locked cade-mini login --provider deepseek
+uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review this project."
+```
+
+Cade Mini supports only the Responses protocol. API keys are also read from
+`OPENAI_API_KEY` and `DEEPSEEK_API_KEY`. Credentials live in
+`~/.cade-mini/auth.json`; Cade credentials and settings are not read. See the
 [quickstart](docs/quickstart.md) for browser login and setup.
 
 To install the command outside the checkout:
