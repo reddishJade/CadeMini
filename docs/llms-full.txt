@@ -1249,6 +1249,11 @@ flowchart LR
   hosts_cli --> safety_review
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
+  hosts_context_report --> ai_types
+  hosts_context_report --> core_projection
+  hosts_context_report --> core_request
+  hosts_context_report --> core_types
+  hosts_context_report --> safety_policy
   hosts_interaction --> ai_events
   hosts_interaction --> ai_models
   hosts_interaction --> app_provider
@@ -1265,6 +1270,7 @@ flowchart LR
   hosts_interaction --> extensions_snapshots
   hosts_interaction --> extensions_subagents
   hosts_interaction --> hosts_command_catalog
+  hosts_interaction --> hosts_context_report
   hosts_interaction --> hosts_interaction_question
   hosts_interaction --> hosts_interaction_settings
   hosts_interaction --> safety_policy
@@ -1274,8 +1280,11 @@ flowchart LR
   hosts_interaction_question --> core_loop
   hosts_interaction_question --> core_types
   hosts_interaction_settings --> ai_auth
+  hosts_interaction_settings --> ai_models
+  hosts_interaction_settings --> ai_providers_registry
   hosts_interaction_settings --> app_auth
   hosts_interaction_settings --> app_config
+  hosts_interaction_settings --> app_provider
   hosts_tui_app --> ai_auth
   hosts_tui_app --> ai_models
   hosts_tui_app --> core_loop
