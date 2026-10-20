@@ -3148,7 +3148,7 @@ that hangs is killed after the configured timeout.</p>
 <h1>Hosts</h1>
 <p>Cade Mini has one terminal host with two modes: an interactive TUI and one-shot
 execution. Both use the same session log, request builder, tools, policy, and
-<code>InteractionService</code>.</p>
+core loop. The TUI uses <code>InteractionService</code> for commands and session control.</p>
 <h2>Terminal UI</h2>
 <p>Without a task, the CLI starts the TUI in an interactive terminal:</p>
 <pre><code class="language-bash">cade-mini

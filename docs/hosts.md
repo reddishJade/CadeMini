@@ -2,7 +2,7 @@
 
 Cade Mini has one terminal host with two modes: an interactive TUI and one-shot
 execution. Both use the same session log, request builder, tools, policy, and
-`InteractionService`.
+core loop. The TUI uses `InteractionService` for commands and session control.
 
 ## Terminal UI
 
