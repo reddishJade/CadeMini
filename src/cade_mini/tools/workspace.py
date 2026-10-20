@@ -475,15 +475,25 @@ class BashTool(WorkspaceTool):
             raise ValueError(
                 f"workdir is not a directory: {display_path(self.workspace, workdir)}"
             )
-        with ExitStack() as changes:
+        with (
+            self.snapshots.workspace_lock()
+            if self.snapshots is not None
+            else nullcontext(),
+            ExitStack() as changes,
+        ):
             if self.snapshots is not None:
-                for raw in dict.fromkeys(mutation_targets(command)):
+                targets: list[Path] = []
+                for raw in mutation_targets(command):
                     try:
                         target = resolve_workspace_path(workdir, raw)
                     except ValueError:
-                        continue
+                        targets.clear()
+                        break
                     if target.is_dir() or not target.is_relative_to(self.workspace):
-                        continue
+                        targets.clear()
+                        break
+                    targets.append(target)
+                for target in targets:
                     changes.enter_context(self.snapshots.change(target))
             result = SubprocessShell(self.sandbox).run(
                 _shell_argv(command),
