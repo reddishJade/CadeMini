@@ -32,7 +32,7 @@ from cade_mini.core.loop import (
     run,
 )
 from cade_mini.core.projection import project
-from cade_mini.core.request import Budget, build, estimate
+from cade_mini.core.request import Budget, build
 from cade_mini.core.types import ToolCallBlock, UserMessage
 from cade_mini.core.window import reset_window
 from cade_mini.extensions.goal import GoalStore
@@ -41,6 +41,7 @@ from cade_mini.extensions.skills import Skill
 from cade_mini.extensions.snapshots import SnapshotStore
 from cade_mini.extensions.subagents import DelegateTool, SubagentTool
 from cade_mini.hosts.command_catalog import COMMANDS, command_help
+from cade_mini.hosts.context_report import format_context_usage
 from cade_mini.hosts.interaction_question import QuestionTool
 from cade_mini.hosts.interaction_settings import AuthenticationService, SettingsService
 from cade_mini.safety.policy import WorkspacePolicy, filter_tools
@@ -195,8 +196,8 @@ class InteractionService:
             )
         if kind == "sessions":
             return tuple(
-                (s.id, f"{s.title[:65]}  ·  {s.id}")
-                for s in list_sessions(self.sessions_dir)
+                (session.id, f"{session.title[:65]}  ·  {session.id[:8]}")
+                for session in list_sessions(self.sessions_dir, include_empty=False)
             )
         if kind == "tree":
             active = {e.id for e in self.log.branch()}
@@ -211,13 +212,23 @@ class InteractionService:
         if kind in {"login", "logout"}:
             return self.auth.choices()
         if kind == "model":
-            items: list[tuple[str, str]] = []
+            providers = self.settings.configured_providers(self.auth.store)
             models = get_models("openai")
-            for provider in ("chatgpt", "openai"):
-                items.extend(
-                    (f"{provider}/{model.id}", f"{provider} · {model.name}")
-                    for model in models
+            items = [
+                (
+                    f"{provider}/{model.id}",
+                    f"{model.id:<24} [{provider}]",
                 )
+                for provider in providers
+                for model in models
+            ]
+            current = f"{self.provider_config.provider}/{self.provider.model}"
+            if (
+                not isinstance(self.provider, UnavailableProvider)
+                and self.provider_config.provider in providers
+                and current not in {name for name, _ in items}
+            ):
+                items.insert(0, (current, f"{self.provider.model:<24} [configured]"))
             return tuple(items)
         if kind == "effort":
             return tuple(
@@ -257,12 +268,16 @@ class InteractionService:
         if kind == "context-window":
             return (("default", "Use the selected model limit"),)
         if kind == "mode":
-            return tuple((m, m) for m in ("act", "build", "plan"))
+            return tuple(
+                (mode, f"{mode}{' (current)' if mode == self.policy.mode else ''}")
+                for mode in ("act", "build", "plan")
+            )
         if kind == "skill":
             return tuple((s.name, s.name) for s in self.skills)
         if kind == "tool":
             return tuple(
-                (t.name, f"{t.name} · {t.description[:60]}") for t in self.tools
+                (tool.name, f"{tool.name:<16} {tool.description[:92]}")
+                for tool in self.tools
             )
         if kind == "permissions":
             return (("list", "List grants"), ("clear", "Clear session grants"))
@@ -601,14 +616,7 @@ class InteractionService:
             self._install_provider(config, provider)
             return CommandResult((f"Thinking: {config.thinking}",))
         if command == "/context":
-            messages = project(self.log.branch())
-            return CommandResult(
-                (
-                    f"Session {self.log.session_id} · {self.provider.model}",
-                    f"~{estimate(messages):,} / {self.budget.input_budget:,} input tokens · {len(messages)} messages",
-                    f"Last run: {self.last_usage or 'no usage'}",
-                )
-            )
+            return CommandResult(format_context_usage(self))
         if command == "/context-window":
             if not arg:
                 return CommandResult((f"Window: {self.budget.context_window:,}",))

@@ -124,6 +124,8 @@ class CadeTui:
         self._config_form_active = False
         self._oauth_cancel: threading.Event | None = None
         self._picker_effort = service.provider_config.reasoning_effort
+        self._model_efforts: dict[str, str | None] = {}
+        self._model_labels: dict[str, str] = {}
         self._last_refresh = 0.0
         self._refresh_scheduled = False
         self._started = time.monotonic()
@@ -207,6 +209,12 @@ class CadeTui:
         search_bindings.add("escape", eager=True)(lambda _event: self._close_picker())
         search_bindings.add("up")(lambda _event: self._move_picker(-1))
         search_bindings.add("down")(lambda _event: self._move_picker(1))
+        search_bindings.add(
+            "left", filter=Condition(lambda: self._picker_kind == "model")
+        )(lambda _event: self._adjust_picker_effort(-1))
+        search_bindings.add(
+            "right", filter=Condition(lambda: self._picker_kind == "model")
+        )(lambda _event: self._adjust_picker_effort(1))
         search_bindings.add("pageup")(lambda _event: self._move_picker(-8))
         search_bindings.add("pagedown")(lambda _event: self._move_picker(8))
         search_bindings.add("tab")(lambda _event: self.app.layout.focus(self._picker))
@@ -453,6 +461,8 @@ class CadeTui:
         return max(0, min(8, len(state.completions), available))
 
     def _hint_height(self) -> int:
+        if self._picker_kind is not None:
+            return 0  # The picker already has a dedicated keyboard hint.
         return int(
             self.service.running
             or self._has_modal()
@@ -612,15 +622,12 @@ class CadeTui:
                 else " Enter choose · Esc skip · Custom answer available"
             )
         if self._picker_kind == "model":
-            return (
-                f"  Reasoning: {self._picker_effort or 'auto'}"
-                " · Tab to options · ←/→ effort"
-            )
-        return (
-            f"  {self._picker_kind or ''} · "
-            f"{len(self._picker.values) if self._picker.values[0][0] else 0}"
-            " matches · ↑↓ navigate · Esc cancel"
-        )
+            model = str(self._picker.current_value)
+            level = self._model_efforts.get(model)
+            if level is not None:
+                return "  ↑↓ model · ←→ effort · Enter apply · Esc cancel"
+            return "  ↑↓ model · Enter apply · Esc cancel"
+        return "  ↑↓ select · Enter confirm · Esc cancel"
 
     def _prepare_frame(self) -> None:
         self.transcript.set_compact_welcome(self.app.output.get_size().rows < 28)
@@ -814,6 +821,20 @@ class CadeTui:
             self._exit()
         self._refresh()
 
+    def _model_label(self, name: str) -> str:
+        label = self._model_labels[name]
+        if name == "__custom__":
+            return label
+        active = (
+            f"{self.service.provider_config.provider}/{self.service.provider.model}"
+        )
+        if name == active:
+            label += " (current)"
+        level = self._model_efforts.get(name)
+        if level is not None:
+            label += f"    ‹ {level} ›"
+        return label
+
     def _open_picker(self, kind: str) -> None:
         if kind == "question":
             choices = tuple(
@@ -836,14 +857,34 @@ class CadeTui:
         else:
             choices = self.service.choices(kind)
         if kind == "model":
-            current = (
+            if not choices:
+                self.transcript.notice(
+                    "No available models. Sign in with /login or configure OPENAI_API_KEY."
+                )
+                return
+            active = (
                 f"{self.service.provider_config.provider}/{self.service.provider.model}"
             )
-            if current not in {name for name, _ in choices}:
-                choices = ((current, f"{current} · current model"), *choices)
-            choices = (
-                *choices,
-                ("__custom__", "Custom model ID · enter manually"),
+            self._model_labels = dict(choices)
+            self._model_labels["__custom__"] = "Enter a custom model name…"
+            self._model_efforts = {}
+            for name, _description in choices:
+                levels = get_model_reasoning_efforts(name.split("/", 1)[-1])
+                if not levels:
+                    self._model_efforts[name] = None
+                    continue
+                preferred = (
+                    self.service.provider_config.reasoning_effort
+                    if name == active
+                    else "medium"
+                )
+                self._model_efforts[name] = (
+                    preferred
+                    if preferred in levels
+                    else "high" if "high" in levels else levels[0]
+                )
+            choices = tuple(
+                (name, self._model_label(name)) for name in self._model_labels
             )
         if not choices:
             self.transcript.notice(f"No choices for {kind}")
@@ -913,18 +954,25 @@ class CadeTui:
     def _adjust_picker_effort(self, step: int) -> None:
         if self._picker_kind != "model":
             return
-        choice = str(self._picker.current_value)
-        model = choice.split("/", 1)[-1]
-        options = get_model_reasoning_efforts(model) or (
-            "none",
-            "low",
-            "medium",
-            "high",
-            "xhigh",
+        name = str(self._picker.current_value)
+        if name not in self._model_efforts:
+            return
+        levels = get_model_reasoning_efforts(name.split("/", 1)[-1])
+        current = self._model_efforts[name]
+        if not levels or current not in levels:
+            return
+        next_index = max(0, min(len(levels) - 1, levels.index(current) + step))
+        self._model_efforts[name] = levels[next_index]
+        selection = self._picker.current_value
+        self._picker_source = tuple(
+            (item, self._model_label(item)) for item in self._model_labels
         )
-        current = self._picker_effort
-        position = options.index(current) if current in options else 0
-        self._picker_effort = options[(position + step) % len(options)]
+        self._filter_picker()
+        for index, (item, _) in enumerate(self._picker.values):
+            if item == selection:
+                self._picker._selected_index = index
+                self._picker.current_value = selection
+                break
         self._refresh()
 
     def _pick(self) -> None:
@@ -960,16 +1008,21 @@ class CadeTui:
             return
         if kind == "config_value":
             field = self._config_field
-            self._close_picker()
+            self._picker_kind = None
+            self._picker_source = ()
+            self._picker_search.buffer.reset()
+            self._config_field = None
+            self._config_options = ()
             if field is not None:
-                self._schedule(self._submit(f"/config {field}={choice}"))
+                try:
+                    self.transcript.notice(
+                        self.service.settings.save(field, str(choice))
+                    )
+                except (OSError, ValueError) as exc:
+                    self.transcript.notice(str(exc), error=True)
+            self._open_picker("config")
             return
-        effort = self._picker_effort
-        if kind == "model" and choice != "__custom__":
-            selected_model = str(choice).split("/", 1)[-1]
-            supported = get_model_reasoning_efforts(selected_model)
-            if supported and effort not in supported:
-                effort = "high" if "high" in supported else supported[0]
+        effort = self._model_efforts.get(str(choice))
         self._close_picker()
         if kind == "model" and choice == "__custom__":
             self._input.text = f"/model {self.service.provider_config.provider}/"
@@ -998,7 +1051,9 @@ class CadeTui:
             "permissions": "/permissions",
             "queue": "/queue",
         }.get(kind)
-        if prefix:
+        if kind == "mode":
+            self.service.policy.set_mode(str(choice))
+        elif prefix:
             self._schedule(self._submit(f"{prefix} {choice}"))
         elif kind == "commands":
             self._input.text = str(choice)
@@ -1018,6 +1073,15 @@ class CadeTui:
         options = self.service.settings.edit_options(field)
         self._config_field = field
         self._config_options = options
+        if not options and field in {"provider", "model", "reasoning_effort"}:
+            self._config_field = None
+            self.transcript.notice(
+                "No configured choices for this setting. Use /login to connect "
+                "a provider or select a supported model.",
+                error=True,
+            )
+            self._open_picker("config")
+            return
         if options:
             self._open_picker("config_value")
             return
@@ -1370,11 +1434,13 @@ class CadeTui:
         self._refresh()
 
     async def _cycle_mode(self) -> None:
+        """Shift+Tab changes the status mode without adding transcript entries."""
         choices = ("act", "build", "plan")
         current = self.service.policy.mode
-        await self._dispatch(
-            "/mode " + choices[(choices.index(current) + 1) % len(choices)]
+        self.service.policy.set_mode(
+            choices[(choices.index(current) + 1) % len(choices)]
         )
+        self._refresh()
 
     def run(self) -> int:
         try:

@@ -308,8 +308,10 @@ def session_title(entries: Sequence[LogEntry]) -> str:
     return "(untitled)"
 
 
-def list_sessions(sessions_dir: Path) -> list[SessionInfo]:
-    """按最近活动排序列出可读会话；损坏文件跳过。"""
+def list_sessions(
+    sessions_dir: Path, *, include_empty: bool = True
+) -> list[SessionInfo]:
+    """List readable sessions, optionally excluding those without user messages."""
     root = sessions_dir.resolve()
     if not root.is_dir():
         return []
@@ -321,6 +323,13 @@ def list_sessions(sessions_dir: Path) -> list[SessionInfo]:
         except (LogError, OSError, ValueError):
             continue
         if not entries:
+            continue
+        if not include_empty and not any(
+            entry.type == "user"
+            and isinstance(entry.data.get("text"), str)
+            and bool(str(entry.data["text"]).strip())
+            for entry in entries
+        ):
             continue
         meta = next((entry for entry in entries if entry.type == "meta"), None)
         created_at = (

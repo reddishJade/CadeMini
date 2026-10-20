@@ -12,8 +12,11 @@ from pathlib import Path
 from typing import Any
 
 from cade_mini.ai.auth import AuthCredential, LoginCancelledError, get_auth_provider
+from cade_mini.ai.models import get_model_reasoning_efforts, get_models
+from cade_mini.ai.providers.registry import get_environment_api_key
 from cade_mini.app.auth import JsonCredentialStore, load_or_create_host_id
 from cade_mini.app.config import MiniConfig
+from cade_mini.app.provider import ProviderConfig
 
 
 class SettingsService:
@@ -32,20 +35,62 @@ class SettingsService:
     def _load(self) -> MiniConfig:
         return MiniConfig.load(self.workspace, self.path if self.explicit else None)
 
+    def configured_providers(
+        self, credential_store: JsonCredentialStore | None = None
+    ) -> tuple[str, ...]:
+        """Only providers usable with a live login or configured API key."""
+        credentials = (credential_store or JsonCredentialStore()).load_all()
+        return tuple(
+            provider
+            for provider in ("chatgpt", "openai")
+            if (
+                provider in credentials
+                and credentials[provider].access
+                and not credentials[provider].is_expired()
+            )
+            or (provider == "openai" and bool(get_environment_api_key()))
+        )
+
     def choices(self) -> tuple[tuple[str, str], ...]:
+        """One readable, nonduplicated row per supported setting."""
         config = self._load()
         values = config.model_dump(mode="json")
-        items: list[tuple[str, str]] = []
-        for name, value in values.items():
-            if name in {"rules", "hooks", "mcp_servers", "prompt_modules"}:
-                label = f"{name} · {len(value or [])} entries"
+        defaults = ProviderConfig()
+        labels = (
+            ("provider", "Default Provider"),
+            ("model", "Default Model"),
+            ("reasoning_effort", "Default Reasoning Effort"),
+            ("context_window", "Context Window"),
+            ("mode", "Default Mode"),
+            ("max_steps", "Max Steps"),
+            ("read_only", "Read Only"),
+            ("instructions", "Project Instructions"),
+            ("note", "Working Note"),
+            ("memory", "Memory"),
+            ("auto_review", "Automatic Review"),
+            ("sessions_dir", "Sessions Directory"),
+            ("prompt_modules", "Prompt Modules"),
+            ("rules", "Permission Rules"),
+            ("hooks", "Hooks"),
+            ("mcp_servers", "MCP Servers"),
+        )
+        entries: list[tuple[str, str]] = []
+        for name, label in labels:
+            value = values[name]
+            if name in {"provider", "model", "reasoning_effort"}:
+                value = value or getattr(defaults, name)
+            if isinstance(value, bool):
+                shown = "on" if value else "off"
+            elif isinstance(value, (dict, list)):
+                shown = f"{len(value)} entries"
+            elif value is None:
+                shown = "(model default)" if name == "context_window" else "(unset)"
             else:
-                label = f"{name} · {value}"
-            items.append((name, label))
-        return tuple(items)
+                shown = str(value)
+            entries.append((name, f"{label:<28}{shown}"))
+        return tuple(entries)
 
     def edit_command(self, name: str) -> str:
-        """Pre-fill the terminal editor with the effective validated value."""
         config = self._load()
         if name not in MiniConfig.model_fields:
             raise ValueError(f"Unknown config setting: {name}")
@@ -53,17 +98,39 @@ class SettingsService:
         return f"/config {name}={json.dumps(value, ensure_ascii=False)}"
 
     def edit_options(self, name: str) -> tuple[tuple[str, str], ...]:
-        """Offer typed choices where the config schema has a finite domain."""
+        """Finite settings open pickers; free-form settings use an inline editor."""
         if name not in MiniConfig.model_fields:
             raise ValueError(f"Unknown config setting: {name}")
+        config = self._load()
         if name in {"read_only", "instructions", "note", "memory", "auto_review"}:
-            return (("true", "Enabled"), ("false", "Disabled"))
+            return (("true", "On"), ("false", "Off"))
         if name == "mode":
-            return tuple((f'"{value}"', value) for value in ("act", "build", "plan"))
+            return tuple(
+                (json.dumps(mode), mode)
+                for mode in ("act", "build", "plan")
+            )
         if name == "provider":
-            return (
-                ('"chatgpt"', "ChatGPT account"),
-                ('"openai"', "OpenAI API"),
+            return tuple(
+                (json.dumps(provider), provider)
+                for provider in self.configured_providers()
+            )
+        if name == "model":
+            if not self.configured_providers():
+                return ()
+            models = list(get_models("openai"))
+            current = config.model
+            if current and current not in {item.id for item in models}:
+                return ((json.dumps(current), f"{current} · configured"),) + tuple(
+                    (json.dumps(model.id), model.name) for model in models
+                )
+            return tuple(
+                (json.dumps(model.id), model.name) for model in models
+            )
+        if name == "reasoning_effort":
+            model = config.model or ProviderConfig().model
+            return tuple(
+                (json.dumps(level), level)
+                for level in get_model_reasoning_efforts(model)
             )
         return ()
 
