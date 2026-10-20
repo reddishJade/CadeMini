@@ -1194,7 +1194,7 @@ class CadeTui:
             self._oauth_cancel = threading.Event()
             try:
                 self._schedule(self._login_chatgpt())
-            except Exception:
+            except (OSError, RuntimeError, ValueError):
                 self._oauth_cancel = None
                 raise
         elif provider == "openai":
@@ -1455,7 +1455,7 @@ class CadeTui:
         self._refresh()
         try:
             task = self.app.create_background_task(self._drive_turn(expanded))
-        except Exception:
+        except (OSError, RuntimeError, ValueError):
             self._launch_pending = False
             raise
         self._run_task = cast(asyncio.Task[None], task)
