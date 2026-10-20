@@ -667,11 +667,17 @@ class CadeTui:
         except ValueError:
             pass
         bindings.add("escape", "enter", filter=Condition(lambda: not self._has_modal()))(self._alt_enter)
-        bindings.add("escape", filter=Condition(lambda: not self._has_modal()))(
-            self._dismiss_completion
-        )
+        bindings.add(
+            "escape",
+            eager=True,
+            filter=Condition(
+                lambda: not self._has_modal()
+                and self._input.buffer.complete_state is not None
+            ),
+        )(self._dismiss_completion)
         bindings.add(
             "s-tab",
+            eager=True,
             filter=Condition(lambda: not self.service.running and not self._has_modal()),
         )(
             lambda _event: self._schedule(self._cycle_mode())
@@ -728,6 +734,10 @@ class CadeTui:
             return
         if not self.service.running:
             self._newline(_event)
+            return
+        if value.startswith(("/", "!", "$")):
+            self.transcript.notice("Type a message to steer the current task.")
+            self._refresh()
             return
         self._input.buffer.reset(append_to_history=True)
         self.service.steering.append(self.service.expand(value))
@@ -1278,6 +1288,8 @@ class CadeTui:
             self._close_approval()
         elif self._picker_kind is not None:
             self._close_picker()
+        elif self._config_form_active:
+            self._cancel_config_form()
         elif self.service.cancel is not None:
             self.service.cancel.cancel("Interrupted by user")
             self.transcript.notice("Stopping current task…")
@@ -1286,7 +1298,7 @@ class CadeTui:
         self._refresh()
 
     def _eof(self, _event: Any) -> None:
-        if self.service.running or self._input.text:
+        if self.service.running or self._input.text or self._has_modal():
             return
         now = time.monotonic()
         if now - self._exit_armed <= 2:
