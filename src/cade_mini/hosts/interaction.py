@@ -604,14 +604,13 @@ class InteractionService:
         if command == "/thinking":
             if arg and arg not in {"on", "off"}:
                 raise ValueError("Usage: /thinking [on|off]")
-            self.provider_config = ProviderConfig(
+            config = ProviderConfig(
                 provider=self.provider_config.provider,
                 model=self.provider_config.model,
                 base_url=self.provider_config.base_url,
                 reasoning_effort=self.provider_config.reasoning_effort,
                 thinking=(arg == "on") if arg else not self.provider_config.thinking,
             )
-            config = self.provider_config
             provider = build_provider(config)
             self._install_provider(config, provider)
             return CommandResult((f"Thinking: {config.thinking}",))

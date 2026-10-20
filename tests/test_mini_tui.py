@@ -1303,3 +1303,33 @@ async def test_manual_tool_prevents_concurrent_agent_turn(tmp_path: Path) -> Non
     release.set()
     await running
     assert not terminal._is_busy()
+
+
+
+@pytest.mark.asyncio
+async def test_cancelled_question_does_not_poison_next_question(
+    tmp_path: Path,
+) -> None:
+    from prompt_toolkit.output import DummyOutput
+
+    from cade_mini.hosts.interaction_question import Question
+
+    tui = CadeTui(service(tmp_path), output=DummyOutput())
+    asking = asyncio.create_task(
+        tui._ask_questions((Question("Select", (("first", "First"),)),))
+    )
+    await asyncio.sleep(0)
+    assert tui._picker_kind == "question"
+    asking.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asking
+    assert tui._question_future is None
+    assert tui._picker_kind is None
+    assert not tui._question_text_active
+    next_task = asyncio.create_task(
+        tui._ask_questions((Question("Again", (("second", "Second"),)),))
+    )
+    await asyncio.sleep(0)
+    assert tui._picker_kind == "question"
+    tui._complete_question(["second"])
+    assert await next_task == [["second"]]

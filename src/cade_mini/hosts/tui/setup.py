@@ -56,7 +56,14 @@ def run_first_time_setup(workspace: Path) -> bool:
         if effort is None:
             return False
 
-    if auth.store.get(provider) is None:
+    saved = auth.store.get(provider)
+    ready = (
+        saved is not None
+        and bool(saved.access)
+        and not saved.is_expired()
+        and saved.type == ("oauth" if provider == "chatgpt" else "api_key")
+    )
+    if not ready:
         if provider == "chatgpt":
             print("Cade Mini  ·  Sign in with ChatGPT", flush=True)
 

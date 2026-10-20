@@ -319,3 +319,24 @@ def test_live_commands_match_exact_names() -> None:
     assert not _is_live_command("/context-window 200k")
     assert not _is_live_command("/stopall")
     assert not _is_live_command("/model gpt-6-luna")
+
+
+
+@pytest.mark.asyncio
+async def test_failed_thinking_toggle_keeps_active_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cade_mini.ai.providers.base import ModelProvider
+
+    service = host(tmp_path)
+    old_config = service.provider_config
+    old_provider = service.provider
+
+    def unavailable(_config: ProviderConfig) -> ModelProvider:
+        raise RuntimeError("Credentials unavailable")
+
+    monkeypatch.setattr("cade_mini.hosts.interaction.build_provider", unavailable)
+    with pytest.raises(RuntimeError, match="Credentials unavailable"):
+        await service.command("/thinking off")
+    assert service.provider_config is old_config
+    assert service.provider is old_provider

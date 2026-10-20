@@ -1190,6 +1190,10 @@ class CadeTui:
         self._cancel_config_form()
 
     def _begin_login(self, provider: str) -> None:
+        if self._oauth_cancel is not None:
+            self.transcript.notice("Authorization is already in progress.")
+            self._refresh()
+            return
         if provider == "chatgpt":
             self._schedule(self._login_chatgpt())
         elif provider == "openai":
@@ -1223,8 +1227,16 @@ class CadeTui:
                 self._question_text.buffer.reset()
                 self.app.layout.focus(self._question_text)
                 self._refresh()
-            answer = await self._question_future
-            self._question_future = None
+            try:
+                answer = await self._question_future
+            finally:
+                self._question_future = None
+                if self._picker_kind == "question":
+                    self._close_picker(cancel_question=False)
+                self._question_text_active = False
+                self._question_text.buffer.reset()
+                self.app.layout.focus(self._input)
+                self._refresh()
             answers.append(answer)
             self.transcript.notice(
                 "Answered: " + (", ".join(answer) if answer else "skipped")
@@ -1258,7 +1270,7 @@ class CadeTui:
                 self.transcript.notice(self.service.auth.save_api_key(provider, key))
                 if self.service.provider_config.provider == provider:
                     self.service.select_model(self.service.provider_config.model)
-        except (RuntimeError, ValueError) as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             self.transcript.notice(str(exc), error=True)
         finally:
             key = ""
