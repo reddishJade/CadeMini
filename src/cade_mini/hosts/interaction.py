@@ -780,8 +780,18 @@ class InteractionService:
                 raise ValueError(f"Unknown provider: {arg}")
             return CommandResult(login_provider=arg)
         if command == "/logout":
-            return CommandResult(
-                (self.auth.logout(arg),) if arg else (),
-                picker=None if arg else "logout",
-            )
+            if not arg:
+                return CommandResult(picker="logout")
+            message = self.auth.logout(arg)
+            if arg == self.provider_config.provider:
+                try:
+                    provider = build_provider(self.provider_config)
+                except (RuntimeError, ValueError) as exc:
+                    provider = UnavailableProvider(
+                        model=self.provider_config.model,
+                        transport=arg,
+                        reason=str(exc),
+                    )
+                self._install_provider(self.provider_config, provider)
+            return CommandResult((message,))
         return CommandResult((f"Unknown command: {command}. Type /help.",))

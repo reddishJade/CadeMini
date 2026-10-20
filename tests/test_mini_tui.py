@@ -1268,3 +1268,17 @@ def test_config_menu_uses_labels_and_provider_choice(
     terminal._pick()
     assert terminal._picker_kind == "config"
     assert host.settings._load().provider == "openai"
+
+
+@pytest.mark.asyncio
+async def test_task_launch_gate_handles_queued_followup(tmp_path: Path) -> None:
+    from prompt_toolkit.output import DummyOutput
+
+    terminal = CadeTui(service(tmp_path), output=DummyOutput())
+    terminal._launch_pending = True
+    await terminal._launch("Second prompt")
+    assert list(terminal.service.pending) == ["Second prompt"]
+    assert not any(
+        entry.kind == "user" and entry.text == "Second prompt"
+        for entry in terminal.transcript.entries
+    )

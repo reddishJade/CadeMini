@@ -136,9 +136,20 @@ class CadeCompleter(Completer):
                     "/tool": "tool",
                 }.get(name)
                 if kind is not None:
-                    yield from self._matches(
-                        argument, self.service.choices(kind), -len(argument)
-                    )
+                    choices = self.service.choices(kind)
+                    if kind == "model":
+                        choices = tuple(
+                            (
+                                model,
+                                "ChatGPT sign-in"
+                                if model.startswith("chatgpt/")
+                                else "OpenAI API key"
+                                if model.startswith("openai/")
+                                else description,
+                            )
+                            for model, description in choices
+                        )
+                    yield from self._matches(argument, choices, -len(argument))
                 return
             yield from self._matches(
                 stripped,

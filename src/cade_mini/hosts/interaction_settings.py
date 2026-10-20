@@ -47,6 +47,8 @@ class SettingsService:
                 provider in credentials
                 and credentials[provider].access
                 and not credentials[provider].is_expired()
+                and credentials[provider].type
+                == ("oauth" if provider == "chatgpt" else "api_key")
             )
             or (provider == "openai" and bool(get_environment_api_key()))
         )

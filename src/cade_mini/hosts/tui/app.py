@@ -110,6 +110,7 @@ class CadeTui:
         self._approval: asyncio.Future[bool] | None = None
         self._approval_call: ToolCallBlock | None = None
         self._exit_armed = 0.0
+        self._launch_pending = False
         self._picker_kind: str | None = None
         self._picker_source: tuple[tuple[str, str], ...] = ()
         self._question_future: asyncio.Future[list[str]] | None = None
@@ -159,7 +160,7 @@ class CadeTui:
             scrollbar=False,
             style="class:input",
         )
-        self._input.buffer.on_text_changed += lambda _buffer: self._refresh()
+        self._input.buffer.on_text_changed += lambda _buffer: self._input_changed()
         self._input.buffer.on_completions_changed += lambda _buffer: self._refresh()
         self._completion_panel = ConditionalContainer(
             Window(
@@ -210,10 +211,16 @@ class CadeTui:
         search_bindings.add("up")(lambda _event: self._move_picker(-1))
         search_bindings.add("down")(lambda _event: self._move_picker(1))
         search_bindings.add(
-            "left", filter=Condition(lambda: self._picker_kind == "model")
+            "left",
+            filter=Condition(
+                lambda: self._picker_kind == "model" and not self._picker_search.text
+            ),
         )(lambda _event: self._adjust_picker_effort(-1))
         search_bindings.add(
-            "right", filter=Condition(lambda: self._picker_kind == "model")
+            "right",
+            filter=Condition(
+                lambda: self._picker_kind == "model" and not self._picker_search.text
+            ),
         )(lambda _event: self._adjust_picker_effort(1))
         search_bindings.add("pageup")(lambda _event: self._move_picker(-8))
         search_bindings.add("pagedown")(lambda _event: self._move_picker(8))
@@ -625,6 +632,8 @@ class CadeTui:
             model = str(self._picker.current_value)
             level = self._model_efforts.get(model)
             if level is not None:
+                if self._picker_search.text:
+                    return "  ↑↓ model · Tab focus model · ←→ effort · Enter apply"
                 return "  ↑↓ model · ←→ effort · Enter apply · Esc cancel"
             return "  ↑↓ model · Enter apply · Esc cancel"
         return "  ↑↓ select · Enter confirm · Esc cancel"
@@ -661,9 +670,13 @@ class CadeTui:
     def _bindings(self) -> KeyBindings:
         bindings = KeyBindings()
         bindings.add("enter")(self._enter)
-        bindings.add("c-j", filter=Condition(lambda: not self._has_modal()))(self._newline)
+        bindings.add(
+            "c-j", filter=Condition(lambda: not self._has_modal())
+        )(self._newline)
         try:
-            bindings.add("s-enter")(self._newline)
+            bindings.add(
+            "s-enter", filter=Condition(lambda: not self._has_modal())
+        )(self._newline)
         except ValueError:
             pass
         bindings.add(
@@ -718,6 +731,13 @@ class CadeTui:
         self.transcript.notice(_SHORTCUT_HELP.rstrip())
         self._refresh()
 
+    def _input_changed(self) -> None:
+        self._exit_armed = 0.0
+        self._refresh()
+
+    def _is_busy(self) -> bool:
+        return self.service.running or self._launch_pending
+
     def _schedule(self, coroutine: Any) -> None:
         self.app.create_background_task(coroutine)
 
@@ -734,15 +754,21 @@ class CadeTui:
         if not value:
             self._newline(_event)
             return
-        if not self.service.running:
+        if not self._is_busy():
             self._newline(_event)
             return
         if value.startswith(("/", "!", "$")):
             self.transcript.notice("Type a message to steer the current task.")
             self._refresh()
             return
+        try:
+            expanded = self.service.expand(value)
+        except (OSError, ValueError) as exc:
+            self.transcript.notice(str(exc), error=True)
+            self._refresh()
+            return
         self._input.buffer.reset(append_to_history=True)
-        self.service.steering.append(self.service.expand(value))
+        self.service.steering.append(expanded)
         self.transcript.notice("Guidance queued for the next model step")
         self._refresh()
 
@@ -770,19 +796,26 @@ class CadeTui:
         if not value:
             return
         self._input.buffer.reset(append_to_history=True)
-        if self.service.running and not (
+        if self._is_busy() and not (
             value.startswith(
                 ("/btw ", "/steer ", "/queue ", "/stop", "/context", "/help")
             )
         ):
-            if value.startswith(("/", "!")):
+            if value.startswith(("/", "!", "$")):
                 self._input.text = value
                 self.transcript.notice(
                     "Run this command when the current task finishes."
                 )
             else:
                 if self.service.busy_mode == "steer":
-                    self.service.steering.append(self.service.expand(value))
+                    try:
+                        guidance = self.service.expand(value)
+                    except (OSError, ValueError) as exc:
+                        self._input.text = value
+                        self.transcript.notice(str(exc), error=True)
+                        self._refresh()
+                        return
+                    self.service.steering.append(guidance)
                     self.transcript.notice("Guidance queued.")
                 else:
                     if self.service.busy_mode == "interrupt" and self.service.cancel:
@@ -814,7 +847,7 @@ class CadeTui:
             self._refresh()
 
     async def _dispatch(self, value: str) -> None:
-        if self.service.running and not value.startswith(
+        if self._is_busy() and not value.startswith(
             (
                 "/btw",
                 "/steer",
@@ -1300,7 +1333,7 @@ class CadeTui:
         self._refresh()
 
     def _eof(self, _event: Any) -> None:
-        if self.service.running or self._input.text or self._has_modal():
+        if self._is_busy() or self._input.text or self._has_modal():
             return
         now = time.monotonic()
         if now - self._exit_armed <= 2:
@@ -1373,7 +1406,7 @@ class CadeTui:
         self._refresh_stream()
 
     async def _launch(self, raw: str) -> None:
-        if self.service.running:
+        if self._is_busy():
             self.service.pending.append(raw)
             self.transcript.notice("Follow-up queued")
             return
@@ -1383,10 +1416,15 @@ class CadeTui:
             self.transcript.notice(str(exc), error=True)
             self._refresh()
             return
+        self._launch_pending = True
         self.transcript.add_user(raw)
         self.transcript.begin_run()
         self._refresh()
-        task = self.app.create_background_task(self._drive_turn(expanded))
+        try:
+            task = self.app.create_background_task(self._drive_turn(expanded))
+        except Exception:
+            self._launch_pending = False
+            raise
         self._run_task = cast(asyncio.Task[None], task)
 
     async def _drive_turn(self, task: str) -> None:
@@ -1398,6 +1436,7 @@ class CadeTui:
         except (OSError, RuntimeError, ValueError, TypeError) as exc:
             self.transcript.notice(f"Run failed: {exc}", error=True)
         finally:
+            self._launch_pending = False
             self._working_since = None
             ticker.cancel()
             await asyncio.gather(ticker, return_exceptions=True)

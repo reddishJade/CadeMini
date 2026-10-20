@@ -39,9 +39,9 @@ SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("/undo", "Restore file snapshots", "History", "[N|--list]"),
     CommandSpec("/revert", "Restore file snapshots", "History", "[N|--list]", "/undo"),
     CommandSpec("/compact", "Summarize old context", "History"),
-    CommandSpec("/rollover", "Start a fresh context window", "History", "[note]"),
+    CommandSpec("/rollover", "Start a fresh context window", "History", "[--force]"),
     CommandSpec(
-        "/new-context", "Start a fresh context window", "History", "[note]", "/rollover"
+        "/new-context", "Start a fresh context window", "History", "[--force]", "/rollover"
     ),
     CommandSpec("/model", "Choose provider and model", "Model", "[provider/]model"),
     CommandSpec("/effort", "Select reasoning effort", "Model", "[level]"),

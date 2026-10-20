@@ -272,3 +272,38 @@ def test_modal_shortcuts_do_not_arm_exit(tmp_path: Path) -> None:
     assert terminal._picker_kind == "mode"
     assert terminal._exit_armed == 0.0
     terminal._close_picker()
+
+
+def test_armed_exit_is_reset_by_editor_change(tmp_path: Path) -> None:
+    terminal = CadeTui(host(tmp_path), output=DummyOutput())
+    terminal._eof(None)
+    assert terminal._exit_armed > 0
+    terminal._input.text = "draft"
+    assert terminal._exit_armed == 0.0
+    terminal._input.text = ""
+    assert terminal._exit_armed == 0.0
+
+
+@pytest.mark.asyncio
+async def test_logout_disconnects_active_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cade_mini.app.auth import JsonCredentialStore
+    from cade_mini.hosts.interaction import UnavailableProvider
+
+    service = host(tmp_path)
+    service.auth.store = JsonCredentialStore(tmp_path / "isolated-auth.json")
+
+    def unavailable(_config: ProviderConfig) -> None:
+        raise RuntimeError("Missing API key")
+
+    monkeypatch.setattr("cade_mini.hosts.interaction.build_provider", unavailable)
+    response = await service.command("/logout openai")
+    assert response.lines
+    assert isinstance(service.provider, UnavailableProvider)
+    assert "Missing API key" in service.provider.reason
+
+
+def test_rollover_help_matches_actual_options() -> None:
+    assert COMMAND_INDEX["/rollover"].args == "[--force]"
+    assert COMMAND_INDEX["/new-context"].args == "[--force]"
