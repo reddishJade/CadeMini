@@ -1333,3 +1333,24 @@ async def test_cancelled_question_does_not_poison_next_question(
     assert tui._picker_kind == "question"
     tui._complete_question(["second"])
     assert await next_task == [["second"]]
+
+
+@pytest.mark.asyncio
+async def test_session_switch_does_not_reuse_approval_grants(tmp_path: Path) -> None:
+    host = service(tmp_path)
+    approved = ToolCallBlock(id="approval", name="bash", args={"command": "pwd"})
+    host.policy.grants.add(approved)
+    assert host.policy.grants.match(approved)
+
+    old = host.log.session_id
+    await host.command("/new")
+    assert not host.policy.grants.match(approved)
+    host.policy.grants.add(approved)
+
+    await host.command("/resume " + old)
+    assert not host.policy.grants.match(approved)
+    host.policy.grants.add(approved)
+
+    host.log.append("user", {"text": "A prompt"})
+    await host.command("/clone")
+    assert not host.policy.grants.match(approved)

@@ -284,8 +284,10 @@ class InteractionService:
         return ()
 
     def _new(self) -> None:
-        self.log = SessionLog.create(self.sessions_dir, project_root=self.workspace)
-        self.log.append("system", {"text": self.system_prompt})
+        log = SessionLog.create(self.sessions_dir, project_root=self.workspace)
+        log.append("system", {"text": self.system_prompt})
+        self.log = log
+        self.policy.grants.clear()
 
     def _resume(self, session_id: str) -> None:
         if not session_id:
@@ -293,9 +295,11 @@ class InteractionService:
             if not sessions:
                 raise ValueError("No sessions to resume")
             session_id = sessions[0].id
-        self.log = SessionLog.open(self.sessions_dir / f"session-{session_id}.jsonl")
-        if not any(e.type == "system" for e in self.log.branch()):
-            self.log.append("system", {"text": self.system_prompt})
+        log = SessionLog.open(self.sessions_dir / f"session-{session_id}.jsonl")
+        if not any(e.type == "system" for e in log.branch()):
+            log.append("system", {"text": self.system_prompt})
+        self.log = log
+        self.policy.grants.clear()
 
     def _turn(self, argument: str) -> Any:
         users = [e for e in self.log.branch() if e.type == "user"]
@@ -583,6 +587,7 @@ class InteractionService:
                     self.sessions_dir, project_root=self.workspace
                 )
             self.log = copied
+            self.policy.grants.clear()
             return CommandResult(
                 (f"Session: {copied.session_id}",), changed_session=True, draft=draft
             )
