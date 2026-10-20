@@ -24,8 +24,9 @@ terminal controls without opening nested terminal event loops.
 - Enter submits; busy Enter queues by default; Alt+Enter steers; Ctrl+J inserts a newline.
 - Esc cancels active work and restores undelivered queued input to the editor.
 - Ctrl+C clears input; press it again within 500 ms to exit.
-- Idle double Esc with empty input opens the fork selector. Same-session tree
-  navigation and coordinated conversation/file undo are not exposed.
+- Idle double Esc with empty input opens the full tree selector. Navigation
+  stays in the same session; fork and clone create independent sessions.
+  These operations do not restore workspace files.
 - New interactive sessions stay in memory until the first conversation message.
 - API-key forms mask input and do not append secrets to input history.
 - Exit cancels active work; saved conversations show a standalone Mini resume command.

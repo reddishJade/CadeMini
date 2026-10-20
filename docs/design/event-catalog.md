@@ -16,3 +16,4 @@ Session entry types from `EventType`.
 | `request` | No | Provider request audit |
 | `run` | No | Run termination, steps, and usage |
 | `attempt` | No | Provider attempt, retry, or failure |
+| `branch` | No | Unclassified |

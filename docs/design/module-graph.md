@@ -36,6 +36,7 @@ flowchart LR
   core_compaction --> core_types
   core_events --> ai_types
   core_events --> core_types
+  core_history --> core_types
   core_log --> core_events
   core_log --> core_types
   core_loop --> ai_events
@@ -111,6 +112,7 @@ flowchart LR
   hosts_interaction --> ai_models
   hosts_interaction --> app_provider
   hosts_interaction --> core_compaction
+  hosts_interaction --> core_history
   hosts_interaction --> core_log
   hosts_interaction --> core_loop
   hosts_interaction --> core_permissions

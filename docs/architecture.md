@@ -10,16 +10,18 @@ Session log -> Conversation projection -> Request -> Run
 ## Session log
 
 `SessionLog` is an append-only JSONL file. Each entry has an ID, timestamp,
-type, parent ID, and data. The active branch ends at the latest entry. A tree is
-possible, but the loop follows one branch.
+type, parent ID, and data. The active branch ends at the latest entry. `/tree`
+appends a navigation event whose parent identifies the continuation point;
+alternatives remain in the same file. The loop follows only that active path.
 
 The log stores facts:
 
 - `system`, `user`, `assistant`, and `tool_result` are model-visible facts.
 - `compaction` records a summary and `first_kept_id`.
 - `window` records a new context start and an optional handoff.
-- `request`, `run`, and `attempt` are audit facts. They never become
-  conversation messages.
+- `request`, `run`, `attempt`, and `branch` are audit facts. They never become
+  conversation messages. A branch event also preserves a selected input for
+  editing after restart.
 
 The schema is closed and versioned. See [Session log schema](reference/session-schema.md).
 
@@ -65,8 +67,9 @@ fallback are decisions expressed as new log facts.
 ## Package map
 
 - `core/types.py`: log, message, block, and error types.
-- `core/events.py`: strict v2 event payload validation.
-- `core/log.py`: append, lock, tail repair, session listing, copy/fork.
+- `core/events.py`: strict v2/v3 event payload validation.
+- `core/log.py`: append, lock, tail repair, navigation, session listing, fork/clone.
+- `core/history.py`: pure full-tree projection for history selection.
 - `core/projection.py`: deterministic conversation projection.
 - `core/request.py`: budget, admission, wire conversion.
 - `core/loop.py`: provider stream, tool execution, retries, facts.

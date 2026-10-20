@@ -18,6 +18,7 @@ from cade_mini.ai.models import (
 )
 from cade_mini.app.provider import ProviderConfig, build_provider
 from cade_mini.core.compaction import Compactor
+from cade_mini.core.history import HistoryNode, history_tree
 from cade_mini.core.log import SessionLog, list_sessions
 from cade_mini.core.loop import (
     CancellationToken,
@@ -33,7 +34,7 @@ from cade_mini.core.loop import (
 from cade_mini.core.permissions import ApprovalRequest, ApprovalResult, Approver
 from cade_mini.core.projection import project
 from cade_mini.core.request import Budget, build
-from cade_mini.core.types import ToolCallBlock, UserMessage
+from cade_mini.core.types import LogEntry, ToolCallBlock, UserMessage
 from cade_mini.core.window import reset_window
 from cade_mini.extensions.goal import GoalStore
 from cade_mini.extensions.hooks import HookRunner
@@ -167,17 +168,30 @@ class InteractionService:
         )
         return (*regular, self.question_tool) if self.question_tool else regular
 
+    def history(self) -> tuple[HistoryNode, ...]:
+        """返回完整会话树，活动路径和非活动路径共用同一读取快照。"""
+        return history_tree(self.log.entries())
+
     def choices(self, kind: str) -> tuple[tuple[str, str], ...]:
         if kind == "commands":
             return tuple(COMMANDS.items())
         if kind == "fork":
-            users = [entry for entry in self.log.branch() if entry.type == "user"]
+            users = [entry for entry in self.log.entries() if entry.type == "user"]
             return tuple(
                 (
                     item.id,
                     f"{index}. {preview(item)}",
                 )
-                for index, item in enumerate(reversed(users[-40:]), 1)
+                for index, item in enumerate(reversed(users), 1)
+            )
+        if kind == "tree":
+            return tuple(
+                (
+                    node.entry.id,
+                    f"{'  ' * min(node.depth, 12)}{node.entry.type}: {preview(node.entry)}"
+                    + (" (current)" if node.current else ""),
+                )
+                for node in self.history()
             )
         if kind == "sessions":
             return tuple(
@@ -279,14 +293,17 @@ class InteractionService:
         self.policy.grants.clear()
         self.last_usage = {}
 
-    def _turn(self, argument: str) -> Any:
-        users = [e for e in self.log.branch() if e.type == "user"]
+    def _turn(self, argument: str) -> LogEntry | None:
+        users = [e for e in self.log.entries() if e.type == "user"]
         if not argument:
             return users[-1] if users else None
+        selected = next((entry for entry in users if entry.id == argument), None)
+        if selected is not None:
+            return selected
         if argument.isdigit():
             n = int(argument)
             return users[-n] if 1 <= n <= len(users) else None
-        return next((e for e in users if e.id == argument), None)
+        return None
 
     def select_model(self, choice: str, effort: str | None = None) -> str:
         provider_name = self.provider_config.provider
@@ -528,12 +545,40 @@ class InteractionService:
                 return CommandResult(picker="sessions")
             self._resume(arg)
             return CommandResult(
-                (f"Session: {self.log.session_id}",), changed_session=True
+                (f"Session: {self.log.session_id}",),
+                changed_session=True,
+                draft=self.log.navigation_draft or "",
+            )
+        if command == "/tree":
+            if not arg:
+                return CommandResult(picker="tree")
+            if self.running:
+                raise RuntimeError(
+                    "Wait for the active task to finish before navigating history."
+                )
+            self.log.switch_branch(arg)
+            if not any(e.type == "system" for e in self.log.branch()):
+                self.log.append("system", {"text": self.system_prompt})
+            self.last_usage = {}
+            return CommandResult(
+                (f"History position: {arg}",),
+                changed_session=True,
+                draft=self.log.navigation_draft or "",
             )
         if command in {"/clone", "/fork"}:
             if command == "/fork" and not arg:
                 return CommandResult(picker="fork")
-            draft = None
+            if self.running:
+                raise RuntimeError(
+                    "Wait for the active task to finish before copying history."
+                )
+            if command == "/clone" and arg:
+                raise ValueError("Usage: /clone")
+            if command == "/clone" and not any(
+                e.type in {"user", "assistant"} for e in self.log.branch()
+            ):
+                return CommandResult(("Nothing to clone yet",))
+            draft = ""
             if command == "/fork":
                 turn = self._turn(arg)
                 if turn is None:
@@ -550,6 +595,8 @@ class InteractionService:
                     self.sessions_dir, project_root=self.workspace, deferred=True
                 )
             self.log = copied
+            if not any(e.type == "system" for e in self.log.branch()):
+                self.log.append("system", {"text": self.system_prompt})
             self.policy.grants.clear()
             self.last_usage = {}
             return CommandResult(

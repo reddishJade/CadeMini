@@ -212,7 +212,11 @@ class MiniSessionStore:
         return self.list_infos()[0] if self.list_infos() else None
 
     def get_forkable_user_messages(self) -> list[SessionEntry]:
-        return [entry for entry in self.build_branch() if entry.type == "user"]
+        return [
+            entry
+            for entry in self._project(self._service.log.entries())
+            if entry.type == "user"
+        ]
 
 
 class _RunToken:

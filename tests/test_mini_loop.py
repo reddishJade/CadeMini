@@ -114,6 +114,60 @@ def _tool_response(call_id: str, text: str = "hi") -> list[ProviderEvent]:
     ]
 
 
+@pytest.mark.parametrize("selection", ["assistant", "first_result"])
+async def test_tree_continuation_recovers_only_selected_path_calls(
+    tmp_path: Path,
+    selection: str,
+) -> None:
+    log = SessionLog.create(tmp_path)
+    log.append("system", {"text": "sys"})
+    log.append("user", {"text": "original task"})
+    assistant = log.append(
+        "assistant",
+        {
+            "blocks": [
+                {
+                    "type": "tool_call",
+                    "id": "c1",
+                    "name": "echo",
+                    "args": {"text": "one"},
+                },
+                {
+                    "type": "tool_call",
+                    "id": "c2",
+                    "name": "echo",
+                    "args": {"text": "two"},
+                },
+            ]
+        },
+    )
+    first = log.append(
+        "tool_result", {"call_id": "c1", "status": "ok", "content": "OLD RESULT ONE"}
+    )
+    second = log.append(
+        "tool_result", {"call_id": "c2", "status": "ok", "content": "OLD RESULT TWO"}
+    )
+    log.switch_branch(assistant.id if selection == "assistant" else first.id)
+    provider = FakeProvider([[FinalMessage("checked", "end_turn")]])
+    tool = EchoTool()
+    result = await run(
+        log, "continue", provider=provider, tools=(tool,), budget=Budget(100_000)
+    )
+    assert result.termination == "completed"
+    assert tool.calls == []
+    results = [e for e in log.branch() if e.type == "tool_result"]
+    assert [e.data["call_id"] for e in results] == ["c1", "c2"]
+    assert results[-1].data["status"] == "interrupted"
+    assert results[0].data["status"] == (
+        "interrupted" if selection == "assistant" else "ok"
+    )
+    wire = str(provider.requests[-1][0])
+    assert "OLD RESULT TWO" not in wire
+    assert ("OLD RESULT ONE" in wire) == (selection == "first_result")
+    assert second.id in {e.id for e in log.entries()}
+    assert second.id not in {e.id for e in log.branch()}
+
+
 async def test_run_completes_without_tools(tmp_path: Path) -> None:
     provider = FakeProvider([_text_response("hello")])
     log = _log(tmp_path)
@@ -272,7 +326,7 @@ async def test_request_is_persisted_before_provider_call(tmp_path: Path) -> None
         async def stream(self, messages, tools, options=None):
             saved = log.branch()[-1]
             assert saved.type == "request"
-            assert saved.v == 2
+            assert saved.v == 3
             snapshot = saved.data["snapshot"]
             assert isinstance(snapshot, dict)
             assert snapshot["messages"] == messages

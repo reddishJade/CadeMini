@@ -16,17 +16,36 @@ cade-mini --resume SESSION_ID "Explain the current state."
 sessions keep their original system fact; a new `cade-mini.json` does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.
 
-## Fork and clone
+## Tree, fork, and clone
 
-- `/clone` copies the active branch into a new session.
-- `/fork` selects a user message and copies the preceding history into a new
-  session. The selected input returns to the editor for editing and resending.
-  `/fork N` selects the Nth recent input; `/fork ENTRY` selects an entry directly.
+| Command | Result |
+| --- | --- |
+| `/tree [ENTRY]` | Switch position within the same session, preserving all branches |
+| `/fork [N\|ENTRY]` | Copy history before a selected user input into a new session |
+| `/clone` | Copy the complete current active path into a new session |
 
-These operations leave workspace files unchanged and preserve the original
-session. They are not conversation undo or same-session tree navigation, which
-the TUI does not yet expose.
-Compaction and window references are remapped when entries are copied.
+`/tree` displays the full history tree. Selecting a user input restores its text
+in the editor and continues from its parent. Selecting another entry continues
+after that entry with an empty editor. Navigation and pending historical input
+survive restart. The next model request contains only the selected path. Idle
+double Esc with empty input opens this selector.
+
+`/fork` can select user inputs from inactive branches as well as the active one.
+`/fork N` selects the Nth most recently recorded input; `/fork ENTRY` selects an
+entry directly. Exact entry IDs take precedence over numeric turn selectors.
+The selected input returns to the editor in the new session.
+`/clone` clears the editor and copies only the active path, not other branches.
+Copies receive new entry IDs, preserve timestamps and source record versions,
+and remap compaction/window references. Navigation control records are omitted.
+
+All three operations leave workspace files unchanged. Fork and clone leave the
+source session unchanged. They do not implement conversation/file undo and do
+not generate an automatic summary of the abandoned branch. Run history changes
+only when no task is active.
+
+See the [session schema](reference/session-schema.md) and
+[upgrade guide](upgrade/README.md#session-v3-and-history-navigation) before
+opening existing sessions with the new writer.
 
 ## Compaction
 

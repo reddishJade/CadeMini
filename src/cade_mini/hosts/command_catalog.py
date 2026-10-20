@@ -39,7 +39,13 @@ SPECS: tuple[CommandSpec, ...] = (
         "History",
         "[turn|entry ID]",
     ),
-    CommandSpec("/clone", "Clone current conversation", "History"),
+    CommandSpec("/clone", "Copy the active path into a new conversation", "History"),
+    CommandSpec(
+        "/tree",
+        "Navigate branches in the current conversation",
+        "History",
+        "[entry ID]",
+    ),
     CommandSpec("/compact", "Summarize old context", "History", "[instructions]"),
     CommandSpec("/rollover", "Start a fresh context window", "History", "[--force]"),
     CommandSpec(

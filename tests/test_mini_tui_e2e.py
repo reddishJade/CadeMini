@@ -8,7 +8,7 @@ import threading
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, Protocol
 
 import pytest
 from prompt_toolkit.input import create_pipe_input
@@ -116,7 +116,10 @@ class Terminal:
 
 
 Scenario = Callable[[Terminal], Awaitable[None]]
-Runner = Callable[[Scenario], None]
+
+
+class Runner(Protocol):
+    def __call__(self, scenario: Scenario, *, resume: str | None = None) -> None: ...
 
 
 @pytest.fixture
@@ -145,7 +148,7 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
         "cade_mini.hosts.interaction.build_provider", lambda _: provider
     )
 
-    def run(scenario: Scenario) -> None:
+    def run(scenario: Scenario, *, resume: str | None = None) -> None:
         def launch(service: InteractionService, root: Path, **kwargs: Any) -> int:
             assert [s.name for s in service.skills] == ["e2e-skill"]
             with create_pipe_input() as pipe:
@@ -211,6 +214,7 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
                     "--model",
                     "gpt-5.5",
                     "--yes",
+                    *(["--resume", resume] if resume is not None else []),
                 ],
                 provider=provider,
             )
@@ -230,6 +234,7 @@ COMMAND_CASES = [
     ("/sessions", "picker"),
     ("/fork 1", None),
     ("/clone", None),
+    ("/tree", "picker"),
     ("/compact", "Nothing to compact"),
     ("/rollover --force", "Context reset"),
     ("/new-context --force", "Context reset"),
@@ -828,9 +833,7 @@ def test_queue_runs_followup(terminal_runner: Runner) -> None:
     terminal_runner(scenario)
 
 
-@pytest.mark.parametrize(
-    "command", ["/undo", "/revert", "/rewind", "/tree", "/rename", "/mcp"]
-)
+@pytest.mark.parametrize("command", ["/undo", "/revert", "/rewind", "/rename", "/mcp"])
 def test_deferred_commands_do_not_mutate_session_or_files(
     terminal_runner: Runner, command: str
 ) -> None:

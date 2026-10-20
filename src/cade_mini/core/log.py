@@ -34,7 +34,7 @@ class SessionInfo:
 
 
 class SessionLog:
-    """单分支、单 writer 的会话事实日志。
+    """单 writer 的会话树日志；最后一条记录确定活动分支。
 
     读取忽略未换行的末尾残片；追加前截断残片，并在文件锁内重新读取 head。
     文件锁保证单次追加连续，但调用方仍需避免并发运行同一会话。
@@ -118,17 +118,17 @@ class SessionLog:
             lock.release()
 
     def append(self, event_type: EventType, data: dict[str, JsonValue]) -> LogEntry:
-        """校验并追加 v2 事实，fsync 后返回已提交的条目。"""
-        return self._append(event_type, data, version=2)
+        """校验并追加 v3 事实，fsync 后返回已提交的条目。"""
+        return self._append(event_type, data, version=3)
 
     def _append(
         self,
         event_type: EventType,
         data: dict[str, JsonValue],
         *,
-        version: Literal[1, 2],
+        version: Literal[1, 2, 3],
     ) -> LogEntry:
-        if version == 2:
+        if version >= 2:
             try:
                 validate_event_data(event_type, data)
             except ValueError as exc:
@@ -137,33 +137,32 @@ class SessionLog:
             self._memory_lock,
             self._lock if self._pending is None else nullcontext(),
         ):
-            if self._pending is None:
-                self._repair_tail()
-                entries = self._read_entries()
-            else:
-                entries = self._pending
-            self._head = entries[-1] if entries else None
+            entries = self._read_entries() if self._pending is None else self._pending
+            parent = entries[-1].id if entries else None
+            if event_type == "branch":
+                selected = next(
+                    (e for e in entries if e.id == data["selected_id"]), None
+                )
+                if selected is None:
+                    raise LogError(f"session entry not found: {data['selected_id']}")
+                parent = selected.parent if selected.type == "user" else selected.id
             entry = LogEntry(
                 v=version,
                 id=uuid4().hex[:12],
-                parent=self._head.id if self._head is not None else None,
+                parent=parent,
                 ts=_now(),
                 type=event_type,
                 data=data,
             )
             if self._pending is None:
+                self._repair_tail()
                 with self.path.open("a", encoding="utf-8", newline="\n") as stream:
                     stream.write(entry.model_dump_json() + "\n")
                     stream.flush()
                     os.fsync(stream.fileno())
             else:
                 self._pending.append(entry)
-                conversation = (
-                    event_type == "user"
-                    and data.get("source", "user") == "user"
-                    and bool(str(data.get("text", "")).strip())
-                ) or (event_type == "assistant" and bool(data.get("blocks")))
-                if conversation:
+                if _is_conversation(entry):
                     self._flush_pending()
             self._head = entry
             return entry
@@ -183,6 +182,28 @@ class SessionLog:
                 raise LogError(f"session already exists: {self.path}") from exc
             self._pending = None
 
+    def switch_branch(self, selected_id: str) -> LogEntry:
+        """在原文件追加导航事实；用户消息定位到其父节点，其他记录定位到自身。"""
+        with self.run_lock():
+            return self.append("branch", {"selected_id": selected_id})
+
+    @property
+    def navigation_draft(self) -> str | None:
+        """恢复尚未重发的历史输入；新对话消息会结束该草稿状态。"""
+        entries = self.entries()
+        branch = _branch(entries)
+        for entry in reversed(branch):
+            if entry.type in {"user", "assistant"}:
+                return None
+            if entry.type == "branch":
+                selected = next(e for e in entries if e.id == entry.data["selected_id"])
+                return (
+                    str(selected.data.get("text", ""))
+                    if selected.type == "user"
+                    else ""
+                )
+        return None
+
     def copy_branch(
         self,
         sessions_dir: Path,
@@ -192,48 +213,49 @@ class SessionLog:
         project_root: Path | None = None,
         deferred: bool = False,
     ) -> SessionLog:
-        """把当前分支复制成新会话，可截断到某个 entry 或最近用户轮次之前。"""
-        branch = self.branch()
-        if before_entry_id is not None:
-            index = next(
-                (
-                    position
-                    for position, entry in enumerate(branch)
-                    if entry.id == before_entry_id
-                ),
-                None,
+        """复制活动路径或任意历史节点之前的路径，不复制兄弟分支及导航控制记录。"""
+        with self.run_lock():
+            branch = self.branch(before_entry_id)
+            if before_entry_id is not None:
+                branch = branch[:-1]
+            elif drop_recent_users > 0:
+                user_indices = [i for i, e in enumerate(branch) if e.type == "user"]
+                branch = (
+                    []
+                    if drop_recent_users >= len(user_indices)
+                    else branch[: user_indices[-drop_recent_users]]
+                )
+            target = SessionLog.create(
+                sessions_dir, project_root=project_root, deferred=True
             )
-            if index is None:
-                raise LogError(f"entry not found on branch: {before_entry_id}")
-            branch = branch[:index]
-        elif drop_recent_users > 0:
-            user_indices = [
-                position
-                for position, entry in enumerate(branch)
-                if entry.type == "user"
-            ]
-            if drop_recent_users >= len(user_indices):
-                branch = []
-            else:
-                branch = branch[: user_indices[-drop_recent_users]]
-        target = SessionLog.create(
-            sessions_dir,
-            project_root=project_root,
-            deferred=deferred,
-        )
-        id_map: dict[str, str] = {}
-        for entry in branch:
-            if entry.type == "meta":
-                id_map[entry.id] = target.entries()[0].id
-                continue
-            data = dict(entry.data)
-            for key in ("first_kept_id", "start_id"):
-                value = data.get(key)
-                if isinstance(value, str) and value in id_map:
-                    data[key] = id_map[value]
-            copied = target._append(entry.type, data, version=entry.v)
-            id_map[entry.id] = copied.id
-        return target
+            copied_entries = target.entries()
+            id_map: dict[str, str] = {}
+            for entry in branch:
+                if entry.type == "meta":
+                    id_map[entry.id] = copied_entries[0].id
+                    continue
+                if entry.type == "branch":
+                    continue
+                data = dict(entry.data)
+                for key in ("first_kept_id", "start_id"):
+                    value = data.get(key)
+                    if isinstance(value, str) and value in id_map:
+                        data[key] = id_map[value]
+                copied = LogEntry(
+                    v=entry.v,
+                    id=uuid4().hex[:12],
+                    parent=copied_entries[-1].id,
+                    ts=entry.ts,
+                    type=entry.type,
+                    data=data,
+                )
+                copied_entries.append(copied)
+                id_map[entry.id] = copied.id
+            target._pending = copied_entries
+            target._head = copied_entries[-1]
+            if not deferred or any(_is_conversation(e) for e in copied_entries):
+                target._flush_pending()
+            return target
 
     def entries(self) -> list[LogEntry]:
         """读取全部已提交条目；忽略未换行的末尾残片。"""
@@ -245,26 +267,9 @@ class SessionLog:
                 self._head = entries[-1] if entries else None
                 return entries
 
-    def branch(self) -> list[LogEntry]:
-        """从当前 head 回溯到根，返回按时间正序的分支。"""
-        entries = self.entries()
-        if not entries:
-            return []
-        by_id = {entry.id: entry for entry in entries}
-        current: str | None = entries[-1].id
-        branch: list[LogEntry] = []
-        seen: set[str] = set()
-        while current is not None:
-            if current in seen:
-                raise LogError(f"session branch contains a cycle at {current}")
-            entry = by_id.get(current)
-            if entry is None:
-                raise LogError(f"session branch is missing parent {current}")
-            branch.append(entry)
-            seen.add(current)
-            current = entry.parent
-        branch.reverse()
-        return branch
+    def branch(self, entry_id: str | None = None) -> list[LogEntry]:
+        """返回活动路径或指定历史节点到根的路径，允许访问非活动分支。"""
+        return _branch(self.entries(), entry_id)
 
     @property
     def head_id(self) -> str | None:
@@ -286,7 +291,7 @@ class SessionLog:
                 continue
             try:
                 entry = LogEntry.model_validate_json(raw)
-                if entry.v == 2:
+                if entry.v >= 2:
                     validate_event_data(entry.type, entry.data)
                 entries.append(entry)
             except ValueError as exc:
@@ -316,7 +321,7 @@ class SessionLog:
 
 def _validate_entries(entries: list[LogEntry], path: Path) -> None:
     """校验 ID 唯一性和 parent 只能指向更早的条目。"""
-    seen: set[str] = set()
+    seen: dict[str, LogEntry] = {}
     for entry in entries:
         if entry.id in seen:
             raise LogError(f"duplicate session entry id in {path}: {entry.id}")
@@ -324,7 +329,49 @@ def _validate_entries(entries: list[LogEntry], path: Path) -> None:
             raise LogError(
                 f"missing or forward session parent in {path}: {entry.parent}"
             )
-        seen.add(entry.id)
+        if entry.type == "branch":
+            selected = seen.get(str(entry.data["selected_id"]))
+            if selected is None:
+                raise LogError(
+                    f"missing or forward navigation target in {path}: {entry.id}"
+                )
+            parent = selected.parent if selected.type == "user" else selected.id
+            if entry.parent != parent:
+                raise LogError(
+                    f"navigation parent does not match selected entry: {entry.id}"
+                )
+        seen[entry.id] = entry
+
+
+def _branch(entries: Sequence[LogEntry], entry_id: str | None = None) -> list[LogEntry]:
+    """从同一个读取快照构造路径，避免列表与 head 来自不同文件状态。"""
+    if not entries:
+        if entry_id is not None:
+            raise LogError(f"session entry not found: {entry_id}")
+        return []
+    by_id = {entry.id: entry for entry in entries}
+    current: str | None = entry_id if entry_id is not None else entries[-1].id
+    branch: list[LogEntry] = []
+    seen: set[str] = set()
+    while current is not None:
+        if current in seen:
+            raise LogError(f"session branch contains a cycle at {current}")
+        entry = by_id.get(current)
+        if entry is None:
+            raise LogError(f"session entry not found: {current}")
+        branch.append(entry)
+        seen.add(current)
+        current = entry.parent
+    branch.reverse()
+    return branch
+
+
+def _is_conversation(entry: LogEntry) -> bool:
+    return (
+        entry.type == "user"
+        and entry.data.get("source", "user") == "user"
+        and bool(str(entry.data.get("text", "")).strip())
+    ) or (entry.type == "assistant" and bool(entry.data.get("blocks")))
 
 
 def _now() -> str:
@@ -354,7 +401,10 @@ def list_sessions(sessions_dir: Path) -> list[SessionInfo]:
     for path in root.glob("session-*.jsonl"):
         try:
             log = SessionLog.open(path)
-            entries = log.branch()
+            entries = log.entries()
+            modified_at = datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(
+                timespec="seconds"
+            )
         except (LogError, OSError, ValueError):
             continue
         if not any(
@@ -376,7 +426,7 @@ def list_sessions(sessions_dir: Path) -> list[SessionInfo]:
                 path=path,
                 title=session_title(entries),
                 created_at=created_at,
-                updated_at=entries[-1].ts,
+                updated_at=modified_at,
             )
         )
 

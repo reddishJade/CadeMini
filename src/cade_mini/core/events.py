@@ -219,6 +219,10 @@ class _Attempt(_Payload):
     usage: _Usage | None = None
 
 
+class _Branch(_Payload):
+    selected_id: NonEmpty
+
+
 _SCHEMAS: dict[EventType, type[_Payload]] = {
     "meta": _Meta,
     "system": _System,
@@ -230,6 +234,7 @@ _SCHEMAS: dict[EventType, type[_Payload]] = {
     "request": _Request,
     "run": _Run,
     "attempt": _Attempt,
+    "branch": _Branch,
 }
 
 

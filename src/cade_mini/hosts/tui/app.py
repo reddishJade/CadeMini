@@ -121,7 +121,7 @@ _SHORTCUT_HELP = """Shortcuts
   ?              show this help
   Ctrl+C         clear input; press twice within 500 ms to exit
   Esc            stop the active run; close a picker or form
-  Esc Esc        choose an input to fork when idle with empty input
+  Esc Esc        navigate conversation branches when idle with empty input
   Ctrl+D         press Ctrl+D twice to exit when idle (empty input)
   Ctrl+Q         exit
   Shift+Tab      cycle execution mode: ask → build → plan
@@ -252,6 +252,7 @@ class _CadeTui:
         )
         completer = self._make_completer()
         self._input = TextArea(
+            text=app.service.log.navigation_draft or "",
             height=lambda: Dimension.exact(self._input_height()),
             prompt=self._input_prompt,
             multiline=True,
@@ -274,6 +275,7 @@ class _CadeTui:
             scrollbar=False,
             style="class:input",
         )
+        self._input.buffer.cursor_position = len(self._input.text)
         self._input.buffer.on_text_insert += self._on_input_text_inserted
         self._input.buffer.on_text_changed += self._on_input_layout_changed
         self._input.buffer.on_completions_changed += self._on_input_layout_changed
@@ -679,6 +681,7 @@ class _CadeTui:
                 self._submit_busy_message(text)
             else:
                 self._input.text = text
+                self._input.buffer.cursor_position = len(text)
                 self._state.log.append(
                     _LogEntry(
                         "system", "Run this command after the current task finishes."
@@ -861,7 +864,7 @@ class _CadeTui:
 
     def _history_key(self, _event: object) -> None:
         """空闲且输入为空时，双击 Esc 打开历史导航。"""
-        self._submit("/fork")
+        self._submit("/tree")
 
     def _interrupt_key(self, _event: object) -> None:
         """中断当前任务，不清空草稿，也不进入退出确认。"""
@@ -999,30 +1002,35 @@ class _CadeTui:
         if not preserve_running:
             self._state.running = True
 
-        def invoke(capture_output: bool) -> tuple[bool, str]:
-            def handle() -> bool:
+        def invoke(capture_output: bool) -> tuple[bool, str, bool]:
+            def handle() -> tuple[bool, bool]:
                 ctx = CommandContext(
                     app=self._agent_app,
                     output=self._command_output,
                     state=self._interaction_state,
                 )
-                return handle_command(text, ctx)
+                should_exit = handle_command(text, ctx)
+                return should_exit, ctx.changed_session
 
             if not capture_output:
-                return handle(), ""
+                should_exit, changed_session = handle()
+                return should_exit, "", changed_session
             output = StringIO()
             with redirect_stdout(output):
-                should_exit = handle()
-            return should_exit, output.getvalue()
+                should_exit, changed_session = handle()
+            return should_exit, output.getvalue(), changed_session
 
         async def run_inline() -> None:
             should_exit = False
             output = ""
             error: str | None = None
+            changed_session = False
             try:
-                should_exit, output = await asyncio.get_running_loop().run_in_executor(
-                    None, invoke, True
-                )
+                (
+                    should_exit,
+                    output,
+                    changed_session,
+                ) = await asyncio.get_running_loop().run_in_executor(None, invoke, True)
             except (OSError, RuntimeError, ValueError) as exc:
                 error = f"[error] {exc}"
             finally:
@@ -1034,7 +1042,13 @@ class _CadeTui:
                     self._refresh()
                     self._submit_pending_input()
                 else:
-                    self._finish_command(text, should_exit, output, error)
+                    self._finish_command(
+                        text,
+                        should_exit,
+                        output,
+                        error,
+                        changed_session=changed_session,
+                    )
 
         if self._application.loop is None:
             asyncio.run(run_inline())
@@ -1141,6 +1155,32 @@ class _CadeTui:
             query = parts[1].strip() if len(parts) > 1 else ""
             self._open_config_browser(query)
             return True
+        if command == "/tree" and len(text.split()) == 1:
+            service = self._agent_app.service
+            choices = service.choices("tree")
+            if not choices:
+                self._state.log.append(
+                    _LogEntry("system", "No conversation history yet.")
+                )
+                return True
+            current = next(
+                (node.entry.id for node in service.history() if node.current), None
+            )
+            self._open_command_choices(
+                [(label, name) for name, label in choices],
+                lambda selected: self._run_command(f"/tree {selected}"),
+                describe=lambda _: (
+                    "Stay in this conversation and preserve all branches. "
+                    "User inputs reopen for editing; other entries continue after that point. "
+                    "Workspace files do not change."
+                ),
+            )
+            for index, (entry_id, _) in enumerate(choices):
+                if entry_id == current:
+                    self._command_choices._selected_index = index
+                    self._command_choices.current_value = entry_id
+                    break
+            return True
         if command == "/fork" and len(text.split()) == 1:
             entries = self._store.get_forkable_user_messages()
             if not entries:
@@ -1163,6 +1203,8 @@ class _CadeTui:
                     "Edit and resend the input; workspace files stay unchanged."
                 ),
             )
+            self._command_choices._selected_index = len(entries) - 1
+            self._command_choices.current_value = entries[-1].id
             return True
         if command in {"/sessions", "/resume", "/continue"} and len(text.split()) == 1:
             sessions = self._store.list_infos()
@@ -1649,12 +1691,18 @@ class _CadeTui:
         self._refresh()
 
     def _finish_command(
-        self, text: str, should_exit: bool, output: str = "", error: str | None = None
+        self,
+        text: str,
+        should_exit: bool,
+        output: str = "",
+        error: str | None = None,
+        *,
+        changed_session: bool = False,
     ) -> None:
         """同步命令执行后的 TUI 状态。"""
         self._state.mode = self._interaction_state.mode
         self._state.running = False
-        if error is None and _is_session_history_command(text):
+        if error is None and changed_session and _is_session_history_command(text):
             self._restore_session_history()
         if error is not None:
             self._state.log.append(_LogEntry("error", error))
@@ -1712,6 +1760,9 @@ class _CadeTui:
     def _restore_session_history(self) -> None:
         """恢复会话命令完成后，以 TUI 形式重新渲染当前分支。"""
         self._state.restore_history(self._store.build_branch())
+        if hasattr(self, "_input"):
+            self._input.text = self._agent_app.service.log.navigation_draft or ""
+            self._input.buffer.cursor_position = len(self._input.text)
         agent = getattr(self._agent_app, "agent", None)
         if agent is not None:
             agent.session_id = self._store.session_id
@@ -2358,12 +2409,12 @@ def _question_choice_text(option: dict[str, object]) -> str:
 
 
 def _is_session_history_command(command: str) -> bool:
-    """判断命令是否会切换或重写当前会话分支。"""
-    name = command.split(maxsplit=1)[0]
-    return name in {
+    """显式导航后重建转录；窗口切换保留当前终端记录。"""
+    return command.split(maxsplit=1)[0] in {
         "/resume",
         "/continue",
         "/sessions",
+        "/tree",
         "/clone",
         "/fork",
     }
