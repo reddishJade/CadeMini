@@ -1395,3 +1395,32 @@ def test_git_file_completion_avoids_ignored_and_secret_paths(
     assert "@visible.py" in completions(comp, "Read @visible")
     assert "@ignored.py" not in completions(comp, "Read @ignored")
     assert "@.env.local" not in completions(comp, "Read @.env")
+
+
+@pytest.mark.asyncio
+async def test_repeated_login_starts_only_one_oauth_flow(tmp_path: Path) -> None:
+    from prompt_toolkit.output import DummyOutput
+
+    terminal = CadeTui(service(tmp_path), output=DummyOutput())
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = 0
+    tasks: list[asyncio.Task[None]] = []
+
+    async def login(_notify, _cancel) -> str:
+        nonlocal calls
+        calls += 1
+        started.set()
+        await release.wait()
+        return "Connected"
+
+    terminal.service.auth.login_chatgpt = login
+    terminal._schedule = lambda coro: tasks.append(asyncio.create_task(coro))
+    terminal._begin_login("chatgpt")
+    terminal._begin_login("chatgpt")
+    assert len(tasks) == 1
+    await started.wait()
+    assert calls == 1
+    release.set()
+    await asyncio.gather(*tasks)
+    assert terminal._oauth_cancel is None

@@ -1195,7 +1195,12 @@ class CadeTui:
             self._refresh()
             return
         if provider == "chatgpt":
-            self._schedule(self._login_chatgpt())
+            self._oauth_cancel = threading.Event()
+            try:
+                self._schedule(self._login_chatgpt())
+            except Exception:
+                self._oauth_cancel = None
+                raise
         elif provider == "openai":
             self._secret_provider = provider
             self._secret_input.buffer.reset()
@@ -1277,8 +1282,10 @@ class CadeTui:
         self._refresh()
 
     async def _login_chatgpt(self) -> None:
-        cancel = threading.Event()
-        self._oauth_cancel = cancel
+        cancel = self._oauth_cancel
+        if cancel is None:
+            cancel = threading.Event()
+            self._oauth_cancel = cancel
         loop = asyncio.get_running_loop()
 
         def notify(message: str) -> None:
