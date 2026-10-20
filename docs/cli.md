@@ -16,9 +16,10 @@ legacy REPL.
 The TUI uses an inline, colorized welcome page, an adaptive one-to-five-line
 editor, a two-line status bar, searchable slash-command completion, native
 terminal scrollback, streamed Markdown, tool/reasoning folding and
-project/session/model selectors. A new project can be configured
-using the provider/model setup wizard; ChatGPT uses SIWC browser login and
-OpenAI uses an API key. Existing login credentials remain in the Mini store.
+project/session/model selectors. A new project can be configured through an inline provider/model setup wizard
+using the same terminal palette and keyboard controls, with no full-screen
+modal. ChatGPT uses SIWC browser login and OpenAI uses a masked API-key input.
+Esc cancels onboarding without writing project configuration. Existing login credentials remain in the Mini store.
 
 - Enter sends a prompt; while busy, Enter queues, Alt+Enter steers, Ctrl+C cancels.
 - Ctrl+J inserts a newline; Ctrl+O expands tool details (and approval previews);

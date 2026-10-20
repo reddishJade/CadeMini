@@ -9,7 +9,14 @@ From the repository root:
 
 ```bash
 uv sync --locked
+uv run --locked cade-mini
 ```
+
+On the first interactive launch without a project configuration, Cade Mini shows
+an inline provider/model setup in the terminal's normal color scheme and
+scrollback. Choose with ↑/↓, confirm with Enter, or cancel with Esc. The wizard
+asks for a reasoning level when supported and securely masks API-key input.
+Cancelling does not write a partial `cade-mini.json`.
 
 Cade Mini owns its credential store at `~/.cade-mini/auth.json`. Log in with
 Sign in with ChatGPT (SIWC) in a browser:

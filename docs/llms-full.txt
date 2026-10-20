@@ -118,7 +118,14 @@ From the repository root:
 
 ```bash
 uv sync --locked
+uv run --locked cade-mini
 ```
+
+On the first interactive launch without a project configuration, Cade Mini shows
+an inline provider/model setup in the terminal's normal color scheme and
+scrollback. Choose with ↑/↓, confirm with Enter, or cancel with Esc. The wizard
+asks for a reasoning level when supported and securely masks API-key input.
+Cancelling does not write a partial `cade-mini.json`.
 
 Cade Mini owns its credential store at `~/.cade-mini/auth.json`. Log in with
 Sign in with ChatGPT (SIWC) in a browser:
@@ -223,9 +230,10 @@ legacy REPL.
 The TUI uses an inline, colorized welcome page, an adaptive one-to-five-line
 editor, a two-line status bar, searchable slash-command completion, native
 terminal scrollback, streamed Markdown, tool/reasoning folding and
-project/session/model selectors. A new project can be configured
-using the provider/model setup wizard; ChatGPT uses SIWC browser login and
-OpenAI uses an API key. Existing login credentials remain in the Mini store.
+project/session/model selectors. A new project can be configured through an inline provider/model setup wizard
+using the same terminal palette and keyboard controls, with no full-screen
+modal. ChatGPT uses SIWC browser login and OpenAI uses a masked API-key input.
+Esc cancels onboarding without writing project configuration. Existing login credentials remain in the Mini store.
 
 - Enter sends a prompt; while busy, Enter queues, Alt+Enter steers, Ctrl+C cancels.
 - Ctrl+J inserts a newline; Ctrl+O expands tool details (and approval previews);
