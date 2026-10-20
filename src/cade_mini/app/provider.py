@@ -8,6 +8,7 @@ from pathlib import Path
 from cade_mini.ai.providers.base import ModelProvider
 from cade_mini.ai.providers.registry import (
     ModelProfileConfig,
+    api_key_env_var,
     build_model_provider,
     get_environment_api_key,
 )
@@ -84,12 +85,12 @@ def build_provider(
             and stored.access
         ):
             api_key = stored.access
-        api_key = api_key or get_environment_api_key()
+        api_key = api_key or get_environment_api_key(provider)
         if not api_key:
             raise RuntimeError(
                 f"Missing API key for provider {provider}; "
                 f"run 'cade-mini login --provider {provider} --method api_key' "
-                "or set OPENAI_API_KEY"
+                f"or set {api_key_env_var(provider)}"
             )
 
     profile = ModelProfileConfig(

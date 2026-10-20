@@ -13,6 +13,7 @@ GPT_6_REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
 GPT_6_ASTRA_REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 GPT_56_REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
 GPT_55_REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh")
+DEEPSEEK_REASONING_EFFORTS = ("none", "low", "high", "max")
 
 
 @dataclass(frozen=True)
@@ -121,6 +122,31 @@ _MODELS: dict[str, dict[str, Model]] = {
             max_tokens=128_000,
             cost=Cost(input=5, output=30, cache_read=0.50),
             reasoning_efforts=GPT_55_REASONING_EFFORTS,
+        ),
+    },
+    "deepseek": {
+        # 成本按 DeepSeek 高峰价估算；低谷价为高峰价的一半。
+        "deepseek-flash": Model(
+            id="deepseek-flash",
+            name="DeepSeek V4.1 Flash",
+            api="deepseek-responses",
+            provider="deepseek",
+            reasoning=True,
+            context_window=1_000_000,
+            max_tokens=384_000,
+            cost=Cost(input=0.30, output=1.20, cache_read=0.006),
+            reasoning_efforts=DEEPSEEK_REASONING_EFFORTS,
+        ),
+        "deepseek-v4-pro": Model(
+            id="deepseek-v4-pro",
+            name="DeepSeek V4 Pro",
+            api="deepseek-responses",
+            provider="deepseek",
+            reasoning=True,
+            context_window=1_000_000,
+            max_tokens=384_000,
+            cost=Cost(input=1.32, output=3.96, cache_read=0.044),
+            reasoning_efforts=DEEPSEEK_REASONING_EFFORTS,
         ),
     },
 }

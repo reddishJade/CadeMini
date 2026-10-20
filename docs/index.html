@@ -219,10 +219,16 @@ Or use an API key.</p>
 export OPENAI_API_KEY=...
 uv run --locked cade-mini --provider openai --model gpt-5.5 &quot;Review this project.&quot;
 </code></pre>
+<p>DeepSeek uses the same Responses protocol with its own API key:</p>
+<pre><code class="language-bash">uv run --locked cade-mini login --provider deepseek
+export DEEPSEEK_API_KEY=...
+uv run --locked cade-mini --provider deepseek --model deepseek-flash &quot;Review this project.&quot;
+</code></pre>
 <p>The default provider is <code>chatgpt</code>. Set <code>provider</code> and <code>model</code> in
 <code>cade-mini.json</code> to choose other startup defaults. Cade Mini supports only the
-OpenAI Responses protocol: <code>chatgpt</code> for ChatGPT plan usage and <code>openai</code>
-for an API key. Mini does not read Cade's credentials, skills, or settings.</p>
+Responses protocol: <code>chatgpt</code> for ChatGPT plan usage, <code>openai</code> for an OpenAI
+API key, and <code>deepseek</code> for a DeepSeek API key. Mini does not read Cade's
+credentials, skills, or settings.</p>
 <h2>Run one task</h2>
 <pre><code class="language-bash">uv run --locked cade-mini &quot;Read README.md and explain the entry point in three bullets.&quot;
 </code></pre>
@@ -272,12 +278,13 @@ starts the interactive REPL.</p>
 <h2>Login</h2>
 <pre><code class="language-bash">cade-mini login
 cade-mini login --provider openai
+cade-mini login --provider deepseek
 </code></pre>
 <p><code>--provider</code> defaults to <code>chatgpt</code>, which uses Sign in with ChatGPT (SIWC)
-in a browser. <code>openai</code> uses <code>api_key</code> with a hidden input prompt. Credentials
-are stored in <code>~/.cade-mini/auth.json</code>; the stable SIWC host ID is stored in
-<code>~/.cade-mini/host.json</code>. Login does not change project provider or model
-settings. Cade Mini supports only the OpenAI Responses protocol.</p>
+in a browser. <code>openai</code> and <code>deepseek</code> use <code>api_key</code> with a hidden input prompt.
+Credentials are stored in <code>~/.cade-mini/auth.json</code>; the stable SIWC host ID is
+stored in <code>~/.cade-mini/host.json</code>. Login does not change project provider or
+model settings. Cade Mini supports only the Responses protocol.</p>
 <h2>One-shot options</h2>
 <ul>
 <li><code>--project-root PATH</code> sets the workspace. The default is the current
@@ -403,8 +410,8 @@ silently ignored.</p>
 <h2>Fields</h2>
 <ul>
 <li><code>provider</code>, <code>model</code>: provider name and model identifier. Use <code>chatgpt</code>
-for ChatGPT plan usage (Sign in with ChatGPT) or <code>openai</code> for an OpenAI API
-key. The CLI flags override both.</li>
+for ChatGPT plan usage (Sign in with ChatGPT), <code>openai</code> for an OpenAI API
+key, or <code>deepseek</code> for a DeepSeek API key. The CLI flags override both.</li>
 <li><code>reasoning_effort</code>: provider reasoning effort. The CLI flag is <code>--effort</code>.</li>
 <li><code>context_window</code>: model context window in tokens.</li>
 <li><code>max_steps</code>: maximum model steps in one run.</li>
@@ -547,10 +554,11 @@ re-exports; import the owning submodule directly.</p>
 <h2>Lower layers and state</h2>
 <p><code>ai/</code> owns provider protocols, streaming adapters, model metadata, and OAuth.
 <code>execution_env/</code> owns local process execution and output capture. Neither layer
-imports application or host modules. The AI layer supports only the OpenAI
-Responses protocol, as recorded in <a href="decisions/0007-responses-only-provider.md">decision 0007</a>,
+imports application or host modules. The AI layer supports only the Responses
+protocol, as recorded in <a href="decisions/0007-responses-only-provider.md">decision 0007</a>,
 and uses Sign in with ChatGPT for plan usage, as recorded in
-<a href="decisions/0008-siwc-login.md">decision 0008</a>.
+<a href="decisions/0008-siwc-login.md">decision 0008</a>. DeepSeek uses a separate
+transport with the same Responses stream format and its own endpoint.
 Mini has no OS sandbox; shell execution uses local host permissions.</p>
 <p>Credentials and user skills use <code>~/.cade-mini/</code>. The SIWC host ID lives in
 <code>~/.cade-mini/host.json</code>. Sessions, snapshots, goals,
@@ -767,7 +775,7 @@ implementation can be replaced without changing the session schema or the loop.<
 <tr>
 <td>Provider</td>
 <td><code>loop.Provider</code> streaming events</td>
-<td>OpenAI Responses, ChatGPT plan (SIWC)</td>
+<td>OpenAI Responses, ChatGPT plan (SIWC), DeepSeek Responses</td>
 <td>Loop, compaction, auto-review</td>
 </tr>
 <tr>
@@ -3195,7 +3203,7 @@ the corrected <code>+</code> operator.</li>
 <ul>
 <li>Mini ran with <code>--mode build --yes</code>; Cade ran with <code>--mode build --approval auto-review</code>.</li>
 <li>Both used DeepSeek <code>deepseek-chat</code> at the time of the run. Cade Mini now
-supports only the OpenAI Responses protocol.</li>
+supports only the Responses protocol.</li>
 <li>Mini used five steps per workflow; Cade used four. Mini issued an extra <code>glob</code>
 inspection, which did not change the result.</li>
 <li>Cade emits JSONL telemetry and budget/approval events; Mini emits human tool
@@ -3215,7 +3223,7 @@ resumed Codex session read it back.</li>
 <p>The parity report records the concrete fixtures and observed results. Re-run a
 workflow by creating a clean fixture, running both agents with the same provider
 and settings, and comparing the diff and test result rather than the prose
-answer. Cade Mini supports only the OpenAI Responses protocol.</p>
+answer. Cade Mini supports only the Responses protocol.</p>
 
 </section>
 <section class="page" id="page-readme" data-title="Postmortems">

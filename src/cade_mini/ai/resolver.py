@@ -1,7 +1,7 @@
 """模型与 Transport 解析器（单一事实源）。
 
-只支持 OpenAI Responses 协议：API Key 使用 `openai_responses`，
-ChatGPT 登录使用 `chatgpt`。
+只支持 Responses 协议：OpenAI API Key 使用 `openai_responses`，
+ChatGPT 登录使用 `chatgpt`，DeepSeek API Key 使用 `deepseek_responses`。
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ MODEL_ALIASES: Final[dict[str, str]] = {
 PROVIDER_TRANSPORTS: Final[dict[str, str]] = {
     "openai": "openai_responses",
     "chatgpt": "chatgpt",
+    "deepseek": "deepseek_responses",
 }
 
 
@@ -36,11 +37,14 @@ def provider_for_transport(transport: str) -> str:
 DEFAULT_BASE_URLS: Final[dict[str, str]] = {
     "chatgpt": "https://api.openai.com/v1",
     "openai_responses": "https://api.openai.com/v1",
+    # OpenAI SDK 会在 base_url 后追加 /responses。
+    "deepseek_responses": "https://api.deepseek.com",
 }
 
 # 默认环境变量覆盖 Base URL
 BASE_URL_ENV_VARS: Final[dict[str, str]] = {
     "openai_responses": "OPENAI_BASE_URL",
+    "deepseek_responses": "DEEPSEEK_BASE_URL",
 }
 
 
@@ -77,6 +81,8 @@ class ModelResolver:
 
         if resolved_name.startswith(("gpt-", "chat-", "o1", "o3", "o4")):
             return "openai"
+        if resolved_name.startswith("deepseek"):
+            return "deepseek"
 
         from cade_mini.ai.models import _MODELS
 

@@ -37,8 +37,8 @@ silently ignored.
 ## Fields
 
 - `provider`, `model`: provider name and model identifier. Use `chatgpt`
-  for ChatGPT plan usage (Sign in with ChatGPT) or `openai` for an OpenAI API
-  key. The CLI flags override both.
+  for ChatGPT plan usage (Sign in with ChatGPT), `openai` for an OpenAI API
+  key, or `deepseek` for a DeepSeek API key. The CLI flags override both.
 - `reasoning_effort`: provider reasoning effort. The CLI flag is `--effort`.
 - `context_window`: model context window in tokens.
 - `max_steps`: maximum model steps in one run.

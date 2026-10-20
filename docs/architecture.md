@@ -92,10 +92,11 @@ re-exports; import the owning submodule directly.
 
 `ai/` owns provider protocols, streaming adapters, model metadata, and OAuth.
 `execution_env/` owns local process execution and output capture. Neither layer
-imports application or host modules. The AI layer supports only the OpenAI
-Responses protocol, as recorded in [decision 0007](decisions/0007-responses-only-provider.md),
+imports application or host modules. The AI layer supports only the Responses
+protocol, as recorded in [decision 0007](decisions/0007-responses-only-provider.md),
 and uses Sign in with ChatGPT for plan usage, as recorded in
-[decision 0008](decisions/0008-siwc-login.md).
+[decision 0008](decisions/0008-siwc-login.md). DeepSeek uses a separate
+transport with the same Responses stream format and its own endpoint.
 Mini has no OS sandbox; shell execution uses local host permissions.
 
 Credentials and user skills use `~/.cade-mini/`. The SIWC host ID lives in
