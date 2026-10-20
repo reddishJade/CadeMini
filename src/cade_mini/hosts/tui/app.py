@@ -879,7 +879,8 @@ class CadeTui:
                 f"{self.service.provider_config.provider}/{self.service.provider.model}"
             )
             self._model_labels = dict(choices)
-                self._model_efforts = {}
+            self._model_labels["__custom__"] = "Enter a custom model name…"
+            self._model_efforts = {}
             for name, _description in choices:
                 levels = get_model_reasoning_efforts(name.split("/", 1)[-1])
                 if not levels:
@@ -1038,6 +1039,11 @@ class CadeTui:
             return
         effort = self._model_efforts.get(str(choice))
         self._close_picker()
+        if kind == "model" and choice == "__custom__":
+            self._input.text = f"/model {self.service.provider_config.provider}/"
+            self.app.layout.focus(self._input)
+            self._refresh()
+            return
         if kind == "model":
 
             async def switch() -> None:
