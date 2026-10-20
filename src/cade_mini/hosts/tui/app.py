@@ -12,6 +12,7 @@ import json
 import subprocess
 import threading
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from prompt_toolkit.application import Application
@@ -116,6 +117,7 @@ class CadeTui:
         self._approval_call: ToolCallBlock | None = None
         self._exit_armed = 0.0
         self._launch_pending = False
+        self._manual_action_running = False
         self._picker_kind: str | None = None
         self._picker_source: tuple[tuple[str, str], ...] = ()
         self._question_future: asyncio.Future[list[str]] | None = None
@@ -741,7 +743,7 @@ class CadeTui:
         self._refresh()
 
     def _is_busy(self) -> bool:
-        return self.service.running or self._launch_pending
+        return self.service.running or self._launch_pending or self._manual_action_running
 
     def _schedule(self, coroutine: Any) -> None:
         self.app.create_background_task(coroutine)
@@ -824,7 +826,7 @@ class CadeTui:
                     self.service.pending.append(value)
                     self.transcript.notice(
                         "Stopping; task queued."
-                        if self.service.busy_mode == "interrupt"
+                        if self.service.busy_mode == "interrupt" and self.service.cancel
                         else "Follow-up queued."
                     )
             self._refresh()
@@ -835,16 +837,35 @@ class CadeTui:
         try:
             if value.startswith("/"):
                 if value.startswith("/tool ") and value.strip() != "/tool list":
-                    await self._invoke_tool(value[len("/tool ") :])
+                    await self._run_manual(
+                        lambda: self._invoke_tool(value[len("/tool ") :])
+                    )
                 else:
                     await self._dispatch(value)
                 return
             if value.startswith("!"):
-                await self._run_shell(value[1:].strip())
+                await self._run_manual(lambda: self._run_shell(value[1:].strip()))
                 return
             await self._launch(value)
         except (OSError, RuntimeError, ValueError, TypeError) as exc:
             self.transcript.notice(str(exc), error=True)
+            self._refresh()
+
+    async def _run_manual(
+        self, operation: Callable[[], Awaitable[None]]
+    ) -> None:
+        if self._is_busy():
+            self.transcript.notice(
+                "Finish the active task before running a direct tool.", error=True
+            )
+            return
+        self._manual_action_running = True
+        try:
+            await operation()
+        finally:
+            self._manual_action_running = False
+            if self.service.pending:
+                await self._launch(self.service.pending.popleft())
             self._refresh()
 
     async def _dispatch(self, value: str) -> None:

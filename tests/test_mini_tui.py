@@ -1282,3 +1282,24 @@ async def test_task_launch_gate_handles_queued_followup(tmp_path: Path) -> None:
         entry.kind == "user" and entry.text == "Second prompt"
         for entry in terminal.transcript.entries
     )
+
+
+@pytest.mark.asyncio
+async def test_manual_tool_prevents_concurrent_agent_turn(tmp_path: Path) -> None:
+    from prompt_toolkit.output import DummyOutput
+
+    terminal = CadeTui(service(tmp_path), output=DummyOutput())
+    release = asyncio.Event()
+
+    async def operation() -> None:
+        await release.wait()
+
+    running = asyncio.create_task(terminal._run_manual(operation))
+    await asyncio.sleep(0)
+    assert terminal._manual_action_running
+    await terminal._launch("Queued after direct tool")
+    assert list(terminal.service.pending) == ["Queued after direct tool"]
+    terminal.service.pending.clear()
+    release.set()
+    await running
+    assert not terminal._is_busy()
