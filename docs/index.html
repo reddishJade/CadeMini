@@ -302,7 +302,8 @@ commands remain available.</li>
 <li><code>--yes</code> approves asks. Use it only in trusted, non-interactive contexts.</li>
 <li><code>--auto-review</code> / <code>--no-auto-review</code> lets the model review ask-level calls.</li>
 <li><code>--max-steps N</code> bounds model steps.</li>
-<li><code>--context-window N</code> overrides the model context window.</li>
+<li><code>--context-window N</code> overrides the model context window. It is required for
+models that are not in the built-in registry.</li>
 <li><code>--json</code> emits JSONL events for a one-shot task.</li>
 <li><code>--steer TEXT</code> injects guidance at the next model step; repeatable.</li>
 <li><code>--queue TEXT</code> queues a REPL task to run after the current task; repeatable.</li>
@@ -420,7 +421,8 @@ for ChatGPT plan usage (Sign in with ChatGPT), <code>openai</code> for an OpenAI
 key, or <code>deepseek</code> for a DeepSeek API key. The CLI flags override both.</li>
 <li><code>reasoning_effort</code>: provider reasoning effort. The CLI flag is <code>--effort</code>.</li>
 <li><code>context_window</code>: model context window in tokens. The default comes from the
-registered model metadata; unregistered models fall back to 200,000 tokens.</li>
+registered model metadata. Unregistered models require this field or
+<code>--context-window</code>; Cade Mini rejects them otherwise.</li>
 <li><code>max_steps</code>: maximum model steps in one run.</li>
 <li><code>sessions_dir</code>: session directory. Relative paths resolve against the project
 root.</li>

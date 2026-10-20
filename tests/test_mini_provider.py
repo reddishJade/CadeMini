@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from cade_mini.ai.auth import AuthCredential
+from cade_mini.ai.types import Model
 from cade_mini.app.auth import JsonCredentialStore, resolve_chatgpt_credential
 from cade_mini.app.provider import ProviderConfig, build_provider
 
@@ -192,17 +193,42 @@ def test_build_deepseek_provider_uses_stored_api_key(tmp_path: Path) -> None:
     assert provider.config.api_key == "stored-deepseek-key"
 
 
-def test_unregistered_model_has_no_context_window(tmp_path: Path) -> None:
+def test_unregistered_model_requires_context_window(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="is not registered"):
+        build_provider(
+            ProviderConfig(
+                provider="deepseek",
+                model="deepseek-custom",
+                api_key="deepseek-test-key",
+            ),
+            auth_path=tmp_path / "missing.json",
+        )
+
+
+def test_unregistered_model_accepts_explicit_context_window(tmp_path: Path) -> None:
     provider = build_provider(
         ProviderConfig(
             provider="deepseek",
             model="deepseek-custom",
             api_key="deepseek-test-key",
+            context_window=500_000,
         ),
         auth_path=tmp_path / "missing.json",
     )
 
-    assert provider.context_window is None
+    assert provider.context_window == 500_000
+
+
+def test_model_metadata_requires_positive_limits() -> None:
+    with pytest.raises(ValueError, match="context_window must be positive"):
+        Model(
+            id="test",
+            name="Test",
+            api="test",
+            provider="test",
+            context_window=0,
+            max_tokens=1,
+        )
 
 
 def test_unsupported_provider_is_rejected(tmp_path: Path) -> None:
