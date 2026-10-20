@@ -452,16 +452,18 @@ async def test_rename_uses_validated_metadata_and_updates_session_title(
 
 
 def test_model_and_login_options_match_current_provider_backend(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    svc = service(tmp_path)
-    models = dict(svc.choices("model"))
-    assert any(name.startswith("chatgpt/") for name in models)
-    assert any(name.startswith("openai/") for name in models)
-    assert all(not name.startswith("openai-codex/") for name in models)
     from cade_mini.app.auth import JsonCredentialStore
 
+    svc = service(tmp_path)
     svc.auth.store = JsonCredentialStore(tmp_path / "private-auth.json")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert not svc.choices("model")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    models = dict(svc.choices("model"))
+    assert any(name.startswith("openai/") for name in models)
+    assert all(not name.startswith(("chatgpt/", "openai-codex/")) for name in models)
     assert set(dict(svc.auth.choices())) == {"chatgpt", "openai"}
 
 
@@ -518,7 +520,10 @@ def test_markdown_renders_during_stream_not_only_at_end(tmp_path: Path) -> None:
     assert "**emphasized**" not in rendered
 
 
-def test_palette_fuzzy_search_navigation_and_empty_results(tmp_path: Path) -> None:
+def test_palette_fuzzy_search_navigation_and_empty_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
     terminal = CadeTui(service(tmp_path))
     terminal._open_picker("model")
     assert terminal.app.layout.current_control == terminal._picker_search.control
@@ -542,8 +547,9 @@ def test_palette_fuzzy_search_navigation_and_empty_results(tmp_path: Path) -> No
 
 
 def test_model_picker_allows_custom_model_without_unusable_preset(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
     terminal = CadeTui(service(tmp_path))
     terminal._open_picker("model")
     terminal._picker_search.text = "custom model"
@@ -1131,3 +1137,136 @@ def test_terminal_mode_is_restored_even_when_tui_fails(
     ):
         raise RuntimeError("render failure")
     assert restored == [(42, 0x0007)]
+
+
+@pytest.mark.asyncio
+async def test_shift_tab_only_updates_status_without_transcript(tmp_path: Path) -> None:
+    host = service(tmp_path)
+    terminal = CadeTui(host)
+    terminal._input.text = "Unsent draft"
+    before = tuple(terminal.transcript.entries)
+
+    await terminal._cycle_mode()
+    assert host.policy.mode == "build"
+    assert tuple(terminal.transcript.entries) == before
+    assert terminal._input.text == "Unsent draft"
+    assert "build" in str(terminal._status_text())
+
+    await terminal._cycle_mode()
+    assert host.policy.mode == "plan"
+    assert tuple(terminal.transcript.entries) == before
+
+
+def test_model_picker_filters_credentials_and_adjusts_effort_per_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cade_mini.app.auth import JsonCredentialStore
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    host = service(tmp_path)
+    host.auth.store = JsonCredentialStore(tmp_path / "private-auth.json")
+    terminal = CadeTui(host)
+    terminal._open_picker("model")
+
+    assert all(
+        not name.startswith("chatgpt/")
+        for name, _label in terminal._picker_source
+    )
+    target = "openai/gpt-6-luna"
+    index = next(
+        i for i, (name, _label) in enumerate(terminal._picker.values)
+        if name == target
+    )
+    terminal._picker._selected_index = index
+    terminal._picker.current_value = target
+    assert terminal._model_efforts[target] == "medium"
+
+    terminal._adjust_picker_effort(1)
+    assert terminal._model_efforts[target] == "high"
+    assert terminal._picker.current_value == target
+    label = next(
+        label for name, label in terminal._picker.values if name == target
+    )
+    assert label.count("gpt-6-luna") == 1
+    assert "‹ high ›" in label
+    assert terminal._hint_height() == 0
+
+
+def test_nonempty_resume_and_single_label_for_mode_and_tool(
+    tmp_path: Path,
+) -> None:
+    host = service(tmp_path)
+    empty = SessionLog.create(host.sessions_dir, session_id="empty")
+    useful = SessionLog.create(host.sessions_dir, session_id="useful")
+    useful.append("user", {"text": "My actual work"})
+    assert empty.session_id not in dict(host.choices("sessions"))
+    assert useful.session_id in dict(host.choices("sessions"))
+
+    class ReadTool:
+        name = "read"
+        description = "Read a workspace file"
+        parameters = {"type": "object"}
+
+        async def execute(self, call: ToolCallBlock, signal=None):
+            from cade_mini.core.loop import ToolResult
+
+            return ToolResult(content="ok")
+
+    host.base_tools = (ReadTool(),)
+    names = dict(host.choices("tool"))
+    assert names["read"].count("read") == 1
+    assert "Read a workspace file" in names["read"]
+    assert dict(host.choices("mode"))["act"] == "act (current)"
+
+    terminal = CadeTui(host)
+    terminal._open_picker("mode")
+    assert terminal._hint_height() == 0
+    assert terminal._picker_hint_text().count("Esc cancel") == 1
+
+
+@pytest.mark.asyncio
+async def test_context_report_uses_budget_categories_and_no_raw_dict(
+    tmp_path: Path,
+) -> None:
+    host = service(tmp_path)
+    host.log.append("user", {"text": "Inspect the code"})
+    host.last_usage = {"input": 2263, "output": 15}
+    text = "\n".join((await host.command("/context")).lines)
+    assert "Context Usage · test-model" in text
+    assert "Local estimates:" in text
+    for name in (
+        "Fixed prefix",
+        "Durable state",
+        "Working messages",
+        "Tool evidence",
+        "Input budget:",
+        "Remaining input:",
+        "Output reserve:",
+        "Headroom:",
+    ):
+        assert name in text
+    assert "Last run · input" in text
+    assert "{'input'" not in text
+
+
+def test_config_menu_uses_labels_and_provider_choice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    host = service(tmp_path)
+    monkeypatch.setattr(
+        host.settings, "configured_providers", lambda *_args: ("openai",)
+    )
+    labels = dict(host.choices("config"))
+    assert "Default Provider" in labels["provider"]
+    assert "Default Model" in labels["model"]
+
+    terminal = CadeTui(host)
+    terminal._open_picker("config")
+    terminal._picker.current_value = "provider"
+    terminal._pick()
+    assert terminal._picker_kind == "config_value"
+    assert len(terminal._picker.values) == 1
+    assert terminal._picker.values[0][0] == '"openai"'
+    terminal._pick()
+    assert terminal._picker_kind == "config"
+    assert host.settings._load().provider == "openai"

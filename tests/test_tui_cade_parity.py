@@ -200,7 +200,10 @@ async def test_command_handlers_open_native_actions(tmp_path: Path) -> None:
     assert "NOTE.md" in no_note.lines[0]
 
 
-def test_tui_has_compact_editor_and_contextual_hint(tmp_path: Path) -> None:
+def test_tui_has_compact_editor_and_contextual_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
     terminal = CadeTui(host(tmp_path), output=DummyOutput())
     assert terminal.app.full_screen is False
     assert terminal._input_height() == 1
