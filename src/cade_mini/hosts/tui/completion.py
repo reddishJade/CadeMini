@@ -95,7 +95,7 @@ class CadeCompleter(Completer):
                 ranked.append((rank, name, description))
         ranked.sort(key=lambda item: item[0])
         for _, name, description in ranked[:limit]:
-            # The left column already shows the candidate name.
+            # 左列已经显示候选名称，说明列只保留额外信息。
             if description.startswith(name):
                 suffix = description[len(name) :]
                 if not suffix or suffix[0].isspace() or suffix[0] in "([·–—":
