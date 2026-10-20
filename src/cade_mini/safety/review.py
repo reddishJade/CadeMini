@@ -39,7 +39,7 @@ class _ReviewAnswer(BaseModel):
 
 
 class AutoReviewer:
-    """无工具复核；不截断授权上下文，不自动回退到人工审批。"""
+    """无工具复核；不截断授权上下文，窗口未知时拒绝，不回退到人工审批。"""
 
     def __init__(
         self,
@@ -68,7 +68,11 @@ class AutoReviewer:
             {"role": "system", "content": _SYSTEM},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ]
-        window = getattr(self.provider, "context_window", None) or 200_000
+        window = getattr(self.provider, "context_window", None)
+        if window is None:
+            return ApprovalResult(
+                False, "Reviewer failed: model context window is unknown."
+            )
         if (
             estimate(
                 [SystemMessage(text=_SYSTEM), UserMessage(text=messages[1]["content"])]
