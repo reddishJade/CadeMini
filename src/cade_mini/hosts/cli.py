@@ -66,6 +66,7 @@ from cade_mini.safety.approval import SessionApprover
 from cade_mini.safety.grants import GrantStore
 from cade_mini.safety.policy import Mode, WorkspacePolicy, filter_tools
 from cade_mini.safety.review import AutoReviewer
+from cade_mini.safety.sensitive import is_sensitive_reason
 from cade_mini.tools.history import HistoryTool
 from cade_mini.tools.workspace import build_tools, resolve_workspace_path
 
@@ -661,7 +662,7 @@ class _HostApprover:
         self.events.put(request)
         request.done.wait()
         answer = (request.answer or "").strip().lower()
-        if answer in {"a", "always"}:
+        if answer in {"a", "always"} and not is_sensitive_reason(approval.reason):
             self.grants.add(call)
         allowed = answer in {"y", "yes", "a", "always"}
         return ApprovalResult(
@@ -690,7 +691,7 @@ class _ConsoleApprover:
         request = _ApprovalRequest(call, reason=approval.reason)
         _answer_approval(self.events, request)
         answer = (request.answer or "").strip().lower()
-        if answer in {"a", "always"}:
+        if answer in {"a", "always"} and not is_sensitive_reason(approval.reason):
             self.grants.add(call)
         allowed = answer in {"y", "yes", "a", "always"}
         return ApprovalResult(
@@ -709,8 +710,11 @@ def _answer_approval(
     )
     if len(detail) > 500:
         detail = detail[:500] + "..."
+    choices = (
+        "[y]es/[n]o" if is_sensitive_reason(request.reason) else "[y]es/[n]o/[a]lways"
+    )
     print(
-        f"\n{request.reason}\nApprove {request.call.name} {detail}? [y]es/[n]o/[a]lways: ",
+        f"\n{request.reason}\nApprove {request.call.name} {detail}? {choices}: ",
         file=sys.stderr,
         end="",
         flush=True,

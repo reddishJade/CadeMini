@@ -89,7 +89,7 @@ class WorkspaceTool:
             target = _resolve_authorized_path(
                 self.workspace, args.get("path"), writing=True
             )
-            _ensure_not_blocked(self.workspace, target)
+            _ensure_not_blocked(self.workspace, target, allow_sensitive=True)
         snapshots = self.snapshots
         change = (
             snapshots.change(target)
@@ -179,7 +179,7 @@ class ReadTool(WorkspaceTool):
 
     def run(self, args: dict[str, JsonValue]) -> ToolResult:
         path = _resolve_authorized_path(self.workspace, args.get("path"))
-        _ensure_not_blocked(self.workspace, path)
+        _ensure_not_blocked(self.workspace, path, allow_sensitive=True)
         offset = _int_arg(args, "offset", 1, 1, 1_000_000)
         limit = _int_arg(args, "limit", MAX_READ_LINES, 1, MAX_READ_LINES)
         if path.is_dir():
@@ -255,7 +255,7 @@ class WriteTool(WorkspaceTool):
 
     def run(self, args: dict[str, JsonValue]) -> ToolResult:
         path = _resolve_authorized_path(self.workspace, args.get("path"), writing=True)
-        _ensure_not_blocked(self.workspace, path)
+        _ensure_not_blocked(self.workspace, path, allow_sensitive=True)
         if path.is_dir():
             raise ValueError(
                 f"path is a directory: {display_path(self.workspace, path)}"
@@ -304,7 +304,7 @@ class EditTool(WorkspaceTool):
 
     def run(self, args: dict[str, JsonValue]) -> ToolResult:
         path = _resolve_authorized_path(self.workspace, args.get("path"), writing=True)
-        _ensure_not_blocked(self.workspace, path)
+        _ensure_not_blocked(self.workspace, path, allow_sensitive=True)
         if not path.is_file():
             raise ValueError(f"file not found: {display_path(self.workspace, path)}")
         old = _text_arg(args, "old")
@@ -592,7 +592,7 @@ def _read_directory(
     )
 
 
-def _is_blocked(root: Path, path: Path) -> bool:
+def _is_blocked(root: Path, path: Path, *, allow_sensitive: bool = False) -> bool:
     try:
         relative = path.resolve().relative_to(root.resolve())
     except ValueError:
@@ -600,11 +600,13 @@ def _is_blocked(root: Path, path: Path) -> bool:
     if any(part in _BLOCKED_PARTS for part in relative.parts):
         return True
     name = path.name
-    return name.startswith(".env") and name != ".env.example"
+    return not allow_sensitive and name.startswith(".env") and name != ".env.example"
 
 
-def _ensure_not_blocked(root: Path, path: Path) -> None:
-    if _is_blocked(root, path):
+def _ensure_not_blocked(
+    root: Path, path: Path, *, allow_sensitive: bool = False
+) -> None:
+    if _is_blocked(root, path, allow_sensitive=allow_sensitive):
         raise ValueError(f"path is blocked: {display_path(root, path)}")
 
 

@@ -100,10 +100,12 @@ flowchart LR
   hosts_cli --> safety_grants
   hosts_cli --> safety_policy
   hosts_cli --> safety_review
+  hosts_cli --> safety_sensitive
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
   safety_approval --> core_permissions
   safety_approval --> safety_grants
+  safety_approval --> safety_sensitive
   safety_grants --> core_types
   safety_policy --> app_config
   safety_policy --> core_loop
@@ -112,12 +114,14 @@ flowchart LR
   safety_policy --> execution_env_paths
   safety_policy --> execution_env_sandbox
   safety_policy --> safety_grants
+  safety_policy --> safety_sensitive
   safety_policy --> safety_shell
   safety_review --> ai_events
   safety_review --> core_loop
   safety_review --> core_permissions
   safety_review --> core_request
   safety_review --> core_types
+  safety_shell --> safety_sensitive
   tools__worker --> core_loop
   tools__worker --> execution_env_sandbox
   tools__worker --> tools_workspace
