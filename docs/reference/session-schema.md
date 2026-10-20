@@ -129,6 +129,9 @@ hosts can render it differently.
 
 - Directory: `.cade-mini/sessions/` by default.
 - File: `session-<id>.jsonl`.
+- New interactive sessions defer file creation until the first user or assistant
+  message. Setup events stay in memory and are flushed with that message.
+  A cancelled first request still keeps its user message on disk.
 - Append lock: `session-<id>.lock`.
 - Run lock: `session-<id>.run.lock`; concurrent turns are rejected.
 - Append: one line, `flush`, `fsync`.
