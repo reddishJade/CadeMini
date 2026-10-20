@@ -217,7 +217,7 @@ class InteractionService:
             items = [
                 (
                     f"{provider}/{model.id}",
-                    f"{model.id:<24} [{provider}]",
+                    f"{model.id} · {provider}",
                 )
                 for provider in providers
                 for model in models
@@ -228,7 +228,7 @@ class InteractionService:
                 and self.provider_config.provider in providers
                 and current not in {name for name, _ in items}
             ):
-                items.insert(0, (current, f"{self.provider.model:<24} [configured]"))
+                items.insert(0, (current, f"{self.provider.model} · configured"))
             return tuple(items)
         if kind == "effort":
             return tuple(
@@ -269,14 +269,14 @@ class InteractionService:
             return (("default", "Use the selected model limit"),)
         if kind == "mode":
             return tuple(
-                (mode, f"{mode}{' (current)' if mode == self.policy.mode else ''}")
+                (mode, "(current)" if mode == self.policy.mode else " ")
                 for mode in ("act", "build", "plan")
             )
         if kind == "skill":
             return tuple((s.name, s.name) for s in self.skills)
         if kind == "tool":
             return tuple(
-                (tool.name, f"{tool.name:<16} {tool.description[:92]}")
+                (tool.name, tool.description[:92])
                 for tool in self.tools
             )
         if kind == "permissions":
