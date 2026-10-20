@@ -128,7 +128,10 @@ async def test_cancelling_shell_kills_child_before_returning(tmp_path: Path) -> 
 def native_sandbox(tmp_path: Path) -> PlatformSandbox:
     if sys.platform not in {"linux", "darwin"}:
         pytest.skip("Native sandbox tests require Linux or macOS")
-    return _environment(tmp_path)
+    sandbox = _environment(tmp_path)
+    probe = _python(sandbox, "pass")
+    assert probe.returncode == 0, f"Native sandbox is unusable: {probe.output}"
+    return sandbox
 
 
 def _python(sandbox: PlatformSandbox, code: str) -> ExecutionResult:

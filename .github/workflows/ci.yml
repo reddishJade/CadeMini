@@ -24,7 +24,8 @@ permissions:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04 默认限制非特权 UID 映射；固定环境，不在 CI 关闭安全策略。
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -46,8 +47,11 @@ jobs:
             printf 'Internal assets must stay outside the public tree:\n%s\n' "$blocked" >&2
             exit 1
           fi
-      - name: Install Linux sandbox
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+      - name: Install and probe Linux sandbox
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          bwrap --ro-bind / / --dev /dev --unshare-pid --proc /proc \
+            --die-with-parent -- /bin/true
       - name: Install check dependencies
         run: uv sync --locked --extra dev --extra docs
       - name: Docs check

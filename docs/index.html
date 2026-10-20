@@ -3057,8 +3057,11 @@ and CI, with <code>--read-only</code> or explicit rules rather than a blanket <c
 <p>Cade Mini is maintained independently of Cade. Work from this repository root.</p>
 <h2>Setup</h2>
 <p>You need Python 3.12+ and uv. Linux tool execution also requires usable
-bubblewrap (<code>sudo apt-get install bubblewrap</code> on Debian/Ubuntu). macOS uses
-system <code>sandbox-exec</code>. Native sandbox tests run on Linux and macOS; Windows
+bubblewrap (<code>sudo apt-get install bubblewrap</code> on Debian/Ubuntu) and a host that
+permits unprivileged user namespaces. Denied UID mappings are sandbox startup
+errors, not approval failures. CI uses Ubuntu 22.04 without disabling host
+security policies. macOS uses system <code>sandbox-exec</code>.
+Native sandbox tests run on Linux and macOS; Windows
 skips those tests and executes tools directly.</p>
 <pre><code class="language-bash">uv sync --locked --extra dev --extra docs
 mkdir -p e2e-results
