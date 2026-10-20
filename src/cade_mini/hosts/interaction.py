@@ -269,14 +269,14 @@ class InteractionService:
             return (("default", "Use the selected model limit"),)
         if kind == "mode":
             return tuple(
-                (mode, "(current)" if mode == self.policy.mode else " ")
+                (mode, f"{mode}{' (current)' if mode == self.policy.mode else ''}")
                 for mode in ("act", "build", "plan")
             )
         if kind == "skill":
             return tuple((s.name, s.name) for s in self.skills)
         if kind == "tool":
             return tuple(
-                (tool.name, tool.description[:92])
+                (tool.name, f"{tool.name:<16} {tool.description[:92]}")
                 for tool in self.tools
             )
         if kind == "permissions":
