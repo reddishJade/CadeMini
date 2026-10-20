@@ -10,7 +10,7 @@ workspace would add cost and change the existing coverage boundary.
 
 ## Decision
 
-Keep per-file coverage. Snapshot format v2 stores an immutable before manifest,
+Keep per-file coverage. Each snapshot stores an immutable before manifest,
 a content-addressed original blob, and an immutable completion record with the
 actual post-change content hash, size, and mode. Absence is an explicit null state.
 `change(path)` holds a project snapshot lock across capture, mutation, and completion.

@@ -23,10 +23,15 @@ flowchart LR
   ai_usage --> ai_cache
   ai_usage --> ai_models
   app_auth --> ai_auth
+  app_provider --> ai_models
   app_provider --> ai_providers_base
   app_provider --> ai_providers_registry
   app_provider --> ai_resolver
   app_provider --> app_auth
+  app_recovery --> core_log
+  app_recovery --> core_types
+  app_recovery --> extensions_recovery
+  app_recovery --> extensions_snapshots
   core_compaction --> ai_events
   core_compaction --> core_log
   core_compaction --> core_loop
@@ -35,6 +40,7 @@ flowchart LR
   core_compaction --> core_types
   core_events --> ai_types
   core_events --> core_types
+  core_history --> core_types
   core_log --> core_events
   core_log --> core_types
   core_loop --> ai_events
@@ -62,6 +68,7 @@ flowchart LR
   extensions_memory --> core_loop
   extensions_memory --> core_types
   extensions_memory --> tools_workspace
+  extensions_recovery --> extensions_snapshots
   extensions_skills --> core_loop
   extensions_skills --> core_types
   extensions_skills --> tools_workspace
@@ -80,11 +87,11 @@ flowchart LR
   hosts_cli --> app_note
   hosts_cli --> app_prompts
   hosts_cli --> app_provider
+  hosts_cli --> app_recovery
   hosts_cli --> core_compaction
   hosts_cli --> core_log
   hosts_cli --> core_loop
   hosts_cli --> core_permissions
-  hosts_cli --> core_projection
   hosts_cli --> core_request
   hosts_cli --> core_types
   hosts_cli --> core_window
@@ -100,9 +107,69 @@ flowchart LR
   hosts_cli --> safety_grants
   hosts_cli --> safety_policy
   hosts_cli --> safety_review
-  hosts_cli --> safety_sensitive
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
+  hosts_context_report --> ai_types
+  hosts_context_report --> core_projection
+  hosts_context_report --> core_request
+  hosts_context_report --> core_types
+  hosts_context_report --> safety_policy
+  hosts_interaction --> ai_events
+  hosts_interaction --> ai_models
+  hosts_interaction --> app_provider
+  hosts_interaction --> app_recovery
+  hosts_interaction --> core_compaction
+  hosts_interaction --> core_history
+  hosts_interaction --> core_log
+  hosts_interaction --> core_loop
+  hosts_interaction --> core_permissions
+  hosts_interaction --> core_projection
+  hosts_interaction --> core_request
+  hosts_interaction --> core_types
+  hosts_interaction --> core_window
+  hosts_interaction --> extensions_goal
+  hosts_interaction --> extensions_hooks
+  hosts_interaction --> extensions_recovery
+  hosts_interaction --> extensions_skills
+  hosts_interaction --> extensions_snapshots
+  hosts_interaction --> extensions_subagents
+  hosts_interaction --> hosts_command_catalog
+  hosts_interaction --> hosts_context_report
+  hosts_interaction --> hosts_interaction_question
+  hosts_interaction --> hosts_interaction_settings
+  hosts_interaction --> safety_policy
+  hosts_interaction --> safety_review
+  hosts_interaction --> tools_history
+  hosts_interaction --> tools_workspace
+  hosts_interaction_question --> core_loop
+  hosts_interaction_question --> core_types
+  hosts_interaction_settings --> ai_auth
+  hosts_interaction_settings --> ai_models
+  hosts_interaction_settings --> ai_providers_registry
+  hosts_interaction_settings --> app_auth
+  hosts_interaction_settings --> app_config
+  hosts_interaction_settings --> app_provider
+  hosts_tui_app --> hosts_interaction
+  hosts_tui_bridge --> ai_models
+  hosts_tui_bridge --> core_log
+  hosts_tui_bridge --> core_loop
+  hosts_tui_bridge --> core_types
+  hosts_tui_bridge --> hosts_interaction
+  hosts_tui_bridge --> safety_sensitive
+  hosts_tui_command_handlers --> hosts_command_catalog
+  hosts_tui_config_registry --> ai_models
+  hosts_tui_config_registry --> app_config
+  hosts_tui_config_registry --> hosts_interaction_settings
+  hosts_tui_context_stats --> core_projection
+  hosts_tui_context_stats --> core_request
+  hosts_tui_interaction_compat --> core_types
+  hosts_tui_interaction_compat --> tools_workspace
+  hosts_tui_login_flow --> ai_auth
+  hosts_tui_settings --> ai_models
+  hosts_tui_setup_wizard --> ai_models
+  hosts_tui_setup_wizard --> ai_providers_registry
+  hosts_tui_setup_wizard --> ai_resolver
+  hosts_tui_setup_wizard --> hosts_interaction_settings
   safety_approval --> core_permissions
   safety_approval --> safety_grants
   safety_approval --> safety_sensitive

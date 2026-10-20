@@ -50,6 +50,18 @@ def test_api_key_login(auth_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert credential.access == "test-key"
 
 
+def test_deepseek_api_key_login(
+    auth_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(auth.getpass, "getpass", lambda prompt: "deepseek-key")
+
+    assert main(["login", "--provider", "deepseek"]) == 0
+    credential = JsonCredentialStore(auth_path).get("deepseek")
+    assert credential is not None
+    assert credential.type == "api_key"
+    assert credential.access == "deepseek-key"
+
+
 def test_oauth_login(auth_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     provider = Mock()
     provider.login.return_value = AuthCredential(

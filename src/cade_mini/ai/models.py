@@ -13,6 +13,7 @@ GPT_6_REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
 GPT_6_ASTRA_REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 GPT_56_REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
 GPT_55_REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh")
+DEEPSEEK_REASONING_EFFORTS = ("none", "low", "high", "max")
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,31 @@ _MODELS: dict[str, dict[str, Model]] = {
             reasoning_efforts=GPT_55_REASONING_EFFORTS,
         ),
     },
+    "deepseek": {
+        # 成本按 DeepSeek 高峰价估算；低谷价为高峰价的一半。
+        "deepseek-flash": Model(
+            id="deepseek-flash",
+            name="DeepSeek V4.1 Flash",
+            api="deepseek-responses",
+            provider="deepseek",
+            reasoning=True,
+            context_window=1_000_000,
+            max_tokens=384_000,
+            cost=Cost(input=0.30, output=1.20, cache_read=0.006),
+            reasoning_efforts=DEEPSEEK_REASONING_EFFORTS,
+        ),
+        "deepseek-v4-pro": Model(
+            id="deepseek-v4-pro",
+            name="DeepSeek V4 Pro",
+            api="deepseek-responses",
+            provider="deepseek",
+            reasoning=True,
+            context_window=1_000_000,
+            max_tokens=384_000,
+            cost=Cost(input=1.32, output=3.96, cache_read=0.044),
+            reasoning_efforts=DEEPSEEK_REASONING_EFFORTS,
+        ),
+    },
 }
 
 
@@ -131,11 +157,15 @@ def get_providers() -> list[str]:
 
 
 def get_models(provider_name: str) -> list[Model]:
-    return list(_MODELS.get(provider_name, {}).values())
+    """列出 provider 的模型；ChatGPT 登录与单模型查找共用 OpenAI 模型表。"""
+    lookup = "openai" if provider_name == "chatgpt" else provider_name
+    return list(_MODELS.get(lookup, {}).values())
 
 
 def get_model(provider_name: str, model_id: str) -> Model | None:
-    return _MODELS.get(provider_name, {}).get(normalize_model_id(model_id))
+    """按 provider 与模型 ID 精确查找；ChatGPT 复用 openai 模型表。"""
+    lookup = "openai" if provider_name == "chatgpt" else provider_name
+    return _MODELS.get(lookup, {}).get(normalize_model_id(model_id))
 
 
 def get_model_reasoning_efforts(model_id: str) -> tuple[str, ...]:
@@ -158,39 +188,29 @@ def get_model_cost(model_name: str) -> Cost | None:
     return None
 
 
+def get_model_context_window(model_name: str) -> int | None:
+    """按模型 ID 查找上下文窗口；未注册模型返回 None。"""
+    resolved_name = normalize_model_id(model_name)
+    for provider_models in _MODELS.values():
+        model = provider_models.get(resolved_name)
+        if model is not None:
+            return model.context_window
+    return None
+
+
 def resolve_model(provider_name: str, model_id: str) -> Model:
-    """解析模型定义，支持三层回退策略。"""
+    """解析已注册模型；未注册模型必须显式提供上下文窗口。"""
     model = get_model(provider_name, model_id)
-    if model is not None:
-        return model
-    provider = _MODELS.get(provider_name)
-    if provider:
-        return next(iter(provider.values()))
-    return Model(
-        id=model_id, name=model_id, api="openai-responses", provider=provider_name
-    )
+    if model is None:
+        raise ValueError(
+            f"Model '{normalize_model_id(model_id)}' is not registered for "
+            f"provider '{provider_name}'; add it to ai/models.py with "
+            "context_window and max_tokens, or pass --context-window"
+        )
+    return model
 
 
 # ── 模型选择语法解析 ──
-
-
-def get_model_context_window(model: str | None) -> int | None:
-    if not model:
-        return None
-    model_lower = normalize_model_id(model).lower()
-    candidates = (
-        (model_id, profile)
-        for provider_models in _MODELS.values()
-        for model_id, profile in provider_models.items()
-    )
-    for model_id, profile in sorted(
-        candidates,
-        key=lambda item: len(item[0]),
-        reverse=True,
-    ):
-        if model_id in model_lower:
-            return profile.context_window
-    return None
 
 
 def parse_model_mode(value: str) -> ModelMode:

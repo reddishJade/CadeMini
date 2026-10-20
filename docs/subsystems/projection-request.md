@@ -33,7 +33,7 @@ compaction and window decisions, then rejects any remaining overflow.
 
 The system message carries base instructions plus, in order: instructions,
 skill catalog, NOTE, memory, and goal. These inputs are request-only; the
-v2 request audit records their full text, the admitted messages, tool definitions,
+The request audit records their full text, the admitted messages, tool definitions,
 non-authentication options, and budget. Session files can contain sensitive input.
 
 ## Tests

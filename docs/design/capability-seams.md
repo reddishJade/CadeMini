@@ -5,7 +5,7 @@ implementation can be replaced without changing the session schema or the loop.
 
 | Seam | Contract | Implementations | Main consumers |
 | --- | --- | --- | --- |
-| Provider | `loop.Provider` streaming events | OpenAI Responses, ChatGPT plan (SIWC) | Loop, compaction, auto-review |
+| Provider | `loop.Provider` streaming events | OpenAI Responses, ChatGPT plan (SIWC), DeepSeek Responses | Loop, compaction, auto-review |
 | Tool | `loop.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
 | Policy | `permissions.Policy.check` returns decision, reason, and scope | `WorkspacePolicy` | Loop, CLI shell |
 | Approval | `ApprovalRequest` to `ApprovalResult`, optionally async | `SessionApprover`, `AutoReviewer` | Authorization |

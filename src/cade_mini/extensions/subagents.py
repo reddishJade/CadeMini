@@ -14,6 +14,7 @@ from cade_mini.core.loop import (
     Provider,
     Tool,
     ToolResult,
+    TurnLifecycle,
     run,
 )
 from cade_mini.core.permissions import Approver
@@ -41,6 +42,7 @@ class SubagentRunner:
         context: Callable[[], Sequence[str]] | None = None,
         max_steps: int = 20,
         hooks: Hooks | None = None,
+        lifecycle: TurnLifecycle | None = None,
     ) -> None:
         self.workspace = workspace.resolve()
         self.provider = provider
@@ -55,6 +57,7 @@ class SubagentRunner:
         self.context = context or (lambda: ())
         self.max_steps = max_steps
         self.hooks = hooks
+        self.lifecycle = lifecycle
 
     async def run_task(
         self,
@@ -89,6 +92,7 @@ class SubagentRunner:
             max_steps=self.max_steps,
             cancel=signal,
             hooks=self.hooks,
+            lifecycle=self.lifecycle,
         )
         summary = result.answer.strip() or "(no answer)"
         header = f"{child.session_id} {result.termination} in {result.steps} steps"

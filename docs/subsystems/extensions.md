@@ -39,7 +39,7 @@ cannot replace human restrictions.
 ## Snapshots
 
 `SnapshotStore` captures `write`, `edit`, and common single-command shell
-mutations. `--undo` and `/undo` restore the latest snapshot. Snapshots are project
+mutations. The one-shot `--undo` option restores the latest snapshot. Snapshots are project
 state, not session facts.
 
 ## Goals
@@ -49,8 +49,8 @@ state, not session facts.
 
 ## Hosts
 
-The CLI runs one-shot and REPL sessions. It uses the same loop and policy as
-every other entry path.
+The terminal host runs one-shot tasks and the TUI. It uses the same loop and
+policy as every other entry path.
 
 ## Limits
 

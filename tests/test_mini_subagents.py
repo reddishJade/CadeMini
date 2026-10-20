@@ -35,6 +35,7 @@ from cade_mini.tools.workspace import build_tools
 class FakeProvider:
     model = "fake"
     transport = "fake"
+    context_window = 100_000
 
     def __init__(self, batches: list[list[ProviderEvent]]) -> None:
         self.batches = list(batches)

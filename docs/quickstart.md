@@ -32,10 +32,19 @@ export OPENAI_API_KEY=...
 uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project."
 ```
 
+DeepSeek uses the same Responses protocol with its own API key:
+
+```bash
+uv run --locked cade-mini login --provider deepseek
+export DEEPSEEK_API_KEY=...
+uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review this project."
+```
+
 The default provider is `chatgpt`. Set `provider` and `model` in
 `cade-mini.json` to choose other startup defaults. Cade Mini supports only the
-OpenAI Responses protocol: `chatgpt` for ChatGPT plan usage and `openai`
-for an API key. Mini does not read Cade's credentials, skills, or settings.
+Responses protocol: `chatgpt` for ChatGPT plan usage, `openai` for an OpenAI
+API key, and `deepseek` for a DeepSeek API key. Mini does not read Cade's
+credentials, skills, or settings.
 
 ## Run one task
 
@@ -79,8 +88,8 @@ uv run --locked cade-mini --continue "What did you change?"
 uv run --locked cade-mini --resume SESSION_ID "Continue the task."
 ```
 
-Omitting the task starts the interactive REPL. See [CLI](cli.md) for all REPL
-commands.
+Omitting the task starts the full-screen TUI. See [CLI](cli.md) for interactive
+commands and [Hosts](hosts.md) for key bindings.
 
 ## Build the docs
 

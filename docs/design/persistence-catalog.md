@@ -6,8 +6,9 @@ narrower jobs.
 
 | Artifact | Default location | Owner | Lifetime | Schema |
 | --- | --- | --- | --- | --- |
-| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Write v2; read v1/v2 |
+| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Current closed structure |
 | Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
+| Recovery | `.cade-mini/recovery/` | Recovery coordinator | Workspace | Closed records; action journal and pending plan |
 | Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
 | Working note | `NOTE.md` | Project | Project | Markdown |
 | Memory | `MEMORY.md` | `MemoryTool` | Project | Markdown |
@@ -21,14 +22,15 @@ narrower jobs.
 
 ## The session log
 
-The log is append-only and versioned. It stores model-visible facts and audit
+The log is append-only. It stores model-visible facts and audit
 facts in one tree. It is the only artifact needed to reconstruct the
-conversation. Compaction and windows are log entries, not rewrites.
+conversation and active history position. Compaction, windows, and branch
+navigation are log entries, not rewrites.
 
 ## Snapshots
 
 Snapshots are an undo journal for file changes. They cover `write`, `edit`, and
-common single-command shell mutations. Format v2 uses an atomically replaced
+common single-command shell mutations. It uses an atomically replaced
 JSONL index, immutable before/after records, and content-addressed original blobs.
 See [Snapshots and goals](../snapshots-goals.md) for conflict and legacy behavior.
 Snapshots are not part of the session branch.

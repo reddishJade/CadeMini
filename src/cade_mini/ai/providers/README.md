@@ -2,21 +2,21 @@
 
 Providers translate Responses request parameters, endpoints, and SSE streams
 into the common provider protocol and `ProviderEvent` stream. Cade Mini supports
-only the OpenAI Responses protocol.
+only the Responses protocol.
 
 ## Assembly
 
 ```text
 ModelProfileConfig
   → build_model_provider()
-  → OpenAIResponsesProvider / ChatGPTResponsesProvider
+  → OpenAIResponsesProvider / ChatGPTResponsesProvider / DeepSeekResponsesProvider
   → Responses requests
 ```
 
 ### Components
 
 - [base.py](base.py): model interaction protocols.
-- [responses.py](responses.py): OpenAI Responses API for API keys and SIWC plan usage.
+- [responses.py](responses.py): Responses API for OpenAI API keys, SIWC plan usage, and DeepSeek API keys.
 - [_codec.py](_codec.py): strict schema conversion and tool argument decoding.
 - [registry.py](registry.py): `PROVIDER_REGISTRY` constructor mapping and `build_model_provider`.
 

@@ -64,6 +64,17 @@ def test_sensitive_reason_never_adds_a_grant() -> None:
     assert store.match(command) is False
 
 
+def test_sensitive_request_does_not_reuse_existing_grant() -> None:
+    store = GrantStore()
+    command = _call("bash", command="cat .env")
+    store.add(command)
+    approver = SessionApprover(grants=store, is_tty=lambda: True, ask=lambda _: "n")
+    result = approver(
+        ApprovalRequest(command, "The command may access sensitive data.")
+    )
+    assert result.allowed is False
+
+
 def test_command_grant_does_not_expand_workdir_or_write_scope() -> None:
     store = GrantStore()
     store.add(_call("bash", command="python task.py", workdir="src"))

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 from pathlib import Path
 
@@ -124,7 +123,7 @@ def test_undo_rejects_corrupt_payload_before_changing_file(tmp_path: Path) -> No
     assert len(store.list()) == 1
 
 
-def test_undo_requires_completion_and_rejects_legacy_snapshot(tmp_path: Path) -> None:
+def test_undo_requires_completion(tmp_path: Path) -> None:
     target = tmp_path / "a.txt"
     store = SnapshotStore(tmp_path)
     snapshot_id = store.capture(target)
@@ -136,10 +135,6 @@ def test_undo_requires_completion_and_rejects_legacy_snapshot(tmp_path: Path) ->
         store.complete(snapshot_id)
     store.undo_last()
     assert not target.exists()
-
-    store.index.write_text(json.dumps({"id": "old"}) + "\n", encoding="utf-8")
-    with pytest.raises(SnapshotConflict, match="Legacy"):
-        store.undo_last()
 
 
 def test_repeated_undo_preserves_modes_and_survives_reopen(tmp_path: Path) -> None:
@@ -165,6 +160,24 @@ def test_snapshot_rejects_paths_outside_workspace(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         store.capture(tmp_path / ".." / "outside.txt")
+
+
+def test_snapshot_retains_both_content_images_and_nested_shell_targets(
+    tmp_path: Path,
+) -> None:
+    store = SnapshotStore(tmp_path)
+    source = tmp_path / "old name.txt"
+    destination = tmp_path / "new name.txt"
+    source.write_text("original", encoding="utf-8")
+    with store.workspace_lock(), store.change(source), store.change(destination):
+        source.rename(destination)
+    records = [store.captured_change(snapshot.id) for snapshot in store.list()]
+    deleted = next(record for record in records if record[0] == "old name.txt")
+    created = next(record for record in records if record[0] == "new name.txt")
+    assert deleted[1] is not None and deleted[2] is None
+    assert created[1] is None and created[2] is not None
+    assert store.verify_payload(created[2]) == b"original"
+    assert deleted[1] == created[2]
 
 
 def test_bash_rm_snapshots_before_change(tmp_path: Path) -> None:

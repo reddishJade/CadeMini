@@ -30,7 +30,7 @@ Resume:
 - Mini ran with `--mode build --yes`; Cade ran with `--mode build --approval
   auto-review`.
 - Both used DeepSeek `deepseek-chat` at the time of the run. Cade Mini now
-  supports only the OpenAI Responses protocol.
+  supports only the Responses protocol.
 - Mini used five steps per workflow; Cade used four. Mini issued an extra `glob`
   inspection, which did not change the result.
 - Cade emits JSONL telemetry and budget/approval events; Mini emits human tool
@@ -50,4 +50,4 @@ Resume:
 The parity report records the concrete fixtures and observed results. Re-run a
 workflow by creating a clean fixture, running both agents with the same provider
 and settings, and comparing the diff and test result rather than the prose
-answer. Cade Mini supports only the OpenAI Responses protocol.
+answer. Cade Mini supports only the Responses protocol.

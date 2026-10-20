@@ -16,7 +16,7 @@ loop tries compaction first, then a window fallback expressed as a log event.
 If the resulting request still exceeds the budget, return `context_error` without
 sending it. Never substitute a partial request to make it fit.
 
-Existing v2 audit dropped-call and turn counters remain empty/zero; historical
+Audit dropped-call and turn counters remain empty/zero; historical
 audits retain their original values. The log format and projection semantics do
 not change. Tool output capture limits and compaction summary-input limits are
 separate, existing behaviors; this decision removes request admission pruning.

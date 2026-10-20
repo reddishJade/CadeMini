@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import queue
 import sys
 import threading
 import time
@@ -26,32 +25,21 @@ from cade_mini.ai.events import (
 )
 from cade_mini.ai.types import StreamOptions, ToolDefinition
 from cade_mini.core.log import SessionLog
-from cade_mini.core.loop import CancellationToken, RunResult, ToolResult
-from cade_mini.core.permissions import ApprovalRequest, ApprovalResult
+from cade_mini.core.loop import RunResult, ToolResult
 from cade_mini.core.request import Budget
-from cade_mini.core.types import ToolCallBlock
 from cade_mini.extensions.goal import GoalStore
-from cade_mini.extensions.skills import Skill
 from cade_mini.extensions.snapshots import SnapshotStore
 from cade_mini.hosts.cli import (
-    _ApprovalRequest,
-    _expand_input,
-    _HostApprover,
-    _Line,
-    _run_shell_input,
     _run_task,
-    _run_task_live,
-    _TaskDone,
     main,
 )
-from cade_mini.safety.grants import GrantStore
 from cade_mini.safety.policy import WorkspacePolicy
-from cade_mini.tools.workspace import BashTool
 
 
 class FakeProvider:
     model = "fake"
     transport = "fake"
+    context_window = 100_000
 
     def __init__(self, batches: list[list[ProviderEvent]]) -> None:
         self.batches = list(batches)
@@ -142,7 +130,8 @@ def test_cli_exec_prints_answer_and_creates_session(
     assert types[0] == "meta"
     assert "system" in types
     assert types.count("user") == 1
-    assert types[-1] == "run"
+    assert types[-1] == "checkpoint"
+    assert types.count("run") == 1
 
 
 def test_cli_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -206,12 +195,84 @@ def test_cli_resume_appends_to_same_session(tmp_path: Path) -> None:
     assert [str(entry.data["text"]) for entry in users] == ["first", "second"]
 
 
-def test_cli_repl_exits(
+def test_cli_interactive_can_start_disconnected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cade_mini.hosts.interaction import InteractionService, UnavailableProvider
+
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+
+    def unavailable(config: object) -> None:
+        raise RuntimeError("Missing API key")
+
+    def show(service: InteractionService, root: Path, **kwargs: Any) -> int:
+        assert isinstance(service.provider, UnavailableProvider)
+        assert not service.log.path.exists()
+        return 0
+
+    monkeypatch.setattr("cade_mini.hosts.cli.build_provider", unavailable)
+    monkeypatch.setattr("cade_mini.hosts.tui.app.run_tui", show)
+    assert (
+        main(
+            [
+                "--project-root",
+                str(tmp_path),
+                "--provider",
+                "openai",
+                "--model",
+                "gpt-5.5",
+            ]
+        )
+        == 0
+    )
+
+
+@pytest.mark.parametrize("sensitive", [False, True])
+def test_tui_sensitive_approval_only_allows_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sensitive: bool
+) -> None:
+    from cade_mini.core.types import ToolCallBlock
+    from cade_mini.hosts.interaction import InteractionService
+    from cade_mini.hosts.tui.bridge import MiniAgent
+    from cade_mini.hosts.tui.compat import ApprovalRequest, HITLResult
+
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+
+    def show(service: InteractionService, root: Path, **kwargs: Any) -> int:
+        agent = MiniAgent(service)
+        call = ToolCallBlock(
+            id="approval",
+            name="bash",
+            args={"command": "cat .env" if sensitive else "rm ordinary.txt"},
+        )
+        requests: list[ApprovalRequest] = []
+
+        def approve(request: ApprovalRequest) -> HITLResult:
+            requests.append(request)
+            return HITLResult("allow", "session")
+
+        agent.user_approval_callback = approve
+        assert asyncio.run(agent.approve(call))
+        assert requests[0].allowed_scopes == (
+            ("once",) if sensitive else ("once", "session")
+        )
+        assert service.policy.grants.match(call) is not sensitive
+        if sensitive:
+            assert "sensitive" in requests[0].reason.lower()
+            assert asyncio.run(agent.approve(call))
+            assert len(requests) == 2
+        return 0
+
+    monkeypatch.setattr("cade_mini.hosts.tui.app.run_tui", show)
+    assert main(["--project-root", str(tmp_path)], provider=FakeProvider([])) == 0
+
+
+def test_cli_interactive_requires_terminal(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr("builtins.input", lambda _prompt="": "/exit")
     code = main(
         [
             "--project-root",
@@ -222,8 +283,8 @@ def test_cli_repl_exits(
         provider=FakeProvider([]),
     )
 
-    assert code == 0
-    assert "Cade Mini session" in capsys.readouterr().out
+    assert code == 2
+    assert "requires a terminal" in capsys.readouterr().err
 
 
 def test_cli_read_only_denies_write(tmp_path: Path) -> None:
@@ -268,7 +329,7 @@ def test_cli_read_only_denies_write(tmp_path: Path) -> None:
     assert tool_results[0].data["status"] == "error"
 
 
-def test_cli_rejects_json_in_repl(
+def test_cli_rejects_json_without_task(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -466,7 +527,9 @@ def test_cli_config_sets_sessions_dir_and_max_steps(tmp_path: Path) -> None:
     assert code == 1
     files = list((workspace / "data" / "sessions").glob("session-*.jsonl"))
     assert len(files) == 1
-    run_entry = SessionLog.open(files[0]).branch()[-1]
+    run_entry = next(
+        e for e in reversed(SessionLog.open(files[0]).branch()) if e.type == "run"
+    )
     assert run_entry.data["termination"] == "step_limit"
 
 
@@ -1031,147 +1094,10 @@ def test_cli_auto_review_allows_write(tmp_path: Path) -> None:
     assert (workspace / "a.txt").read_text(encoding="utf-8") == "x"
 
 
-def test_expand_file_and_skill_references(tmp_path: Path) -> None:
-    target = tmp_path / "notes.txt"
-    target.write_text("file body", encoding="utf-8")
-    skill = Skill(
-        name="greeter",
-        description="Say hello",
-        body="Say HELLO.",
-        path=tmp_path / "SKILL.md",
-    )
-
-    expanded = _expand_input(
-        "Review @notes.txt and use $greeter",
-        tmp_path,
-        [skill],
-    )
-
-    assert expanded is not None
-    assert "file body" in expanded
-    assert "Say HELLO." in expanded
-    assert "Review" in expanded
-
-
-def test_shell_input_runs_with_policy(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    tool = BashTool(tmp_path)
-    policy = WorkspacePolicy(tmp_path, mode="build")
-
-    _run_shell_input(
-        "echo hello-shell",
-        [tool],
-        policy,
-        lambda request: ApprovalResult(True, "Approved for test"),
-    )
-
-    assert "hello-shell" in capsys.readouterr().out
-
-
-def test_live_input_handles_steer_and_queue() -> None:
-    events: queue.Queue[object] = queue.Queue()
-    pending: deque[str] = deque()
-    steering: deque[str] = deque()
-    cancel = CancellationToken()
-
-    def worker() -> None:
-        events.put(_TaskDone(RunResult("", 1, "completed")))
-
-    events.put(_Line("/steer focus on the parser"))
-    events.put(_Line("/queue add a test"))
-    result, exit_requested = _run_task_live(
-        events,
-        pending,
-        steering,
-        cancel,
-        threading.Thread(target=worker),
-    )
-
-    assert result.termination == "completed"
-    assert exit_requested is False
-    assert list(steering) == ["focus on the parser"]
-    assert list(pending) == ["add a test"]
-
-
-def test_host_approver_routes_through_events() -> None:
-    events: queue.Queue[object] = queue.Queue()
-    grants = GrantStore()
-    approver = _HostApprover(events, grants)
-
-    def answer() -> None:
-        request = events.get()
-        assert isinstance(request, _ApprovalRequest)
-        request.answer = "y"
-        request.done.set()
-
-    threading.Thread(target=answer, daemon=True).start()
-    assert (
-        approver(
-            ApprovalRequest(
-                ToolCallBlock(id="c1", name="write", args={"path": "a.txt"}),
-                "Change file",
-            )
-        ).allowed
-        is True
-    )
-
-
-def test_live_input_can_stop_the_task() -> None:
-    events: queue.Queue[object] = queue.Queue()
-    cancel = CancellationToken()
-
-    def worker() -> None:
-        cancel.cancel("stopped")
-        events.put(_TaskDone(RunResult("", 1, "aborted")))
-
-    events.put(_Line("/stop"))
-    result, exit_requested = _run_task_live(
-        events,
-        deque(),
-        deque(),
-        cancel,
-        threading.Thread(target=worker),
-    )
-
-    assert result.termination == "aborted"
-    assert exit_requested is False
-
-
-def test_live_input_is_read_while_worker_is_running() -> None:
-    events: queue.Queue[object] = queue.Queue()
-    steering: deque[str] = deque()
-    started = threading.Event()
-
-    def worker() -> None:
-        started.set()
-        deadline = time.monotonic() + 2
-        while not steering and time.monotonic() < deadline:
-            time.sleep(0.01)
-        events.put(_TaskDone(RunResult("", 1, "completed")))
-
-    def feed() -> None:
-        started.wait(timeout=1)
-        events.put(_Line("/steer focus from the host"))
-
-    threading.Thread(target=feed, daemon=True).start()
-    result, _ = _run_task_live(
-        events,
-        deque(),
-        steering,
-        CancellationToken(),
-        threading.Thread(target=worker),
-    )
-
-    assert result.termination == "completed"
-    assert list(steering) == ["focus from the host"]
-
-
 def test_mid_run_steer_reaches_the_next_provider_request(tmp_path: Path) -> None:
-    events: queue.Queue[object] = queue.Queue()
     steering: deque[str] = deque()
     started = threading.Event()
+    results: list[RunResult] = []
 
     class SlowTool:
         name = "read"
@@ -1197,84 +1123,33 @@ def test_mid_run_steer_reaches_the_next_provider_request(tmp_path: Path) -> None
     log = SessionLog.create(tmp_path / "sessions")
 
     def worker() -> None:
-        result = _run_task(
-            log,
-            "inspect the code",
-            provider,
-            (SlowTool(),),
-            WorkspacePolicy(tmp_path),
-            lambda call: True,
-            Budget(100_000),
-            (),
-            4,
-            lambda event: None,
-            None,  # type: ignore[arg-type]
-            None,
-            None,
-            lambda: steering.popleft() if steering else None,
-            CancellationToken(),
+        results.append(
+            _run_task(
+                log,
+                "inspect the code",
+                provider,
+                (SlowTool(),),
+                WorkspacePolicy(tmp_path),
+                lambda call: True,
+                Budget(100_000),
+                (),
+                4,
+                lambda event: None,
+                None,  # type: ignore[arg-type]
+                None,
+                None,
+                lambda: steering.popleft() if steering else None,
+            )
         )
-        events.put(_TaskDone(result))
 
-    def feed() -> None:
-        started.wait(timeout=1)
-        events.put(_Line("/steer focus on the parser"))
+    thread = threading.Thread(target=worker)
+    thread.start()
+    assert started.wait(timeout=1)
+    steering.append("focus on the parser")
+    thread.join(timeout=5)
 
-    threading.Thread(target=feed, daemon=True).start()
-    result, _ = _run_task_live(
-        events,
-        deque(),
-        steering,
-        CancellationToken(),
-        threading.Thread(target=worker),
-    )
-
-    assert result.termination == "completed"
+    assert not thread.is_alive()
+    assert results[0].termination == "completed"
     users = [entry.data.get("text") for entry in log.branch() if entry.type == "user"]
     assert users == ["inspect the code", "focus on the parser"]
     assert "focus on the parser" in json.dumps(provider.requests[1][0])
-
-
-def test_repl_reads_steer_while_a_bash_tool_is_running(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    command = f'"{sys.executable}" -c "import time; time.sleep(0.2)"'
-    provider = FakeProvider(
-        [
-            [
-                ToolCallEvent(
-                    [ToolCall(id="b1", name="bash", input={"command": command})]
-                )
-            ],
-            _text("finished"),
-        ]
-    )
-    lines = iter(["inspect", "/steer focus on the parser", "/exit"])
-
-    def fake_input(_prompt: str = "") -> str:
-        value = next(lines, "/exit")
-        if value == "/exit":
-            time.sleep(0.5)
-        return value
-
-    monkeypatch.setattr("builtins.input", fake_input)
-    code = main(
-        [
-            "--project-root",
-            str(tmp_path),
-            "--sessions-dir",
-            str(tmp_path / "sessions"),
-            "--yes",
-            "--max-steps",
-            "4",
-        ],
-        provider=provider,
-    )
-
-    assert code == 0
-    paths = _session_files(tmp_path / "sessions")
-    assert len(paths) == 1
-    log = SessionLog.open(paths[0])
-    users = [entry.data.get("text") for entry in log.branch() if entry.type == "user"]
-    assert users == ["inspect", "focus on the parser"]

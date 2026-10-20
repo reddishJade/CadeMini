@@ -31,16 +31,16 @@ class SessionApprover:
 
     def __call__(self, request: ApprovalRequest) -> ApprovalResult:
         call = request.call
+        sensitive = is_sensitive_reason(request.reason)
         if self.auto_approve:
             return ApprovalResult(True, "Approved by --yes.")
-        if self.grants.match(call):
+        if not sensitive and self.grants.match(call):
             return ApprovalResult(True, "Approved by a session grant.")
         if not self._is_tty():
             return ApprovalResult(False, "Approval requires an interactive terminal.")
         detail = json.dumps(call.args, ensure_ascii=False, sort_keys=True)
         if len(detail) > _PROMPT_LIMIT:
             detail = detail[:_PROMPT_LIMIT] + "..."
-        sensitive = is_sensitive_reason(request.reason)
         choices = "[y]es/[n]o" if sensitive else "[y]es/[n]o/[a]lways"
         print(
             f"\n{request.reason}\nApprove {call.name} {detail}? {choices}: ",

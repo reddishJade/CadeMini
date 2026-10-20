@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Sequence
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from functools import wraps
+from threading import Lock
 from typing import Any, Concatenate, Literal, Protocol, cast
 
 from cade_mini.ai.events import (
@@ -13,6 +15,7 @@ from cade_mini.ai.events import (
     ProviderEvent,
     ProviderFailure,
     ProviderReplayPayload,
+    ReasoningDelta,
     TextDelta,
     ToolCallEvent,
     UsageUpdate,
@@ -28,7 +31,7 @@ from cade_mini.core.permissions import (
 )
 from cade_mini.core.projection import project
 from cade_mini.core.request import Budget, Request, build, estimate
-from cade_mini.core.types import JsonValue, ToolCallBlock, ToolResultMessage
+from cade_mini.core.types import JsonValue, LogEntry, ToolCallBlock, ToolResultMessage
 from cade_mini.execution_env.sandbox import execution_scope
 
 type Termination = Literal[
@@ -101,20 +104,56 @@ class Hooks(Protocol):
     ) -> None: ...
 
 
+class TurnLifecycle(Protocol):
+    """宿主提供轮次检查点；核心不依赖工作区存储。"""
+
+    def record(self, log: SessionLog) -> AbstractContextManager[None]: ...
+
+    def started(self, log: SessionLog, user: LogEntry) -> None: ...
+
+    def request_context(self, log: SessionLog) -> Sequence[str]: ...
+
+
 class CancellationToken:
-    """协作式取消；循环在步骤和工具边界检查。"""
+    """跨线程通知取消；同时唤醒等待中的 provider 请求。"""
 
     def __init__(self) -> None:
         self._cancelled = False
         self.reason = "cancelled"
+        self._lock = Lock()
+        self._waiters: set[asyncio.Future[None]] = set()
 
     def cancel(self, reason: str = "cancelled") -> None:
-        self._cancelled = True
-        self.reason = reason
+        with self._lock:
+            if self._cancelled:
+                return
+            self.reason = reason
+            self._cancelled = True
+            for waiter in self._waiters:
+                waiter.get_loop().call_soon_threadsafe(self._wake, waiter)
+
+    @staticmethod
+    def _wake(waiter: asyncio.Future[None]) -> None:
+        if not waiter.done():
+            waiter.set_result(None)
+
+    async def wait(self) -> None:
+        """等待取消通知，结束时移除订阅，避免遗留后台线程。"""
+        waiter = asyncio.get_running_loop().create_future()
+        with self._lock:
+            if self._cancelled:
+                return
+            self._waiters.add(waiter)
+        try:
+            await waiter
+        finally:
+            with self._lock:
+                self._waiters.discard(waiter)
 
     @property
     def cancelled(self) -> bool:
-        return self._cancelled
+        with self._lock:
+            return self._cancelled
 
 
 @dataclass(frozen=True)
@@ -136,7 +175,24 @@ class ToolEndEvent:
     is_error: bool
 
 
-type LoopEvent = TextDeltaEvent | ToolStartEvent | ToolEndEvent
+@dataclass(frozen=True)
+class ReasoningDeltaEvent:
+    """推理摘要增量；只用于宿主展示，不进入 API 投影。"""
+
+    text: str
+
+
+@dataclass(frozen=True)
+class UsageEvent:
+    """一次 provider 调用的累计用量，供宿主实时更新状态栏。"""
+
+    input_tokens: int
+    output_tokens: int
+
+
+type LoopEvent = (
+    TextDeltaEvent | ToolStartEvent | ToolEndEvent | ReasoningDeltaEvent | UsageEvent
+)
 
 
 @dataclass(frozen=True)
@@ -155,7 +211,11 @@ def _exclusive_session[**P](
 
     @wraps(operation)
     async def locked(log: SessionLog, *args: P.args, **kwargs: P.kwargs) -> RunResult:
-        with log.run_lock():
+        lifecycle = cast(TurnLifecycle | None, kwargs.get("lifecycle"))
+        with (
+            log.run_lock(),
+            lifecycle.record(log) if lifecycle is not None else nullcontext(),
+        ):
             return await operation(log, *args, **kwargs)
 
     return locked
@@ -183,6 +243,7 @@ async def run(
     window: Callable[[SessionLog], bool] | None = None,
     hooks: Hooks | None = None,
     steering: Callable[[], str | None] | None = None,
+    lifecycle: TurnLifecycle | None = None,
 ) -> RunResult:
     """追加用户输入并驱动模型/工具循环，直到完成或终止。
 
@@ -204,7 +265,10 @@ async def run(
     )
 
     _recover_tool_calls(log)
-    log.append("user", {"text": text, "source": "user"})
+    user = log.append("user", {"text": text, "source": "user"})
+    if lifecycle is not None:
+        lifecycle.started(log, user)
+        context = (*context, *lifecycle.request_context(log))
     total_usage = {"input": 0, "output": 0}
     has_usage = False
     last_answer = ""
@@ -285,6 +349,9 @@ async def run(
             has_usage = True
 
         if result.cancelled:
+            if result.text:
+                _append_assistant(log, provider, result)
+                last_answer = result.text
             reason = cancel.reason if cancel is not None else "cancelled"
             return _finish(
                 log,
@@ -478,6 +545,33 @@ async def _call_provider(
     cancel: CancellationToken | None,
     on_event: Callable[[LoopEvent], None] | None,
 ) -> _ProviderResult:
+    if cancel is None:
+        return await _consume_provider(provider, request, cancel, on_event)
+    if cancel.cancelled:
+        return _ProviderResult("", (), None, None, "aborted", cancelled=True)
+    stream = asyncio.create_task(_consume_provider(provider, request, cancel, on_event))
+    interrupted = asyncio.create_task(cancel.wait())
+    try:
+        await asyncio.wait((stream, interrupted), return_when=asyncio.FIRST_COMPLETED)
+        if cancel.cancelled:
+            stream.cancel()
+        return await stream
+    except asyncio.CancelledError:
+        if not cancel.cancelled:
+            raise
+        return _ProviderResult("", (), None, None, "aborted", cancelled=True)
+    finally:
+        stream.cancel()
+        interrupted.cancel()
+        await asyncio.gather(stream, interrupted, return_exceptions=True)
+
+
+async def _consume_provider(
+    provider: Provider,
+    request: Request,
+    cancel: CancellationToken | None,
+    on_event: Callable[[LoopEvent], None] | None,
+) -> _ProviderResult:
     text_parts: list[str] = []
     calls: list[ToolCallBlock] = []
     usage: dict[str, int] | None = None
@@ -503,6 +597,8 @@ async def _call_provider(
             if isinstance(event, TextDelta):
                 text_parts.append(event.chunk)
                 _emit(on_event, TextDeltaEvent(event.chunk))
+            elif isinstance(event, ReasoningDelta):
+                _emit(on_event, ReasoningDeltaEvent(event.chunk))
             elif isinstance(event, ToolCallEvent):
                 for call in event.calls:
                     calls.append(
@@ -517,6 +613,13 @@ async def _call_provider(
                     "input": event.input_tokens,
                     "output": event.output_tokens,
                 }
+                _emit(
+                    on_event,
+                    UsageEvent(
+                        input_tokens=event.input_tokens,
+                        output_tokens=event.output_tokens,
+                    ),
+                )
             elif isinstance(event, FinalMessage):
                 stop_reason = event.stop_reason
                 replay = event.replay_payload
@@ -525,6 +628,12 @@ async def _call_provider(
                     _emit(on_event, TextDeltaEvent(event.content))
             elif isinstance(event, ProviderFailure):
                 failure = event
+    except asyncio.CancelledError:
+        if cancel is None or not cancel.cancelled:
+            raise
+        return _ProviderResult(
+            "".join(text_parts), (), usage, None, "aborted", cancelled=True
+        )
     except Exception as exc:  # noqa: BLE001
         # Provider 适配器可能抛出供应商库异常；统一转成可重试的失败事实。
         failure = ProviderFailure(

@@ -32,6 +32,7 @@ from cade_mini.tools.workspace import build_tools
 class FakeProvider:
     model = "fake"
     transport = "fake"
+    context_window = 100_000
 
     def __init__(self, batches: list[list[ProviderEvent]]) -> None:
         self.batches = list(batches)
@@ -103,6 +104,17 @@ async def test_reviewer_provider_failure_returns_reason(tmp_path: Path) -> None:
     result = await AutoReviewer(provider, workspace=tmp_path)(_request())
     assert not result.allowed
     assert "service unavailable" in result.reason
+
+
+async def test_reviewer_denies_when_context_window_is_unknown(tmp_path: Path) -> None:
+    provider = FakeProvider([_text('{"allowed":true,"reason":"x"}')])
+    provider.context_window = None
+
+    result = await AutoReviewer(provider, workspace=tmp_path)(_request())
+
+    assert not result.allowed
+    assert "context window is unknown" in result.reason
+    assert provider.requests == []
 
 
 async def test_reviewer_timeout_is_a_denial_not_a_human_prompt(tmp_path: Path) -> None:

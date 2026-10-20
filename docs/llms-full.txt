@@ -21,7 +21,7 @@ process restarts without inventing history.
 ## Start here
 
 - [Quickstart](quickstart.md) installs and runs the first task.
-- [CLI](cli.md) lists one-shot, REPL, session, and recovery commands.
+- [CLI](cli.md) lists one-shot, TUI, session, and recovery commands.
 - [Configuration](configuration.md) documents `cade-mini.json`.
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
@@ -32,7 +32,7 @@ process restarts without inventing history.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
 - [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
 - [Hooks, MCP, and subagents](hooks-mcp-subagents.md) covers extensions.
-- [Hosts](hosts.md) covers the terminal CLI and its REPL.
+- [Hosts](hosts.md) covers the terminal TUI and one-shot execution.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.
 
@@ -50,8 +50,8 @@ process restarts without inventing history.
 - [Tool catalog](design/tool-catalog.md) lists the built-in tools.
 - [MCP reference servers](design/mcp-reference.md) lists the supported server
   pattern.
-- [Steering and queueing](design/steering-queue.md) explains the concurrent
-  REPL host.
+- [Steering and queueing](design/steering-queue.md) explains concurrent input
+  in the TUI.
 - [Module graph](design/module-graph.md) is generated from imports.
 - [Persistence catalog](design/persistence-catalog.md) maps every artifact.
 - [Glossary](design/glossary.md) defines the vocabulary.
@@ -141,10 +141,19 @@ export OPENAI_API_KEY=...
 uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project."
 ```
 
+DeepSeek uses the same Responses protocol with its own API key:
+
+```bash
+uv run --locked cade-mini login --provider deepseek
+export DEEPSEEK_API_KEY=...
+uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review this project."
+```
+
 The default provider is `chatgpt`. Set `provider` and `model` in
 `cade-mini.json` to choose other startup defaults. Cade Mini supports only the
-OpenAI Responses protocol: `chatgpt` for ChatGPT plan usage and `openai`
-for an API key. Mini does not read Cade's credentials, skills, or settings.
+Responses protocol: `chatgpt` for ChatGPT plan usage, `openai` for an OpenAI
+API key, and `deepseek` for a DeepSeek API key. Mini does not read Cade's
+credentials, skills, or settings.
 
 ## Run one task
 
@@ -188,8 +197,8 @@ uv run --locked cade-mini --continue "What did you change?"
 uv run --locked cade-mini --resume SESSION_ID "Continue the task."
 ```
 
-Omitting the task starts the interactive REPL. See [CLI](cli.md) for all REPL
-commands.
+Omitting the task starts the full-screen TUI. See [CLI](cli.md) for interactive
+commands and [Hosts](hosts.md) for key bindings.
 
 ## Build the docs
 
@@ -207,7 +216,8 @@ Open `docs/index.html`. The docs source is under `docs/`.
 
 # CLI
 
-The `cade-mini` entry point runs one task, starts a REPL, or manages sessions.
+The `cade-mini` entry point runs one task, starts an interactive terminal host,
+or manages sessions.
 
 ```bash
 cade-mini [TASK] [options]
@@ -215,20 +225,24 @@ cade-mini exec TASK [options]
 ```
 
 `exec` is an explicit alias for a one-shot task. Without a task, `cade-mini`
-starts the interactive REPL.
+starts the TUI in an interactive terminal.
 
 ## Login
 
 ```bash
 cade-mini login
 cade-mini login --provider openai
+cade-mini login --provider deepseek
 ```
 
 `--provider` defaults to `chatgpt`, which uses Sign in with ChatGPT (SIWC)
-in a browser. `openai` uses `api_key` with a hidden input prompt. Credentials
-are stored in `~/.cade-mini/auth.json`; the stable SIWC host ID is stored in
-`~/.cade-mini/host.json`. Login does not change project provider or model
-settings. Cade Mini supports only the OpenAI Responses protocol.
+in a browser. `openai` and `deepseek` use `api_key` with a hidden input prompt.
+Credentials are stored in `~/.cade-mini/auth.json`; the stable SIWC host ID is
+stored in `~/.cade-mini/host.json`. Login does not change project provider or
+model settings. Cade Mini supports only the Responses protocol. ChatGPT login
+and OpenAI API keys expose the registered OpenAI chat model pool through separate
+authentication routes. A refreshable OAuth token still makes models selectable;
+the provider refreshes it when needed.
 
 ## One-shot options
 
@@ -247,10 +261,11 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 - `--yes` approves asks. Use it only in trusted, non-interactive contexts.
 - `--auto-review` / `--no-auto-review` lets the model review ask-level calls.
 - `--max-steps N` bounds model steps.
-- `--context-window N` overrides the model context window.
+- `--context-window N` overrides the model context window. It is required for
+  models that are not in the built-in registry.
 - `--json` emits JSONL events for a one-shot task.
-- `--steer TEXT` injects guidance at the next model step; repeatable.
-- `--queue TEXT` queues a REPL task to run after the current task; repeatable.
+- `--steer TEXT` injects guidance at the next model step of a one-shot task;
+  repeatable.
 
 ## Sessions
 
@@ -262,35 +277,70 @@ settings. Cade Mini supports only the OpenAI Responses protocol.
 - `--undo` restores the latest file snapshot and exits without contacting a
   provider.
 
-`--continue` and `--resume` cannot be combined.
+`--continue` and `--resume` cannot be combined. Session listings and automatic
+continuation skip conversations without a nonempty user message. New interactive
+sessions keep setup records in memory until the first user or assistant message;
+opening the TUI or running `/new` alone creates no session file. Existing files
+are not automatically deleted.
 
 ## Goals
 
 - `--goal TEXT` sets the workspace goal before running.
 
-## REPL commands
+## Interactive commands
 
-- `/new` starts a new session.
-- `/resume [ID]` resumes the latest or a specific session.
-- `/sessions` lists project sessions.
-- `/fork [N|ENTRY]` forks before a recent user turn or entry. `N=1` is the latest.
-- `/clone` copies the current branch to a new session.
-- `/tree` shows entries; `*` marks the active branch.
-- `/rewind [N]` creates a session without the latest N user turns.
-- `/compact` summarizes older turns.
-- `/new-context [NOTE]` starts a new window, optionally with a handoff note.
+The TUI accepts these slash commands and provides native selectors for models,
+modes, configuration, and permissions.
+
+- `/new` starts a new session. `/clear` is an alias and keeps saved conversations.
+- `/continue` opens the same saved-conversation picker as `/sessions`.
+- `/resume` opens the saved-conversation picker; `/resume ID` resumes that session.
+- `/sessions` opens the same picker as `/resume`.
+- `/tree [ENTRY]` navigates the full history tree within the same session.
+  Selecting a user input restores it for editing; other entries continue after
+  the selected point. The position survives restart and old branches remain.
+- `/fork [N|ENTRY]` copies history before a user turn into a new session and puts
+  that input in the editor. It can select inactive branches; `N=1` selects the
+  latest recorded input. Files stay unchanged.
+- `/clone` copies only the active path to a new session and clears the editor.
+- `/undo` reverses one user turn or explicit recovery action. `/redo` reapplies
+  one undone action without contacting the model or rerunning tools.
+- `/rewind` selects an active-path user prompt and offers conversation, code, or
+  both. `/rewind ENTRY conversation|code|both` selects the scope directly, then
+  opens the confirmation preview.
+- `/revert` selects a turn range and all or one tracked file without trimming
+  conversation. `/revert START [END] -- PATH ...` selects multiple files; quote
+  paths containing spaces and use forward slashes. END is inclusive; omitting it
+  includes the latest action. Conflicting later edits block restoration.
+- `/compact [INSTRUCTIONS]` summarizes older turns and applies optional guidance.
+- `/model [PROVIDER/MODEL]` switches an exact authenticated model or searches the
+  model picker for a partial name.
+- `/thinking [LEVEL]` selects reasoning effort. Use `Ctrl+T` to fold reasoning
+  output without changing effort.
+- `/new-context [--force]` starts a new context window using `NOTE.md` as the
+  handoff. Write that file first, or use `--force` to reset without it.
 - `/mode [MODE]` shows or switches the execution mode.
 - `/permissions [clear]` shows or clears session grants.
-- `/undo [N]` restores the latest N snapshots.
 - `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
 - `/context` prints the session ID, provider, budget, and event count.
 - `/steer TEXT` queues guidance for the next model step.
 - `/queue TEXT` queues a task to run after the current one.
-- `/stop` cancels the current task at the next safe point.
+- `/stop` interrupts a pending model request, including the wait for its first
+  output. Tools stop at their cancellation checks.
 - `/help` prints the command list.
+- `/login` selects an authentication method and provider. `/logout` removes a
+  selected stored credential, not environment variables.
+- `/connect` selects a provider and opens its model picker after authentication.
+- `/skill [NAME]` activates a skill for the next task.
 - `/exit` or `/quit` exits.
 
-## REPL input
+The TUI does not register `/rename` or `/mcp`. Recovery changes tracked files,
+not arbitrary shell effects, external services, or the user's Git index.
+See [recovery coverage and conflicts](snapshots-goals.md#checkpoint-recovery).
+`--undo` remains the existing one-shot file-snapshot operation; it is not a
+conversation undo command.
+
+## Interactive input
 
 - `@path` attaches a workspace file to the task.
 - `$skill` loads a skill body into the task.
@@ -302,12 +352,20 @@ Review @src/cade_mini/core/loop.py and use $review-only
 !git status
 ```
 
-During a task, the REPL keeps reading input:
+During a task, the TUI keeps reading input:
 
 - `/steer TEXT` appends guidance at the next model step.
 - `/queue TEXT` runs TEXT after the current task.
-- `/stop` cancels at the next safe point.
+- `/stop` or `Esc` interrupts the task without waiting for the next model
+  output. Undelivered queued inputs return to the editor with any current draft.
+- `Ctrl+C` clears the editor without interrupting the task. Press it again
+  within 500 ms to exit.
 - Other text is queued as a follow-up task.
+
+When idle with empty input, press `Esc` twice within 500 ms to open `/rewind`.
+Tree navigation, fork, and clone do not restore workspace files.
+Inside a picker or form, `Esc` closes that interaction instead. Clearing input
+with `Ctrl+C` is separate from cancelling a task with `Esc`.
 
 Steering is applied between steps, not inside a provider stream or a running
 tool. See [Steering and queueing](design/steering-queue.md).
@@ -375,10 +433,12 @@ silently ignored.
 ## Fields
 
 - `provider`, `model`: provider name and model identifier. Use `chatgpt`
-  for ChatGPT plan usage (Sign in with ChatGPT) or `openai` for an OpenAI API
-  key. The CLI flags override both.
+  for ChatGPT plan usage (Sign in with ChatGPT), `openai` for an OpenAI API
+  key, or `deepseek` for a DeepSeek API key. The CLI flags override both.
 - `reasoning_effort`: provider reasoning effort. The CLI flag is `--effort`.
-- `context_window`: model context window in tokens.
+- `context_window`: model context window in tokens. The default comes from the
+  registered model metadata. Unregistered models require this field or
+  `--context-window`; Cade Mini rejects them otherwise.
 - `max_steps`: maximum model steps in one run.
 - `sessions_dir`: session directory. Relative paths resolve against the project
   root.
@@ -477,18 +537,20 @@ Session log -> Conversation projection -> Request -> Run
 ## Session log
 
 `SessionLog` is an append-only JSONL file. Each entry has an ID, timestamp,
-type, parent ID, and data. The active branch ends at the latest entry. A tree is
-possible, but the loop follows one branch.
+type, parent ID, and data. The active branch ends at the latest entry. `/tree`
+appends a navigation event whose parent identifies the continuation point;
+alternatives remain in the same file. The loop follows only that active path.
 
 The log stores facts:
 
 - `system`, `user`, `assistant`, and `tool_result` are model-visible facts.
 - `compaction` records a summary and `first_kept_id`.
 - `window` records a new context start and an optional handoff.
-- `request`, `run`, and `attempt` are audit facts. They never become
-  conversation messages.
+- `request`, `run`, `attempt`, `branch`, `checkpoint`, and `restore` are audit facts. They never become
+  conversation messages. A branch event also preserves a selected input for
+  editing after restart.
 
-The schema is closed and versioned. See [Session log schema](reference/session-schema.md).
+The schema is closed. See [Session log schema](reference/session-schema.md).
 
 ## Projection
 
@@ -532,8 +594,11 @@ fallback are decisions expressed as new log facts.
 ## Package map
 
 - `core/types.py`: log, message, block, and error types.
-- `core/events.py`: strict v2 event payload validation.
-- `core/log.py`: append, lock, tail repair, session listing, copy/fork.
+- `core/events.py`: strict event payload validation.
+- `core/log.py`: append, lock, tail repair, navigation, session listing, fork/clone.
+- `core/history.py`: pure full-tree projection for history selection.
+- `app/recovery.py`: turn checkpoints, LIFO actions, and coordinated recovery.
+- `extensions/recovery.py`: action journal and pending transaction records.
 - `core/projection.py`: deterministic conversation projection.
 - `core/request.py`: budget, admission, wire conversion.
 - `core/loop.py`: provider stream, tool execution, retries, facts.
@@ -555,14 +620,29 @@ separate Cade project. `test_mini_boundary.py` rejects old Cade imports and
 application dependencies in these lower layers. There are no top-level
 re-exports; import the owning submodule directly.
 
+## Recovery
+
+Hosts inject a `TurnLifecycle` into the core loop. It creates a root-turn
+checkpoint before the user fact, links it after that fact, and closes it after
+execution. Tool workers and synchronous subagents inherit capture ownership.
+The core does not import the workspace store. Recovery serializes cooperating
+writers with a workspace lock in addition to the session run lock.
+
+The native snapshot store retains both file images. An append-only workspace
+action journal drives stepwise undo/redo; the session log remains authoritative
+for conversation ancestry. A durable pending plan coordinates files and the
+conversation commit. Recovery resumes idempotently after interruption and stops
+on unknown external edits. See [Snapshots and goals](snapshots-goals.md).
+
 ## Lower layers and state
 
 `ai/` owns provider protocols, streaming adapters, model metadata, and OAuth.
 `execution_env/` owns local process execution and output capture. Neither layer
-imports application or host modules. The AI layer supports only the OpenAI
-Responses protocol, as recorded in [decision 0007](decisions/0007-responses-only-provider.md),
+imports application or host modules. The AI layer supports only the Responses
+protocol, as recorded in [decision 0007](decisions/0007-responses-only-provider.md),
 and uses Sign in with ChatGPT for plan usage, as recorded in
-[decision 0008](decisions/0008-siwc-login.md).
+[decision 0008](decisions/0008-siwc-login.md). DeepSeek uses a separate
+transport with the same Responses stream format and its own endpoint.
 `execution_env/sandbox.py` owns bubblewrap and Seatbelt process wrapping.
 `core/permissions.py` carries structured approval results and per-call scopes.
 The CLI confines shell and file workers on Linux/macOS; Windows runs directly.
@@ -606,17 +686,54 @@ cade-mini --resume SESSION_ID "Explain the current state."
 sessions keep their original system fact; a new `cade-mini.json` does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.
 
-## Fork, clone, tree, and rewind
+## Tree, fork, and clone
 
-- `/clone` copies the active branch into a new session.
-- `/fork [N|ENTRY]` copies history before a user turn (default: latest) into a
-  new session and prints the forked input.
-- `/tree` lists entries; `*` marks the active branch.
-- `/rewind [N]` creates a new session without the latest N user turns.
-- `/undo [N]` restores the latest N file snapshots.
+| Command | Result |
+| --- | --- |
+| `/tree [ENTRY]` | Switch position within the same session, preserving all branches |
+| `/fork [N\|ENTRY]` | Copy history before a selected user input into a new session |
+| `/clone` | Copy the complete current active path into a new session |
 
-These operations create new sessions; they do not rewrite the original file.
-Compaction and window references are remapped when entries are copied.
+`/tree` displays the full history tree. Selecting a user input restores its text
+in the editor and continues from its parent. Selecting another entry continues
+after that entry with an empty editor. Navigation and pending historical input
+survive restart. The next model request contains only the selected path.
+Idle double Esc with empty input opens the separate `/rewind` checkpoint selector.
+
+`/fork` can select user inputs from inactive branches as well as the active one.
+`/fork N` selects the Nth most recently recorded input; `/fork ENTRY` selects an
+entry directly. Exact entry IDs take precedence over numeric turn selectors.
+The selected input returns to the editor in the new session.
+`/clone` clears the editor and copies only the active path, not other branches.
+Copies receive new entry IDs and preserve timestamps,
+and remap compaction/window references. Navigation and checkpoint controls are
+omitted. Copies do not inherit the source's workspace undo stack.
+
+All three operations leave workspace files unchanged. Fork and clone leave the
+source session unchanged. They do not implement conversation/file undo and do
+not generate an automatic summary of the abandoned branch. Run history changes
+only when no task is active.
+
+See the [session schema](reference/session-schema.md) for persistent fields and
+[recovery](snapshots-goals.md#checkpoint-recovery) for file restoration boundaries.
+
+## Checkpoint recovery
+
+`/undo` and `/redo` reverse or reapply one action. A root user turn, including
+synchronous subagent edits, is one action. Explicit rewind and revert are also
+single reversible actions. New actions discard the active redo chain; original
+conversation branches remain. Navigation outside the action chain prevents a
+stale undo/redo from being applied; use `/rewind` to select the intended point.
+
+`/rewind` restores the position before a selected active-path user prompt and
+asks whether to restore conversation, tracked code, or both. `/revert` selects
+only code changes over a turn range and file subset. Code-only restoration keeps
+conversation messages and adds an audited request-context notice. It does not
+rewind provider settings, permissions, credentials, or other host state.
+
+Old or copied turns without owned checkpoints remain conversation-restorable
+only. File coverage, conflicts, and interrupted transactions are described in
+[Snapshots and goals](snapshots-goals.md#checkpoint-recovery).
 
 ## Compaction
 
@@ -642,7 +759,7 @@ outside the current context.
 ## Windows
 
 A `window` fact starts a new context at a user entry and may include a handoff.
-The CLI can start one explicitly with `/new-context`. If compaction cannot bring
+The TUI can start one explicitly with `/new-context`. If compaction cannot bring
 a request under budget, the loop can append an automatic window with a fixed
 handoff that points to `NOTE.md` and the history tool.
 
@@ -712,8 +829,8 @@ Resuming opens the same file and appends new facts.
 
 ## Interfaces
 
-The terminal host runs one task or a REPL. It calls the same loop and shares
-policy, tools, and session storage with every other entry path.
+The terminal host runs one task or a TUI. These interfaces call the same loop
+and share policy, tools, and session storage with every other entry path.
 
 ## Extensions
 
@@ -810,13 +927,13 @@ when it became independent. They are no longer shared runtime dependencies.
 
 ## Mini's product boundary
 
-Mini provides a terminal REPL and one-shot execution. Its core separates
+Mini provides a terminal TUI and one-shot execution. Its core separates
 append-only session facts, deterministic projection, request admission, and the
 run loop.
 
 Intentional limits include:
 
-- No full-screen TUI, plugin runtime, RPC, or SDK.
+- No plugin runtime, RPC, or SDK.
 - No artifact store or parallel tool scheduler.
 - No permanent approval grants; durable rules belong in project config.
 - No Windows OS sandbox; Linux uses bubblewrap and macOS uses Seatbelt.
@@ -836,7 +953,7 @@ implementation can be replaced without changing the session schema or the loop.
 
 | Seam | Contract | Implementations | Main consumers |
 | --- | --- | --- | --- |
-| Provider | `loop.Provider` streaming events | OpenAI Responses, ChatGPT plan (SIWC) | Loop, compaction, auto-review |
+| Provider | `loop.Provider` streaming events | OpenAI Responses, ChatGPT plan (SIWC), DeepSeek Responses | Loop, compaction, auto-review |
 | Tool | `loop.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
 | Policy | `permissions.Policy.check` returns decision, reason, and scope | `WorkspacePolicy` | Loop, CLI shell |
 | Approval | `ApprovalRequest` to `ApprovalResult`, optionally async | `SessionApprover`, `AutoReviewer` | Authorization |
@@ -1118,6 +1235,9 @@ Session entry types from `EventType`.
 | `request` | No | Provider request audit |
 | `run` | No | Run termination, steps, and usage |
 | `attempt` | No | Provider attempt, retry, or failure |
+| `branch` | No | Unclassified |
+| `checkpoint` | No | Unclassified |
+| `restore` | No | Unclassified |
 
 # Module graph
 
@@ -1148,10 +1268,15 @@ flowchart LR
   ai_usage --> ai_cache
   ai_usage --> ai_models
   app_auth --> ai_auth
+  app_provider --> ai_models
   app_provider --> ai_providers_base
   app_provider --> ai_providers_registry
   app_provider --> ai_resolver
   app_provider --> app_auth
+  app_recovery --> core_log
+  app_recovery --> core_types
+  app_recovery --> extensions_recovery
+  app_recovery --> extensions_snapshots
   core_compaction --> ai_events
   core_compaction --> core_log
   core_compaction --> core_loop
@@ -1160,6 +1285,7 @@ flowchart LR
   core_compaction --> core_types
   core_events --> ai_types
   core_events --> core_types
+  core_history --> core_types
   core_log --> core_events
   core_log --> core_types
   core_loop --> ai_events
@@ -1187,6 +1313,7 @@ flowchart LR
   extensions_memory --> core_loop
   extensions_memory --> core_types
   extensions_memory --> tools_workspace
+  extensions_recovery --> extensions_snapshots
   extensions_skills --> core_loop
   extensions_skills --> core_types
   extensions_skills --> tools_workspace
@@ -1205,11 +1332,11 @@ flowchart LR
   hosts_cli --> app_note
   hosts_cli --> app_prompts
   hosts_cli --> app_provider
+  hosts_cli --> app_recovery
   hosts_cli --> core_compaction
   hosts_cli --> core_log
   hosts_cli --> core_loop
   hosts_cli --> core_permissions
-  hosts_cli --> core_projection
   hosts_cli --> core_request
   hosts_cli --> core_types
   hosts_cli --> core_window
@@ -1225,9 +1352,69 @@ flowchart LR
   hosts_cli --> safety_grants
   hosts_cli --> safety_policy
   hosts_cli --> safety_review
-  hosts_cli --> safety_sensitive
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
+  hosts_context_report --> ai_types
+  hosts_context_report --> core_projection
+  hosts_context_report --> core_request
+  hosts_context_report --> core_types
+  hosts_context_report --> safety_policy
+  hosts_interaction --> ai_events
+  hosts_interaction --> ai_models
+  hosts_interaction --> app_provider
+  hosts_interaction --> app_recovery
+  hosts_interaction --> core_compaction
+  hosts_interaction --> core_history
+  hosts_interaction --> core_log
+  hosts_interaction --> core_loop
+  hosts_interaction --> core_permissions
+  hosts_interaction --> core_projection
+  hosts_interaction --> core_request
+  hosts_interaction --> core_types
+  hosts_interaction --> core_window
+  hosts_interaction --> extensions_goal
+  hosts_interaction --> extensions_hooks
+  hosts_interaction --> extensions_recovery
+  hosts_interaction --> extensions_skills
+  hosts_interaction --> extensions_snapshots
+  hosts_interaction --> extensions_subagents
+  hosts_interaction --> hosts_command_catalog
+  hosts_interaction --> hosts_context_report
+  hosts_interaction --> hosts_interaction_question
+  hosts_interaction --> hosts_interaction_settings
+  hosts_interaction --> safety_policy
+  hosts_interaction --> safety_review
+  hosts_interaction --> tools_history
+  hosts_interaction --> tools_workspace
+  hosts_interaction_question --> core_loop
+  hosts_interaction_question --> core_types
+  hosts_interaction_settings --> ai_auth
+  hosts_interaction_settings --> ai_models
+  hosts_interaction_settings --> ai_providers_registry
+  hosts_interaction_settings --> app_auth
+  hosts_interaction_settings --> app_config
+  hosts_interaction_settings --> app_provider
+  hosts_tui_app --> hosts_interaction
+  hosts_tui_bridge --> ai_models
+  hosts_tui_bridge --> core_log
+  hosts_tui_bridge --> core_loop
+  hosts_tui_bridge --> core_types
+  hosts_tui_bridge --> hosts_interaction
+  hosts_tui_bridge --> safety_sensitive
+  hosts_tui_command_handlers --> hosts_command_catalog
+  hosts_tui_config_registry --> ai_models
+  hosts_tui_config_registry --> app_config
+  hosts_tui_config_registry --> hosts_interaction_settings
+  hosts_tui_context_stats --> core_projection
+  hosts_tui_context_stats --> core_request
+  hosts_tui_interaction_compat --> core_types
+  hosts_tui_interaction_compat --> tools_workspace
+  hosts_tui_login_flow --> ai_auth
+  hosts_tui_settings --> ai_models
+  hosts_tui_setup_wizard --> ai_models
+  hosts_tui_setup_wizard --> ai_providers_registry
+  hosts_tui_setup_wizard --> ai_resolver
+  hosts_tui_setup_wizard --> hosts_interaction_settings
   safety_approval --> core_permissions
   safety_approval --> safety_grants
   safety_approval --> safety_sensitive
@@ -1393,85 +1580,79 @@ is closed when Cade Mini exits.
 
 # Steering and queueing
 
-Cade Mini's REPL can read input while a task is running. The host does not block
-the terminal on `_run_task`.
-
-## Why the old REPL blocked
-
-The first REPL called `input()` in the main thread and then ran the async loop
-with `asyncio.run`. While that call was active, the terminal was not read, so
-`/steer` and `/queue` could only affect the next task.
+The TUI keeps accepting input while a task runs. The UI thread renders events
+and handles keys; the bridge runs the task in a worker thread with its own
+`asyncio` event loop.
 
 ## Current design
 
 ```text
-stdin
+prompt_toolkit UI thread
+  |  Enter / Alt+Enter / slash commands
+  v
+InteractionService
+  |  steering, pending, cancel
+  v
+worker thread  --  asyncio.run(run_task)
   |
   v
-_InputPump thread  -- _Line -->  event queue
-                                  |
-task thread  -- _ApprovalRequest / _TaskDone --> event queue
-                                  |
-                                  v
-                         REPL main thread
+structured event queue  -->  UI thread
 ```
 
-- `_InputPump` reads one line at a time and never calls the model.
-- `_run_task` runs in a worker thread with its own `asyncio` event loop.
-- The REPL main thread owns the event queue and the session state.
-- `_HostApprover` sends `_ApprovalRequest` to the main thread and waits. The
-  main thread reads the answer from the same input pump, so approvals do not
-  compete with a second `input()`.
-- `!command` runs in the main thread and uses `_ConsoleApprover`, which reads
-  the answer directly from the event queue.
+- `InteractionService.run_task` calls the same `run` loop as one-shot mode.
+- `service.steering` holds guidance for the next model step.
+- `service.pending` holds follow-up tasks for the next turn.
+- `service.cancel` wakes a pending provider stream immediately, even before its
+  first output. Tools observe the same cancellation token at their safe points.
+- The bridge converts loop events into structured events and queues them for the
+  UI thread. The provider stream never blocks key handling.
 
 ## Commands during a run
 
 | Input | Effect |
 | --- | --- |
+| `Enter` | Use the current busy-input mode: queue, steer, or replace |
+| `Alt+Enter` | Append guidance at the next model step |
 | `/steer TEXT` | Append guidance at the next model step |
-| `/queue TEXT` | Run TEXT as a new task after the current task |
-| `/stop` or `/cancel` | Cancel the current task at the next safe point |
-| other text | Same as `/queue`: run it after the current task |
-| `/exit` | Cancel, wait for the task to settle, then exit |
+| `/queue TEXT` | Queue TEXT as a follow-up task |
+| `/queue followup` | Make `Enter` queue a follow-up task |
+| `/queue steer` | Make `Enter` append guidance |
+| `/queue interrupt` | Make `Enter` stop the task and run the message next |
+| `/stop` or `Esc` | Interrupt work and restore undelivered queued input to the editor |
+| `Ctrl+C` | Clear the editor without cancelling work; press again within 500 ms to exit |
+| `/exit` or `/quit` | Exit the TUI |
+
+A follow-up runs automatically when the current task reaches a terminal state.
+Queue order is FIFO, and queued tasks stay in the same session. Explicit Esc or
+`/stop` cancellation instead returns undelivered inputs to the editor, so they
+do not immediately start another run.
 
 `/steer` is not a prompt injection into a running provider request. The loop
 checks the steering queue before each step, appends a `user` fact with
 `source: runtime`, and builds the next request from the projection. This keeps
 the session log as the source of truth.
 
-## Queue semantics
+## Session commands
 
-- A queued task starts automatically when the current task reaches a terminal
-  state.
-- Queue order is FIFO.
-- A queued task runs in the same session; it is not a fork.
-- `/fork`, `/clone`, `/rewind`, and session commands are main-thread commands.
-  They are only handled when no task is active. During a run they are treated as
-  queued text; finish or stop the run first.
+`/new`, `/resume`, `/fork`, `/clone`, `/compact`, and
+`/new-context` change session state. Run them when no task is active. During a
+run, plain text is queued instead.
 
 ## Limits
 
-- Tools already executing are not killed. `/stop` takes effect at the next
-  cancellation check.
-- The input pump uses plain `input()`, not a full line editor. Editing,
-  history, and completion are terminal features.
-- Approval answers are read as the next line. Do not type a task while an
-  approval prompt is waiting; it is consumed as the answer.
+- File workers finish their current operation before observing cancellation.
+  Shell workers signal their child processes. Neither behavior rolls back file
+  changes; use snapshots when restoration is needed.
+- Steering applies between steps, not inside a provider stream or a running
+  tool.
 - The one-shot `--steer` flag seeds guidance before the first step. It is not a
   substitute for `/steer` during a run.
 
 ## Tests
 
-- `test_live_input_handles_steer_and_queue`
-- `test_live_input_is_read_while_worker_is_running`
-- `test_mid_run_steer_reaches_the_next_provider_request`
-- `test_repl_reads_steer_while_a_bash_tool_is_running`
-- `test_host_approver_routes_through_events`
-- `test_live_input_can_stop_the_task`
-
-The end-to-end test blocks a tool until the host delivers `/steer`, then checks
-that the next provider request contains the steering fact.
+`test_mid_run_steer_reaches_the_next_provider_request` blocks a tool until the
+host delivers guidance, then checks that the next provider request contains the
+steering fact.
 
 # Persistence catalog
 
@@ -1485,8 +1666,9 @@ narrower jobs.
 
 | Artifact | Default location | Owner | Lifetime | Schema |
 | --- | --- | --- | --- | --- |
-| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Write v2; read v1/v2 |
+| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Current closed structure |
 | Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
+| Recovery | `.cade-mini/recovery/` | Recovery coordinator | Workspace | Closed records; action journal and pending plan |
 | Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
 | Working note | `NOTE.md` | Project | Project | Markdown |
 | Memory | `MEMORY.md` | `MemoryTool` | Project | Markdown |
@@ -1500,14 +1682,15 @@ narrower jobs.
 
 ## The session log
 
-The log is append-only and versioned. It stores model-visible facts and audit
+The log is append-only. It stores model-visible facts and audit
 facts in one tree. It is the only artifact needed to reconstruct the
-conversation. Compaction and windows are log entries, not rewrites.
+conversation and active history position. Compaction, windows, and branch
+navigation are log entries, not rewrites.
 
 ## Snapshots
 
 Snapshots are an undo journal for file changes. They cover `write`, `edit`, and
-common single-command shell mutations. Format v2 uses an atomically replaced
+common single-command shell mutations. It uses an atomically replaced
 JSONL index, immutable before/after records, and content-addressed original blobs.
 See [Snapshots and goals](../snapshots-goals.md) for conflict and legacy behavior.
 Snapshots are not part of the session branch.
@@ -1628,7 +1811,7 @@ another subagent.
 
 ## snapshot
 
-A pre-change copy of a file, used by `--undo` and `/undo`.
+A pre-change copy of a file, used by the one-shot `--undo` option.
 
 ## goal
 
@@ -1700,38 +1883,37 @@ should be present. See the [validation guidelines](../testing.md).
 
 # Cade Mini session schema
 
-> Current writer: v2. Readers accept v1 and v2, including mixed-version logs.
-> This is the persistent format and projection contract.
+> This is the current persistent structure and projection contract.
+> Records have no format-version field.
 
 ## Envelope
 
 One JSON object per line in `session-<id>.jsonl`:
 
 ```json
-{"v":2,"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
+{"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
 ```
 
 | Field | Type | Contract |
 | --- | --- | --- |
-| `v` | `1` or `2` | Read both versions; append v2; reject other values |
 | `id` | string | Unique in the file; 12 lowercase hex characters |
-| `parent` | string or null | Previous head; null only for the first event |
+| `parent` | string or null | Previous head normally; selected continuation for navigation; null for a root |
 | `ts` | string | ISO 8601 UTC timestamp |
 | `type` | string | One of the event types below |
 | `data` | object | Type-specific payload |
 
-The first increment has one active branch: the head is the last event. `parent`
-is stored from day one so fork and rewind do not need a schema change.
+The head is the last physical event. A normal event points to the previous head.
+A `branch` event instead points to a selected historical continuation point.
+Other paths remain in the same file. Non-null parents must precede their children.
 
-Unknown event types are a version error. Do not ignore them.
+Unknown event types are invalid. Do not ignore them.
 
-V2 payloads are validated on append and read. Unknown fields, wrong primitive
+Payloads are validated on append and read. Unknown fields, wrong primitive
 types, invalid enums, and non-finite numbers are rejected. Missing optional
 fields are allowed but defaults are not written into the record. `user.source`
 defaults to `user`; assistant model/provider/usage/replay metadata and nullable
 artifact/handoff/usage/details fields may be absent. Cross-event call pairing
-and context-cut references are validated by projection. V1 keeps legacy reading
-rules. Branch copies preserve source event versions.
+and context-cut references are validated by projection.
 
 ## Event types
 
@@ -1769,16 +1951,18 @@ These are recorded but never projected.
 | Type | Payload | Purpose |
 | --- | --- | --- |
 | `meta` | `{"session": str, "project": str, "created": str}` | First event; identifies the session |
-| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit; v2 adds the normalized snapshot below |
+| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit with normalized inputs |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | Run outcome |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | Failed model attempt that produced no message |
+| `branch` | `{"selected_id": str}` | Navigation control; never a model message |
+| `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | Turn ownership and completion audit |
+| `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | Recovery commit and conversation position |
 
-The v2 `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
+The `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
 `report`. `budget` records the context window, output reserve, and headroom;
 `report` records the admission result. Options omit API keys, all headers,
 cancellation signals, and callbacks. This is the provider-interface input, not
-an HTTP capture. The remaining request data is not redacted. A v1 request has no
-snapshot; do not infer it from current provider behavior.
+an HTTP capture. The remaining request data is not redacted.
 
 A failed attempt does not become an assistant message. A run result does not
 duplicate the final answer; the answer is the last assistant text.
@@ -1800,6 +1984,47 @@ duplicate the final answer; the answer is the last assistant text.
 7. **The latest system event wins.** It is projected first and is not shadowed by
    compaction or a window.
 
+## Branch navigation
+
+`branch.selected_id` must reference an earlier entry in the same file. When that
+entry is a user input, the navigation event's parent must equal the input's
+parent. Otherwise, its parent must equal the selected entry's ID. Selecting a
+legacy root user can produce a navigation event with a null parent.
+
+The navigation event becomes the physical head. `branch()` follows its parent
+chain to reconstruct the active path. No sibling facts are deleted or copied,
+and `project()` ignores navigation records. The latest navigation on the active
+path restores selected user text after restart until a subsequent user or
+assistant entry consumes it. Non-user selection restores an empty draft. There
+is no mutable cursor sidecar.
+
+Navigation and path copying acquire the whole-session run lock. Invalid targets
+fail before tail repair or append. Fork and clone copy one connected path into a
+new file, omit navigation/checkpoint/recovery controls, preserve timestamps, and
+remap entry IDs and context cuts.
+
+## Checkpoints and coordinated recovery
+
+A host lifecycle creates a workspace checkpoint before the user fact. Its
+`started` event links the saved checkpoint to that earlier user entry and the
+pre-turn ancestor `anchor_id`. A `completed` or `incomplete` event closes the
+turn after execution. Completion describes tracked capture, not model success.
+The core validates user and ancestor references; file
+images and recovery action history belong to the workspace recovery store.
+
+A restore event is appended only after the pending plan's file writes succeed.
+Its parent equals `target_id`, which must be an earlier entry or null. Code-only
+restoration must target the immediately preceding physical head, preserving
+conversation ancestry. `draft_id` is null or an earlier user entry whose text
+returns to the editor. New conversation messages consume the historical draft.
+If a legacy root restore lacks a system fact, the pending plan supplies the
+current system prompt as a new explicit fact before the action is acknowledged.
+
+The workspace action journal and `pending.json` plan use closed models.
+A stable operation ID deduplicates
+session and action commits after interruption. Unknown external file states stop
+recovery and block new writes. See [Checkpoint recovery](../snapshots-goals.md#checkpoint-recovery).
+
 ## Projection
 
 `project(branch) -> list[Message]` is pure and deterministic.
@@ -1811,7 +2036,7 @@ duplicate the final answer; the answer is the last assistant text.
    its summary and start the tail at `first_kept_id`.
 4. Walk the retained entries in order. Emit `user`, `assistant`, and
    `tool_result` messages. Skip `system`, `meta`, `window`, `compaction`,
-   `request`, `run`, and `attempt`.
+   `request`, `run`, `attempt`, `branch`, `checkpoint`, and `restore`.
 5. Pair tool calls with results by call ID.
 6. For an open call at the end, synthesize one interrupted result. Do not write
    it to the log. Insert it after the assistant message that contains the call.
@@ -1829,6 +2054,9 @@ hosts can render it differently.
 
 - Directory: `.cade-mini/sessions/` by default.
 - File: `session-<id>.jsonl`.
+- New interactive sessions defer file creation until the first user or assistant
+  message. Setup events stay in memory and are flushed with that message.
+  A cancelled first request still keeps its user message on disk.
 - Append lock: `session-<id>.lock`.
 - Run lock: `session-<id>.run.lock`; concurrent turns are rejected.
 - Append: one line, `flush`, `fsync`.
@@ -1840,7 +2068,7 @@ hosts can render it differently.
 ## Compaction record
 
 ```json
-{"v":2,"id":"e80","parent":"e79","ts":"...","type":"compaction",
+{"id":"e80","parent":"e79","ts":"...","type":"compaction",
  "data":{"summary":"## Goal\n...","first_kept_id":"e52","tokens_before":48210,
          "model":"gpt-5.6-luna","provider":"chatgpt",
          "usage":{"input":43000,"output":1200},"details":null}}
@@ -1853,20 +2081,18 @@ previous one and may include the previous summary in its input.
 ## Window record
 
 ```json
-{"v":2,"id":"e90","parent":"e89","ts":"...","type":"window",
+{"id":"e90","parent":"e89","ts":"...","type":"window",
  "data":{"start_id":"e88","reason":"manual","handoff":"Optional note."}}
 ```
 
 A window is the hard fallback. Compaction is the default. A window is explicit
 through `/new-context`, or automatic when compaction cannot reduce enough.
 
-## Versioning
+## Development changes
 
-`v` is the only compatibility switch. A change to an existing payload, a new
-conversation event type, or a change to projection semantics requires a new `v`
-and a migration note. Adding a log-only event type is a new `v` as well, because
-older readers must reject it rather than ignore it. See the
-[upgrade guide](../upgrade/README.md) for v1 resume and rollback.
+There is one current structure, with no format-version field, compatibility
+reader, or migration layer. Breaking changes update producers, readers, tests,
+and documentation together. See [Change policy](../persistence/change-policy.md).
 
 # Subsystems
 
@@ -1904,7 +2130,8 @@ A subsystem page describes current behavior. Historical decisions belong in
 
 - `SessionLog.create(directory, session_id=None)` creates a unique file and
   writes a `meta` entry.
-- `SessionLog.open(path)` validates the envelope and v2 payloads. Reads ignore a
+- `SessionLog.open(path)` validates envelopes, payloads, and
+  navigation references. Reads ignore a
   torn final line; the next valid append truncates that tail.
 - The session ID is derived from the file name when not supplied.
 
@@ -1912,10 +2139,10 @@ A subsystem page describes current behavior. Historical decisions belong in
 
 `append(type, data)`:
 
-1. Validates the v2 payload without modifying the file.
+1. Validates the payload without modifying the file.
 2. Takes an exclusive file lock.
-3. Repairs a torn tail and reads the current entries to get the parent ID.
-4. Builds an entry with ID, timestamp, parent, type, and data.
+3. Reads current entries and validates the selected parent and references.
+4. Builds an entry, then repairs a torn tail only after validation succeeds.
 5. Appends one JSON line, flushes, and calls `fsync`.
 6. Releases the lock.
 
@@ -1923,19 +2150,39 @@ A subsystem page describes current behavior. Historical decisions belong in
 write raises `LogError` and does not return a fake entry.
 
 `run_lock()` protects a whole turn separately from individual appends. It rejects
-competing operations immediately with `LogError`. `run()` and manual CLI context
-changes use it; other multi-event storage clients must acquire it explicitly.
+competing operations immediately with `LogError`. `run()`, manual CLI context
+changes, navigation, and path copying use it; other multi-event storage clients
+must acquire it explicitly.
 
 ## Branch
 
 `branch()` follows parent IDs from the last entry back to the root and reverses
-the list. It rejects cycles, missing parents, and duplicate IDs.
+the list. `branch(entry_id)` reads the path ending at a historical entry. Reads
+reject cycles, missing parents, duplicate IDs, and invalid navigation targets.
+
+`switch_branch(selected_id)` appends a navigation event in the same file.
+User selection continues before that input and exposes its text through
+`navigation_draft`; other selection continues after the entry with an empty
+draft. A subsequent user or assistant entry consumes the draft. `history_tree()`
+provides a pure, depth-annotated view of all visible branches.
+
+`copy_branch()` copies one connected path, including an inactive path selected
+for fork, under the source run lock. It remaps IDs and context cuts, preserves
+timestamps, and omits navigation/checkpoint/recovery controls and siblings. The copy
+is written as one snapshot, or remains deferred when it has no conversation.
+
+Log-only checkpoint and restore events coordinate recovery. Checkpoints link an earlier
+user entry and pre-turn ancestor. Restore parents identify the committed target;
+code-only restore must preserve the preceding head. File effects and LIFO state
+belong to the workspace coordinator, not conversation projection.
 
 ## Listing and titles
 
 `list_sessions(directory)` returns session ID, update time, and a title derived
-from the first user text. Corrupt files are skipped so one bad session cannot
-break the list.
+from the first user text across the full file, even when navigation currently
+precedes that input. Corrupt files are skipped so one bad session cannot
+break the list. Update time and ordering use file modification time, so copied
+historical timestamps do not make a newly created session appear old.
 
 ## Invariants
 
@@ -1943,12 +2190,14 @@ break the list.
 - IDs are unique within a file.
 - A parent precedes its child.
 - The file ends with exactly one newline.
-- The schema version is closed; new event types require a decision record.
+- The schema is closed; new event types require a decision record.
 
 ## Tests
 
-`test_mini_log.py` covers create, append, resume, tail repair, branching, and
-listing. `test_mini_projection.py` covers malformed branches.
+`test_mini_log.py` covers create, append, resume, tail repair, and listing.
+`test_mini_session_history.py` covers navigation, old-format recovery, inactive
+forks, and independent copies. `test_mini_projection.py` covers malformed paths.
+`test_mini_history_e2e.py` verifies the public commands through real TUI input.
 
 # Projection and request
 
@@ -1989,7 +2238,7 @@ compaction and window decisions, then rejects any remaining overflow.
 
 The system message carries base instructions plus, in order: instructions,
 skill catalog, NOTE, memory, and goal. These inputs are request-only; the
-v2 request audit records their full text, the admitted messages, tool definitions,
+The request audit records their full text, the admitted messages, tool definitions,
 non-authentication options, and budget. Session files can contain sensitive input.
 
 ## Tests
@@ -2209,7 +2458,7 @@ cannot replace human restrictions.
 ## Snapshots
 
 `SnapshotStore` captures `write`, `edit`, and common single-command shell
-mutations. `--undo` and `/undo` restore the latest snapshot. Snapshots are project
+mutations. The one-shot `--undo` option restores the latest snapshot. Snapshots are project
 state, not session facts.
 
 ## Goals
@@ -2219,8 +2468,8 @@ state, not session facts.
 
 ## Hosts
 
-The CLI runs one-shot and REPL sessions. It uses the same loop and policy as
-every other entry path.
+The terminal host runs one-shot tasks and the TUI. It uses the same loop and
+policy as every other entry path.
 
 ## Limits
 
@@ -2281,6 +2530,14 @@ A TTY answer of `a` creates a process-local session grant. File grants match the
 same tool and path. Shell grants also match workdir and extra write paths;
 MCP grants match the complete arguments. A grant can answer an ask but cannot
 bypass a deny. `/permissions` lists grants; `/permissions clear` removes them.
+
+Explicit reads and writes of `.env*` files (except `.env.example`) and common
+home credential paths such as `~/.ssh`, `~/.aws`, and `~/.config/gh` require
+approval on every use. Detected shell access follows the same rule, including
+relative paths resolved from `workdir`. Sensitive approvals do not create or
+reuse session grants, and explicit deny rules still apply. Read-only external
+Git commands remain allowed; detected mutations of external repositories
+require approval. Approval does not expand the OS sandbox's write scope.
 
 ## Approvals and Reviewer
 
@@ -2357,8 +2614,9 @@ under `.cade-mini/snapshots` with a JSONL index and one directory per snapshot.
 Covered changes:
 
 - `write` and `edit`.
-- Common single-command shell mutations: `rm`, `mv`, `cp`, `touch`, `mkdir`,
-  redirection with `>`, and `sed -i`.
+- Simple literal-file shell mutations: `rm`, file-to-file `mv`/`cp`, `touch`,
+  `echo` redirection, and `sed -i`. Quoted filenames can contain spaces.
+  Directory operands, expansions, and unknown command forms are not captured.
 - Creating a file records that it did not exist; undo removes it.
 
 Not covered:
@@ -2375,17 +2633,65 @@ Not covered:
 cade-mini --undo
 ```
 
-This restores the latest snapshot and exits without contacting a provider. In
-the REPL, use `/undo`. Each call restores one snapshot, so repeated undo walks
-back through the recorded changes. Stop external file writers before undo.
+This legacy CLI operation restores one file snapshot without contacting a
+provider. It does not rewind conversation and is not an alias for TUI `/undo`.
+It refuses concurrent workspace writes or a pending coordinated recovery. Stop
+external file writers before any restoration.
 
 Undo checks that the current file matches the recorded post-change state. It
 rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
-A rejected undo leaves the file and index unchanged. Legacy snapshots have no
-post-change state and require manual inspection; automatic undo rejects them.
+A rejected undo leaves the file and index unchanged.
 
 Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.
+
+## Checkpoint recovery
+
+Each root user turn creates a checkpoint before execution. Registered file
+mutations retain before/after content, existence, and permissions. Synchronous
+subagents share the parent capture scope. Queued inputs get checkpoints when
+execution starts; steering remains part of the active turn.
+
+- `/undo` reverses one turn or explicit recovery action; `/redo` reapplies one.
+  Neither reruns tools or contacts a provider. History survives restart.
+- `/rewind` selects an active-path user prompt, then conversation, code, or both,
+  followed by a preview and confirmation. It restores the point before the prompt.
+- `/revert` selects a turn range and all or one tracked file. Explicit path
+  arguments select multiple files. Conversation stays unchanged.
+
+A new action discards the active redo chain. Old conversation branches remain.
+Tree navigation never restores files; a stale undo/redo cannot cross a changed
+conversation position. Rewind can still use owned checkpoints and computes code
+changes from actual actions, including intervening undo/redo/revert operations.
+Copied sessions do not inherit workspace actions. Historical prompts without an
+owned checkpoint support conversation-only rewind.
+
+Recovery checks all selected files and content blobs before modifying a file.
+A changed target, unknown outcome, corrupt blob, symlink, hard link, or protected
+metadata path blocks automatic code restoration. Restoring an older range also
+fails if later edits conflict; there is no automatic reverse-patch merge.
+File limits apply to both images. A missing post-change image makes that turn's
+code checkpoint incomplete rather than pretending that recovery is available.
+Unselected files and the user's Git index remain untouched. Directory trees,
+untracked shell/hook changes, and external side effects are not restored.
+
+Cooperating operations share `.cade-mini/recovery/workspace.lock`. The action
+journal and checkpoint links use closed records under that directory. A
+`pending.json` plan stores both images before restoration begins. Files use
+atomic per-file replacement; a multi-file restore is not a filesystem-wide
+atomic operation. On interruption, resume the named session to finish the plan
+idempotently. A third, externally edited state stops recovery without overwriting
+that edit. Resolve the reported conflict and resume; do not delete the pending
+plan to bypass the write guard. New agent writes remain blocked until it finishes.
+External editors do not honor the lock and must be stopped during recovery.
+Read-only mode blocks code recovery; conversation-only rewind remains available.
+Esc cancels a preview, not a committing file restore. A normal TUI exit waits
+for the recovery commit; a forced process interruption uses the pending plan.
+
+Code-only restoration keeps model-visible conversation messages. The next
+request receives an audited notice to inspect restored files rather than trust
+older tool effects. Settings, credentials, grants, and external services do not
+rewind with conversation history.
 
 ## Goals
 
@@ -2396,7 +2702,7 @@ objective, a status (`active` or `done`), and an update time.
 cade-mini --goal "Add a regression test for the parser" "Start the task."
 ```
 
-In the REPL:
+In the TUI:
 
 - `/goal` shows the current goal.
 - `/goal TEXT` sets an active goal.
@@ -2681,8 +2987,9 @@ diff reviewable.
 
 ## Undo
 
-If the change is wrong, use `cade-mini --undo` or `/undo` before starting
-another attempt. Undo restores one recorded file change at a time.
+If the change is wrong, use `cade-mini --undo` before starting another attempt.
+This restores one recorded file change at a time; it does not rewind the
+conversation.
 
 ## Keep
 
@@ -2840,34 +3147,51 @@ that hangs is killed after the configured timeout.
 
 # Hosts
 
-Cade Mini has one host: the terminal CLI. It uses the session log, request
-builder, tools, and policy.
+Cade Mini has one terminal host with two modes: an interactive TUI and one-shot
+execution. Both use the same session log, request builder, tools, policy, and
+core loop. The TUI uses `InteractionService` for commands and session control.
 
-## Terminal
+## Terminal UI
 
-Without a task, the CLI starts a REPL:
+Without a task, the CLI starts the TUI in an interactive terminal:
 
 ```bash
 cade-mini
 ```
 
-The REPL prints tool progress to stderr, streams assistant text to stdout, and
-accepts the commands listed in [CLI](cli.md). With a task, it runs once and
-exits:
+The TUI keeps the conversation in a scrollable transcript, shows streaming
+assistant text and tool progress, and handles approvals and questions without
+leaving the application. Common keys:
+
+- `Enter` submits the message or queues it while a task is running.
+- `Alt+Enter` steers the running task at the next model step.
+- `Shift+Tab` cycles `ask`, `build`, and `plan`.
+- `Esc` interrupts the running task, including a model request that has not
+  produced output yet. Undelivered queued input returns to the editor.
+- When idle with empty input, double `Esc` opens the fork input selector.
+  Same-session tree navigation is not registered in this release.
+- `Ctrl+C` clears input without interrupting the task; press it again within
+  500 ms to exit.
+- `Ctrl+Q` exits.
+
+The TUI opens native selectors for models, modes, reasoning effort,
+configuration, and permissions. Press `?` or run `/help` for the key and
+command reference.
+
+The TUI requires both stdin and stdout to be terminals. In a pipe or a
+non-interactive process, provide a task instead.
+
+## One-shot
+
+With a task, the CLI runs once and exits:
 
 ```bash
 cade-mini "Fix the failing test."
 cade-mini exec "Fix the failing test."
 ```
 
-One-shot mode supports `--json` for a JSONL event stream. The REPL does not.
-
-## Choosing a mode
-
-Use the REPL for interactive review and approvals. Use one-shot mode for scripts
-and CI, with `--read-only` or explicit rules rather than a blanket `--yes`.
-
-There is no separate TUI workbench. The REPL provides terminal interaction.
+One-shot mode supports `--json` for a JSONL event stream. Use `--read-only` or
+explicit rules rather than a blanket `--yes` in automation and CI.
 
 # Development
 
@@ -3188,7 +3512,7 @@ Resume:
 - Mini ran with `--mode build --yes`; Cade ran with `--mode build --approval
   auto-review`.
 - Both used DeepSeek `deepseek-chat` at the time of the run. Cade Mini now
-  supports only the OpenAI Responses protocol.
+  supports only the Responses protocol.
 - Mini used five steps per workflow; Cade used four. Mini issued an extra `glob`
   inspection, which did not change the result.
 - Cade emits JSONL telemetry and budget/approval events; Mini emits human tool
@@ -3208,7 +3532,7 @@ Resume:
 The parity report records the concrete fixtures and observed results. Re-run a
 workflow by creating a clean fixture, running both agents with the same provider
 and settings, and comparing the diff and test result rather than the prose
-answer. Cade Mini supports only the OpenAI Responses protocol.
+answer. Cade Mini supports only the Responses protocol.
 
 # Postmortems
 
@@ -3337,39 +3661,32 @@ See [Projection and request](../subsystems/projection-request.md).
 
 # Persistence
 
-Cade Mini has one durable conversation format: the session log. The rest are
-host-state files with narrow scopes.
+Cade Mini stores conversation history in a session log. Other stores have
+separate responsibilities.
 
-## Current format
+## Current structure
 
-- Session log: write closed schema v2; read v1 and v2. See [Session log schema](../reference/session-schema.md).
-- Entry file: one JSON object per line; a trailing newline is required.
-- Session directory: `.cade-mini/sessions`.
-- Compaction and windows are entries, not file rewrites.
-- Snapshots, goals, NOTE, memory, and config are separate artifacts.
+- Session logs use one closed schema without a format-version field. See
+  [Session log schema](../reference/session-schema.md).
+- Each entry is one JSON object followed by a newline.
+- Sessions live under `.cade-mini/sessions`.
+- Compaction, windows, navigation, and recovery are entries, not history rewrites.
+- File images live under `.cade-mini/snapshots`; recovery actions and pending
+  transactions live under `.cade-mini/recovery`.
+- Goals, NOTE, memory, and config remain separate artifacts.
 
-## Compatibility
-
-A reader must reject an unknown schema version rather than guess. A writer must
-not add fields that change the meaning of existing fields. Additive diagnostic
-fields are allowed only when old readers can ignore them.
-
-## History
-
-V2 adds normalized request audits without rewriting v1 facts. Resume and rollback
-are described in the [upgrade guide](../upgrade/README.md).
+Development changes can break persisted structures. Readers and writers support
+only the current structure. There are no compatibility readers or migrations.
+See [Change policy](change-policy.md).
 
 ## Verification
 
-`test_mini_log.py`, `test_mini_projection.py`, and
-`test_mini_acceptance.py` exercise the current format. A schema change must add a
-test that opens an old fixture and one that rejects a future version.
+`test_mini_log.py`, `test_mini_session_history.py`, `test_mini_projection.py`, and
+`test_mini_recovery.py` verify validation, projection, copies, and interrupted
+recovery. Invalid input must fail before changing durable state.
 
-## Related
-
-- [Persistence catalog](../design/persistence-catalog.md)
-- [Change policy](change-policy.md)
-- [Session log schema](../reference/session-schema.md)
+See the [Persistence catalog](../design/persistence-catalog.md) for ownership and
+locations.
 
 # Change policy
 
@@ -3377,38 +3694,25 @@ test that opens an old fixture and one that rejects a future version.
 
 # Change policy
 
-A persisted format change is a public interface change. It needs a decision,
-tests, and a migration path.
-
-## Before changing the schema
-
-1. Write a decision record under `docs/decisions/`.
-2. State whether the change is additive, transformative, or breaking.
-3. Describe how an old session is read and whether it is rewritten.
-4. Define the new schema version and the reader's rejection rule.
-5. Add an old-format fixture and a migration test.
+Cade Mini is under active development. Persisted data has one current, closed
+structure with no format-version fields. Breaking changes are allowed. Do not
+add compatibility readers, migration commands, or special handling for earlier
+formats.
 
 ## Rules
 
-- Never rewrite a user's session file in place without an explicit migration.
-- Never infer a missing field from a provider's current behavior.
-- Keep audit facts out of the projection unless the schema says otherwise.
-- Bump the version for any change that an old reader cannot ignore.
-- Update [Persistence](README.md), the [schema](../reference/session-schema.md), and
-  the [upgrade guide](../upgrade/README.md) in the same change.
+- Update producers, readers, tests, and field-level documentation together.
+- Validate records before modifying durable state.
+- Keep conversation history append-only during normal operation.
+- Never infer missing request contents from current provider behavior.
+- Keep audit facts out of conversation projection.
+- Document each new field's owner and lifetime.
+- Use a decision record for changes to durable behavior or ownership.
 
-## Review checklist
-
-- Old fixture opens and projects identically.
-- Unknown future version fails with a clear error.
-- Migration is idempotent and can be interrupted.
-- New fields have a documented owner and lifetime.
-- Session size and compaction behavior remain bounded.
-
-## Current status
-
-Writers use closed schema v2. Readers accept v1 and v2 without rewriting old
-facts. The [upgrade guide](../upgrade/README.md) documents resume and rollback.
+Verify current behavior and failure recovery with focused tests. Generated
+catalogs and documentation must match the implementation. See
+[Session log schema](../reference/session-schema.md) and
+[Persistence](README.md).
 
 # Upgrade guide
 
@@ -3416,82 +3720,41 @@ facts. The [upgrade guide](../upgrade/README.md) documents resume and rollback.
 
 # Upgrade guide
 
-This page records changes that require action from an existing user or
-automation.
+Cade Mini is under active development. Breaking changes are allowed. Persisted
+records have one current structure, with no compatibility or migration layer.
+See [Change policy](../persistence/change-policy.md).
 
 ## Sign in with ChatGPT
 
-The `openai-codex` provider ID and `openai_codex` transport are removed. Use
-`chatgpt` for ChatGPT plan usage. The new provider uses Sign in with ChatGPT
-(SIWC) instead of the legacy Codex OAuth flow. Update `cade-mini.json`, CLI
-flags, and scripts that name the old provider, then run `cade-mini login` again.
-Saved `openai-codex` credentials and the old device-code method are not read or
-migrated. On a headless host, complete the login locally, copy `auth.json`, and
-let the remote host create its own host ID on the next login. Or use an OpenAI
-API key. See [decision 0008](../decisions/0008-siwc-login.md).
+Use `chatgpt` for ChatGPT plan usage and `cade-mini login` for Sign in with
+ChatGPT. For API-key authentication, use `openai` or `deepseek`. Credentials live
+under `~/.cade-mini/`. See [CLI authentication](../cli.md#login).
 
-## V2 payload validation
+## Session and workspace recovery
 
-V2 events now enforce their closed payload schemas on write and read. Invalid
-complete records are rejected instead of being ignored or silently repaired.
-V1 keeps its legacy reading rules. Branch copies preserve each event's version.
-See [decision 0006](../decisions/0006-validate-event-payloads.md).
+`/tree` preserves conversation branches. `/undo` and `/redo` reverse or reapply
+one action. `/rewind` selects a checkpoint and restoration scope; idle double
+Esc opens its selector. `/revert` restores selected tracked file changes without
+trimming conversation.
+
+Checkpoint ownership and action history belong to their original session.
+Copied conversations do not inherit a workspace undo stack. The file-only
+`--undo` operation remains separate. See
+[Sessions and context](../sessions-context.md) and
+[Recovery coverage](../snapshots-goals.md#checkpoint-recovery).
 
 ## Explicit context reduction
 
-Request construction no longer trims tool outputs or old turns. The loop first
-tries compaction, then a logged window fallback. If the current task, instructions,
-or tools still exceed the budget, the run returns `context_error`. Reduce the
-input or start a new task; no hidden request-only truncation occurs.
+The loop tries compaction, then a logged window fallback. If the request remains
+over budget, it returns `context_error`. It does not silently trim request-only
+history. See [Sessions and context](../sessions-context.md#request-admission).
 
-## Session v2 and snapshot v2
+## Development changes
 
-New session facts use v2. This reader also accepts v1 and mixed-version branches.
-Resume an old session normally; its existing bytes remain unchanged. Request
-audits now contain normalized request inputs, excluding authentication and runtime
-objects. See [decision 0004](../decisions/0004-normalized-request-audit.md).
-
-Older releases reject sessions after v2 facts are appended. Back up `.cade-mini/`
-before resuming if rollback is needed. Rollback uses that backup; do not remove
-v2 records manually. No migration command is required.
-
-Snapshot v2 records before/after file state. Old snapshots remain available for
-manual inspection but cannot be undone automatically. New snapshots can be
-recorded above them. See [Snapshots and goals](../snapshots-goals.md).
-
-## Standalone project
-
-Cade Mini now installs as `cade-mini`, with Python imports under `cade_mini`.
-The old `cade` command and `cade.mini` namespace are removed. No compatibility
-or migration tools are provided.
-
-Authenticate again with `cade-mini login`. Credentials and skills use
-`~/.cade-mini/`; project skills use `.cade-mini/skills/`. Mini no longer
-reads `.cade` directories. This earlier packaging change retained schema v1.
-
-## When an upgrade is needed
-
-An upgrade entry is required when:
-
-- the session schema version changes;
-- a config key is renamed or removed;
-- a CLI flag changes meaning;
-- a tool name or parameter becomes incompatible;
-- a persisted host-state file changes shape.
-
-## Procedure for a future upgrade
-
-1. Read the relevant decision record.
-2. Back up `.cade-mini/` before migrating.
-3. Run the documented migration command once.
-4. Open a session and verify the projection and `history` tool.
-5. Keep the old directory until the new version has passed a real task.
-
-## Compatibility promise
-
-Additive optional config fields are not breaking. A new event type is breaking
-because the schema is closed. A removed tool or a changed parameter is breaking.
-The change policy is in [Persistence](../persistence/change-policy.md).
+Update callers, tests, and documentation with each breaking change. Do not
+invent missing historical data or rewrite sessions during normal operation.
+Pending workspace recovery must complete before new agent writes are allowed;
+see the recovery guide for interruption handling.
 
 # Cade Mini: a full refactor of Cade's core
 

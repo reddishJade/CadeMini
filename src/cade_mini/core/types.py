@@ -20,6 +20,9 @@ type EventType = Literal[
     "request",
     "run",
     "attempt",
+    "branch",
+    "checkpoint",
+    "restore",
 ]
 
 
@@ -102,7 +105,6 @@ class LogEntry(BaseModel):
     """会话日志中的一行；data 的具体形状由 type 决定。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
-    v: Literal[1, 2] = 2
     id: str
     parent: str | None = None
     ts: str

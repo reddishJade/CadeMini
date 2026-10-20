@@ -1,8 +1,8 @@
 # Cade Mini
 
 Cade Mini is a standalone Python coding agent with a durable, append-only
-session log. It runs one-shot tasks or an interactive terminal REPL. It does
-not require Cade.
+session log. It runs one-shot tasks or an inline terminal UI. It does not
+require Cade.
 
 ## Install and start
 
@@ -21,9 +21,16 @@ uv run --locked cade-mini login --provider openai
 uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project."
 ```
 
-Cade Mini supports only the OpenAI Responses protocol. Provider API keys are
-also read from `OPENAI_API_KEY`. Credentials live in `~/.cade-mini/auth.json`;
-Cade credentials and settings are not read. See the
+For DeepSeek:
+
+```bash
+uv run --locked cade-mini login --provider deepseek
+uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review this project."
+```
+
+Cade Mini supports only the Responses protocol. API keys are also read from
+`OPENAI_API_KEY` and `DEEPSEEK_API_KEY`. Credentials live in
+`~/.cade-mini/auth.json`; Cade credentials and settings are not read. See the
 [quickstart](docs/quickstart.md) for browser login and setup.
 
 To install the command outside the checkout:
@@ -42,6 +49,9 @@ cade-mini --continue "Continue work"
 cade-mini --mode build "Fix the bug"
 ```
 
+Without a task, `cade-mini` starts the inline terminal UI. The TUI accepts
+commands, file and skill references, and shell shortcuts.
+
 Build mode is the default: normal edits, tests, and builds run automatically.
 Use `--mode ask` for approval before changes or `--mode plan` for planning.
 Linux requires bubblewrap; macOS uses Seatbelt. Windows runs without an OS
@@ -51,7 +61,9 @@ Sessions and snapshots live in the project's `.cade-mini/` directory.
 Project settings live in `cade-mini.json`.
 
 Mini includes workspace tools, history retrieval, context compaction, skills,
-memory, hooks, MCP tools, subagents, file snapshots, and goals.
+memory, hooks, MCP tools, subagents, file snapshots, and goals. The TUI supports
+stepwise undo/redo, scoped rewind, and selected-file revert. Recovery covers
+tracked file mutations, not arbitrary shell or external side effects.
 
 - [User and developer guides](docs/README.md)
 - [CLI](docs/cli.md) · [Configuration](docs/configuration.md)

@@ -1,9 +1,10 @@
 # AI protocols and streaming events
 
-The AI layer translates the OpenAI Responses protocol and normalizes streaming
-chunks, reasoning, and tool calls into a typed `ProviderEvent` stream for the
-agent. Cade Mini supports only Responses: an API key against `api.openai.com`,
-or Sign in with ChatGPT (SIWC) plan usage against the same endpoint.
+The AI layer translates the Responses protocol and normalizes streaming chunks,
+reasoning, and tool calls into a typed `ProviderEvent` stream for the agent.
+Cade Mini supports only Responses: an API key against `api.openai.com`, Sign in
+with ChatGPT (SIWC) plan usage against the same endpoint, or an API key against
+`api.deepseek.com`.
 
 ## Data flow
 
@@ -26,7 +27,7 @@ Model request: messages and tools
 - `FinalMessage`: termination with reasons such as `end_turn`, `tool_use`, or `max_tokens`.
 - `ProviderFailure`: structured network or HTTP failures.
 
-[types.py](types.py) defines `ProviderConfig`, including `api_key`, `model`, `base_url`, `thinking`, and `reasoning_effort`. [models.py](models.py) resolves aliases and window sizes; [cache.py](cache.py) tracks prompt cache statistics.
+[types.py](types.py) defines `ProviderConfig`, including `api_key`, `model`, `base_url`, `thinking`, and `reasoning_effort`. [models.py](models.py) holds the built-in model registry, resolves aliases, and requires `context_window` and `max_tokens` for every entry; [cache.py](cache.py) tracks prompt cache statistics.
 
 ## Invariants
 
@@ -36,7 +37,10 @@ Normalize reasoning fields to `ReasoningDelta` for presentation. Parsing failure
 
 ## Example
 
-Set `OPENAI_API_KEY` before running this example. `messages` and `tools` are the request's message and tool-definition lists. Consume the stream inside an async function.
+Set `OPENAI_API_KEY` before running this example. For DeepSeek, use
+`DEEPSEEK_API_KEY`, `provider="deepseek"`, `transport="deepseek_responses"`,
+and model `deepseek-flash`. `messages` and `tools` are the request's message and
+tool-definition lists. Consume the stream inside an async function.
 
 ```python
 import os

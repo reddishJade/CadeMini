@@ -1,6 +1,7 @@
 """Provider 注册表与工厂。
 
-Cade Mini 只支持 OpenAI Responses 协议，包括 API Key 与 ChatGPT 套餐登录。
+Cade Mini 只支持 Responses 协议，包括 OpenAI API Key、ChatGPT 套餐登录
+与 DeepSeek API Key。
 """
 
 from __future__ import annotations
@@ -13,13 +14,18 @@ from cade_mini.ai.providers.base import ModelProvider
 from cade_mini.ai.resolver import ModelResolver
 from cade_mini.ai.types import ProviderConfig
 
-from .responses import ChatGPTResponsesProvider, OpenAIResponsesProvider
+from .responses import (
+    ChatGPTResponsesProvider,
+    DeepSeekResponsesProvider,
+    OpenAIResponsesProvider,
+)
 
 # ── 注册表 ──
 
 PROVIDER_REGISTRY: dict[str, type] = {
     "openai_responses": OpenAIResponsesProvider,
     "chatgpt": ChatGPTResponsesProvider,
+    "deepseek_responses": DeepSeekResponsesProvider,
 }
 
 
@@ -60,12 +66,20 @@ class ModelProfileConfig:
 
 # ── 环境变量工具 ──
 
-_OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
+_API_KEY_ENV_VARS = {
+    "openai": "OPENAI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+}
 
 
-def get_environment_api_key() -> str | None:
-    """读取 OpenAI 环境凭据，不借用其他服务的 key。"""
-    return os.environ.get(_OPENAI_API_KEY_ENV_VAR) or None
+def api_key_env_var(provider: str) -> str:
+    """返回 provider 对应的 Key 环境变量名。"""
+    return _API_KEY_ENV_VARS.get(provider, "OPENAI_API_KEY")
+
+
+def get_environment_api_key(provider: str = "openai") -> str | None:
+    """读取指定 provider 的环境凭据，不借用其他服务的 key。"""
+    return os.environ.get(api_key_env_var(provider)) or None
 
 
 # ── 工厂 ──
