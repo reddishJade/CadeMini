@@ -95,6 +95,11 @@ class CadeCompleter(Completer):
                 ranked.append((rank, name, description))
         ranked.sort(key=lambda item: item[0])
         for _, name, description in ranked[:limit]:
+            # The left column already shows the candidate name.
+            if description.startswith(name):
+                suffix = description[len(name) :]
+                if not suffix or suffix[0].isspace() or suffix[0] in "([·–—":
+                    description = suffix.strip()
             yield Completion(name, start_position=start, display_meta=description)
 
     def get_completions(
