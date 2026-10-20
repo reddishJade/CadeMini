@@ -223,7 +223,47 @@ def test_tui_has_compact_editor_and_contextual_hint(
 
     terminal._open_picker("mode")
     labels = dict(terminal._picker_source)
-    assert labels["act"] != "act"
-    assert labels["build"] != "build"
-    assert labels["plan"] != "plan"
+    assert labels["act"].startswith("act")
+    assert labels["build"].startswith("build")
+    assert labels["plan"].startswith("plan")
     terminal._close_picker()
+
+
+def test_argument_completions_do_not_repeat_candidate_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    service = host(tmp_path)
+    completer = CadeCompleter(service)
+    mode = list(completer.get_completions(Document("/mode "), object()))
+    assert {item.text for item in mode} >= {"act", "build", "plan"}
+    assert all(item.display_meta_text != item.text for item in mode)
+
+    tool = list(
+        completer._matches(
+            "", (("read", "read · Read a text file"), ("edit", "edit · Replace text")),
+            0,
+        )
+    )
+    assert [item.display_meta_text for item in tool] == [
+        "· Read a text file",
+        "· Replace text",
+    ]
+
+    model = list(completer.get_completions(Document("/model "), object()))
+    assert model
+    assert all(not item.display_meta_text.startswith(item.text) for item in model)
+
+
+@pytest.mark.asyncio
+async def test_shift_tab_switch_is_silent_and_preserves_draft(tmp_path: Path) -> None:
+    terminal = CadeTui(host(tmp_path), output=DummyOutput())
+    terminal._input.text = "unsubmitted work"
+    old_entries = len(terminal.transcript.entries)
+    old_log = len(terminal.service.log.entries())
+    assert terminal.service.policy.mode == "act"
+    await terminal._cycle_mode()
+    assert terminal.service.policy.mode == "build"
+    assert terminal._input.text == "unsubmitted work"
+    assert len(terminal.transcript.entries) == old_entries
+    assert len(terminal.service.log.entries()) == old_log
