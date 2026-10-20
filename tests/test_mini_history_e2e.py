@@ -218,7 +218,9 @@ def test_cancel_and_invalid_tree_selection_do_not_change_history(
     terminal_runner(scenario)
 
 
-@pytest.mark.parametrize("command", ["/tree", "/fork", "/clone"])
+@pytest.mark.parametrize(
+    "command", ["/tree", "/fork", "/clone", "/undo", "/redo", "/rewind", "/revert"]
+)
 def test_history_commands_do_not_replace_an_active_run(
     terminal_runner: Runner, command: str
 ) -> None:

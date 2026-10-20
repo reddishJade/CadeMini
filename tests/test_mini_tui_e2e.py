@@ -234,6 +234,10 @@ COMMAND_CASES = [
     ("/sessions", "picker"),
     ("/fork 1", None),
     ("/clone", None),
+    ("/undo", None),
+    ("/redo", "Nothing to redo"),
+    ("/rewind", "picker"),
+    ("/revert", "picker"),
     ("/tree", "picker"),
     ("/compact", "Nothing to compact"),
     ("/rollover --force", "Context reset"),
@@ -833,7 +837,7 @@ def test_queue_runs_followup(terminal_runner: Runner) -> None:
     terminal_runner(scenario)
 
 
-@pytest.mark.parametrize("command", ["/undo", "/revert", "/rewind", "/rename", "/mcp"])
+@pytest.mark.parametrize("command", ["/rename", "/mcp"])
 def test_deferred_commands_do_not_mutate_session_or_files(
     terminal_runner: Runner, command: str
 ) -> None:

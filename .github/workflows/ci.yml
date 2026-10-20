@@ -69,7 +69,7 @@ jobs:
       - name: Headless TUI acceptance
         run: |
           uv run --locked pytest -q tests/test_mini_tui_e2e.py \
-            tests/test_mini_history_e2e.py -m e2e \
+            tests/test_mini_history_e2e.py tests/test_mini_recovery_e2e.py -m e2e \
             --basetemp=e2e-results/ci/tui --junitxml=e2e-results/ci/tui.xml
       - name: CLI startup check
         run: uv run --locked cade-mini --help
