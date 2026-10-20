@@ -15,7 +15,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import filelock
 from pydantic import BaseModel, ConfigDict, Field
@@ -43,7 +43,6 @@ class _Manifest(BaseModel):
     """不可变的变更前清单。"""
 
     model_config = ConfigDict(extra="forbid", strict=True)
-    v: Literal[2] = 2
     id: str = Field(pattern=r"^[0-9]+-[0-9a-f]{6}$")
     path: str
     existed: bool
@@ -141,10 +140,6 @@ class SnapshotStore:
             if not entries:
                 return None
             metadata = entries[-1]
-            if metadata.get("v") != 2:
-                raise SnapshotConflict(
-                    "Legacy snapshot has no post-change state; automatic undo is unsafe"
-                )
             manifest = _Manifest.model_validate(metadata)
             saved = self._load(manifest.id)
             if saved != manifest:

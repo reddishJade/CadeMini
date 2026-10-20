@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
-from typing import Literal
 from uuid import uuid4
 
 import filelock
@@ -118,21 +117,11 @@ class SessionLog:
             lock.release()
 
     def append(self, event_type: EventType, data: dict[str, JsonValue]) -> LogEntry:
-        """校验并追加 v4 事实，fsync 后返回已提交的条目。"""
-        return self._append(event_type, data, version=4)
-
-    def _append(
-        self,
-        event_type: EventType,
-        data: dict[str, JsonValue],
-        *,
-        version: Literal[1, 2, 3, 4],
-    ) -> LogEntry:
-        if version >= 2:
-            try:
-                validate_event_data(event_type, data)
-            except ValueError as exc:
-                raise LogError(f"invalid {event_type} event payload") from exc
+        """校验并追加事实，fsync 后返回已提交的条目。"""
+        try:
+            validate_event_data(event_type, data)
+        except ValueError as exc:
+            raise LogError(f"invalid {event_type} event payload") from exc
         with (
             self._memory_lock,
             self._lock if self._pending is None else nullcontext(),
@@ -149,7 +138,6 @@ class SessionLog:
             if event_type == "restore":
                 parent = _restore_parent(data, {e.id: e for e in entries})
             entry = LogEntry(
-                v=version,
                 id=uuid4().hex[:12],
                 parent=parent,
                 ts=_now(),
@@ -252,7 +240,6 @@ class SessionLog:
                     if isinstance(value, str) and value in id_map:
                         data[key] = id_map[value]
                 copied = LogEntry(
-                    v=entry.v,
                     id=uuid4().hex[:12],
                     parent=copied_entries[-1].id,
                     ts=entry.ts,
@@ -301,8 +288,7 @@ class SessionLog:
                 continue
             try:
                 entry = LogEntry.model_validate_json(raw)
-                if entry.v >= 2:
-                    validate_event_data(entry.type, entry.data)
+                validate_event_data(entry.type, entry.data)
                 entries.append(entry)
             except ValueError as exc:
                 raise LogError(f"invalid session record: {self.path}:{number}") from exc

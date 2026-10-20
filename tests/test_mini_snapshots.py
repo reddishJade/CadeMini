@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 from pathlib import Path
 
@@ -124,7 +123,7 @@ def test_undo_rejects_corrupt_payload_before_changing_file(tmp_path: Path) -> No
     assert len(store.list()) == 1
 
 
-def test_undo_requires_completion_and_rejects_legacy_snapshot(tmp_path: Path) -> None:
+def test_undo_requires_completion(tmp_path: Path) -> None:
     target = tmp_path / "a.txt"
     store = SnapshotStore(tmp_path)
     snapshot_id = store.capture(target)
@@ -136,10 +135,6 @@ def test_undo_requires_completion_and_rejects_legacy_snapshot(tmp_path: Path) ->
         store.complete(snapshot_id)
     store.undo_last()
     assert not target.exists()
-
-    store.index.write_text(json.dumps({"id": "old"}) + "\n", encoding="utf-8")
-    with pytest.raises(SnapshotConflict, match="Legacy"):
-        store.undo_last()
 
 
 def test_repeated_undo_preserves_modes_and_survives_reopen(tmp_path: Path) -> None:
