@@ -1448,3 +1448,18 @@ def test_model_picker_applies_selection_before_return(
     assert terminal._picker_kind is None
     assert host.provider.model == "gpt-6-luna"
     assert host.provider_config.model == "gpt-6-luna"
+
+
+def test_auth_status_reflects_environment_key_without_exposing_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cade_mini.app.auth import JsonCredentialStore
+    from cade_mini.hosts.interaction_settings import AuthenticationService
+
+    monkeypatch.setenv("OPENAI_API_KEY", "private-test-credential")
+    service = AuthenticationService()
+    service.store = JsonCredentialStore(tmp_path / "auth.json")
+    assert "openai · connected" in dict(service.choices())["openai"]
+    status = " ".join(service.status())
+    assert "environment API key" in status
+    assert "private-test-credential" not in status

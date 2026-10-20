@@ -177,22 +177,34 @@ class AuthenticationService:
 
     def choices(self) -> tuple[tuple[str, str], ...]:
         credentials = self.store.load_all()
+        available = set()
+        for provider, credential in credentials.items():
+            if (
+                credential.access
+                and not credential.is_expired()
+                and credential.type
+                == ("oauth" if provider == "chatgpt" else "api_key")
+            ):
+                available.add(provider)
+        if get_environment_api_key():
+            available.add("openai")
         return tuple(
             (
                 provider,
-                f"{provider} · {'connected' if provider in credentials else 'not connected'}",
+                f"{provider} · {'connected' if provider in available else 'not connected'}",
             )
             for provider in self.PROVIDERS
         )
 
     def status(self) -> tuple[str, ...]:
         accounts = self.store.load_all()
-        if not accounts:
-            return ("No stored provider credentials",)
-        return tuple(
+        lines = [
             f"{name}: {credential.type} · {'expired' if credential.is_expired() else 'available'}"
             for name, credential in sorted(accounts.items())
-        )
+        ]
+        if get_environment_api_key():
+            lines.append("openai: environment API key · available")
+        return tuple(lines) or ("No provider credentials available",)
 
     def save_api_key(self, provider: str, secret: str) -> str:
         if provider != "openai":
