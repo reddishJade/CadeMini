@@ -307,3 +307,15 @@ async def test_logout_disconnects_active_provider(
 def test_rollover_help_matches_actual_options() -> None:
     assert COMMAND_INDEX["/rollover"].args == "[--force]"
     assert COMMAND_INDEX["/new-context"].args == "[--force]"
+
+
+def test_live_commands_match_exact_names() -> None:
+    from cade_mini.hosts.tui.app import _is_live_command
+
+    assert _is_live_command("/context")
+    assert _is_live_command("/context 100k")
+    assert _is_live_command("/stop")
+    assert _is_live_command("/btw quick question")
+    assert not _is_live_command("/context-window 200k")
+    assert not _is_live_command("/stopall")
+    assert not _is_live_command("/model gpt-6-luna")

@@ -51,6 +51,11 @@ from .state import Transcript
 from .widgets import TuiCompletionControl, TuiInputLexer, input_prompt
 
 _STYLE = Style.from_dict(TUI_STYLES)
+_LIVE_COMMANDS = frozenset({"/btw", "/steer", "/queue", "/stop", "/context", "/help"})
+
+
+def _is_live_command(value: str) -> bool:
+    return value.partition(" ")[0] in _LIVE_COMMANDS
 
 _SHORTCUT_HELP = """Shortcuts
   ?              show this help
@@ -675,8 +680,8 @@ class CadeTui:
         )(self._newline)
         try:
             bindings.add(
-            "s-enter", filter=Condition(lambda: not self._has_modal())
-        )(self._newline)
+                "s-enter", filter=Condition(lambda: not self._has_modal())
+            )(self._newline)
         except ValueError:
             pass
         bindings.add(
@@ -693,7 +698,7 @@ class CadeTui:
         bindings.add(
             "s-tab",
             eager=True,
-            filter=Condition(lambda: not self.service.running and not self._has_modal()),
+            filter=Condition(lambda: not self._is_busy() and not self._has_modal()),
         )(
             lambda _event: self._schedule(self._cycle_mode())
         )
@@ -704,7 +709,7 @@ class CadeTui:
         bindings.add("c-q")(lambda _event: self._exit())
         palette_ready = Condition(
             lambda: (
-                not self.service.running
+                not self._is_busy()
                 and self._picker_kind is None
                 and self._approval is None
                 and self._question_future is None
@@ -796,11 +801,7 @@ class CadeTui:
         if not value:
             return
         self._input.buffer.reset(append_to_history=True)
-        if self._is_busy() and not (
-            value.startswith(
-                ("/btw ", "/steer ", "/queue ", "/stop", "/context", "/help")
-            )
-        ):
+        if self._is_busy() and not _is_live_command(value):
             if value.startswith(("/", "!", "$")):
                 self._input.text = value
                 self.transcript.notice(
@@ -847,16 +848,7 @@ class CadeTui:
             self._refresh()
 
     async def _dispatch(self, value: str) -> None:
-        if self._is_busy() and not value.startswith(
-            (
-                "/btw",
-                "/steer",
-                "/queue",
-                "/stop",
-                "/context",
-                "/help",
-            )
-        ):
+        if self._is_busy() and not _is_live_command(value):
             self.transcript.notice("This command requires an idle session.", error=True)
             self._refresh()
             return
@@ -1062,6 +1054,11 @@ class CadeTui:
                 current_filter = self._picker_search.text
                 self._open_picker("question")
                 self._picker_search.text = current_filter
+                for index, (name, _) in enumerate(self._picker.values):
+                    if name == choice:
+                        self._picker._selected_index = index
+                        self._picker.current_value = choice
+                        break
             else:
                 self._complete_question([str(choice)])
             self._refresh()
