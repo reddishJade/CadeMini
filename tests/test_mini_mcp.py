@@ -142,10 +142,10 @@ def test_mcp_discovery_records_start_errors(tmp_path: Path) -> None:
 def test_mcp_policy_defaults_and_rules(tmp_path: Path) -> None:
     call = ToolCallBlock(id="m1", name="mcp__fake__echo", args={"text": "hi"})
 
-    assert WorkspacePolicy(tmp_path).check(call) == "ask"
-    assert WorkspacePolicy(tmp_path, mode="plan").check(call) == "deny"
-    assert WorkspacePolicy(tmp_path, read_only=True).check(call) == "deny"
+    assert WorkspacePolicy(tmp_path).check(call).decision == "ask"
+    assert WorkspacePolicy(tmp_path, mode="plan").check(call).decision == "deny"
+    assert WorkspacePolicy(tmp_path, read_only=True).check(call).decision == "deny"
     rules = [
         RuleConfig(tool="mcp__fake__echo", decision="allow"),
     ]
-    assert WorkspacePolicy(tmp_path, rules=rules).check(call) == "allow"
+    assert WorkspacePolicy(tmp_path, rules=rules).check(call).decision == "allow"

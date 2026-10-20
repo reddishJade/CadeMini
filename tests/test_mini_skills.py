@@ -96,6 +96,8 @@ def test_policy_allows_skill(tmp_path: Path) -> None:
     policy = WorkspacePolicy(tmp_path)
 
     assert (
-        policy.check(ToolCallBlock(id="s1", name="skill", args={"name": "greeter"}))
+        policy.check(
+            ToolCallBlock(id="s1", name="skill", args={"name": "greeter"})
+        ).decision
         == "allow"
     )

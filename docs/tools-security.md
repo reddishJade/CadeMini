@@ -2,80 +2,104 @@
 
 ## Workspace tools
 
-- `read`: read a UTF-8 file with line numbers. Files are capped.
+- `read`: read a UTF-8 file or list a directory. Output is capped.
 - `write`: write UTF-8 text and create parent directories.
 - `edit`: replace one exact occurrence of old text.
-- `glob`: list files matching a workspace glob.
-- `grep`: search file contents with a regular expression.
-- `bash`: run a shell command in the workspace.
+- `glob`: list workspace files matching a glob.
+- `grep`: search workspace text files with a regular expression.
+- `bash`: run a shell command, optionally with a workdir and
+  `additional_write_paths` that request extra permissions for this call.
 
-## Context and extension tools
-
-- `history`: retrieve evidence outside the current context boundary.
-- `skill`: load the full body of an available `SKILL.md`.
-- `memory`: append a durable fact to `MEMORY.md`.
-- `goal`: read, set, complete, or clear the workspace goal.
-- `subagent`: run one child task in its own session.
-- `delegate`: run one or more child tasks sequentially, optionally in a mode.
-- `mcp__<server>__<tool>`: tools discovered from a configured MCP server.
+The workspace is the fixed project root, not the shell's current directory or
+an alias for the entire home directory. Reads can use external paths, except
+protected files. Workspace writes have snapshots; external writes do not.
 
 ## Modes
 
-`plan` exposes read, glob, grep, history, skill, and bash. Writes and edits are
-hidden and denied. Only classified read-only shell commands are allowed.
+- `build` is the default. Normal edits, tests, builds, and shell pipelines run
+  automatically. Detected destructive, privileged, publishing, or external-send
+  operations require approval.
+- `ask` allows classified read-only operations and asks before changes or
+  unclassified shell commands.
+- `plan` supports exploration and discussion, not implementation. Project
+  changes, memory changes, goal changes, and MCP calls are denied. File tools
+  can write under `<workspace>/.cade-mini-plans/` only after approval for a
+  user-requested plan. Implementation requires the user to switch modes.
 
-`build` exposes all tools. Writes and edits are allowed. Read-only shell
-commands are allowed; mutating or unknown commands ask.
-
-`act` exposes all tools. Writes, edits, and shell commands ask.
-
-`--read-only` denies writes, edits, shell commands, memory, and MCP regardless of
-mode. It does not block reads, search, history, skills, or goal state.
+Subagents inherit the parent's limits. A child mode can only narrow them.
+`--read-only` and `--sandbox read-only` deny mutations while allowing classified
+read-only shell commands. These constraints cannot be overridden by rules,
+grants, `--yes`, or Reviewer approval.
 
 ## Rules and grants
 
-Static rules live in `cade-mini.json`. They are evaluated last match first and
-can match tool, path prefix, and command prefix. A hard path boundary always
-wins.
+Rules in `cade-mini.json` match a tool, normalized path subtree, or command
+prefix. All matching rules participate: `deny` wins over `ask`, which wins over
+`allow`. An explicit allow overrides a default ask, not an effective deny.
+Remove or change a deny rule to revoke it; an approval answer cannot do that.
 
-A session grant is created when an approval answer is `a` (always). The grant
-matches the same tool and the same path or command. `/permissions` lists grants;
-`/permissions clear` removes them. Grants last for the process only. Use rules
-for durable policy.
+A TTY answer of `a` creates a process-local session grant. File grants match the
+same tool and path. Shell grants also match workdir and extra write paths;
+MCP grants match the complete arguments. A grant can answer an ask but cannot
+bypass a deny. `/permissions` lists grants; `/permissions clear` removes them.
 
-## Shell classification
+## Approvals and Reviewer
 
-The shell analyzer labels a command as `read_only`, `mutating`, or `unknown`.
-It is deliberately conservative:
+Only an `ask` enters approval:
 
-- `ls`, `cat`, `grep`, `rg`, `git status`, `git diff`, and similar commands are
-  read-only.
-- `rm`, `mv`, `cp`, `git commit`, `python`, and other mutating commands are
-  mutating.
-- Pipelines, redirections, command lists, substitutions, and unknown binaries
-  are unknown.
+- `--yes` approves asks, not denials.
+- `--auto-review` sends the pending action, authorization reason, retained
+  conversation, parent conversations, and context constraints to a tool-free
+  Reviewer call. The response must contain a strict boolean `allowed` and a
+  non-empty `reason`.
+- Otherwise, a TTY prompts for `y` once, `n` deny, or `a` always.
+- Without an available approver, the action is denied.
 
-Plan mode denies unknown commands. Build and act ask.
+Reviewer rejection, timeout, provider failure, and malformed responses become
+error tool results with reasons. They return to the acting model without an
+automatic human prompt. The model must respect the denial while adjusting its
+approach. Reviewer does not inspect every ordinary development operation.
 
-## Approvals
+Shell classification and risk detection are conservative heuristics, not a
+security boundary or a complete analysis of arbitrary scripts. They cannot
+identify every destructive or external effect hidden inside programs.
 
-An ask is answered by:
+## OS sandbox
 
-- `--yes`: approve.
-- `--auto-review`: ask the model for `ALLOW` or `DENY`; failures deny.
-- Otherwise a TTY prompt: `y` once, `n` deny, `a` always for this exact call.
-- Non-TTY without `--yes` or auto-review: deny.
+Filesystem scope is independent of mode and approval:
 
-## Process isolation
+| Policy | Scope |
+| --- | --- |
+| `workspace-write` (default) | Write in the project and private session temp directory |
+| `read-only` | No regular file writes |
+| `danger-full-access` | Skip OS confinement; explicit deny rules still apply |
 
-Cade Mini does not implement an OS sandbox. `bash` runs with the permissions of
-the Cade Mini process. The path boundary, modes, shell classification, and
-approvals are the safety layer; do not run untrusted commands or repositories
-with `--yes`.
+Linux uses installed `bwrap` (bubblewrap). macOS uses system `sandbox-exec`
+(Seatbelt). Missing backends and startup failures return tool errors; neither
+platform silently retries without confinement. Windows skips OS confinement
+and retains application policy and approval checks without extra prompts.
 
-## Best practices
+The CLI routes shell commands and file tools through the same execution
+policy. On Linux/macOS, file tools execute in a fixed-operation sandboxed Python
+worker. Approving an external file write grants that target for this call.
+Shell `additional_write_paths` must name existing files or directories; a
+directory grant includes its descendants. Changing workdir does not expand
+write permissions. Approvals never silently grant full host access.
 
-- Use `plan` for review and `build` for scoped edits.
-- Prefer explicit rules over `--yes` in shared repositories.
-- Keep commands simple so the classifier can reason about them.
-- Use `--read-only` for inspection-only automation.
+Network access is independent and enabled by default. `--no-network` disables
+sandbox network access; approving network access does not grant external file
+writes. Windows and `danger-full-access` do not provide OS-level network
+restriction. The provider connection runs outside the tool sandbox.
+
+On Linux/macOS, the CLI hides existing user and project `.cade-mini` directories
+from sandboxed commands and protects existing Git hooks and Git configuration
+from writes. The home directory is not writable by default. Private temp and
+common tool caches are redirected to a session directory, cleaned on exit.
+Apart from hidden paths, the filesystem remains readable; this is not complete
+secret isolation. Restrict credentials and exposed resources accordingly.
+
+Hooks, MCP server processes, and host-managed state run outside the tool
+sandbox. Treat their configuration and code as trusted. The sandbox is not a
+container or VM, and it does not make an untrusted repository safe.
+
+See [decision 0009](decisions/0009-execution-permissions.md) for the contract.

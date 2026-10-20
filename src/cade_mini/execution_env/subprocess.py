@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from io import BufferedReader
 from pathlib import Path
 from typing import cast
@@ -14,6 +16,20 @@ from .result import ExecutionResult
 from .sandbox import CommandSandbox
 
 logger = logging.getLogger(__name__)
+
+_CANCEL: ContextVar[threading.Event | None] = ContextVar(
+    "cade_process_cancel", default=None
+)
+
+
+@contextmanager
+def process_cancellation(event: threading.Event) -> Iterator[None]:
+    """把异步工具取消传到同步进程启动器。"""
+    token = _CANCEL.set(event)
+    try:
+        yield
+    finally:
+        _CANCEL.reset(token)
 
 
 class SubprocessShell:
@@ -29,6 +45,7 @@ class SubprocessShell:
         on_progress: Callable[[str], None] | None = None,
         env: dict[str, str] | None = None,
     ) -> ExecutionResult:
+        cancel_event = cancel_event or _CANCEL.get()
         finalize_sandbox: Callable[[], str | None] | None = None
         if self._sandbox is not None:
             command = self._sandbox.wrap(argv, cwd)

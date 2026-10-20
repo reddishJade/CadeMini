@@ -53,7 +53,7 @@ Policy:
 
 - `plan` mode hides MCP tools and denies them.
 - `read_only` denies them.
-- `build` and `act` ask by default; a rule can allow a specific tool.
+- `build` and `ask` ask by default; a rule can allow a specific tool.
 
 A server that fails to start is reported at startup and skipped. Connections
 are closed at process exit.
@@ -86,7 +86,8 @@ keeps the detailed evidence.
 ```
 
 Tasks run sequentially in separate child sessions. Each result includes the
-child session ID; the parent gets one combined tool result.
+child session ID; the parent gets one combined tool result. Child modes cannot
+expand parent permissions: a Plan parent cannot delegate Build work.
 
 ## Limits
 

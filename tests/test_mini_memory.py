@@ -53,5 +53,5 @@ def test_memory_tool_rejects_empty_text(tmp_path: Path) -> None:
 
 def test_memory_policy(tmp_path: Path) -> None:
     call = _call("fact")
-    assert WorkspacePolicy(tmp_path).check(call) == "allow"
-    assert WorkspacePolicy(tmp_path, read_only=True).check(call) == "deny"
+    assert WorkspacePolicy(tmp_path).check(call).decision == "allow"
+    assert WorkspacePolicy(tmp_path, read_only=True).check(call).decision == "deny"

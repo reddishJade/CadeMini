@@ -19,7 +19,7 @@ Intentional limits include:
 - No full-screen TUI, plugin runtime, RPC, or SDK.
 - No artifact store or parallel tool scheduler.
 - No permanent approval grants; durable rules belong in project config.
-- No OS sandbox; permissions and shell classification are application checks.
+- No Windows OS sandbox; Linux uses bubblewrap and macOS uses Seatbelt.
 
 The [historical parity acceptance](../parity.md) records workflows tested
 before separation. It is not a promise of future feature parity. See the

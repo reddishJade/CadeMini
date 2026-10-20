@@ -32,7 +32,9 @@ that cannot start is reported and skipped.
 gets the parent provider, budget, policy, approver, hooks, context, and base
 tools plus its own history. It cannot spawn another subagent and is limited to
 20 steps. The parent records only the call and summary. `DelegateTool` runs one
-or more child tasks sequentially and optionally applies a child mode.
+or more child tasks sequentially and optionally applies a more restrictive
+child mode. Reviewer requests retain ancestor conversations so a child prompt
+cannot replace human restrictions.
 
 ## Snapshots
 

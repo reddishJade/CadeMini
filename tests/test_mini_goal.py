@@ -53,4 +53,4 @@ def test_goal_tool_actions(tmp_path: Path) -> None:
 
 
 def test_goal_policy_allows_tool(tmp_path: Path) -> None:
-    assert WorkspacePolicy(tmp_path).check(_call("get")) == "allow"
+    assert WorkspacePolicy(tmp_path).check(_call("get")).decision == "allow"

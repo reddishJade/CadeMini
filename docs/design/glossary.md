@@ -54,7 +54,7 @@ or pruning.
 
 ## mode
 
-`plan`, `build`, or `act`. A mode selects the default policy for tools and shell
+`plan`, `build`, or `ask`. A mode selects the default policy for tools and shell
 commands.
 
 ## rule
