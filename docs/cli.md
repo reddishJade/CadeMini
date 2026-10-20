@@ -32,8 +32,12 @@ model settings. Cade Mini supports only the Responses protocol.
   `<project-root>/cade-mini.json`.
 - `--provider NAME`, `--model NAME`, and `--effort EFFORT` override provider
   defaults.
-- `--mode plan|build|act` selects the execution mode.
-- `--read-only` / `--no-read-only` denies or permits writes and shell commands.
+- `--mode plan|build|ask` selects the work mode. Default is `build`.
+- `--sandbox read-only|workspace-write|danger-full-access` selects filesystem
+  scope. Default is `workspace-write`; Windows skips OS confinement.
+- `--network` / `--no-network` controls sandbox networking. Default is enabled.
+- `--read-only` / `--no-read-only` controls mutation denial. Read-only shell
+  commands remain available.
 - `--yes` approves asks. Use it only in trusted, non-interactive contexts.
 - `--auto-review` / `--no-auto-review` lets the model review ask-level calls.
 - `--max-steps N` bounds model steps.

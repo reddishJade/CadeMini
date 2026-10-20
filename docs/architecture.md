@@ -97,7 +97,10 @@ protocol, as recorded in [decision 0007](decisions/0007-responses-only-provider.
 and uses Sign in with ChatGPT for plan usage, as recorded in
 [decision 0008](decisions/0008-siwc-login.md). DeepSeek uses a separate
 transport with the same Responses stream format and its own endpoint.
-Mini has no OS sandbox; shell execution uses local host permissions.
+`execution_env/sandbox.py` owns bubblewrap and Seatbelt process wrapping.
+`core/permissions.py` carries structured approval results and per-call scopes.
+The CLI confines shell and file workers on Linux/macOS; Windows runs directly.
+See [Tools and security](tools-security.md) for boundaries and trusted extensions.
 
 Credentials and user skills use `~/.cade-mini/`. The SIWC host ID lives in
 `~/.cade-mini/host.json`. Sessions, snapshots, goals,

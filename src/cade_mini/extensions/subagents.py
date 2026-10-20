@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +16,10 @@ from cade_mini.core.loop import (
     ToolResult,
     run,
 )
+from cade_mini.core.permissions import Approver
 from cade_mini.core.request import Budget
 from cade_mini.core.types import JsonValue, ToolCallBlock
-from cade_mini.safety.policy import WorkspacePolicy, filter_tools
+from cade_mini.safety.policy import Mode, WorkspacePolicy, filter_tools
 from cade_mini.tools.history import HistoryTool
 from cade_mini.tools.workspace import _text_arg
 
@@ -36,7 +37,7 @@ class SubagentRunner:
         sessions_dir: Path,
         system_prompt: str,
         policy: Policy,
-        approve: Callable[[ToolCallBlock], bool | Awaitable[bool]],
+        approve: Approver,
         context: Callable[[], Sequence[str]] | None = None,
         max_steps: int = 20,
         hooks: Hooks | None = None,
@@ -59,20 +60,23 @@ class SubagentRunner:
         self,
         prompt: str,
         *,
-        mode: str | None = None,
+        mode: Mode | None = None,
         signal: CancellationToken | None = None,
     ) -> ToolResult:
         if not prompt.strip():
             raise ValueError("prompt must not be empty")
+        policy = self._policy_for(mode)
         child = SessionLog.create(self.sessions_dir / "subagents")
         child.append("system", {"text": self.system_prompt})
         child_tools: tuple[Tool, ...] = (
             *self.tools,
             HistoryTool(self.workspace, child),
         )
-        policy = self._policy_for(mode)
-        if mode is not None:
-            child_tools = filter_tools(child_tools, mode)  # type: ignore[arg-type]
+        if isinstance(policy, WorkspacePolicy):
+            child_tools = filter_tools(child_tools, policy.mode)
+        child_context = tuple(self.context())
+        if isinstance(policy, WorkspacePolicy):
+            child_context = (*child_context, policy.describe())
         result = await run(
             child,
             prompt,
@@ -81,7 +85,7 @@ class SubagentRunner:
             budget=self.budget,
             policy=policy,
             approve=self.approve,
-            context=tuple(self.context()),
+            context=child_context,
             max_steps=self.max_steps,
             cancel=signal,
             hooks=self.hooks,
@@ -101,17 +105,24 @@ class SubagentRunner:
             },
         )
 
-    def _policy_for(self, mode: str | None) -> Policy:
-        if mode is None:
-            return self.policy
+    def _policy_for(self, mode: Mode | None) -> Policy:
         if isinstance(self.policy, WorkspacePolicy):
+            selected = mode or self.policy.mode
+            ranks = {"plan": 0, "ask": 1, "build": 2}
+            if ranks[selected] > ranks[self.policy.mode]:
+                raise ValueError("A subagent cannot expand its parent's execution mode")
             return WorkspacePolicy(
                 self.workspace,
                 read_only=self.policy.read_only,
-                mode=mode,  # type: ignore[arg-type]
+                mode=selected,
+                sandbox=self.policy.sandbox,
+                temp_dir=self.policy.temp_dir,
+                plan_dir=self.policy.plan_dir,
                 rules=self.policy.rules,
                 grants=self.policy.grants,
             )
+        if mode is not None:
+            raise ValueError("This policy does not support child mode overrides")
         return self.policy
 
 
@@ -174,7 +185,7 @@ class DelegateTool:
                 "description": {"type": "string"},
                 "mode": {
                     "type": "string",
-                    "enum": ["plan", "build", "act"],
+                    "enum": ["plan", "build", "ask"],
                 },
             },
             "additionalProperties": False,
@@ -227,10 +238,14 @@ def _tasks(args: dict[str, JsonValue]) -> list[str]:
     raise ValueError("prompt or tasks is required")
 
 
-def _mode(args: dict[str, JsonValue]) -> str | None:
+def _mode(args: dict[str, JsonValue]) -> Mode | None:
     mode = args.get("mode")
     if mode is None:
         return None
-    if mode not in {"plan", "build", "act"}:
-        raise ValueError(f"invalid mode: {mode!r}")
-    return str(mode)
+    if mode == "plan":
+        return "plan"
+    if mode == "build":
+        return "build"
+    if mode == "ask":
+        return "ask"
+    raise ValueError(f"invalid mode: {mode!r}")

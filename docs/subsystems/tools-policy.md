@@ -1,69 +1,50 @@
 # Tools and policy
 
-## Tool contract
+## Contracts
 
-A tool has a name, description, JSON parameter schema, and async execute. Results
-carry content, an error flag, and optional metadata. The loop records results; a
-tool never appends to the log.
+A tool declares a name, description, JSON schema, and async `execute`. The loop
+records content and the error flag; tools do not append session facts.
 
-## Built-in tools
+`core.permissions.Policy.check` returns a `PermissionCheck` with a decision
+(`allow`, `deny`, or `ask`), reason, and `ExecutionScope`. `authorize` resolves
+only asks using an `ApprovalRequest` and `ApprovalResult`.
+The loop and CLI direct-shell path use the same authorization function.
 
-- Workspace: `read`, `write`, `edit`, `glob`, `grep`, `bash`.
-- Evidence and context: `history`, `skill`, `memory`, `goal`.
-- Delegation: `subagent`.
-- Remote: `mcp__<server>__<tool>`.
+`WorkspacePolicy` applies mode constraints and protected paths before explicit
+rules, grants, and mode defaults. Matching rules use deny > ask > allow.
+Subagent modes cannot expand parent permissions. See
+[Tools and security](../tools-security.md) for user-facing semantics.
 
-`write` and `edit` snapshot the target before changing it. `bash` snapshots
-common single-command mutation targets.
+## Execution
 
-## Policy
+The loop installs the authorized scope in a context variable only while the
+specific tool runs. This scope is preserved across async tasks and worker
+threads and reset afterward. It never changes the default workspace or grants.
 
-`WorkspacePolicy.check` returns allow, deny, or ask.
+The CLI constructs a `PlatformSandbox` with the project root, private temp,
+network setting, and protected paths. `SubprocessShell` wraps commands before
+spawning. File tools use the same backend through `tools._worker`; snapshot
+storage remains host-owned. External file changes have no workspace snapshot.
+Cancellation signals reach the subprocess launcher, and tools wait for process
+termination before returning or cleaning up request files.
 
-Hard checks run first:
+Linux uses bubblewrap, macOS uses Seatbelt, and Windows runs directly. Backend
+errors become tool errors, not unsandboxed retries. Hooks and MCP server
+processes are trusted host extensions outside this boundary.
 
-- `read` and file writes must stay inside the workspace.
-- `bash` workdir must stay inside the workspace.
-- Unknown tools are denied.
-- `read_only` denies writes, edits, shell, memory, and MCP.
+## Reviewer
 
-Then:
-
-1. A matching static rule decides.
-2. A matching session grant allows.
-3. The mode default decides.
-
-Modes:
-
-- `plan`: read tools and read-only shell; writes and mutations denied.
-- `build`: writes allowed; read-only shell allowed; mutating shell asks.
-- `act`: writes and shell ask.
-
-## Shell classification
-
-`classify_command` labels a command read-only, mutating, or unknown. Pipelines,
-redirections, command lists, substitutions, and unknown binaries are unknown.
-Plan mode denies unknown; build asks; act asks.
-
-## Grants
-
-`GrantStore` records a path or command for the exact tool. A grant is
-process-local. `/permissions` lists and clears it. Durable policy belongs in
-rules.
-
-## Approvals
-
-The host resolves ask. `SessionApprover` prompts a TTY with yes/no/always.
-`AutoReviewer` makes one tool-free model call and requires an `ALLOW` prefix.
-Non-interactive hosts deny unless `--yes` or a rule allows.
-
-## Process isolation
-
-There is no OS sandbox. Shell commands run with the Cade Mini process
-permissions. The path boundary, mode, shell classification, and approvals are
-the safety layer.
+`AutoReviewer` receives the authorization reason, exact arguments, retained
+conversation, ancestor conversations, and context constraints. It uses a
+separate tool-free request. Oversized input is rejected rather than silently
+truncated. Output is a strict object with `allowed: bool` and `reason: str`.
+Rejections and failures return their reasons to the model as tool errors.
 
 ## Tests
 
-`test_mini_tools.py`, `test_mini_policy.py`, `test_mini_grants.py`, and
-`test_mini_shell.py`.
+- `test_mini_policy.py`: mode constraints, precedence, and write scope.
+- `test_mini_grants.py`: exact grants and scope isolation.
+- `test_mini_review.py`: strict responses and model-visible denial reasons.
+- `test_mini_subagents.py`: child permission ceilings.
+- `test_mini_sandbox.py`: real OS file/network isolation, worker integration,
+  cancellation, Windows bypass, and unavailable backends.

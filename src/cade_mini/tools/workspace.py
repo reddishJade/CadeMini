@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import re
 import shutil
 import sys
+import tempfile
+import threading
 from contextlib import ExitStack, nullcontext
 from pathlib import Path
 from typing import Any
@@ -13,6 +17,14 @@ from typing import Any
 from cade_mini.core.loop import CancellationToken, ToolResult
 from cade_mini.core.types import JsonValue, ToolCallBlock
 from cade_mini.execution_env import SubprocessShell
+from cade_mini.execution_env.paths import resolve_path
+from cade_mini.execution_env.sandbox import (
+    ExecutionScope,
+    PlatformSandbox,
+    current_scope,
+    execution_scope,
+)
+from cade_mini.execution_env.subprocess import process_cancellation
 from cade_mini.extensions.snapshots import SnapshotStore
 from cade_mini.safety.shell import mutation_targets
 
@@ -34,8 +46,12 @@ class WorkspaceTool:
     description: str
     parameters: dict[str, Any]
 
-    def __init__(self, workspace: Path) -> None:
+    def __init__(
+        self, workspace: Path, *, sandbox: PlatformSandbox | None = None
+    ) -> None:
         self.workspace = workspace.resolve()
+        self.snapshots: SnapshotStore | None = None
+        self.sandbox = sandbox
         self.parameters = self._parameters()
 
     def _parameters(self) -> dict[str, Any]:
@@ -46,8 +62,97 @@ class WorkspaceTool:
         call: ToolCallBlock,
         signal: CancellationToken | None = None,
     ) -> ToolResult:
-        del signal
-        return await asyncio.to_thread(self.run, call.args)
+        cancel = threading.Event()
+        operation = self.run
+        if self.sandbox is not None and sys.platform != "win32" and self.name != "bash":
+            operation = self._run_confined
+        with process_cancellation(cancel):
+            task = asyncio.create_task(asyncio.to_thread(operation, call.args))
+            try:
+                while not task.done():
+                    if signal is not None and signal.cancelled:
+                        cancel.set()
+                    await asyncio.wait({task}, timeout=0.05)
+                return task.result()
+            except asyncio.CancelledError:
+                cancel.set()
+                # 等进程退出再返回，避免超时后继续修改文件或提前清理临时目录。
+                await asyncio.shield(task)
+                raise
+
+    def _run_confined(self, args: dict[str, JsonValue]) -> ToolResult:
+        sandbox = self.sandbox
+        if sandbox is None:
+            raise RuntimeError("File worker requires an execution environment")
+        target = None
+        if self.name in {"write", "edit"}:
+            target = _resolve_authorized_path(
+                self.workspace, args.get("path"), writing=True
+            )
+            _ensure_not_blocked(self.workspace, target)
+        snapshots = self.snapshots
+        change = (
+            snapshots.change(target)
+            if snapshots is not None
+            and target is not None
+            and target.is_relative_to(self.workspace)
+            else nullcontext()
+        )
+        scope = current_scope()
+        payload = {
+            "tool": self.name,
+            "workspace": str(self.workspace),
+            "args": args,
+            "read_only": scope.read_only,
+            "writable_paths": [str(path) for path in scope.writable_paths],
+        }
+        mounts: list[Path] = []
+        for path in scope.writable_paths:
+            parent = path
+            while not parent.exists():
+                parent = parent.parent
+            mounts.append(parent)
+        worker_scope = ExecutionScope(scope.read_only, tuple(mounts))
+        descriptor, request_path = tempfile.mkstemp(
+            dir=sandbox.temp_dir, suffix=".json"
+        )
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                json.dump(payload, stream, ensure_ascii=False)
+            with change, execution_scope(worker_scope):
+                result = SubprocessShell(sandbox).run(
+                    [
+                        sys.executable,
+                        "-I",
+                        "-m",
+                        "cade_mini.tools._worker",
+                        request_path,
+                    ],
+                    cwd=self.workspace,
+                    env=sandbox.environment(),
+                )
+            if result.returncode != 0 or result.timed_out:
+                return ToolResult(
+                    content=f"Sandboxed file operation failed: {result.output}",
+                    is_error=True,
+                )
+            protocol = result.output
+            if result.full_output_path:
+                full_output = Path(result.full_output_path)
+                try:
+                    protocol = full_output.read_text(encoding="utf-8")
+                finally:
+                    full_output.unlink(missing_ok=True)
+            try:
+                decoded = json.loads(protocol)
+            except json.JSONDecodeError:
+                return ToolResult(
+                    content="Sandboxed file worker returned an invalid result.",
+                    is_error=True,
+                )
+            return ToolResult(**decoded)
+        finally:
+            Path(request_path).unlink(missing_ok=True)
 
     def run(self, args: dict[str, JsonValue]) -> ToolResult:
         raise NotImplementedError
@@ -73,7 +178,7 @@ class ReadTool(WorkspaceTool):
         }
 
     def run(self, args: dict[str, JsonValue]) -> ToolResult:
-        path = resolve_workspace_path(self.workspace, args.get("path"))
+        path = _resolve_authorized_path(self.workspace, args.get("path"))
         _ensure_not_blocked(self.workspace, path)
         offset = _int_arg(args, "offset", 1, 1, 1_000_000)
         limit = _int_arg(args, "limit", MAX_READ_LINES, 1, MAX_READ_LINES)
@@ -149,7 +254,7 @@ class WriteTool(WorkspaceTool):
         }
 
     def run(self, args: dict[str, JsonValue]) -> ToolResult:
-        path = resolve_workspace_path(self.workspace, args.get("path"))
+        path = _resolve_authorized_path(self.workspace, args.get("path"), writing=True)
         _ensure_not_blocked(self.workspace, path)
         if path.is_dir():
             raise ValueError(
@@ -157,7 +262,11 @@ class WriteTool(WorkspaceTool):
             )
         content = _text_arg(args, "content")
         data = content.encode("utf-8")
-        change = self.snapshots.change(path) if self.snapshots else nullcontext()
+        change = (
+            self.snapshots.change(path)
+            if self.snapshots and path.is_relative_to(self.workspace)
+            else nullcontext()
+        )
         with change:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
@@ -194,7 +303,7 @@ class EditTool(WorkspaceTool):
         }
 
     def run(self, args: dict[str, JsonValue]) -> ToolResult:
-        path = resolve_workspace_path(self.workspace, args.get("path"))
+        path = _resolve_authorized_path(self.workspace, args.get("path"), writing=True)
         _ensure_not_blocked(self.workspace, path)
         if not path.is_file():
             raise ValueError(f"file not found: {display_path(self.workspace, path)}")
@@ -208,7 +317,11 @@ class EditTool(WorkspaceTool):
             raise ValueError("old text was not found")
         if count > 1:
             raise ValueError(f"old text appears {count} times; make it unique")
-        change = self.snapshots.change(path) if self.snapshots else nullcontext()
+        change = (
+            self.snapshots.change(path)
+            if self.snapshots and path.is_relative_to(self.workspace)
+            else nullcontext()
+        )
         with change:
             path.write_bytes(text.replace(old, new, 1).encode("utf-8"))
         return ToolResult(
@@ -320,7 +433,10 @@ class BashTool(WorkspaceTool):
     name = "bash"
     description = (
         "Run a shell command in the workspace. Commands run through "
-        "PowerShell on Windows and /bin/sh on POSIX."
+        "PowerShell on Windows and /bin/sh on POSIX. Write scope stays bound "
+        "to the project and private temp, regardless of workdir. Request only "
+        "necessary additional_write_paths for task-authorized external writes; "
+        "never widen scope to bypass a policy or Reviewer rejection."
     )
 
     def __init__(
@@ -338,6 +454,11 @@ class BashTool(WorkspaceTool):
                 "command": {"type": "string"},
                 "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 300_000},
                 "workdir": {"type": "string"},
+                "additional_write_paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Request approval to write these existing paths for this command only. Do not widen scope to bypass a policy or Reviewer rejection.",
+                },
             },
             "required": ["command"],
             "additionalProperties": False,
@@ -348,10 +469,7 @@ class BashTool(WorkspaceTool):
         if not command:
             raise ValueError("command must not be empty")
         timeout_ms = _int_arg(args, "timeout_ms", 30_000, 1, 300_000)
-        workdir = resolve_workspace_path(
-            self.workspace,
-            args.get("workdir", "."),
-        )
+        workdir = resolve_path(self.workspace, args.get("workdir", "."))
         _ensure_not_blocked(self.workspace, workdir)
         if not workdir.is_dir():
             raise ValueError(
@@ -364,13 +482,14 @@ class BashTool(WorkspaceTool):
                         target = resolve_workspace_path(workdir, raw)
                     except ValueError:
                         continue
-                    if target.is_dir():
+                    if target.is_dir() or not target.is_relative_to(self.workspace):
                         continue
                     changes.enter_context(self.snapshots.change(target))
-            result = SubprocessShell().run(
+            result = SubprocessShell(self.sandbox).run(
                 _shell_argv(command),
                 cwd=workdir,
                 timeout=timeout_ms,
+                env=self.sandbox.environment() if self.sandbox else None,
             )
         output = result.output.strip() or "(no output)"
         if result.timed_out:
@@ -394,9 +513,10 @@ def build_tools(
     workspace: Path,
     *,
     snapshots: SnapshotStore | None = None,
+    sandbox: PlatformSandbox | None = None,
 ) -> tuple[WorkspaceTool, ...]:
-    """构造绑定同一工作区的六个工具。"""
-    return (
+    """构造共享同一执行环境的六个工具。"""
+    tools = (
         ReadTool(workspace),
         WriteTool(workspace, snapshots),
         EditTool(workspace, snapshots),
@@ -404,6 +524,24 @@ def build_tools(
         GrepTool(workspace),
         BashTool(workspace, snapshots),
     )
+    for tool in tools:
+        tool.sandbox = sandbox
+    return tools
+
+
+def _resolve_authorized_path(root: Path, raw: object, *, writing: bool = False) -> Path:
+    path = resolve_path(root, raw)
+    scope = current_scope()
+    if writing:
+        explicitly_writable = any(
+            path == allowed or path.is_relative_to(allowed)
+            for allowed in scope.writable_paths
+        )
+        if scope.read_only and not explicitly_writable:
+            raise ValueError("This action is read-only")
+        if not path.is_relative_to(root.resolve()) and not explicitly_writable:
+            raise ValueError("Writing outside the workspace requires approval")
+    return path
 
 
 def resolve_workspace_path(root: Path, raw: object) -> Path:
@@ -458,7 +596,7 @@ def _is_blocked(root: Path, path: Path) -> bool:
     try:
         relative = path.resolve().relative_to(root.resolve())
     except ValueError:
-        return True
+        relative = path.resolve()
     if any(part in _BLOCKED_PARTS for part in relative.parts):
         return True
     name = path.name

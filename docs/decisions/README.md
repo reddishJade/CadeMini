@@ -17,6 +17,7 @@ them.
 - [0006: Validate persisted event payloads](0006-validate-event-payloads.md)
 - [0007: The AI layer supports only the Responses protocol](0007-responses-only-provider.md)
 - [0008: Use Sign in with ChatGPT for ChatGPT plan usage](0008-siwc-login.md)
+- [0009: Separate execution modes, sandbox scope, and approval](0009-execution-permissions.md)
 
 ## Adding a record
 

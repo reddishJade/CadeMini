@@ -27,8 +27,11 @@ flowchart LR
 3. An `ask` decision is resolved by the host: TTY prompt, `--yes`, auto-review,
    or denial.
 4. `before_tool` hooks run. A non-zero exit denies the call.
-5. The tool executes with a timeout and cancellation token.
+5. The tool executes within the approved per-call scope, with a timeout and
+   cancellation token. Linux/macOS workspace tools use OS confinement.
 6. The result is truncated, appended as a `tool_result` fact, and rendered.
+   Its `artifact.authorization` records decision, reason, and scope without
+   adding that metadata to the model transcript.
 7. `after_tool` hooks run and their output is ignored.
 
 ## Denials and errors

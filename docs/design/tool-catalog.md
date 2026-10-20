@@ -5,26 +5,27 @@ The built-in tool surface. MCP tools are discovered at startup and named
 
 | Tool | Parameters | Side effect | Default policy |
 | --- | --- | --- | --- |
-| `read` | `path`, `offset`, `limit` | None | Allow inside workspace |
-| `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in act, allow in build |
-| `edit` | `path`, `old`, `new` | Replaces one occurrence; snapshot first | Ask in act, allow in build |
+| `read` | `path`, `offset`, `limit` | None | Allow except protected paths |
+| `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in ask, allow in build |
+| `edit` | `path`, `old`, `new` | Replaces one occurrence; snapshot first | Ask in ask, allow in build |
 | `glob` | `pattern`, `path` | None | Allow |
 | `grep` | `pattern`, `path`, `include` | None | Allow |
-| `bash` | `command`, `workdir`, `timeout_ms` | Arbitrary process; snapshot common mutations | Ask except read-only shell |
+| `bash` | `command`, `workdir`, `timeout_ms`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
 | `history` | `query`, `entry_id`, `call_id`, `limit` | None | Allow |
 | `skill` | `name` | None; loads a skill body | Allow |
 | `memory` | `text` | Appends to `MEMORY.md` | Allow; denied read-only |
 | `goal` | `action`, `objective` | Updates `.cade-mini/goal.json` | Allow |
-| `subagent` | `prompt`, `description` | Creates a child session | Allow; hidden in plan |
+| `subagent` | `prompt`, `description` | Creates a child session | Allow; inherits parent limits |
 | `delegate` | `prompt` or `tasks`, `mode`, `description` | Creates one or more child sessions | Allow |
 | `mcp__*` | Server-defined | Remote side effects | Ask; denied plan and read-only |
 
 ## Reading the table
 
 - "Side effect" is what the tool can change, not what it always changes.
-- `write` and `edit` fail closed if the snapshot cannot be taken.
+- Workspace `write` and `edit` fail closed if the snapshot cannot be taken.
+  External writes require permission and have no workspace snapshot.
 - `bash` read-only classification is conservative; unknown commands ask in
-  build and act and are denied in plan.
+  ask mode and are denied in plan. Build permits ordinary development commands.
 - MCP tools are dynamic. A rule can allow a specific tool; the default is ask.
 
 ## Parameters

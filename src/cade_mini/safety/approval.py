@@ -6,7 +6,7 @@ import json
 import sys
 from collections.abc import Callable
 
-from cade_mini.core.types import ToolCallBlock
+from cade_mini.core.permissions import ApprovalRequest, ApprovalResult
 from cade_mini.safety.grants import GrantStore
 
 _PROMPT_LIMIT = 500
@@ -28,18 +28,19 @@ class SessionApprover:
         self._is_tty = is_tty or sys.stdin.isatty
         self.grants = grants or GrantStore()
 
-    def __call__(self, call: ToolCallBlock) -> bool:
+    def __call__(self, request: ApprovalRequest) -> ApprovalResult:
+        call = request.call
         if self.auto_approve:
-            return True
+            return ApprovalResult(True, "Approved by --yes.")
         if self.grants.match(call):
-            return True
+            return ApprovalResult(True, "Approved by a session grant.")
         if not self._is_tty():
-            return False
+            return ApprovalResult(False, "Approval requires an interactive terminal.")
         detail = json.dumps(call.args, ensure_ascii=False, sort_keys=True)
         if len(detail) > _PROMPT_LIMIT:
             detail = detail[:_PROMPT_LIMIT] + "..."
         print(
-            f"\nApprove {call.name} {detail}? [y]es/[n]o/[a]lways: ",
+            f"\n{request.reason}\nApprove {call.name} {detail}? [y]es/[n]o/[a]lways: ",
             file=sys.stderr,
             end="",
             flush=True,
@@ -47,8 +48,10 @@ class SessionApprover:
         try:
             answer = self._ask("").strip().lower()
         except (EOFError, KeyboardInterrupt):
-            return False
+            return ApprovalResult(False, "Approval was cancelled.")
         if answer in {"a", "always"}:
             self.grants.add(call)
-            return True
-        return answer in {"y", "yes"}
+        allowed = answer in {"y", "yes", "a", "always"}
+        return ApprovalResult(
+            allowed, "Approved by the user." if allowed else "Rejected by the user."
+        )

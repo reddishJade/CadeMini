@@ -49,9 +49,13 @@ cade-mini --continue "Continue work"
 cade-mini --mode build "Fix the bug"
 ```
 
-Act mode is the default. Writes and mutating shell commands require approval.
-Permission checks are not an OS sandbox. Sessions and snapshots live in the
-project's `.cade-mini/` directory. Project settings live in `cade-mini.json`.
+Build mode is the default: normal edits, tests, and builds run automatically.
+Use `--mode ask` for approval before changes or `--mode plan` for planning.
+Linux requires bubblewrap; macOS uses Seatbelt. Windows runs without an OS
+sandbox. Network access is enabled by default. See
+[Tools and security](docs/tools-security.md) for scopes, approvals, and limits.
+Sessions and snapshots live in the project's `.cade-mini/` directory.
+Project settings live in `cade-mini.json`.
 
 Mini includes workspace tools, history retrieval, context compaction, skills,
 memory, hooks, MCP tools, subagents, file snapshots, and goals.

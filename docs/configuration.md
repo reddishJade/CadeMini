@@ -17,7 +17,9 @@ silently ignored.
   "context_window": 128000,
   "max_steps": 30,
   "sessions_dir": ".cade-mini/sessions",
-  "mode": "act",
+  "mode": "build",
+  "sandbox": "workspace-write",
+  "network": true,
   "read_only": false,
   "instructions": true,
   "note": true,
@@ -45,8 +47,12 @@ silently ignored.
 - `max_steps`: maximum model steps in one run.
 - `sessions_dir`: session directory. Relative paths resolve against the project
   root.
-- `mode`: `plan`, `build`, or `act`.
-- `read_only`: deny writes and shell commands.
+- `mode`: `plan`, `build`, or `ask`. Default is `build`; replace old `act` values with `ask`.
+- `sandbox`: `read-only`, `workspace-write` (default), or `danger-full-access`.
+  Windows skips OS confinement regardless of this setting.
+- `network`: allow tool network access. Default is true. OS enforcement of false
+  requires Linux/macOS confinement.
+- `read_only`: deny mutations and allow only classified read-only shell commands.
 - `instructions`: load `AGENTS.md` or `CLAUDE.md` into request context.
 - `note`: load `NOTE.md` working state.
 - `memory`: load `MEMORY.md` durable facts.
@@ -56,8 +62,10 @@ silently ignored.
 
 ## Rules
 
-Rules are evaluated last match first. A rule matches a tool name or `*`, and
-optionally a path or command prefix. `decision` is `allow`, `deny`, or `ask`.
+Rules match a tool name or `*`, optionally a normalized path subtree or command
+prefix. All matches participate: `deny` takes precedence over `ask`, then
+`allow`. Order does not matter. `allow` overrides mode defaults, not an effective
+explicit deny.
 
 ```json
 {
@@ -69,8 +77,11 @@ optionally a path or command prefix. `decision` is `allow`, `deny`, or `ask`.
 }
 ```
 
-Hard boundaries win over rules: a path outside the workspace is denied even if a
-rule allows the tool. `read_only` also wins over grants and rules.
+In this example, `git status` is denied because the broader deny still matches.
+Remove or narrow that deny to allow it. Plan constraints, protected paths, and
+`read_only` win over grants and rules. External writes request additional
+permissions instead of being unconditionally denied. See
+[Tools and security](tools-security.md) for scopes and approval behavior.
 
 ## Hooks
 

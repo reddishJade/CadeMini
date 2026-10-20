@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import inspect
 import json
 import queue
 import re
 import sys
+import tempfile
 import threading
 from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -34,10 +35,17 @@ from cade_mini.core.loop import (
     ToolStartEvent,
     run,
 )
+from cade_mini.core.permissions import (
+    ApprovalRequest,
+    ApprovalResult,
+    Approver,
+    authorize,
+)
 from cade_mini.core.projection import project
 from cade_mini.core.request import Budget
 from cade_mini.core.types import LogEntry, LogError, ToolCallBlock
 from cade_mini.core.window import reset_window
+from cade_mini.execution_env.sandbox import PlatformSandbox, execution_scope
 from cade_mini.extensions.goal import GoalStore, GoalTool
 from cade_mini.extensions.hooks import HookRunner
 from cade_mini.extensions.mcp import discover_mcp_tools
@@ -78,7 +86,7 @@ Commands:
   /rewind [N]          Create a new session without the latest N user turns
   /compact             Summarize older turns and keep recent work
   /new-context [NOTE]  Start a new window, optionally with a handoff note
-  /mode [MODE]         Show or switch plan/build/act
+  /mode [MODE]         Show or switch plan/build/ask
   /permissions [clear] Show or clear session grants
   /undo [N]            Restore the latest N file snapshots
   /goal [TEXT|done]    Show, set, complete, or clear the goal
@@ -101,7 +109,17 @@ def main(
     *,
     provider: Provider | None = None,
 ) -> int:
-    """解析参数并运行单次任务或 REPL。"""
+    """解析参数并在退出时清理会话临时目录。"""
+    with ExitStack() as resources:
+        return _main(argv, provider=provider, resources=resources)
+
+
+def _main(
+    argv: Sequence[str] | None,
+    *,
+    provider: Provider | None,
+    resources: ExitStack,
+) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
     if raw and raw[0] == "login":
         from cade_mini.hosts.auth import login
@@ -227,10 +245,25 @@ def main(
     for error in mcp_errors:
         print(f"cade-mini: mcp: {error}", file=sys.stderr)
     snapshots = SnapshotStore(project_root)
+    temp_dir = Path(
+        resources.enter_context(tempfile.TemporaryDirectory(prefix="cade-mini-"))
+    )
+    sandbox = PlatformSandbox(
+        project_root,
+        temp_dir,
+        mode=args.sandbox or config.sandbox,
+        network=args.network if args.network is not None else config.network,
+        protected_paths=(
+            project_root / ".git" / "hooks",
+            project_root / ".git" / "config",
+        ),
+        hidden_paths=(project_root / ".cade-mini", Path.home() / ".cade-mini"),
+    )
     core_tools = (
         *build_tools(
             project_root,
             snapshots=snapshots,
+            sandbox=sandbox,
         ),
         LoadSkillTool(project_root, skills),
         MemoryTool(project_root),
@@ -242,10 +275,12 @@ def main(
         project_root,
         read_only=read_only,
         mode=mode,
+        sandbox=sandbox.mode,
+        temp_dir=temp_dir,
         rules=config.rules,
         grants=grants,
     )
-    approve = SessionApprover(auto_approve=args.yes, grants=grants)
+    approve: Approver = SessionApprover(auto_approve=args.yes, grants=grants)
     hooks = HookRunner(config.hooks, project_root)
     if use_auto_review and not args.yes:
         approve = AutoReviewer(selected, workspace=project_root)
@@ -261,7 +296,7 @@ def main(
         return reset_window(log, handoff=WINDOW_HANDOFF, reason="fallback")
 
     def context() -> tuple[str, ...]:
-        parts: list[str] = []
+        parts: list[str] = [policy.describe()]
         if use_instructions:
             text = load_project_instructions(project_root)
             if text:
@@ -433,13 +468,25 @@ def _parser() -> argparse.ArgumentParser:
         "--read-only",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Deny writes and shell commands",
+        help="Deny writes and permit only read-only shell commands",
     )
     parser.add_argument(
         "--mode",
-        choices=("plan", "build", "act"),
+        choices=("plan", "build", "ask"),
         default=None,
-        help="Execution mode (default: act)",
+        help="Execution mode (default: build)",
+    )
+    parser.add_argument(
+        "--sandbox",
+        choices=("read-only", "workspace-write", "danger-full-access"),
+        default=None,
+        help="Filesystem sandbox policy (default: workspace-write)",
+    )
+    parser.add_argument(
+        "--network",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Allow tool network access (default: on; OS enforcement on Linux/macOS only)",
     )
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--context-window", type=int, default=None)
@@ -505,7 +552,7 @@ def _run_task(
     provider: Provider,
     tools: Sequence[Tool],
     policy: WorkspacePolicy,
-    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]],
+    approve: Approver,
     budget: Budget,
     context: Sequence[str],
     max_steps: int,
@@ -552,6 +599,7 @@ class _ApprovalRequest:
     call: ToolCallBlock
     answer: str | None = None
     done: threading.Event = field(default_factory=threading.Event)
+    reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -581,12 +629,14 @@ class _ApprovalRouter:
 
     def __init__(
         self,
-        target: Callable[[ToolCallBlock], bool | Awaitable[bool]],
+        target: Approver,
     ) -> None:
         self.target = target
 
-    def __call__(self, call: ToolCallBlock) -> bool | Awaitable[bool]:
-        return self.target(call)
+    def __call__(
+        self, request: ApprovalRequest
+    ) -> ApprovalResult | Awaitable[ApprovalResult]:
+        return self.target(request)
 
 
 class _HostApprover:
@@ -603,16 +653,20 @@ class _HostApprover:
         self.grants = grants
         self.auto_approve = auto_approve
 
-    def __call__(self, call: ToolCallBlock) -> bool:
+    def __call__(self, approval: ApprovalRequest) -> ApprovalResult:
+        call = approval.call
         if self.auto_approve or self.grants.match(call):
-            return True
-        request = _ApprovalRequest(call)
+            return ApprovalResult(True, "Approved by the user.")
+        request = _ApprovalRequest(call, reason=approval.reason)
         self.events.put(request)
         request.done.wait()
         answer = (request.answer or "").strip().lower()
         if answer in {"a", "always"}:
             self.grants.add(call)
-        return answer in {"y", "yes", "a", "always"}
+        allowed = answer in {"y", "yes", "a", "always"}
+        return ApprovalResult(
+            allowed, "Approved by the user." if allowed else "Rejected by the user."
+        )
 
 
 class _ConsoleApprover:
@@ -629,15 +683,19 @@ class _ConsoleApprover:
         self.grants = grants
         self.auto_approve = auto_approve
 
-    def __call__(self, call: ToolCallBlock) -> bool:
+    def __call__(self, approval: ApprovalRequest) -> ApprovalResult:
+        call = approval.call
         if self.auto_approve or self.grants.match(call):
-            return True
-        request = _ApprovalRequest(call)
+            return ApprovalResult(True, "Approved by the user.")
+        request = _ApprovalRequest(call, reason=approval.reason)
         _answer_approval(self.events, request)
         answer = (request.answer or "").strip().lower()
         if answer in {"a", "always"}:
             self.grants.add(call)
-        return answer in {"y", "yes", "a", "always"}
+        allowed = answer in {"y", "yes", "a", "always"}
+        return ApprovalResult(
+            allowed, "Approved by the user." if allowed else "Rejected by the user."
+        )
 
 
 def _answer_approval(
@@ -652,7 +710,7 @@ def _answer_approval(
     if len(detail) > 500:
         detail = detail[:500] + "..."
     print(
-        f"\nApprove {request.call.name} {detail}? [y]es/[n]o/[a]lways: ",
+        f"\n{request.reason}\nApprove {request.call.name} {detail}? [y]es/[n]o/[a]lways: ",
         file=sys.stderr,
         end="",
         flush=True,
@@ -790,7 +848,7 @@ def _run_shell_input(
     command: str,
     tools: Sequence[Tool],
     policy: WorkspacePolicy,
-    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]],
+    approve: Approver,
 ) -> None:
     if not command:
         print("usage: !command", file=sys.stderr)
@@ -804,25 +862,29 @@ def _run_shell_input(
         name="bash",
         args={"command": command},
     )
-    decision = policy.check(call)
-    if decision == "deny":
-        print("permission denied: bash", file=sys.stderr)
-        return
-    if decision == "ask":
-        allowed = approve(call)
-        if inspect.isawaitable(allowed):
-            allowed = asyncio.run(_await_approval(allowed))
-        if not allowed:
-            print("permission denied: bash", file=sys.stderr)
+
+    async def execute() -> None:
+        authorization = await authorize(
+            call,
+            policy,
+            approve,
+            context=(policy.describe(),),
+            messages=({"role": "user", "content": command},),
+        )
+        if authorization.decision == "deny":
+            print(f"Permission denied: bash. {authorization.reason}", file=sys.stderr)
             return
-    result = asyncio.run(tool.execute(call, None))
-    print(result.content)
-    if result.is_error:
-        print("command failed", file=sys.stderr)
+        try:
+            with execution_scope(authorization.scope):
+                result = await tool.execute(call, None)
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(f"Shell execution failed: {exc}", file=sys.stderr)
+            return
+        print(result.content)
+        if result.is_error:
+            print("command failed", file=sys.stderr)
 
-
-async def _await_approval(value: Awaitable[bool]) -> bool:
-    return await value
+    asyncio.run(execute())
 
 
 def _repl(
@@ -836,7 +898,7 @@ def _repl(
     snapshots: SnapshotStore,
     goals: GoalStore,
     policy: WorkspacePolicy,
-    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]],
+    approve: Approver,
     approval_router: _ApprovalRouter,
     budget: Budget,
     context_provider: Callable[[], tuple[str, ...]],
@@ -853,8 +915,8 @@ def _repl(
     pump = _InputPump(events)
     pump.start()
     if isinstance(approve, AutoReviewer):
-        live_approve: Callable[[ToolCallBlock], bool | Awaitable[bool]] = approve
-        shell_approve: Callable[[ToolCallBlock], bool | Awaitable[bool]] = approve
+        live_approve: Approver = approve
+        shell_approve: Approver = approve
     else:
         auto_approve = getattr(approve, "auto_approve", False)
         live_approve = _HostApprover(

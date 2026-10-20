@@ -46,7 +46,7 @@ def kill_process(proc: subprocess.Popen) -> None:
         if sys.platform != "win32":
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
         else:
-            proc.terminate()
+            _taskkill(proc)
         proc.wait(timeout=TERMINATE_GRACE_SECONDS)
     except ProcessLookupError:
         pass

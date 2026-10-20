@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import pytest
 
@@ -29,6 +29,7 @@ from cade_mini.core.loop import (
     ToolStartEvent,
     run,
 )
+from cade_mini.core.permissions import ApprovalResult, PermissionCheck
 from cade_mini.core.projection import project
 from cade_mini.core.request import Budget
 from cade_mini.core.types import LogError, ToolCallBlock
@@ -89,13 +90,13 @@ class EchoTool:
 
 
 class AllowAll:
-    def check(self, call: ToolCallBlock) -> Literal["allow"]:
-        return "allow"
+    def check(self, call: ToolCallBlock) -> PermissionCheck:
+        return PermissionCheck("allow")
 
 
 class DenyAll:
-    def check(self, call: ToolCallBlock) -> Literal["deny"]:
-        return "deny"
+    def check(self, call: ToolCallBlock) -> PermissionCheck:
+        return PermissionCheck("deny", "Denied by the test policy.")
 
 
 def _log(tmp_path: Path) -> SessionLog:
@@ -667,7 +668,7 @@ async def test_run_executes_workspace_tools_with_policy(tmp_path: Path) -> None:
         tools=build_tools(workspace),
         budget=Budget(100_000),
         policy=WorkspacePolicy(workspace),
-        approve=lambda call: True,
+        approve=lambda request: ApprovalResult(True, "Approved for test"),
     )
 
     assert result.termination == "completed"

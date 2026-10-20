@@ -41,9 +41,13 @@ flowchart LR
   core_loop --> ai_events
   core_loop --> ai_types
   core_loop --> core_log
+  core_loop --> core_permissions
   core_loop --> core_projection
   core_loop --> core_request
   core_loop --> core_types
+  core_loop --> execution_env_sandbox
+  core_permissions --> core_types
+  core_permissions --> execution_env_sandbox
   core_projection --> core_types
   core_request --> ai_types
   core_request --> core_types
@@ -64,6 +68,7 @@ flowchart LR
   extensions_skills --> tools_workspace
   extensions_subagents --> core_log
   extensions_subagents --> core_loop
+  extensions_subagents --> core_permissions
   extensions_subagents --> core_request
   extensions_subagents --> core_types
   extensions_subagents --> safety_policy
@@ -79,10 +84,12 @@ flowchart LR
   hosts_cli --> core_compaction
   hosts_cli --> core_log
   hosts_cli --> core_loop
+  hosts_cli --> core_permissions
   hosts_cli --> core_projection
   hosts_cli --> core_request
   hosts_cli --> core_types
   hosts_cli --> core_window
+  hosts_cli --> execution_env_sandbox
   hosts_cli --> extensions_goal
   hosts_cli --> extensions_hooks
   hosts_cli --> extensions_mcp
@@ -96,17 +103,25 @@ flowchart LR
   hosts_cli --> safety_review
   hosts_cli --> tools_history
   hosts_cli --> tools_workspace
-  safety_approval --> core_types
+  safety_approval --> core_permissions
   safety_approval --> safety_grants
   safety_grants --> core_types
   safety_policy --> app_config
   safety_policy --> core_loop
+  safety_policy --> core_permissions
   safety_policy --> core_types
+  safety_policy --> execution_env_paths
+  safety_policy --> execution_env_sandbox
   safety_policy --> safety_grants
   safety_policy --> safety_shell
-  safety_policy --> tools_workspace
   safety_review --> ai_events
   safety_review --> core_loop
+  safety_review --> core_permissions
+  safety_review --> core_request
+  safety_review --> core_types
+  tools__worker --> core_loop
+  tools__worker --> execution_env_sandbox
+  tools__worker --> tools_workspace
   tools_history --> core_log
   tools_history --> core_loop
   tools_history --> core_types
@@ -114,6 +129,9 @@ flowchart LR
   tools_workspace --> core_loop
   tools_workspace --> core_types
   tools_workspace --> execution_env
+  tools_workspace --> execution_env_paths
+  tools_workspace --> execution_env_sandbox
+  tools_workspace --> execution_env_subprocess
   tools_workspace --> extensions_snapshots
   tools_workspace --> safety_shell
 ```

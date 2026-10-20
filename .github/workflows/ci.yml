@@ -24,7 +24,8 @@ permissions:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04 默认限制非特权 UID 映射；固定环境，不在 CI 关闭安全策略。
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -46,6 +47,11 @@ jobs:
             printf 'Internal assets must stay outside the public tree:\n%s\n' "$blocked" >&2
             exit 1
           fi
+      - name: Install and probe Linux sandbox
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          bwrap --ro-bind / / --dev /dev --unshare-pid --proc /proc \
+            --die-with-parent -- /bin/true
       - name: Install check dependencies
         run: uv sync --locked --extra dev --extra docs
       - name: Docs check
@@ -95,3 +101,24 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 7
+
+  macos-sandbox:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: "0.12.19"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install check dependencies
+        run: uv sync --locked --extra dev
+      - name: Check native Seatbelt execution and CLI integration
+        run: |
+          mkdir -p e2e-results/ci
+          uv run --locked pytest -q tests/test_mini_sandbox.py tests/test_mini_cli.py \
+            tests/test_mini_policy.py tests/test_mini_review.py \
+            --basetemp=e2e-results/ci/pytest

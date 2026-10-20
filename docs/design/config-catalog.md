@@ -18,7 +18,9 @@ Top-level fields. Nested types follow the table.
 | `memory` | `boolean` | `true` |
 | `auto_review` | `boolean` | `false` |
 | `prompt_modules` | `list[string] \| null` | `null` |
-| `mode` | `plan \| build \| act` | `"act"` |
+| `mode` | `plan \| build \| ask` | `"build"` |
+| `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
+| `network` | `boolean` | `true` |
 | `rules` | `list[RuleConfig]` | `required` |
 | `hooks` | `list[HookConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |

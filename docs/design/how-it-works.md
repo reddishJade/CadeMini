@@ -47,9 +47,9 @@ session schema.
 ## Trust and permissions
 
 Every tool call passes through a policy. Modes, static rules, session grants,
-shell classification, and approvals decide whether a call runs. Cade Mini has
-no OS sandbox; the path boundary, mode, shell classification, and approvals are
-the active safety layer.
+shell classification, and approvals decide whether a call runs. Linux/macOS
+shell and file tools also use OS confinement; Windows runs directly. See
+[Tools and security](../tools-security.md) for scopes and limitations.
 
 See [Architecture](../architecture.md) for the invariant and
 [Capability seams](capability-seams.md) for the contracts.

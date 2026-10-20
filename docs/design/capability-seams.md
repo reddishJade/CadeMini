@@ -7,8 +7,9 @@ implementation can be replaced without changing the session schema or the loop.
 | --- | --- | --- | --- |
 | Provider | `loop.Provider` streaming events | OpenAI Responses, ChatGPT plan (SIWC), DeepSeek Responses | Loop, compaction, auto-review |
 | Tool | `loop.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
-| Policy | `loop.Policy.check` returns allow, deny, or ask | `WorkspacePolicy` | Loop |
-| Approval | Callable returning bool or awaitable bool | `SessionApprover`, `AutoReviewer` | Loop |
+| Policy | `permissions.Policy.check` returns decision, reason, and scope | `WorkspacePolicy` | Loop, CLI shell |
+| Approval | `ApprovalRequest` to `ApprovalResult`, optionally async | `SessionApprover`, `AutoReviewer` | Authorization |
+| Execution scope | `ExecutionScope` and `PlatformSandbox.wrap` | bubblewrap, Seatbelt, Windows direct | Workspace tools |
 | Hooks | `loop.Hooks.before/after` | `HookRunner` | Loop |
 | Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
 | Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |

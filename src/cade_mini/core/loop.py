@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Sequence
 from dataclasses import dataclass
 from functools import wraps
@@ -20,11 +19,18 @@ from cade_mini.ai.events import (
 )
 from cade_mini.ai.types import StreamOptions, ToolDefinition
 from cade_mini.core.log import SessionLog
+from cade_mini.core.permissions import (
+    Approver,
+    PermissionCheck,
+    Policy,
+    authorize,
+    parent_authorization,
+)
 from cade_mini.core.projection import project
 from cade_mini.core.request import Budget, Request, build, estimate
 from cade_mini.core.types import JsonValue, ToolCallBlock, ToolResultMessage
+from cade_mini.execution_env.sandbox import execution_scope
 
-type Decision = Literal["allow", "deny", "ask"]
 type Termination = Literal[
     "completed",
     "max_tokens",
@@ -80,12 +86,6 @@ class Tool(Protocol):
         call: ToolCallBlock,
         signal: CancellationToken | None,
     ) -> ToolResult: ...
-
-
-class Policy(Protocol):
-    """工具调用前的允许/拒绝/询问决策。"""
-
-    def check(self, call: ToolCallBlock) -> Decision: ...
 
 
 class Hooks(Protocol):
@@ -170,7 +170,7 @@ async def run(
     tools: Sequence[Tool],
     budget: Budget,
     policy: Policy | None = None,
-    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]] | None = None,
+    approve: Approver | None = None,
     options: StreamOptions | None = None,
     context: Sequence[str] = (),
     max_steps: int = 50,
@@ -360,17 +360,23 @@ async def run(
                     cancel.reason,
                 )
 
-            decision = await _decide(policy, approve, call)
-            if decision == "deny":
-                content = f"Permission denied: {call.name}"
-                _append_tool_result(log, call, content, True)
+            authorization = await authorize(
+                call, policy, approve, context=context, messages=request.messages
+            )
+            if authorization.decision == "deny":
+                content = f"Permission denied: {call.name}. {authorization.reason}"
+                _append_tool_result(
+                    log, call, content, True, authorization=authorization
+                )
                 _emit(on_event, ToolEndEvent(call.id, content, True))
                 continue
 
             tool = tools_by_name.get(call.name)
             if tool is None:
                 content = f"Unknown tool: {call.name}"
-                _append_tool_result(log, call, content, True)
+                _append_tool_result(
+                    log, call, content, True, authorization=authorization
+                )
                 _emit(on_event, ToolEndEvent(call.id, content, True))
                 continue
 
@@ -378,14 +384,24 @@ async def run(
                 allowed, hook_output = await hooks.before(call)
                 if not allowed:
                     content = f"Hook denied {call.name}: {hook_output}".strip()
-                    _append_tool_result(log, call, content, True)
+                    _append_tool_result(
+                        log, call, content, True, authorization=authorization
+                    )
                     _emit(on_event, ToolEndEvent(call.id, content, True))
                     continue
 
             _emit(on_event, ToolStartEvent(call.id, call.name, call.args))
-            tool_result = await _execute_tool(tool, call, cancel, tool_timeout_seconds)
+            with (
+                execution_scope(authorization.scope),
+                parent_authorization(request.messages),
+            ):
+                tool_result = await _execute_tool(
+                    tool, call, cancel, tool_timeout_seconds
+                )
             content = _truncate(tool_result.content)
-            _append_tool_result(log, call, content, tool_result.is_error)
+            _append_tool_result(
+                log, call, content, tool_result.is_error, authorization=authorization
+            )
             _emit(on_event, ToolEndEvent(call.id, content, tool_result.is_error))
             if hooks is not None:
                 await hooks.after(call, content, tool_result.is_error)
@@ -626,15 +642,26 @@ def _append_tool_result(
     call: ToolCallBlock,
     content: str,
     is_error: bool,
+    *,
+    authorization: PermissionCheck | None = None,
 ) -> None:
-    log.append(
-        "tool_result",
-        {
-            "call_id": call.id,
-            "status": "error" if is_error else "ok",
-            "content": content,
-        },
-    )
+    data: dict[str, JsonValue] = {
+        "call_id": call.id,
+        "status": "error" if is_error else "ok",
+        "content": content,
+    }
+    if authorization is not None:
+        data["artifact"] = {
+            "authorization": {
+                "decision": authorization.decision,
+                "reason": authorization.reason,
+                "read_only": authorization.scope.read_only,
+                "writable_paths": [
+                    str(path) for path in authorization.scope.writable_paths
+                ],
+            }
+        }
+    log.append("tool_result", data)
 
 
 def _finish(
@@ -670,22 +697,6 @@ def _tool_map(tools: Sequence[Tool]) -> dict[str, Tool]:
             raise ValueError(f"duplicate tool name: {tool.name}")
         result[tool.name] = tool
     return result
-
-
-async def _decide(
-    policy: Policy | None,
-    approve: Callable[[ToolCallBlock], bool | Awaitable[bool]] | None,
-    call: ToolCallBlock,
-) -> Decision:
-    decision = policy.check(call) if policy is not None else "allow"
-    if decision != "ask":
-        return decision
-    if approve is None:
-        return "deny"
-    result = approve(call)
-    if inspect.isawaitable(result):
-        result = await result
-    return "allow" if result else "deny"
 
 
 def _retryable(failure: ProviderFailure) -> bool:

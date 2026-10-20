@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from cade_mini.core.types import ToolCallBlock
@@ -9,11 +10,12 @@ from cade_mini.core.types import ToolCallBlock
 
 @dataclass(frozen=True)
 class Grant:
-    """一条会话级批准；路径或命令为空表示匹配该工具的全部调用。"""
+    """一条会话授权；文件按路径，其余工具按完整参数匹配。"""
 
     tool: str
     path: str | None = None
     command: str | None = None
+    arguments: str | None = None
 
 
 class GrantStore:
@@ -29,6 +31,9 @@ class GrantStore:
             tool=call.name,
             path=path if isinstance(path, str) else None,
             command=command if isinstance(command, str) else None,
+            arguments=(
+                None if call.name in {"read", "write", "edit"} else _arguments(call)
+            ),
         )
         self._grants.append(grant)
         return grant
@@ -40,6 +45,8 @@ class GrantStore:
             if grant.path is not None and call.args.get("path") != grant.path:
                 continue
             if grant.command is not None and call.args.get("command") != grant.command:
+                continue
+            if grant.arguments is not None and grant.arguments != _arguments(call):
                 continue
             return True
         return False
@@ -53,3 +60,7 @@ class GrantStore:
             detail = grant.path or grant.command or "all"
             result.append(f"{grant.tool}: {detail}")
         return result
+
+
+def _arguments(call: ToolCallBlock) -> str:
+    return json.dumps(call.args, sort_keys=True, ensure_ascii=False)

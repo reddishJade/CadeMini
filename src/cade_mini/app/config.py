@@ -12,7 +12,7 @@ DEFAULT_CONFIG_NAME = "cade-mini.json"
 
 
 class RuleConfig(BaseModel):
-    """一条静态权限规则；最后匹配的规则生效。"""
+    """一条静态权限规则；同层冲突按 deny、ask、allow 排序。"""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -62,7 +62,11 @@ class MiniConfig(BaseModel):
     memory: bool = True
     auto_review: bool = False
     prompt_modules: list[str] | None = None
-    mode: Literal["plan", "build", "act"] = "act"
+    mode: Literal["plan", "build", "ask"] = "build"
+    sandbox: Literal["read-only", "workspace-write", "danger-full-access"] = (
+        "workspace-write"
+    )
+    network: bool = True
     rules: list[RuleConfig] = Field(default_factory=list)
     hooks: list[HookConfig] = Field(default_factory=list)
     mcp_servers: dict[str, McpServerConfig] = Field(default_factory=dict)
