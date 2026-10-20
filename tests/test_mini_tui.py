@@ -1354,3 +1354,21 @@ async def test_session_switch_does_not_reuse_approval_grants(tmp_path: Path) -> 
     host.log.append("user", {"text": "A prompt"})
     await host.command("/clone")
     assert not host.policy.grants.match(approved)
+
+
+@pytest.mark.asyncio
+async def test_session_change_discards_stale_busy_inbox_and_usage(tmp_path: Path) -> None:
+    host = service(tmp_path)
+    host.steering.append("old guidance")
+    host.pending.append("old queued task")
+    host.last_usage = {"input": 50, "output": 7}
+    await host.command("/new")
+    assert not host.steering
+    assert not host.pending
+    assert host.last_usage == {}
+
+    host.steering.append("old guidance")
+    host.pending.append("old queued task")
+    await host.command("/clone")
+    assert not host.steering
+    assert not host.pending

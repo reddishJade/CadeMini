@@ -283,11 +283,17 @@ class InteractionService:
             return (("list", "List grants"), ("clear", "Clear session grants"))
         return ()
 
+    def _reset_session_scope(self) -> None:
+        self.policy.grants.clear()
+        self.steering.clear()
+        self.pending.clear()
+        self.last_usage = {}
+
     def _new(self) -> None:
         log = SessionLog.create(self.sessions_dir, project_root=self.workspace)
         log.append("system", {"text": self.system_prompt})
         self.log = log
-        self.policy.grants.clear()
+        self._reset_session_scope()
 
     def _resume(self, session_id: str) -> None:
         if not session_id:
@@ -299,7 +305,7 @@ class InteractionService:
         if not any(e.type == "system" for e in log.branch()):
             log.append("system", {"text": self.system_prompt})
         self.log = log
-        self.policy.grants.clear()
+        self._reset_session_scope()
 
     def _turn(self, argument: str) -> Any:
         users = [e for e in self.log.branch() if e.type == "user"]
@@ -587,7 +593,7 @@ class InteractionService:
                     self.sessions_dir, project_root=self.workspace
                 )
             self.log = copied
-            self.policy.grants.clear()
+            self._reset_session_scope()
             return CommandResult(
                 (f"Session: {copied.session_id}",), changed_session=True, draft=draft
             )
