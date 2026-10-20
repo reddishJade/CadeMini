@@ -87,6 +87,15 @@ modes, configuration, and permissions.
   that input in the editor. It can select inactive branches; `N=1` selects the
   latest recorded input. Files stay unchanged.
 - `/clone` copies only the active path to a new session and clears the editor.
+- `/undo` reverses one user turn or explicit recovery action. `/redo` reapplies
+  one undone action without contacting the model or rerunning tools.
+- `/rewind` selects an active-path user prompt and offers conversation, code, or
+  both. `/rewind ENTRY conversation|code|both` selects the scope directly, then
+  opens the confirmation preview.
+- `/revert` selects a turn range and all or one tracked file without trimming
+  conversation. `/revert START [END] -- PATH ...` selects multiple files; quote
+  paths containing spaces and use forward slashes. END is inclusive; omitting it
+  includes the latest action. Conflicting later edits block restoration.
 - `/compact [INSTRUCTIONS]` summarizes older turns and applies optional guidance.
 - `/model [PROVIDER/MODEL]` switches an exact authenticated model or searches the
   model picker for a partial name.
@@ -109,9 +118,9 @@ modes, configuration, and permissions.
 - `/skill [NAME]` activates a skill for the next task.
 - `/exit` or `/quit` exits.
 
-The TUI does not register `/rewind`, `/undo`, `/revert`, `/rename`, or `/mcp`.
-Coordinated message/file undo, editable session metadata, and MCP server
-management remain outside the history-navigation feature.
+The TUI does not register `/rename` or `/mcp`. Recovery changes tracked files,
+not arbitrary shell effects, external services, or the user's Git index.
+See [recovery coverage and conflicts](snapshots-goals.md#checkpoint-recovery).
 `--undo` remains the existing one-shot file-snapshot operation; it is not a
 conversation undo command.
 
@@ -137,7 +146,7 @@ During a task, the TUI keeps reading input:
   within 500 ms to exit.
 - Other text is queued as a follow-up task.
 
-When idle with empty input, press `Esc` twice within 500 ms to open `/tree`.
+When idle with empty input, press `Esc` twice within 500 ms to open `/rewind`.
 Tree navigation, fork, and clone do not restore workspace files.
 Inside a picker or form, `Esc` closes that interaction instead. Clearing input
 with `Ctrl+C` is separate from cancelling a task with `Esc`.

@@ -27,8 +27,8 @@ history. If a resumed session has no system entry, the current prompt is added.
 `/tree` displays the full history tree. Selecting a user input restores its text
 in the editor and continues from its parent. Selecting another entry continues
 after that entry with an empty editor. Navigation and pending historical input
-survive restart. The next model request contains only the selected path. Idle
-double Esc with empty input opens this selector.
+survive restart. The next model request contains only the selected path.
+Idle double Esc with empty input opens the separate `/rewind` checkpoint selector.
 
 `/fork` can select user inputs from inactive branches as well as the active one.
 `/fork N` selects the Nth most recently recorded input; `/fork ENTRY` selects an
@@ -36,7 +36,8 @@ entry directly. Exact entry IDs take precedence over numeric turn selectors.
 The selected input returns to the editor in the new session.
 `/clone` clears the editor and copies only the active path, not other branches.
 Copies receive new entry IDs, preserve timestamps and source record versions,
-and remap compaction/window references. Navigation control records are omitted.
+and remap compaction/window references. Navigation and checkpoint controls are
+omitted. Copies do not inherit the source's workspace undo stack.
 
 All three operations leave workspace files unchanged. Fork and clone leave the
 source session unchanged. They do not implement conversation/file undo and do
@@ -44,8 +45,26 @@ not generate an automatic summary of the abandoned branch. Run history changes
 only when no task is active.
 
 See the [session schema](reference/session-schema.md) and
-[upgrade guide](upgrade/README.md#session-v3-and-history-navigation) before
+[upgrade guide](upgrade/README.md#session-v4-and-workspace-recovery) before
 opening existing sessions with the new writer.
+
+## Checkpoint recovery
+
+`/undo` and `/redo` reverse or reapply one action. A root user turn, including
+synchronous subagent edits, is one action. Explicit rewind and revert are also
+single reversible actions. New actions discard the active redo chain; original
+conversation branches remain. Navigation outside the action chain prevents a
+stale undo/redo from being applied; use `/rewind` to select the intended point.
+
+`/rewind` restores the position before a selected active-path user prompt and
+asks whether to restore conversation, tracked code, or both. `/revert` selects
+only code changes over a turn range and file subset. Code-only restoration keeps
+conversation messages and adds an audited request-context notice. It does not
+rewind provider settings, permissions, credentials, or other host state.
+
+Old or copied turns without owned checkpoints remain conversation-restorable
+only. File coverage, conflicts, and interrupted transactions are described in
+[Snapshots and goals](snapshots-goals.md#checkpoint-recovery).
 
 ## Compaction
 

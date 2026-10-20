@@ -6,8 +6,9 @@ narrower jobs.
 
 | Artifact | Default location | Owner | Lifetime | Schema |
 | --- | --- | --- | --- | --- |
-| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Write v3; read v1/v2/v3 |
+| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Write v4; read v1/v2/v3/v4 |
 | Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
+| Recovery | `.cade-mini/recovery/` | Recovery coordinator | Workspace | Closed v1 records; action journal and pending plan |
 | Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
 | Working note | `NOTE.md` | Project | Project | Markdown |
 | Memory | `MEMORY.md` | `MemoryTool` | Project | Markdown |

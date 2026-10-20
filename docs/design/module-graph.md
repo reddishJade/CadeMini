@@ -28,6 +28,10 @@ flowchart LR
   app_provider --> ai_providers_registry
   app_provider --> ai_resolver
   app_provider --> app_auth
+  app_recovery --> core_log
+  app_recovery --> core_types
+  app_recovery --> extensions_recovery
+  app_recovery --> extensions_snapshots
   core_compaction --> ai_events
   core_compaction --> core_log
   core_compaction --> core_loop
@@ -64,6 +68,7 @@ flowchart LR
   extensions_memory --> core_loop
   extensions_memory --> core_types
   extensions_memory --> tools_workspace
+  extensions_recovery --> extensions_snapshots
   extensions_skills --> core_loop
   extensions_skills --> core_types
   extensions_skills --> tools_workspace
@@ -82,6 +87,7 @@ flowchart LR
   hosts_cli --> app_note
   hosts_cli --> app_prompts
   hosts_cli --> app_provider
+  hosts_cli --> app_recovery
   hosts_cli --> core_compaction
   hosts_cli --> core_log
   hosts_cli --> core_loop
@@ -111,6 +117,7 @@ flowchart LR
   hosts_interaction --> ai_events
   hosts_interaction --> ai_models
   hosts_interaction --> app_provider
+  hosts_interaction --> app_recovery
   hosts_interaction --> core_compaction
   hosts_interaction --> core_history
   hosts_interaction --> core_log
@@ -122,6 +129,7 @@ flowchart LR
   hosts_interaction --> core_window
   hosts_interaction --> extensions_goal
   hosts_interaction --> extensions_hooks
+  hosts_interaction --> extensions_recovery
   hosts_interaction --> extensions_skills
   hosts_interaction --> extensions_snapshots
   hosts_interaction --> extensions_subagents

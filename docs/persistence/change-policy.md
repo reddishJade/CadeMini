@@ -30,5 +30,5 @@ tests, and a migration path.
 
 ## Current status
 
-Writers use closed schema v3. Readers accept v1, v2, and v3 without rewriting old
+Writers use closed schema v4. Readers accept v1, v2, v3, and v4 without rewriting old
 facts. The [upgrade guide](../upgrade/README.md) documents resume and rollback.
