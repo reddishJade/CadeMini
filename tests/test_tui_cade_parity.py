@@ -340,3 +340,22 @@ async def test_failed_thinking_toggle_keeps_active_config(
         await service.command("/thinking off")
     assert service.provider_config is old_config
     assert service.provider is old_provider
+
+
+def test_resume_command_preserves_workspace_and_custom_locations(
+    tmp_path: Path,
+) -> None:
+    from cade_mini.hosts.interaction_settings import SettingsService
+
+    service = host(tmp_path)
+    service.sessions_dir = tmp_path / "custom sessions"
+    service.settings = SettingsService(tmp_path, tmp_path / "custom config.json")
+    terminal = CadeTui(service, output=DummyOutput())
+    command = terminal._resume_command()
+    assert "--project-root" in command
+    assert str(tmp_path) in command
+    assert "--sessions-dir" in command
+    assert "custom sessions" in command
+    assert "--config" in command
+    assert "custom config.json" in command
+    assert service.log.session_id in command

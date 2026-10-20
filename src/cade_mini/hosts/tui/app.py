@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import os
+import shlex
 import subprocess
 import threading
 import time
@@ -1543,6 +1545,20 @@ class CadeTui:
         )
         self._refresh()
 
+    def _resume_command(self) -> str:
+        service = self.service
+        parts = [
+            "cade-mini", "--project-root", str(service.workspace),
+            "--resume", service.log.session_id,
+        ]
+        if service.sessions_dir.resolve() != (
+            service.workspace / ".cade-mini" / "sessions"
+        ).resolve():
+            parts.extend(["--sessions-dir", str(service.sessions_dir)])
+        if service.settings.explicit:
+            parts.extend(["--config", str(service.settings.path)])
+        return subprocess.list2cmdline(parts) if os.name == "nt" else shlex.join(parts)
+
     def run(self) -> int:
         try:
             with preserve_console_input_mode():
@@ -1552,7 +1568,7 @@ class CadeTui:
             print(
                 f"✦ Cade Mini · {seconds:.0f}s · session {self.service.log.session_id}"
             )
-            print(f"Resume: cade-mini --resume {self.service.log.session_id}")
+            print(f"Resume: {self._resume_command()}")
         return 0
 
 
