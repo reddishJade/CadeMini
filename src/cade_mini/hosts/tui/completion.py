@@ -78,7 +78,7 @@ class CadeCompleter(Completer):
         if indexed is not None and indexed.returncode == 0:
             files = (
                 path.decode("utf-8", errors="surrogateescape")
-                for path in indexed.stdout.split(b"\\x00")
+                for path in indexed.stdout.split(b"\x00")
                 if path
             )
             visible = tuple(
