@@ -157,7 +157,9 @@ def get_providers() -> list[str]:
 
 
 def get_models(provider_name: str) -> list[Model]:
-    return list(_MODELS.get(provider_name, {}).values())
+    """列出 provider 的模型；ChatGPT 登录与单模型查找共用 OpenAI 模型表。"""
+    lookup = "openai" if provider_name == "chatgpt" else provider_name
+    return list(_MODELS.get(lookup, {}).values())
 
 
 def get_model(provider_name: str, model_id: str) -> Model | None:
@@ -183,6 +185,16 @@ def get_model_cost(model_name: str) -> Cost | None:
         model = provider_models.get(resolved_name)
         if model is not None:
             return model.cost
+    return None
+
+
+def get_model_context_window(model_name: str) -> int | None:
+    """按模型 ID 查找上下文窗口；未注册模型返回 None。"""
+    resolved_name = normalize_model_id(model_name)
+    for provider_models in _MODELS.values():
+        model = provider_models.get(resolved_name)
+        if model is not None:
+            return model.context_window
     return None
 
 

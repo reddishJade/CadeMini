@@ -1,6 +1,7 @@
 # CLI
 
-The `cade-mini` entry point runs one task, starts a REPL, or manages sessions.
+The `cade-mini` entry point runs one task, starts an interactive terminal host,
+or manages sessions.
 
 ```bash
 cade-mini [TASK] [options]
@@ -8,7 +9,7 @@ cade-mini exec TASK [options]
 ```
 
 `exec` is an explicit alias for a one-shot task. Without a task, `cade-mini`
-starts the interactive REPL.
+starts the TUI in an interactive terminal.
 
 ## Login
 
@@ -22,7 +23,10 @@ cade-mini login --provider deepseek
 in a browser. `openai` and `deepseek` use `api_key` with a hidden input prompt.
 Credentials are stored in `~/.cade-mini/auth.json`; the stable SIWC host ID is
 stored in `~/.cade-mini/host.json`. Login does not change project provider or
-model settings. Cade Mini supports only the Responses protocol.
+model settings. Cade Mini supports only the Responses protocol. ChatGPT login
+and OpenAI API keys expose the registered OpenAI chat model pool through separate
+authentication routes. A refreshable OAuth token still makes models selectable;
+the provider refreshes it when needed.
 
 ## One-shot options
 
@@ -44,8 +48,8 @@ model settings. Cade Mini supports only the Responses protocol.
 - `--context-window N` overrides the model context window. It is required for
   models that are not in the built-in registry.
 - `--json` emits JSONL events for a one-shot task.
-- `--steer TEXT` injects guidance at the next model step; repeatable.
-- `--queue TEXT` queues a REPL task to run after the current task; repeatable.
+- `--steer TEXT` injects guidance at the next model step of a one-shot task;
+  repeatable.
 
 ## Sessions
 
@@ -57,35 +61,57 @@ model settings. Cade Mini supports only the Responses protocol.
 - `--undo` restores the latest file snapshot and exits without contacting a
   provider.
 
-`--continue` and `--resume` cannot be combined.
+`--continue` and `--resume` cannot be combined. Session listings and automatic
+continuation skip conversations without a nonempty user message. New interactive
+sessions keep setup records in memory until the first user or assistant message;
+opening the TUI or running `/new` alone creates no session file. Existing files
+are not automatically deleted.
 
 ## Goals
 
 - `--goal TEXT` sets the workspace goal before running.
 
-## REPL commands
+## Interactive commands
 
-- `/new` starts a new session.
-- `/resume [ID]` resumes the latest or a specific session.
-- `/sessions` lists project sessions.
-- `/fork [N|ENTRY]` forks before a recent user turn or entry. `N=1` is the latest.
+The TUI accepts these slash commands and provides native selectors for models,
+modes, configuration, and permissions.
+
+- `/new` starts a new session. `/clear` is an alias and keeps saved conversations.
+- `/continue` opens the same saved-conversation picker as `/sessions`.
+- `/resume` opens the saved-conversation picker; `/resume ID` resumes that session.
+- `/sessions` opens the same picker as `/resume`.
+- `/fork [N|ENTRY]` copies history before a user turn into a new session and puts
+  that input in the editor. `N=1` selects the latest turn. Files stay unchanged.
 - `/clone` copies the current branch to a new session.
-- `/tree` shows entries; `*` marks the active branch.
-- `/rewind [N]` creates a session without the latest N user turns.
-- `/compact` summarizes older turns.
-- `/new-context [NOTE]` starts a new window, optionally with a handoff note.
+- `/compact [INSTRUCTIONS]` summarizes older turns and applies optional guidance.
+- `/model [PROVIDER/MODEL]` switches an exact authenticated model or searches the
+  model picker for a partial name.
+- `/thinking [LEVEL]` selects reasoning effort. Use `Ctrl+T` to fold reasoning
+  output without changing effort.
+- `/new-context [--force]` starts a new context window using `NOTE.md` as the
+  handoff. Write that file first, or use `--force` to reset without it.
 - `/mode [MODE]` shows or switches the execution mode.
 - `/permissions [clear]` shows or clears session grants.
-- `/undo [N]` restores the latest N snapshots.
 - `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
 - `/context` prints the session ID, provider, budget, and event count.
 - `/steer TEXT` queues guidance for the next model step.
 - `/queue TEXT` queues a task to run after the current one.
-- `/stop` cancels the current task at the next safe point.
+- `/stop` interrupts a pending model request, including the wait for its first
+  output. Tools stop at their cancellation checks.
 - `/help` prints the command list.
+- `/login` selects an authentication method and provider. `/logout` removes a
+  selected stored credential, not environment variables.
+- `/connect` selects a provider and opens its model picker after authentication.
+- `/skill [NAME]` activates a skill for the next task.
 - `/exit` or `/quit` exits.
 
-## REPL input
+The TUI does not register `/tree`, `/rewind`, `/undo`, `/revert`, `/rename`, or
+`/mcp`. Persistent branch navigation, coordinated message/file undo, editable
+session metadata, and MCP server management require separate core support.
+`--undo` remains the existing one-shot file-snapshot operation; it is not a
+conversation undo command.
+
+## Interactive input
 
 - `@path` attaches a workspace file to the task.
 - `$skill` loads a skill body into the task.
@@ -97,12 +123,21 @@ Review @src/cade_mini/core/loop.py and use $review-only
 !git status
 ```
 
-During a task, the REPL keeps reading input:
+During a task, the TUI keeps reading input:
 
 - `/steer TEXT` appends guidance at the next model step.
 - `/queue TEXT` runs TEXT after the current task.
-- `/stop` cancels at the next safe point.
+- `/stop` or `Esc` interrupts the task without waiting for the next model
+  output. Undelivered queued inputs return to the editor with any current draft.
+- `Ctrl+C` clears the editor without interrupting the task. Press it again
+  within 500 ms to exit.
 - Other text is queued as a follow-up task.
+
+When idle with empty input, press `Esc` twice within 500 ms to open the `/fork`
+user-input selector. This uses Pi's fork-style double-Escape action, not
+same-session tree navigation.
+Inside a picker or form, `Esc` closes that interaction instead. Clearing input
+with `Ctrl+C` is separate from cancelling a task with `Esc`.
 
 Steering is applied between steps, not inside a provider stream or a running
 tool. See [Steering and queueing](design/steering-queue.md).

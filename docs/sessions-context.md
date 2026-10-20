@@ -16,16 +16,16 @@ cade-mini --resume SESSION_ID "Explain the current state."
 sessions keep their original system fact; a new `cade-mini.json` does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.
 
-## Fork, clone, tree, and rewind
+## Fork and clone
 
 - `/clone` copies the active branch into a new session.
-- `/fork [N|ENTRY]` copies history before a user turn (default: latest) into a
-  new session and prints the forked input.
-- `/tree` lists entries; `*` marks the active branch.
-- `/rewind [N]` creates a new session without the latest N user turns.
-- `/undo [N]` restores the latest N file snapshots.
+- `/fork` selects a user message and copies the preceding history into a new
+  session. The selected input returns to the editor for editing and resending.
+  `/fork N` selects the Nth recent input; `/fork ENTRY` selects an entry directly.
 
-These operations create new sessions; they do not rewrite the original file.
+These operations leave workspace files unchanged and preserve the original
+session. They are not conversation undo or same-session tree navigation, which
+the TUI does not yet expose.
 Compaction and window references are remapped when entries are copied.
 
 ## Compaction
@@ -52,7 +52,7 @@ outside the current context.
 ## Windows
 
 A `window` fact starts a new context at a user entry and may include a handoff.
-The CLI can start one explicitly with `/new-context`. If compaction cannot bring
+The TUI can start one explicitly with `/new-context`. If compaction cannot bring
 a request under budget, the loop can append an automatic window with a fixed
 handoff that points to `NOTE.md` and the history tool.
 

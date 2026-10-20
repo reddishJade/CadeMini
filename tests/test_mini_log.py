@@ -54,6 +54,45 @@ def test_create_append_and_branch(tmp_path: Path) -> None:
     assert branch[-1].parent == branch[-2].id
 
 
+def test_deferred_session_stays_in_memory_until_first_message(tmp_path: Path) -> None:
+    log = SessionLog.create(_sessions(tmp_path), deferred=True)
+    log.append("system", {"text": "sys"})
+    assert [entry.type for entry in log.branch()] == ["meta", "system"]
+    assert not list(_sessions(tmp_path).glob("session-*"))
+
+    log.append("user", {"text": "first task"})
+    reopened = SessionLog.open(log.path)
+    assert [entry.type for entry in reopened.branch()] == ["meta", "system", "user"]
+    assert reopened.branch()[-1].data["text"] == "first task"
+    log.append("assistant", {"blocks": [{"type": "text", "text": "answer"}]})
+    assert SessionLog.open(log.path).branch()[-1].type == "assistant"
+
+
+def test_deferred_session_does_not_overwrite_a_competing_session(
+    tmp_path: Path,
+) -> None:
+    draft = SessionLog.create(_sessions(tmp_path), session_id="shared", deferred=True)
+    existing = SessionLog.create(_sessions(tmp_path), session_id="shared")
+    original = existing.path.read_bytes()
+    with pytest.raises(LogError, match="session already exists"):
+        draft.append("user", {"text": "must not overwrite"})
+    assert existing.path.read_bytes() == original
+
+
+def test_fork_before_first_input_can_remain_unsaved(tmp_path: Path) -> None:
+    source = SessionLog.create(_sessions(tmp_path))
+    source.append("system", {"text": "sys"})
+    turn = source.append("user", {"text": "first task"})
+    fork = source.copy_branch(
+        _sessions(tmp_path), before_entry_id=turn.id, deferred=True
+    )
+    assert not fork.path.exists()
+    assert [entry.type for entry in fork.branch()] == ["meta", "system"]
+    fork.append("user", {"text": "alternative"})
+    assert SessionLog.open(fork.path).branch()[-1].data["text"] == "alternative"
+    assert source.branch()[-1].data["text"] == "first task"
+
+
 def test_stale_writers_keep_all_entries_on_active_branch(tmp_path: Path) -> None:
     first = SessionLog.create(_sessions(tmp_path), session_id="shared")
     second = SessionLog.open(first.path)

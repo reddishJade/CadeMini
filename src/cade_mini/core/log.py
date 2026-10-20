@@ -5,10 +5,11 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import RLock
 from typing import Literal
 from uuid import uuid4
 
@@ -39,7 +40,9 @@ class SessionLog:
     文件锁保证单次追加连续，但调用方仍需避免并发运行同一会话。
     """
 
-    def __init__(self, path: Path, *, lock_timeout: float = 10.0) -> None:
+    def __init__(
+        self, path: Path, *, lock_timeout: float = 10.0, deferred: bool = False
+    ) -> None:
         self.path = path.resolve()
         if not self.path.parent.is_dir():
             raise LogError(f"session directory does not exist: {self.path.parent}")
@@ -47,9 +50,13 @@ class SessionLog:
             str(self.path.with_suffix(".lock")),
             timeout=lock_timeout,
         )
-        with self._lock:
-            entries = self._read_entries()
-            self._head = entries[-1] if entries else None
+        self._memory_lock = RLock()
+        self._pending: list[LogEntry] | None = [] if deferred else None
+        self._head: LogEntry | None = None
+        if not deferred:
+            with self._lock:
+                entries = self._read_entries()
+                self._head = entries[-1] if entries else None
 
     @classmethod
     def create(
@@ -58,8 +65,9 @@ class SessionLog:
         *,
         session_id: str | None = None,
         project_root: Path | None = None,
+        deferred: bool = False,
     ) -> SessionLog:
-        """创建会话文件并写入 meta 事件。"""
+        """创建会话；deferred 模式在首条对话消息到来前只保留内存记录。"""
         sessions_dir = sessions_dir.resolve()
         sessions_dir.mkdir(parents=True, exist_ok=True)
         sid = session_id or uuid4().hex[:12]
@@ -68,7 +76,7 @@ class SessionLog:
         path = sessions_dir / f"session-{sid}.jsonl"
         if path.exists():
             raise LogError(f"session already exists: {path}")
-        log = cls(path)
+        log = cls(path, deferred=deferred)
         log.append(
             "meta",
             {
@@ -125,9 +133,15 @@ class SessionLog:
                 validate_event_data(event_type, data)
             except ValueError as exc:
                 raise LogError(f"invalid {event_type} event payload") from exc
-        with self._lock:
-            self._repair_tail()
-            entries = self._read_entries()
+        with (
+            self._memory_lock,
+            self._lock if self._pending is None else nullcontext(),
+        ):
+            if self._pending is None:
+                self._repair_tail()
+                entries = self._read_entries()
+            else:
+                entries = self._pending
             self._head = entries[-1] if entries else None
             entry = LogEntry(
                 v=version,
@@ -137,13 +151,37 @@ class SessionLog:
                 type=event_type,
                 data=data,
             )
-            line = entry.model_dump_json()
-            with self.path.open("a", encoding="utf-8", newline="\n") as stream:
-                stream.write(line + "\n")
-                stream.flush()
-                os.fsync(stream.fileno())
+            if self._pending is None:
+                with self.path.open("a", encoding="utf-8", newline="\n") as stream:
+                    stream.write(entry.model_dump_json() + "\n")
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            else:
+                self._pending.append(entry)
+                conversation = (
+                    event_type == "user"
+                    and data.get("source", "user") == "user"
+                    and bool(str(data.get("text", "")).strip())
+                ) or (event_type == "assistant" and bool(data.get("blocks")))
+                if conversation:
+                    self._flush_pending()
             self._head = entry
             return entry
+
+    def _flush_pending(self) -> None:
+        """首次落盘时独占创建文件，避免覆盖另一实例创建的同名会话。"""
+        if self._pending is None:
+            return
+        with self._lock:
+            try:
+                with self.path.open("x", encoding="utf-8", newline="\n") as stream:
+                    for entry in self._pending:
+                        stream.write(entry.model_dump_json() + "\n")
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            except FileExistsError as exc:
+                raise LogError(f"session already exists: {self.path}") from exc
+            self._pending = None
 
     def copy_branch(
         self,
@@ -152,6 +190,7 @@ class SessionLog:
         before_entry_id: str | None = None,
         drop_recent_users: int = 0,
         project_root: Path | None = None,
+        deferred: bool = False,
     ) -> SessionLog:
         """把当前分支复制成新会话，可截断到某个 entry 或最近用户轮次之前。"""
         branch = self.branch()
@@ -180,6 +219,7 @@ class SessionLog:
         target = SessionLog.create(
             sessions_dir,
             project_root=project_root,
+            deferred=deferred,
         )
         id_map: dict[str, str] = {}
         for entry in branch:
@@ -197,10 +237,13 @@ class SessionLog:
 
     def entries(self) -> list[LogEntry]:
         """读取全部已提交条目；忽略未换行的末尾残片。"""
-        with self._lock:
-            entries = self._read_entries()
-            self._head = entries[-1] if entries else None
-            return entries
+        with self._memory_lock:
+            if self._pending is not None:
+                return list(self._pending)
+            with self._lock:
+                entries = self._read_entries()
+                self._head = entries[-1] if entries else None
+                return entries
 
     def branch(self) -> list[LogEntry]:
         """从当前 head 回溯到根，返回按时间正序的分支。"""
@@ -314,7 +357,12 @@ def list_sessions(sessions_dir: Path) -> list[SessionInfo]:
             entries = log.branch()
         except (LogError, OSError, ValueError):
             continue
-        if not entries:
+        if not any(
+            entry.type == "user"
+            and entry.data.get("source", "user") == "user"
+            and str(entry.data.get("text", "")).strip()
+            for entry in entries
+        ):
             continue
         meta = next((entry for entry in entries if entry.type == "meta"), None)
         created_at = (

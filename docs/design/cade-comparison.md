@@ -10,13 +10,13 @@ when it became independent. They are no longer shared runtime dependencies.
 
 ## Mini's product boundary
 
-Mini provides a terminal REPL and one-shot execution. Its core separates
+Mini provides a terminal TUI and one-shot execution. Its core separates
 append-only session facts, deterministic projection, request admission, and the
 run loop.
 
 Intentional limits include:
 
-- No full-screen TUI, plugin runtime, RPC, or SDK.
+- No plugin runtime, RPC, or SDK.
 - No artifact store or parallel tool scheduler.
 - No permanent approval grants; durable rules belong in project config.
 - No Windows OS sandbox; Linux uses bubblewrap and macOS uses Seatbelt.

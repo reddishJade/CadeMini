@@ -26,9 +26,11 @@ Not covered:
 cade-mini --undo
 ```
 
-This restores the latest snapshot and exits without contacting a provider. In
-the REPL, use `/undo`. Each call restores one snapshot, so repeated undo walks
-back through the recorded changes. Stop external file writers before undo.
+This restores the latest snapshot and exits without contacting a provider.
+Each call restores one snapshot, so repeated calls walk back through recorded
+file changes. It does not rewind conversation messages. The TUI does not expose
+this as `/undo`; coordinated conversation/file undo is not implemented. Stop
+external file writers before restoring snapshots.
 
 Undo checks that the current file matches the recorded post-change state. It
 rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
@@ -47,7 +49,7 @@ objective, a status (`active` or `done`), and an update time.
 cade-mini --goal "Add a regression test for the parser" "Start the task."
 ```
 
-In the REPL:
+In the TUI:
 
 - `/goal` shows the current goal.
 - `/goal TEXT` sets an active goal.

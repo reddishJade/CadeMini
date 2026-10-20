@@ -74,7 +74,9 @@ class Compactor:
         self.config = config or CompactionConfig()
         self.extra_context = extra_context
 
-    async def __call__(self, log: SessionLog, budget: Budget) -> bool:
+    async def __call__(
+        self, log: SessionLog, budget: Budget, *, instructions: str | None = None
+    ) -> bool:
         entries = log.branch()
         conversation = project(entries)
         cut = _select_cut(
@@ -94,7 +96,7 @@ class Compactor:
             return False
         text = _truncate(serialized, self.config.max_summary_chars)
         extra = self.extra_context() if self.extra_context is not None else None
-        summary, usage, failure = await self._summarize(text, extra)
+        summary, usage, failure = await self._summarize(text, extra, instructions)
         if failure is not None:
             log.append(
                 "attempt",
@@ -135,6 +137,7 @@ class Compactor:
         self,
         serialized: str,
         extra_context: str | None,
+        instructions: str | None = None,
     ) -> tuple[str, dict[str, int] | None, ProviderFailure | None]:
         text_parts: list[str] = []
         usage: dict[str, int] | None = None
@@ -145,13 +148,16 @@ class Compactor:
             if extra_context
             else ""
         )
+        guidance = (
+            f"\n\nAdditional instructions:\n{instructions}" if instructions else ""
+        )
         messages = [
             {"role": "system", "content": _SUMMARY_SYSTEM},
             {
                 "role": "user",
                 "content": (
                     f"{extra}<conversation>\n{serialized}\n</conversation>\n\n"
-                    f"{_SUMMARY_INSTRUCTIONS}"
+                    f"{_SUMMARY_INSTRUCTIONS}{guidance}"
                 ),
             },
         ]

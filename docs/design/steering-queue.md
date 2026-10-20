@@ -1,81 +1,75 @@
 # Steering and queueing
 
-Cade Mini's REPL can read input while a task is running. The host does not block
-the terminal on `_run_task`.
-
-## Why the old REPL blocked
-
-The first REPL called `input()` in the main thread and then ran the async loop
-with `asyncio.run`. While that call was active, the terminal was not read, so
-`/steer` and `/queue` could only affect the next task.
+The TUI keeps accepting input while a task runs. The UI thread renders events
+and handles keys; the bridge runs the task in a worker thread with its own
+`asyncio` event loop.
 
 ## Current design
 
 ```text
-stdin
+prompt_toolkit UI thread
+  |  Enter / Alt+Enter / slash commands
+  v
+InteractionService
+  |  steering, pending, cancel
+  v
+worker thread  --  asyncio.run(run_task)
   |
   v
-_InputPump thread  -- _Line -->  event queue
-                                  |
-task thread  -- _ApprovalRequest / _TaskDone --> event queue
-                                  |
-                                  v
-                         REPL main thread
+structured event queue  -->  UI thread
 ```
 
-- `_InputPump` reads one line at a time and never calls the model.
-- `_run_task` runs in a worker thread with its own `asyncio` event loop.
-- The REPL main thread owns the event queue and the session state.
-- `_HostApprover` sends `_ApprovalRequest` to the main thread and waits. The
-  main thread reads the answer from the same input pump, so approvals do not
-  compete with a second `input()`.
-- `!command` runs in the main thread and uses `_ConsoleApprover`, which reads
-  the answer directly from the event queue.
+- `InteractionService.run_task` calls the same `run` loop as one-shot mode.
+- `service.steering` holds guidance for the next model step.
+- `service.pending` holds follow-up tasks for the next turn.
+- `service.cancel` wakes a pending provider stream immediately, even before its
+  first output. Tools observe the same cancellation token at their safe points.
+- The bridge converts loop events into structured events and queues them for the
+  UI thread. The provider stream never blocks key handling.
 
 ## Commands during a run
 
 | Input | Effect |
 | --- | --- |
+| `Enter` | Use the current busy-input mode: queue, steer, or replace |
+| `Alt+Enter` | Append guidance at the next model step |
 | `/steer TEXT` | Append guidance at the next model step |
-| `/queue TEXT` | Run TEXT as a new task after the current task |
-| `/stop` or `/cancel` | Cancel the current task at the next safe point |
-| other text | Same as `/queue`: run it after the current task |
-| `/exit` | Cancel, wait for the task to settle, then exit |
+| `/queue TEXT` | Queue TEXT as a follow-up task |
+| `/queue followup` | Make `Enter` queue a follow-up task |
+| `/queue steer` | Make `Enter` append guidance |
+| `/queue interrupt` | Make `Enter` stop the task and run the message next |
+| `/stop` or `Esc` | Interrupt work and restore undelivered queued input to the editor |
+| `Ctrl+C` | Clear the editor without cancelling work; press again within 500 ms to exit |
+| `/exit` or `/quit` | Exit the TUI |
+
+A follow-up runs automatically when the current task reaches a terminal state.
+Queue order is FIFO, and queued tasks stay in the same session. Explicit Esc or
+`/stop` cancellation instead returns undelivered inputs to the editor, so they
+do not immediately start another run.
 
 `/steer` is not a prompt injection into a running provider request. The loop
 checks the steering queue before each step, appends a `user` fact with
 `source: runtime`, and builds the next request from the projection. This keeps
 the session log as the source of truth.
 
-## Queue semantics
+## Session commands
 
-- A queued task starts automatically when the current task reaches a terminal
-  state.
-- Queue order is FIFO.
-- A queued task runs in the same session; it is not a fork.
-- `/fork`, `/clone`, `/rewind`, and session commands are main-thread commands.
-  They are only handled when no task is active. During a run they are treated as
-  queued text; finish or stop the run first.
+`/new`, `/resume`, `/fork`, `/clone`, `/compact`, and
+`/new-context` change session state. Run them when no task is active. During a
+run, plain text is queued instead.
 
 ## Limits
 
-- Tools already executing are not killed. `/stop` takes effect at the next
-  cancellation check.
-- The input pump uses plain `input()`, not a full line editor. Editing,
-  history, and completion are terminal features.
-- Approval answers are read as the next line. Do not type a task while an
-  approval prompt is waiting; it is consumed as the answer.
+- File workers finish their current operation before observing cancellation.
+  Shell workers signal their child processes. Neither behavior rolls back file
+  changes; use snapshots when restoration is needed.
+- Steering applies between steps, not inside a provider stream or a running
+  tool.
 - The one-shot `--steer` flag seeds guidance before the first step. It is not a
   substitute for `/steer` during a run.
 
 ## Tests
 
-- `test_live_input_handles_steer_and_queue`
-- `test_live_input_is_read_while_worker_is_running`
-- `test_mid_run_steer_reaches_the_next_provider_request`
-- `test_repl_reads_steer_while_a_bash_tool_is_running`
-- `test_host_approver_routes_through_events`
-- `test_live_input_can_stop_the_task`
-
-The end-to-end test blocks a tool until the host delivers `/steer`, then checks
-that the next provider request contains the steering fact.
+`test_mid_run_steer_reaches_the_next_provider_request` blocks a tool until the
+host delivers guidance, then checks that the next provider request contains the
+steering fact.
