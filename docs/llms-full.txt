@@ -3490,6 +3490,18 @@ For distribution changes, inspect the wheel and install it in a clean virtual
 environment. Check startup outside the source tree and confirm that no `cade`
 package, command, or dependency is required.
 
+## Execution environment
+
+Shell cancellation tests must be able to terminate the processes they start.
+On Windows, `taskkill /T /F` needs permission to terminate the test's process
+tree. If it reports `Access denied`, run the check in an approved execution
+environment with that permission.
+
+If uv cannot access its global cache, use the
+[workspace cache](development.md#restricted-uv-cache-access). If pytest cannot
+write `.pytest_cache`, use `-p no:cacheprovider` to disable its optional cache.
+Keep `--basetemp` under `tmp/` in either case.
+
 ## Select behavioral checks
 
 - Local computation or policy: use focused regression tests with independently

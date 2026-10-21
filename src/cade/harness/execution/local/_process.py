@@ -59,12 +59,20 @@ def kill_process(proc: subprocess.Popen) -> None:
 
 
 def _taskkill(proc: subprocess.Popen) -> None:
-    subprocess.run(
+    result = subprocess.run(
         ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
         capture_output=True,
+        text=True,
         check=False,
         timeout=5,
     )
+    if result.returncode != 0 and proc.poll() is None:
+        diagnostic = result.stderr.strip() or result.stdout.strip()
+        raise OSError(
+            f"Windows process-tree termination failed (taskkill exit "
+            f"{result.returncode}): {diagnostic or 'no diagnostic output'}. "
+            "The execution environment must allow terminating child processes."
+        )
 
 
 def close_pipes(proc: subprocess.Popen) -> None:

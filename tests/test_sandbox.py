@@ -7,8 +7,11 @@ import json
 import shlex
 import shutil
 import socket
+import subprocess
 import sys
+import threading
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -118,6 +121,36 @@ async def test_cancelling_shell_kills_child_before_returning(tmp_path: Path) -> 
     assert "cancelled" in result.content.lower()
     await asyncio.sleep(1.1)
     assert not (tmp_path / "late.txt").exists()
+
+
+@pytest.mark.parametrize("trigger", ["cancel", "timeout"])
+def test_windows_termination_failure_reports_environment_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, trigger: str
+) -> None:
+    proc = Mock(spec=subprocess.Popen, pid=12345, stdout=None, stderr=None)
+    proc.poll.return_value = None
+    taskkill = Mock(
+        return_value=subprocess.CompletedProcess(
+            ["taskkill"], 1, stdout="", stderr="ERROR: Access denied"
+        )
+    )
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(subprocess, "run", taskkill)
+    monkeypatch.setattr(
+        "cade.harness.execution.local.subprocess.start_process", Mock(return_value=proc)
+    )
+    cancel = threading.Event()
+    if trigger == "cancel":
+        cancel.set()
+    with pytest.raises(OSError, match="taskkill exit 1.*Access denied"):
+        SubprocessShell().run(
+            ["program"],
+            cwd=tmp_path,
+            timeout=0 if trigger == "timeout" else 30_000,
+            cancel_event=cancel,
+        )
+    taskkill.assert_called_once()
+    proc.wait.assert_not_called()
 
 
 @pytest.fixture

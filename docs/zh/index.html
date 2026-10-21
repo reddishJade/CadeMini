@@ -2868,6 +2868,9 @@ uv run --locked cade login --help
 uv build --no-sources
 </code></pre>
 <p>发行相关改动要检查 wheel，并在干净的虚拟环境里安装。在源码树之外检查启动，确认不再需要任何 <code>cade</code> 包、命令或依赖。</p>
+<h2>执行环境</h2>
+<p>Shell 取消测试必须能终止自己启动的进程。Windows 上的 <code>taskkill /T /F</code> 需要终止测试进程树的权限。如果返回 <code>Access denied</code>，请在获准且具备该权限的执行环境中运行检查。</p>
+<p>如果 uv 无法访问全局缓存，使用<a href="#page-development">工作区缓存</a>。如果 pytest 无法写入 <code>.pytest_cache</code>，可用 <code>-p no:cacheprovider</code> 禁用可选缓存。两种情况下，<code>--basetemp</code> 都放在 <code>tmp/</code> 下。</p>
 <h2>选择行为检查</h2>
 <ul>
 <li>本地计算或策略：使用聚焦的回归测试，期望值和边界情况要独立核对。</li>

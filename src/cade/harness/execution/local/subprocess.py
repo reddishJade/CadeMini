@@ -83,17 +83,18 @@ class SubprocessShell:
             deadline = time.monotonic() + (timeout / 1000.0)
             while proc.poll() is None:
                 if time.monotonic() >= deadline:
-                    kill_process(proc)
                     timed_out = True
+                    kill_process(proc)
                     break
                 if cancel_event is not None and cancel_event.is_set():
-                    kill_process(proc)
                     cancelled = True
+                    kill_process(proc)
                     break
                 time.sleep(POLL_INTERVAL)
             output_thread.join(timeout=2)
         except Exception:
-            kill_process(proc)
+            if not (cancelled or timed_out):
+                kill_process(proc)
             raise
         finally:
             close_pipes(proc)

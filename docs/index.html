@@ -3644,6 +3644,15 @@ uv build --no-sources
 <p>For distribution changes, inspect the wheel and install it in a clean virtual
 environment. Check startup outside the source tree and confirm that no <code>cade</code>
 package, command, or dependency is required.</p>
+<h2>Execution environment</h2>
+<p>Shell cancellation tests must be able to terminate the processes they start.
+On Windows, <code>taskkill /T /F</code> needs permission to terminate the test's process
+tree. If it reports <code>Access denied</code>, run the check in an approved execution
+environment with that permission.</p>
+<p>If uv cannot access its global cache, use the
+<a href="#page-development">workspace cache</a>. If pytest cannot
+write <code>.pytest_cache</code>, use <code>-p no:cacheprovider</code> to disable its optional cache.
+Keep <code>--basetemp</code> under <code>tmp/</code> in either case.</p>
 <h2>Select behavioral checks</h2>
 <ul>
 <li>Local computation or policy: use focused regression tests with independently

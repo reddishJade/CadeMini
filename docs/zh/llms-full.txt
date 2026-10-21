@@ -2741,6 +2741,12 @@ uv build --no-sources
 
 发行相关改动要检查 wheel，并在干净的虚拟环境里安装。在源码树之外检查启动，确认不再需要任何 `cade` 包、命令或依赖。
 
+## 执行环境
+
+Shell 取消测试必须能终止自己启动的进程。Windows 上的 `taskkill /T /F` 需要终止测试进程树的权限。如果返回 `Access denied`，请在获准且具备该权限的执行环境中运行检查。
+
+如果 uv 无法访问全局缓存，使用[工作区缓存](development.md#uv-缓存权限)。如果 pytest 无法写入 `.pytest_cache`，可用 `-p no:cacheprovider` 禁用可选缓存。两种情况下，`--basetemp` 都放在 `tmp/` 下。
+
 ## 选择行为检查
 
 - 本地计算或策略：使用聚焦的回归测试，期望值和边界情况要独立核对。
