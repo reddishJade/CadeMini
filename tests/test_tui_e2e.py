@@ -501,7 +501,9 @@ def test_interrupt_before_first_provider_chunk(
     async def scenario(term: Terminal) -> None:
         term.service.provider.delay = 10
         await term.send("waiting for first chunk", wait_idle=False)
-        await term.until(lambda: term.service.running, "provider started")
+        await term.until(
+            lambda: bool(term.service.provider.requests), "provider started"
+        )
         started = perf_counter()
         if key.startswith("/"):
             await term.send(key, wait_idle=False)
@@ -611,6 +613,9 @@ def test_escape_restores_queued_input_instead_of_starting_it(
         await term.send("active task", wait_idle=False)
         await term.send("queued task", wait_idle=False)
         await term.until(lambda: bool(term.service.pending), "follow-up queued")
+        await term.until(
+            lambda: bool(term.service.provider.requests), "active task started"
+        )
         term.pipe.send_text("\x1b")
         await term.until(lambda: not term.tui._state.running, "active task aborted")
         assert not term.service.pending
@@ -933,7 +938,7 @@ def test_busy_control_reaches_core_loop(terminal_runner: Runner, control: str) -
         ]
         (term.service.workspace / "input.txt").write_text("fixture", encoding="utf-8")
         await term.send("running task", wait_idle=False)
-        await term.until(lambda: term.service.running, "core loop started")
+        await term.until(lambda: bool(provider.requests), "core loop started")
         await term.send(control, wait_idle=False)
         await term.until(lambda: not term.tui._state.running, "core loop stopped")
         runs = [e for e in term.service.log.branch() if e.type == "run"]

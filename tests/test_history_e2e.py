@@ -231,6 +231,10 @@ def test_history_commands_do_not_replace_an_active_run(
         assert "after the current task finishes" in term.transcript
         assert term.tui._state.pending_command_choice is None
         assert not any(e.type == "branch" for e in term.service.log.entries())
+        await term.until(
+            lambda: any(term.service.sessions_dir.glob("session-*.jsonl")),
+            "session persisted",
+        )
         assert len(list(term.service.sessions_dir.glob("session-*.jsonl"))) == 1
         await term.send("/stop", wait_idle=False)
         await term.until(lambda: not term.tui._state.running, "run stopped")
