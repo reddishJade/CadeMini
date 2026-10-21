@@ -5,7 +5,7 @@ from Markdown and `docs.json`; do not edit `docs/index.html` by hand.
 
 ## Rules
 
-- Write documentation in English. Code comments and docstrings are Chinese.
+- Write primary documentation in English and the `docs/zh/` mirror in Simplified Chinese. Preserve each document's language when editing or syncing it. Never replace Chinese sections with English prose or English summaries. Keep identifiers, protocol fields, paths, and commands unchanged. Code comments and docstrings are Chinese.
 - `docs/zh/` is the Chinese mirror of current pages. It has its own
   `docs/zh/docs.json` and uses the same relative file names. History records
   (`history/`, `postmortem/`, `persistence/`, `upgrade/`) stay English; Chinese

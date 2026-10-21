@@ -1,17 +1,17 @@
 # 验证指南
 
-按正在修改的行为和风险选择检查。临时工作区、pytest 文件和运行证据都放在本仓库的 `e2e-results/` 下。不要把关账号凭据复制到测试证据里。
+按正在修改的行为和风险选择检查。普通测试工作区和临时文件放在 `tmp/`，回归报告放在 `test-results/`，端到端测试结果放在 `e2e-results/`。缓存使用各工具的专用目录，如 `.uv-cache/` 和 `.pytest_cache/`。不要把账号凭据复制到测试证据里。
 
 ## 必需检查
 
 代码修改后运行：
 
 ```bash
-mkdir -p e2e-results
+mkdir -p tmp test-results
 uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 ```
 
 导入、包或入口变化后，还要检查：

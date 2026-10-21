@@ -45,6 +45,7 @@ htmlcov/
 /.eval-repos/
 /benchmark-results/
 /e2e-results/
+/test-results/
 /eval-results/
 /logs/
 /tmp/

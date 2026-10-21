@@ -64,13 +64,13 @@ jobs:
         run: uv run --locked pyright src/cade/
       - name: Regression tests
         run: |
-          mkdir -p e2e-results/ci
-          uv run --locked pytest -q tests --basetemp=e2e-results/ci/pytest
+          mkdir -p tmp test-results/ci
+          uv run --locked pytest -q tests --basetemp=tmp/pytest --junitxml=test-results/ci/pytest.xml
       - name: Headless TUI acceptance
         run: |
           uv run --locked pytest -q tests/test_tui_e2e.py \
             tests/test_history_e2e.py tests/test_recovery_e2e.py -m e2e \
-            --basetemp=e2e-results/ci/tui --junitxml=e2e-results/ci/tui.xml
+            --basetemp=tmp/pytest-tui --junitxml=e2e-results/ci/tui.xml
       - name: CLI startup check
         run: uv run --locked cade --help
       - name: Module startup check
@@ -82,13 +82,13 @@ jobs:
       - name: Check installed wheel
         shell: bash
         run: |
-          uv venv --python 3.12 e2e-results/wheel-env
+          uv venv --python 3.12 tmp/wheel-env
           uv export --locked --no-dev --no-emit-project --no-hashes \
-            -o e2e-results/runtime-requirements.txt > /dev/null
-          uv pip install --python e2e-results/wheel-env/bin/python \
-            -r e2e-results/runtime-requirements.txt dist/*.whl
-          mkdir -p e2e-results/wheel-workspace
-          cd e2e-results/wheel-workspace
+            -o tmp/runtime-requirements.txt > /dev/null
+          uv pip install --python tmp/wheel-env/bin/python \
+            -r tmp/runtime-requirements.txt dist/*.whl
+          mkdir -p tmp/wheel-workspace
+          cd tmp/wheel-workspace
           ../wheel-env/bin/cade --help
           ../wheel-env/bin/python -I -m cade --help
           ../wheel-env/bin/cade login --help
@@ -123,7 +123,7 @@ jobs:
         run: uv sync --locked --extra dev
       - name: Check native Seatbelt execution and CLI integration
         run: |
-          mkdir -p e2e-results/ci
+          mkdir -p tmp test-results/ci
           uv run --locked pytest -q tests/test_sandbox.py tests/test_cli.py \
             tests/test_policy.py tests/test_review.py \
-            --basetemp=e2e-results/ci/pytest
+            --basetemp=tmp/pytest

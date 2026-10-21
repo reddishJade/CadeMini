@@ -1,19 +1,21 @@
 # Validation guidelines
 
-Choose checks for the behavior and risk being changed. Keep all temporary
-workspaces, pytest files, and run evidence inside this repository under
-`e2e-results/`. Do not copy account credentials into test evidence.
+Choose checks for the behavior and risk being changed. Keep ordinary test
+workspaces and temporary files under `tmp/`, regression reports under
+`test-results/`, and end-to-end test results under `e2e-results/`. Keep tool
+caches in their dedicated directories, such as `.uv-cache/` and `.pytest_cache/`.
+Do not copy account credentials into test evidence.
 
 ## Required checks
 
 After code changes, run:
 
 ```bash
-mkdir -p e2e-results
+mkdir -p tmp test-results
 uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 ```
 
 After import, package, or entry-point changes, also check:

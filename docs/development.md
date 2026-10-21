@@ -14,11 +14,33 @@ skips those tests and executes tools directly.
 
 ```bash
 uv sync --locked --extra dev --extra docs
-mkdir -p e2e-results
+mkdir -p tmp test-results
 ```
 
 Code lives in `src/cade/`, tests in `tests/`, and documentation in `docs/`.
 See [Architecture](architecture.md) for module boundaries.
+
+### Restricted uv cache access
+
+If uv cannot open its global cache `.lock` file because access is denied, use
+`.uv-cache` inside the workspace. From the repository root in PowerShell:
+
+```powershell
+$env:UV_CACHE_DIR = "$PWD\.uv-cache"
+```
+
+This setting applies to the current terminal session. Run the usual uv commands
+after setting it. For a single command, use
+`uv --cache-dir ./.uv-cache run --locked ...` instead. Keep the cache
+inside the workspace rather than changing global directory permissions.
+
+## Dependencies
+
+Use `uv add PACKAGE` to add a runtime dependency and `uv add --dev PACKAGE` for
+development tools. Let uv generate version requirements and update `uv.lock`;
+do not invent version bounds or edit dependency versions by hand. Add an extra
+constraint only when a documented compatibility requirement justifies it.
+Use `uv remove PACKAGE` to remove a dependency.
 
 ## Checks
 
@@ -26,7 +48,7 @@ See [Architecture](architecture.md) for module boundaries.
 uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 uv run --locked cade --help
 uv run --locked python -m cade --help
 uv run --locked cade login --help
@@ -35,8 +57,9 @@ uv build --no-sources
 ```
 
 Follow the [validation guidelines](testing.md) to select focused checks.
-Keep temporary workspaces and run evidence under `e2e-results/`. Never commit
-credentials or raw provider traces.
+Use `tmp/` for ordinary temporary workspaces, `test-results/` for regression
+reports, and `e2e-results/` for end-to-end test results. Keep caches in dedicated
+tool directories. Never commit credentials or raw provider traces.
 
 ## Documentation
 

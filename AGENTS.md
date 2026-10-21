@@ -8,6 +8,7 @@
 - Use isolated prototypes in a separate directory or branch to test assumptions. Record conclusions in writing. Review prototype code before adoption and reuse only production-quality parts.
 - Keep components modular and responsibilities clear. Put behavior in the layer that owns it. Separate I/O, computation, and presentation. Dependencies point only to lower layers; see Project structure and architecture.
 - Prefer existing dependencies. Check their documentation and types before concluding that a capability is missing. Adopt maintained libraries when they reduce complexity or improve reliability. Add dependencies or reimplement common functionality only for a clear reason.
+- Manage dependency requirements and lockfiles with `uv add` and `uv remove`, as described in [Development](docs/development.md#dependencies). Do not write version bounds by guesswork.
 - Breaking changes are allowed. Remove obsolete paths and update callers, tests, and documentation in the same change.
 
 ## Scope and completion
@@ -36,7 +37,7 @@ After code changes, run lint, format, and type checks. If imports or entry point
 - Format: `uv run --locked ruff format src/cade/ tests/`
 - Check formatting: `uv run --locked ruff format --check src/cade/ tests/`
 - Check types: `uv run --locked pyright src/cade/`
-- Run regression tests: `uv run --locked pytest -q tests --basetemp=e2e-results/pytest`
+- Run regression tests: `uv run --locked pytest -q tests --basetemp=tmp/pytest`
 - Check startup: `uv run --locked cade --help`
 - Run exec E2E when selected by the validation guidelines: `uv run --locked cade exec "<TASK>"`
 
@@ -47,7 +48,7 @@ Use complete type annotations and standard four-space Python indentation. Ruff e
 ## Language and writing style
 
 - Write code comments and docstrings in Simplified Chinese. Follow the `zh-tech-writing` skill. Keep comments and docstrings direct, specific, and concise.
-- Write all other natural-language content in English, including documentation, prompts, CLI text, and error messages. Follow the [Google developer documentation style guide](https://developers.google.com/style). Use active voice, sentence case, consistent terms, and short, direct instructions.
+- Write other natural-language content in English, including primary documentation, prompts, CLI text, and error messages. The `docs/zh/` mirror uses Simplified Chinese. Preserve each document's language: update Chinese documentation in Chinese, and never replace Chinese sections with English text or English summaries. Keep identifiers, protocol fields, paths, and commands unchanged. Follow the [Google developer documentation style guide](https://developers.google.com/style) for English content. Use active voice, sentence case, consistent terms, and short, direct instructions.
 - Preserve Chinese test data when it verifies Chinese-language handling. Do not translate identifiers, protocol fields, or other machine-readable contracts as prose.
 - Reply to the maintainer in the language they use. This repository content policy does not change the conversation language.
 

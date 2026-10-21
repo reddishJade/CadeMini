@@ -8,7 +8,7 @@ Cade 独立维护，不依赖早期 Cade。所有工作都在本仓库根目录�
 
 ```bash
 uv sync --locked --extra dev --extra docs
-mkdir -p e2e-results
+mkdir -p tmp test-results
 ```
 
 代码在 `src/cade/`，测试在 `tests/`，文档在 `docs/`。模块边界见[架构](architecture.md)。
@@ -19,7 +19,7 @@ mkdir -p e2e-results
 uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 uv run --locked cade --help
 uv run --locked python -m cade --help
 uv run --locked cade login --help
@@ -27,7 +27,7 @@ uv run --locked python -m cade.docs check
 uv build --no-sources
 ```
 
-按[验证指南](testing.md)选择聚焦的检查。临时工作区和运行证据放在 `e2e-results/` 下。不要提交凭据或原始 provider 跟踪记录。
+按[验证指南](testing.md)选择聚焦的检查。普通临时工作区放在 `tmp/`，回归报告放在 `test-results/`，端到端测试结果放在 `e2e-results/`。缓存使用各工具的专用目录。不要提交凭据或原始提供方跟踪记录。
 
 ## 文档
 
@@ -74,3 +74,17 @@ Cade 有 `ai`、`harness`、`coding`、`app` 和 `hosts` 五个运行时包。�
 提交前检查 diff 并运行检查。没有维护者批准，不要推送或发布。推送前确认 Git 远端指向本仓库，而不是早期 Cade 项目。
 
 CI 工作流检查代码、测试、文档、启动和发行构建。版本标签（`vX.Y.Z`）必须与 `pyproject.toml` 一致，并且属于 `main`。发布工作流在 GitHub `release` 环境批准后发布已检查的发行产物。已发布的标签永远不要移动。
+
+## uv 缓存权限
+
+如果 uv 无法访问全局缓存中的 `.lock` 文件，在仓库根目录的 PowerShell 中设置：
+
+```powershell
+$env:UV_CACHE_DIR = "$PWD\.uv-cache"
+```
+
+设置仅影响当前终端。单次命令也可以使用 `uv --cache-dir ./.uv-cache run --locked ...`，无需修改全局目录权限。
+
+## 依赖管理
+
+使用 `uv add PACKAGE` 添加运行时依赖，使用 `uv add --dev PACKAGE` 添加开发工具，使用 `uv remove PACKAGE` 删除依赖。让 uv 生成版本要求并更新 `uv.lock`，不要凭感觉编写版本范围或手动修改依赖版本。只有明确的兼容性要求才能作为额外版本约束的依据，并须记录原因。
