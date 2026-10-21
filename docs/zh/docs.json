@@ -60,7 +60,7 @@
     },
     {
       "title": "扩展",
-      "pages": ["skills-memory.md", "hooks-mcp-subagents.md"]
+      "pages": ["skills-memory.md", "mcp-subagents.md"]
     },
     {
       "title": "操作指南",

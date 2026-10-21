@@ -106,8 +106,8 @@ common tool caches are redirected to a session directory, cleaned on exit.
 Apart from hidden paths, the filesystem remains readable; this is not complete
 secret isolation. Restrict credentials and exposed resources accordingly.
 
-Hooks, MCP server processes, and host-managed state run outside the tool
-sandbox. Treat their configuration and code as trusted. The sandbox is not a
-container or VM, and it does not make an untrusted repository safe.
+MCP server processes and host-managed state run outside the tool sandbox. Treat
+their configuration and code as trusted. The sandbox is not a container or VM,
+and it does not make an untrusted repository safe.
 
 See [decision 0009](decisions/0009-execution-permissions.md) for the contract.

@@ -39,7 +39,6 @@ from cade.core.request import Budget, build
 from cade.core.types import LogEntry, ToolCallBlock, UserMessage
 from cade.core.window import reset_window
 from cade.extensions.goal import GoalStore
-from cade.extensions.hooks import HookRunner
 from cade.extensions.recovery import Scope
 from cade.extensions.skills import Skill
 from cade.extensions.snapshots import SnapshotStore
@@ -129,7 +128,6 @@ class InteractionService:
         context: Callable[[], Sequence[str]],
         max_steps: int,
         compactor: Compactor,
-        hooks: HookRunner | None,
         window: Callable[[SessionLog], bool] | None,
         automatic_approver: Approver | None = None,
         config_path: Path | None = None,
@@ -148,10 +146,9 @@ class InteractionService:
         )
         self.policy, self.budget, self.context = policy, budget, context
         self.context_window_explicit = context_window_explicit
-        self.max_steps, self.compactor, self.hooks, self.window = (
+        self.max_steps, self.compactor, self.window = (
             max_steps,
             compactor,
-            hooks,
             window,
         )
         self.settings = SettingsService(workspace, config_path)
@@ -471,7 +468,6 @@ class InteractionService:
                 max_steps=self.max_steps,
                 compact=self.compactor,
                 window=self.window,
-                hooks=self.hooks,
                 steering=lambda: self.steering.popleft() if self.steering else None,
                 cancel=self.cancel,
                 on_event=on_event,
@@ -513,18 +509,7 @@ class InteractionService:
         if tool is None:
             return finish(ToolResult(content=f"Unknown tool: {name}", is_error=True))
         try:
-            if self.hooks is not None:
-                allowed, detail = await self.hooks.before(call)
-                if not allowed:
-                    return finish(
-                        ToolResult(
-                            content=f"Hook denied {name}: {detail}".strip(),
-                            is_error=True,
-                        )
-                    )
             result = await tool.execute(call, None)
-            if self.hooks is not None:
-                await self.hooks.after(call, result.content, result.is_error)
         except Exception as exc:  # noqa: BLE001
             result = ToolResult(content=f"Tool error: {exc}", is_error=True)
         return finish(result)
@@ -817,10 +802,6 @@ class InteractionService:
                     tuple(f"{tool.name} · {tool.description}" for tool in self.tools)
                 )
             raise ValueError("Usage: /tool [list]")
-        if command == "/hooks":
-            return CommandResult(
-                (f"Hooks: {type(self.hooks).__name__ if self.hooks else 'none'}",)
-            )
         if command == "/memory":
             return CommandResult((str(self.workspace / "MEMORY.md"),))
         if command == "/config":

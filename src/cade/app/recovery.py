@@ -414,7 +414,7 @@ class WorkspaceRecovery:
             )
             return (
                 f"{kind.capitalize()} applied: {action.kind}; {len(changes)} tracked file(s). "
-                "Tools were not rerun. Untracked shell, hook, and external effects remain."
+                "Tools were not rerun. Untracked shell and external effects remain."
             )
 
     def plan(

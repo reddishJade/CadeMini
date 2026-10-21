@@ -22,17 +22,7 @@ Top-level fields. Nested types follow the table.
 | `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
 | `network` | `boolean` | `true` |
 | `rules` | `list[RuleConfig]` | `required` |
-| `hooks` | `list[HookConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
-
-## HookConfig
-
-| Field | Type | Default |
-| --- | --- | --- |
-| `event` | `before_tool \| after_tool` | `required` |
-| `command` | `string` | `required` |
-| `matcher` | `string \| null` | `null` |
-| `timeout_ms` | `integer` | `10000` |
 
 ## McpServerConfig
 

@@ -16,7 +16,7 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 - [工具与安全](tools-security.md)：模式、规则、授权和 shell 分析。
 - [快照与目标](snapshots-goals.md)：撤销和持久目标。
 - [技能与记忆](skills-memory.md)：`SKILL.md` 和 `MEMORY.md`。
-- [钩子、MCP 和子代理](hooks-mcp-subagents.md)：扩展机制。
+- [MCP 和子代理](mcp-subagents.md)：扩展机制。
 - [宿主](hosts.md)：终端 TUI 和一次性执行。
 - [开发](development.md)：检查、测试和文档流水线。
 - [对齐验收](parity.md)：与 Cade 的验收对照。
@@ -28,7 +28,7 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 - [与 Cade 的关系](design/cade-comparison.md)：独立维护的边界。
 - [能力接缝](design/capability-seams.md)：可替换的契约。
 - [事件模型](design/event-model.md)：事实与审计记录的区分。
-- [工具执行](design/tool-execution.md)：从策略到钩子的流水线。
+- [工具执行](design/tool-execution.md)：从策略到结果的流水线。
 - [配置目录](design/config-catalog.md)和[事件目录](design/event-catalog.md)：生成的参考页。
 - [工具目录](design/tool-catalog.md)：内置工具清单。
 - [MCP 参考服务器](design/mcp-reference.md)：支持的服务器模式。

@@ -1,28 +1,4 @@
-# 钩子、MCP 和子代理
-
-## 钩子
-
-钩子在工具前后运行 shell 命令，配置写在 `cade.json`：
-
-```json
-{
-  "hooks": [
-    {
-      "event": "before_tool",
-      "command": "python tools/check_tool.py",
-      "matcher": "bash",
-      "timeout_ms": 10000
-    }
-  ]
-}
-```
-
-- `before_tool` 在策略和审批之后、工具执行之前运行。非零退出会拒绝调用，并记录一条错误工具结果。
-- `after_tool` 在工具执行成功或失败后运行。它的输出被忽略。
-- `matcher` 是精确工具名、以 `*` 结尾的前缀，或省略表示所有工具。
-- 命令以工作区为工作目录运行，并收到 `CADE_HOOK_EVENT`、`CADE_TOOL_NAME`、`CADE_TOOL_ARGS` 和 `CADE_TOOL_RESULT`。
-
-钩子是可信配置。挂起的钩子会在超时后被杀掉。
+# MCP 和子代理
 
 ## MCP
 
@@ -60,7 +36,7 @@ MCP 服务器使用 stdio。Cade 为每个服务器启动一个常驻进程，�
 
 子会话：
 
-- 继承父级的 provider、预算、策略、审批者、钩子和请求上下文；
+- 继承父级的 provider、预算、策略、审批者和请求上下文；
 - 获得基础工具，以及绑定到自己日志的 history 工具；
 - 不再获得 `subagent` 工具，因此不能递归；
 - 最多使用 20 个步骤；
@@ -78,4 +54,4 @@ MCP 服务器使用 stdio。Cade 为每个服务器启动一个常驻进程，�
 
 ## 限制
 
-MCP 是一个小型 stdio 客户端，不实现完整的 capabilities 协商。钩子是 shell 命令，不是进程内回调。子代理顺序运行，共享父级审批上下文，不并行执行。
+MCP 是一个小型 stdio 客户端，不实现完整的 capabilities 协商。子代理顺序运行，共享父级审批上下文，不并行执行。

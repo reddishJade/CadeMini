@@ -25,7 +25,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
   analysis.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
 - [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
-- [Hooks, MCP, and subagents](hooks-mcp-subagents.md) covers extensions.
+- [MCP and subagents](mcp-subagents.md) covers extensions.
 - [Hosts](hosts.md) covers the terminal TUI and one-shot execution.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.
@@ -38,7 +38,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
 - [Capability seams](design/capability-seams.md) lists the replaceable
   contracts.
 - [Event model](design/event-model.md) separates facts from audits.
-- [Tool execution](design/tool-execution.md) is the policy-to-hook pipeline.
+- [Tool execution](design/tool-execution.md) is the policy-to-result pipeline.
 - [Configuration catalog](design/config-catalog.md) and
   [event catalog](design/event-catalog.md) are generated references.
 - [Tool catalog](design/tool-catalog.md) lists the built-in tools.

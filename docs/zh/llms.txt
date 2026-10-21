@@ -49,7 +49,7 @@
 
 ## 扩展
 - [技能与记忆](skills-memory.md)
-- [钩子、MCP 和子代理](hooks-mcp-subagents.md)
+- [MCP 和子代理](mcp-subagents.md)
 
 ## 操作指南
 - [操作指南](cookbook/README.md)

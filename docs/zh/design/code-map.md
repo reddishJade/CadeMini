@@ -11,7 +11,7 @@ src/cade/
   core/           日志、投影、请求、循环、压缩、窗口
   tools/          工作区操作和历史检索
   safety/         策略、shell 分析、授权、审批、复核
-  extensions/     技能、记忆、钩子、mcp、子代理、快照、目标
+  extensions/     技能、记忆、mcp、子代理、快照、目标
   app/            配置、provider 组装、凭据、请求上下文
   hosts/          cli、auth
   docs.py

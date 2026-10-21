@@ -23,7 +23,7 @@ cade/
   core/           types, log, projection, request, loop, compaction, window
   tools/          workspace, history
   safety/         policy, shell, grants, approval, review
-  extensions/     skills, memory, hooks, mcp, subagents, snapshots, goal
+  extensions/     skills, memory, mcp, subagents, snapshots, goal
   app/            config, provider, credential storage, prompts, instructions, note
   hosts/          cli, auth
   docs.py

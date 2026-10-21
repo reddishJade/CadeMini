@@ -60,7 +60,7 @@
     },
     {
       "title": "Extensions",
-      "pages": ["skills-memory.md", "hooks-mcp-subagents.md"]
+      "pages": ["skills-memory.md", "mcp-subagents.md"]
     },
     {
       "title": "Cookbook",

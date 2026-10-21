@@ -84,28 +84,6 @@ Remove or narrow that deny to allow it. Plan constraints, protected paths, and
 permissions instead of being unconditionally denied. See
 [Tools and security](tools-security.md) for scopes and approval behavior.
 
-## Hooks
-
-Hooks run shell commands around tools. A non-zero `before_tool` hook denies the
-call.
-
-```json
-{
-  "hooks": [
-    {
-      "event": "before_tool",
-      "command": "python tools/check_tool.py",
-      "matcher": "bash",
-      "timeout_ms": 10000
-    }
-  ]
-}
-```
-
-`event` is `before_tool` or `after_tool`. `matcher` is a tool name, a prefix
-ending in `*`, or omitted for all tools. Hooks receive `CADE_HOOK_EVENT`,
-`CADE_TOOL_NAME`, `CADE_TOOL_ARGS`, and `CADE_TOOL_RESULT` in the environment.
-
 ## MCP servers
 
 MCP servers use stdio and keep one persistent connection per server.

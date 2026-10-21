@@ -33,7 +33,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
   analysis.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
 - [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
-- [Hooks, MCP, and subagents](hooks-mcp-subagents.md) covers extensions.
+- [MCP and subagents](mcp-subagents.md) covers extensions.
 - [Hosts](hosts.md) covers the terminal TUI and one-shot execution.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.
@@ -46,7 +46,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
 - [Capability seams](design/capability-seams.md) lists the replaceable
   contracts.
 - [Event model](design/event-model.md) separates facts from audits.
-- [Tool execution](design/tool-execution.md) is the policy-to-hook pipeline.
+- [Tool execution](design/tool-execution.md) is the policy-to-result pipeline.
 - [Configuration catalog](design/config-catalog.md) and
   [event catalog](design/event-catalog.md) are generated references.
 - [Tool catalog](design/tool-catalog.md) lists the built-in tools.
@@ -482,28 +482,6 @@ Remove or narrow that deny to allow it. Plan constraints, protected paths, and
 permissions instead of being unconditionally denied. See
 [Tools and security](tools-security.md) for scopes and approval behavior.
 
-## Hooks
-
-Hooks run shell commands around tools. A non-zero `before_tool` hook denies the
-call.
-
-```json
-{
-  "hooks": [
-    {
-      "event": "before_tool",
-      "command": "python tools/check_tool.py",
-      "matcher": "bash",
-      "timeout_ms": 10000
-    }
-  ]
-}
-```
-
-`event` is `before_tool` or `after_tool`. `matcher` is a tool name, a prefix
-ending in `*`, or omitted for all tools. Hooks receive `CADE_HOOK_EVENT`,
-`CADE_TOOL_NAME`, `CADE_TOOL_ARGS`, and `CADE_TOOL_RESULT` in the environment.
-
 ## MCP servers
 
 MCP servers use stdio and keep one persistent connection per server.
@@ -611,9 +589,9 @@ fallback are decisions expressed as new log facts.
   retrieval.
 - `safety/policy.py`, `safety/shell.py`, `safety/grants.py`,
   `safety/approval.py`, `safety/review.py`: permissions and approvals.
-- `extensions/skills.py`, `extensions/memory.py`, `extensions/hooks.py`,
-  `extensions/mcp.py`, `extensions/subagents.py`, `extensions/snapshots.py`,
-  `extensions/goal.py`: add-ons and durable host state.
+- `extensions/skills.py`, `extensions/memory.py`, `extensions/mcp.py`,
+  `extensions/subagents.py`, `extensions/snapshots.py`, `extensions/goal.py`:
+  add-ons and durable host state.
 - `app/config.py`, `app/provider.py`, `app/auth.py`, `app/prompts.py`,
   `app/instructions.py`, `app/note.py`: startup and request context.
 - `hosts/cli.py`, `docs.py`: hosts and documentation.
@@ -838,10 +816,9 @@ and share policy, tools, and session storage with every other entry path.
 
 ## Extensions
 
-Skills add on-demand instructions. Memory adds durable facts. Hooks run shell
-commands around tools. MCP adds remote tools. Subagents run an independent child
-session. Each extension is a narrow adapter over the loop, not a change to the
-session schema.
+Skills add on-demand instructions. Memory adds durable facts. MCP adds remote
+tools. Subagents run an independent child session. Each extension is a narrow
+adapter over the loop, not a change to the session schema.
 
 ## Trust and permissions
 
@@ -872,7 +849,7 @@ src/cade/
   core/           log, projection, request, loop, compaction, window
   tools/          workspace actions and history retrieval
   safety/         policy, shell analysis, grants, approval, review
-  extensions/     skills, memory, hooks, mcp, subagents, snapshots, goal
+  extensions/     skills, memory, mcp, subagents, snapshots, goal
   app/            config, provider assembly, credentials, request context
   hosts/          cli, auth
   docs.py
@@ -964,7 +941,6 @@ implementation can be replaced without changing the session schema or the loop.
 | Policy | `permissions.Policy.check` returns decision, reason, and scope | `WorkspacePolicy` | Loop, CLI shell |
 | Approval | `ApprovalRequest` to `ApprovalResult`, optionally async | `SessionApprover`, `AutoReviewer` | Authorization |
 | Execution scope | `ExecutionScope` and `PlatformSandbox.wrap` | bubblewrap, Seatbelt, Windows direct | Workspace tools |
-| Hooks | `loop.Hooks.before/after` | `HookRunner` | Loop |
 | Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
 | Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |
 | Recovery | `SnapshotStore` capture and undo | File snapshot store | Tools, CLI |
@@ -988,12 +964,6 @@ Policy returns a decision, not an execution. Approval is only consulted for
 `ask`. A denial becomes a tool error fact, so the model can recover. Keeping
 these separate lets the host choose a TTY prompt, a model reviewer, or a
 non-interactive denial.
-
-## Hooks
-
-Hooks observe and can veto a tool call without changing the policy result. A
-`before_tool` failure is a denial; `after_tool` failure is ignored. Hooks are
-trusted configuration, not sandboxed code.
 
 ## Stores
 
@@ -1098,7 +1068,7 @@ code.
 # Tool execution
 
 Every tool call follows the same pipeline. Policy and approval decide whether a
-call may run; hooks can stop it; the loop owns execution and recording.
+call may run; the loop owns execution and recording.
 
 ```mermaid
 flowchart LR
@@ -1106,15 +1076,11 @@ flowchart LR
   policy -->|deny| denied[Denied tool result]
   policy -->|ask| approval[Approval]
   approval -->|deny| denied
-  approval -->|allow| before[before_tool hooks]
-  policy -->|allow| before
-  before -->|deny| hookdenied[Hook-denied result]
-  before -->|allow| execute[Execute tool]
-  execute --> after[after_tool hooks]
+  approval -->|allow| execute[Execute tool]
+  policy -->|allow| execute
   execute --> result[Tool result]
   result --> log[Append fact]
   denied --> log
-  hookdenied --> log
 ```
 
 ## Order
@@ -1123,13 +1089,11 @@ flowchart LR
 2. Policy checks tool name, path, mode, rules, grants, and shell classification.
 3. An `ask` decision is resolved by the host: TTY prompt, `--yes`, auto-review,
    or denial.
-4. `before_tool` hooks run. A non-zero exit denies the call.
-5. The tool executes within the approved per-call scope, with a timeout and
+4. The tool executes within the approved per-call scope, with a timeout and
    cancellation token. Linux/macOS workspace tools use OS confinement.
-6. The result is truncated, appended as a `tool_result` fact, and rendered.
+5. The result is truncated, appended as a `tool_result` fact, and rendered.
    Its `artifact.authorization` records decision, reason, and scope without
    adding that metadata to the model transcript.
-7. `after_tool` hooks run and their output is ignored.
 
 ## Denials and errors
 
@@ -1137,12 +1101,6 @@ A denied call is not an exception. It becomes an error tool result so the model
 can adapt. Unknown tools, malformed arguments, timeouts, and thrown exceptions
 also become error results. A cancellation appends interrupted results for any
 remaining calls before the run terminates.
-
-## Hooks
-
-Hooks receive the tool name, JSON arguments, and the result for `after_tool`.
-They run with the workspace as the current directory. A hook timeout is a
-denial or a silently ignored observer, never an unbounded wait.
 
 ## Evidence retention
 
@@ -1154,7 +1112,6 @@ from the branch, so pruning does not destroy evidence.
 
 - `test_loop.py` covers approval, errors, timeouts, cancellation, retries,
   and window fallback.
-- `test_hooks.py` covers allow, deny, and after-hook execution.
 - `test_policy.py` covers modes, rules, grants, and boundaries.
 
 See [Tools and security](../tools-security.md) for user-facing behavior.
@@ -1187,17 +1144,7 @@ Top-level fields. Nested types follow the table.
 | `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
 | `network` | `boolean` | `true` |
 | `rules` | `list[RuleConfig]` | `required` |
-| `hooks` | `list[HookConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
-
-## HookConfig
-
-| Field | Type | Default |
-| --- | --- | --- |
-| `event` | `before_tool \| after_tool` | `required` |
-| `command` | `string` | `required` |
-| `matcher` | `string \| null` | `null` |
-| `timeout_ms` | `integer` | `10000` |
 
 ## McpServerConfig
 
@@ -1310,8 +1257,6 @@ flowchart LR
   extensions_goal --> core_loop
   extensions_goal --> core_types
   extensions_goal --> tools_workspace
-  extensions_hooks --> app_config
-  extensions_hooks --> core_types
   extensions_mcp --> app_config
   extensions_mcp --> core_loop
   extensions_mcp --> core_types
@@ -1347,7 +1292,6 @@ flowchart LR
   hosts_cli --> core_window
   hosts_cli --> execution_env_sandbox
   hosts_cli --> extensions_goal
-  hosts_cli --> extensions_hooks
   hosts_cli --> extensions_mcp
   hosts_cli --> extensions_memory
   hosts_cli --> extensions_skills
@@ -1378,7 +1322,6 @@ flowchart LR
   hosts_interaction --> core_types
   hosts_interaction --> core_window
   hosts_interaction --> extensions_goal
-  hosts_interaction --> extensions_hooks
   hosts_interaction --> extensions_recovery
   hosts_interaction --> extensions_skills
   hosts_interaction --> extensions_snapshots
@@ -1576,7 +1519,7 @@ is closed when Cade exits.
 ## Related
 
 - [Configuration](../configuration.md)
-- [Hooks, MCP, and subagents](../hooks-mcp-subagents.md)
+- [MCP and subagents](../mcp-subagents.md)
 - [Custom MCP server](../cookbook/custom-mcp.md)
 
 # Steering and queueing
@@ -1795,10 +1738,6 @@ prefix and return allow, deny, or ask.
 A process-local approval created by answering `a`. It matches the same tool and
 path or command.
 
-## hook
-
-A configured shell command around a tool call (`before_tool` or `after_tool`).
-
 ## skill
 
 A `SKILL.md` body loaded on demand. The request carries a catalog; the `skill`
@@ -1858,7 +1797,7 @@ uv run --locked python -m cade.docs check
 | CLI and config | `test_cli.py`, `test_config.py` |
 | Instructions, skills, memory, NOTE | `test_instructions.py`, `test_skills.py`, `test_memory.py`, `test_note.py` |
 | Safety and modes | `test_policy.py`, `test_shell.py`, `test_grants.py` |
-| Extensions | `test_hooks.py`, `test_mcp.py`, `test_subagents.py` |
+| Extensions | `test_mcp.py`, `test_subagents.py` |
 | Recovery | `test_snapshots.py`, `test_goal.py` |
 | Docs | `test_docs.py` |
 
@@ -2116,8 +2055,8 @@ Each page owns one subsystem's types, behavior, and failure modes. The
   shell classification, approvals.
 - [Context and compaction](context-compaction.md): summaries, windows, history,
   and request context.
-- [Extensions](extensions.md): skills, memory, hooks, MCP, subagents, snapshots,
-  goals, and hosts.
+- [Extensions](extensions.md): skills, memory, MCP, subagents, snapshots, goals,
+  and hosts.
 
 A subsystem page describes current behavior. Historical decisions belong in
 [decision records](../decisions/README.md) and incidents in
@@ -2340,8 +2279,8 @@ Cancellation signals reach the subprocess launcher, and tools wait for process
 termination before returning or cleaning up request files.
 
 Linux uses bubblewrap, macOS uses Seatbelt, and Windows runs directly. Backend
-errors become tool errors, not unsandboxed retries. Hooks and MCP server
-processes are trusted host extensions outside this boundary.
+errors become tool errors, not unsandboxed retries. MCP server processes are
+trusted host extensions outside this boundary.
 
 ## Reviewer
 
@@ -2437,12 +2376,6 @@ request-only context.
 `MEMORY.md` is request context. The `memory` tool appends one bullet and cannot
 write other paths. The file is capped to protect the request budget.
 
-## Hooks
-
-`HookRunner` executes configured shell commands around tools. `before_tool` can
-deny; `after_tool` observes. Hooks are trusted and time-bounded. See
-[Hooks, MCP, and subagents](../hooks-mcp-subagents.md).
-
 ## MCP
 
 Each configured stdio server keeps one persistent process. Discovery reads
@@ -2453,8 +2386,8 @@ that cannot start is reported and skipped.
 ## Subagents
 
 `SubagentTool` creates a child session under `<sessions>/subagents`. The child
-gets the parent provider, budget, policy, approver, hooks, context, and base
-tools plus its own history. It cannot spawn another subagent and is limited to
+gets the parent provider, budget, policy, approver, context, and base tools plus
+its own history. It cannot spawn another subagent and is limited to
 20 steps. The parent records only the call and summary. `DelegateTool` runs one
 or more child tasks sequentially and optionally applies a more restrictive
 child mode. Reviewer requests retain ancestor conversations so a child prompt
@@ -2479,13 +2412,13 @@ policy as every other entry path.
 ## Limits
 
 Extensions are deliberately small. MCP is a stdio client, not a full capability
-negotiation implementation. Hooks are shell commands, not in-process callbacks.
-Subagents are sequential and share the parent approval context.
+negotiation implementation. Subagents are sequential and share the parent
+approval context.
 
 ## Tests
 
-`test_skills.py`, `test_memory.py`, `test_hooks.py`,
-`test_mcp.py`, `test_subagents.py`, `test_snapshots.py`, and `test_goal.py`.
+`test_skills.py`, `test_memory.py`, `test_mcp.py`, `test_subagents.py`,
+`test_snapshots.py`, and `test_goal.py`.
 
 # Tools and security
 
@@ -2599,9 +2532,9 @@ common tool caches are redirected to a session directory, cleaned on exit.
 Apart from hidden paths, the filesystem remains readable; this is not complete
 secret isolation. Restrict credentials and exposed resources accordingly.
 
-Hooks, MCP server processes, and host-managed state run outside the tool
-sandbox. Treat their configuration and code as trusted. The sandbox is not a
-container or VM, and it does not make an untrusted repository safe.
+MCP server processes and host-managed state run outside the tool sandbox. Treat
+their configuration and code as trusted. The sandbox is not a container or VM,
+and it does not make an untrusted repository safe.
 
 See [decision 0009](decisions/0009-execution-permissions.md) for the contract.
 
@@ -2678,7 +2611,7 @@ fails if later edits conflict; there is no automatic reverse-patch merge.
 File limits apply to both images. A missing post-change image makes that turn's
 code checkpoint incomplete rather than pretending that recovery is available.
 Unselected files and the user's Git index remain untouched. Directory trees,
-untracked shell/hook changes, and external side effects are not restored.
+untracked shell changes, and external side effects are not restored.
 
 Cooperating operations share `.cade/recovery/workspace.lock`. The action
 journal and checkpoint links use closed records under that directory. A
@@ -2786,39 +2719,11 @@ Instructions, skill catalog, `NOTE.md`, `MEMORY.md`, and an active goal are all
 request-only context. They appear in each request audit but never become
 conversation messages. See [Sessions and context](sessions-context.md).
 
-# Hooks, MCP, and subagents
+# MCP and subagents
 
-<!-- source: hooks-mcp-subagents.md -->
+<!-- source: mcp-subagents.md -->
 
-# Hooks, MCP, and subagents
-
-## Hooks
-
-Hooks run shell commands around tools. They are configured in `cade.json`:
-
-```json
-{
-  "hooks": [
-    {
-      "event": "before_tool",
-      "command": "python tools/check_tool.py",
-      "matcher": "bash",
-      "timeout_ms": 10000
-    }
-  ]
-}
-```
-
-- `before_tool` runs after policy and approval, before the tool executes. A
-  non-zero exit denies the call and records an error tool result.
-- `after_tool` runs after a successful or failed executed tool. Its output is
-  ignored.
-- `matcher` is an exact tool name, a prefix ending in `*`, or omitted for all.
-- Commands run with the workspace as the working directory and receive
-  `CADE_HOOK_EVENT`, `CADE_TOOL_NAME`, `CADE_TOOL_ARGS`, and
-  `CADE_TOOL_RESULT`.
-
-Hooks are trusted configuration. A hook that hangs is killed after its timeout.
+# MCP and subagents
 
 ## MCP
 
@@ -2861,8 +2766,7 @@ answer with the child session ID:
 
 The child:
 
-- gets the parent's provider, budget, policy, approver, hooks, and request
-  context;
+- gets the parent's provider, budget, policy, approver, and request context;
 - gets the base tools plus a history tool bound to its own log;
 - does not get another `subagent` tool, so it cannot recurse;
 - uses at most 20 steps;
@@ -2884,8 +2788,8 @@ expand parent permissions: a Plan parent cannot delegate Build work.
 ## Limits
 
 MCP is a small stdio client, not a full capability negotiation implementation.
-Hooks are shell commands, not in-process callbacks. Subagents are sequential and
-share the parent's approval context rather than running in parallel.
+Subagents are sequential and share the parent's approval context rather than
+running in parallel.
 
 # Cookbook
 

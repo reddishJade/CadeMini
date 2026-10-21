@@ -14,7 +14,7 @@
 
 CLI 用项目根目录、私有临时目录、网络设置和受保护路径构造 `PlatformSandbox`。`SubprocessShell` 在启动进程之前包装命令。文件工具通过 `tools._worker` 使用同一个后端；快照存储仍由宿主管理。外部文件修改没有工作区快照。取消信号会传到子进程启动器，工具在返回或清理请求文件之前等待进程终止。
 
-Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端错误会变成工具错误，不会退回到无沙箱重试。钩子和 MCP 服务器进程是可信的宿主扩展，位于这个边界之外。
+Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端错误会变成工具错误，不会退回到无沙箱重试。MCP 服务器进程是可信的宿主扩展，位于这个边界之外。
 
 ## Reviewer
 

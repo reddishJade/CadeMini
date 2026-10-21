@@ -7,6 +7,6 @@
 - [循环](loop.md)：provider 调用、工具、审批、重试和事实。
 - [工具与策略](tools-policy.md)：工作区工具、模式、规则、授权、shell 分类和审批。
 - [上下文与压缩](context-compaction.md)：摘要、窗口、历史和请求上下文。
-- [扩展](extensions.md)：技能、记忆、钩子、MCP、子代理、快照、目标和宿主。
+- [扩展](extensions.md)：技能、记忆、MCP、子代理、快照、目标和宿主。
 
 子系统页面描述当前行为。历史决策写在[决策记录](../../decisions/README.md)，事故写在[事故复盘](../../postmortem/README.md)。

@@ -77,7 +77,6 @@ class SettingsService:
             ("sessions_dir", "Sessions Directory"),
             ("prompt_modules", "Prompt Modules"),
             ("rules", "Permission Rules"),
-            ("hooks", "Hooks"),
             ("mcp_servers", "MCP Servers"),
         )
         entries: list[tuple[str, str]] = []

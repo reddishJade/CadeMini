@@ -69,5 +69,5 @@ is closed when Cade exits.
 ## Related
 
 - [Configuration](../configuration.md)
-- [Hooks, MCP, and subagents](../hooks-mcp-subagents.md)
+- [MCP and subagents](../mcp-subagents.md)
 - [Custom MCP server](../cookbook/custom-mcp.md)

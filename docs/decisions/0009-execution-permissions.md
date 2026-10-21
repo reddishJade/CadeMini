@@ -24,7 +24,7 @@ Children cannot expand the parent's work mode or other constraints.
 Use structured approval requests and results. Reviewer runs only for asks;
 its rejection or failure returns a reason to the acting model without human
 fallback. File operations and shell commands share the platform execution
-boundary. Host hooks and MCP processes remain trusted external extensions.
+boundary. MCP processes remain trusted external extensions.
 
 ## Consequences
 

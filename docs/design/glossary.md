@@ -67,10 +67,6 @@ prefix and return allow, deny, or ask.
 A process-local approval created by answering `a`. It matches the same tool and
 path or command.
 
-## hook
-
-A configured shell command around a tool call (`before_tool` or `after_tool`).
-
 ## skill
 
 A `SKILL.md` body loaded on demand. The request carries a catalog; the `skill`

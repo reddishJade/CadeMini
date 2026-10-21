@@ -20,7 +20,7 @@ Reuse the native content-addressed snapshot store. Retain both file images and
 associate captured mutations with the root user turn, including synchronous
 subagents. A queued input gets its checkpoint only when execution starts.
 Steering belongs to the current turn. Tracking covers registered file mutations,
-not arbitrary shell scripts, hooks, directory trees, or external side effects.
+not arbitrary shell scripts, directory trees, or external side effects.
 
 A workspace recovery coordinator owns persistent action history and transaction
 recovery. A normal root turn is one action; explicit rewind and revert are also

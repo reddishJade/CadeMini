@@ -49,7 +49,7 @@
 
 ## Extensions
 - [Skills and memory](skills-memory.md)
-- [Hooks, MCP, and subagents](hooks-mcp-subagents.md)
+- [MCP and subagents](mcp-subagents.md)
 
 ## Cookbook
 - [Cookbook](cookbook/README.md)

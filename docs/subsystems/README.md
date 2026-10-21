@@ -11,8 +11,8 @@ Each page owns one subsystem's types, behavior, and failure modes. The
   shell classification, approvals.
 - [Context and compaction](context-compaction.md): summaries, windows, history,
   and request context.
-- [Extensions](extensions.md): skills, memory, hooks, MCP, subagents, snapshots,
-  goals, and hosts.
+- [Extensions](extensions.md): skills, memory, MCP, subagents, snapshots, goals,
+  and hosts.
 
 A subsystem page describes current behavior. Historical decisions belong in
 [decision records](../decisions/README.md) and incidents in

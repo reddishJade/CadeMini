@@ -62,5 +62,5 @@ cade --mode build "Use the time MCP tool to get the current time in Asia/Singapo
 ## 相关页面
 
 - [配置](../configuration.md)
-- [钩子、MCP 和子代理](../hooks-mcp-subagents.md)
+- [MCP 和子代理](../mcp-subagents.md)
 - [自定义 MCP 服务器](../cookbook/custom-mcp.md)

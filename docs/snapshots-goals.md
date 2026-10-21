@@ -67,7 +67,7 @@ fails if later edits conflict; there is no automatic reverse-patch merge.
 File limits apply to both images. A missing post-change image makes that turn's
 code checkpoint incomplete rather than pretending that recovery is available.
 Unselected files and the user's Git index remain untouched. Directory trees,
-untracked shell/hook changes, and external side effects are not restored.
+untracked shell changes, and external side effects are not restored.
 
 Cooperating operations share `.cade/recovery/workspace.lock`. The action
 journal and checkpoint links use closed records under that directory. A

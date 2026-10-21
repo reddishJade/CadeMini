@@ -41,7 +41,6 @@ from cade.core.types import LogError
 from cade.core.window import reset_window
 from cade.execution_env.sandbox import PlatformSandbox
 from cade.extensions.goal import GoalStore, GoalTool
-from cade.extensions.hooks import HookRunner
 from cade.extensions.mcp import discover_mcp_tools
 from cade.extensions.memory import MemoryTool, load_memory
 from cade.extensions.skills import (
@@ -267,7 +266,6 @@ def _main(
         grants=grants,
     )
     approve: Approver = SessionApprover(auto_approve=args.yes, grants=grants)
-    hooks = HookRunner(config.hooks, project_root)
     if use_auto_review and not args.yes:
         approve = AutoReviewer(selected, workspace=project_root)
     approval_router = _ApprovalRouter(approve)
@@ -314,7 +312,6 @@ def _main(
         approve=approval_router,
         context=context,
         max_steps=min(max_steps, 20),
-        hooks=hooks,
         lifecycle=recovery,
     )
     base_tools = (
@@ -351,7 +348,6 @@ def _main(
             max_steps,
             on_event,
             compactor,
-            hooks,
             fallback_window,
             next_steering,
             recovery,
@@ -388,7 +384,6 @@ def _main(
         context=context,
         max_steps=max_steps,
         compactor=compactor,
-        hooks=hooks,
         window=fallback_window,
         automatic_approver=approve if args.yes or use_auto_review else None,
         config_path=args.config,
@@ -577,7 +572,6 @@ def _run_task(
     max_steps: int,
     on_event: Callable[[LoopEvent], None],
     compactor: Compactor,
-    hooks: HookRunner | None,
     window: Callable[[SessionLog], bool] | None,
     steering: Callable[[], str | None] | None = None,
     lifecycle: WorkspaceRecovery | None = None,
@@ -599,7 +593,6 @@ def _run_task(
                 on_event=on_event,
                 compact=compactor,
                 window=window,
-                hooks=hooks,
                 steering=steering,
             )
         )

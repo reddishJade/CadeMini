@@ -1137,7 +1137,6 @@ def test_mid_run_steer_reaches_the_next_provider_request(tmp_path: Path) -> None
                 lambda event: None,
                 None,  # type: ignore[arg-type]
                 None,
-                None,
                 lambda: steering.popleft() if steering else None,
             )
         )

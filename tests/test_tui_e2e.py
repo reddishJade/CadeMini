@@ -257,7 +257,6 @@ COMMAND_CASES = [
     ("/auth status", "No stored provider credentials"),
     ("/config", "picker"),
     ("/permissions list", "No grants"),
-    ("/hooks", "Hooks:"),
     ("/tool list", "read"),
     ("/skill e2e-skill", None),
     ("/memory", "MEMORY.md"),

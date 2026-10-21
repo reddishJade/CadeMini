@@ -24,7 +24,7 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 - [工具与安全](tools-security.md)：模式、规则、授权和 shell 分析。
 - [快照与目标](snapshots-goals.md)：撤销和持久目标。
 - [技能与记忆](skills-memory.md)：`SKILL.md` 和 `MEMORY.md`。
-- [钩子、MCP 和子代理](hooks-mcp-subagents.md)：扩展机制。
+- [MCP 和子代理](mcp-subagents.md)：扩展机制。
 - [宿主](hosts.md)：终端 TUI 和一次性执行。
 - [开发](development.md)：检查、测试和文档流水线。
 - [对齐验收](parity.md)：与 Cade 的验收对照。
@@ -36,7 +36,7 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 - [与 Cade 的关系](design/cade-comparison.md)：独立维护的边界。
 - [能力接缝](design/capability-seams.md)：可替换的契约。
 - [事件模型](design/event-model.md)：事实与审计记录的区分。
-- [工具执行](design/tool-execution.md)：从策略到钩子的流水线。
+- [工具执行](design/tool-execution.md)：从策略到结果的流水线。
 - [配置目录](design/config-catalog.md)和[事件目录](design/event-catalog.md)：生成的参考页。
 - [工具目录](design/tool-catalog.md)：内置工具清单。
 - [MCP 参考服务器](design/mcp-reference.md)：支持的服务器模式。
@@ -384,25 +384,6 @@ Cade 默认读取 `<project-root>/cade.json`。用 `--config PATH` 选择其他�
 
 这个例子里 `git status` 仍会被拒绝，因为更宽的 deny 也匹配。要放行，就删除或收窄那条 deny。计划模式约束、受保护路径和 `read_only` 优先于授权和规则。工作区外的写入会申请额外权限，不会被无条件拒绝。作用范围和审批行为见[工具与安全](tools-security.md)。
 
-## 钩子
-
-钩子在工具调用前后执行 shell 命令。`before_tool` 钩子返回非零值时，调用被拒绝。
-
-```json
-{
-  "hooks": [
-    {
-      "event": "before_tool",
-      "command": "python tools/check_tool.py",
-      "matcher": "bash",
-      "timeout_ms": 10000
-    }
-  ]
-}
-```
-
-`event` 是 `before_tool` 或 `after_tool`。`matcher` 是工具名、以 `*` 结尾的前缀，或省略表示所有工具。钩子通过环境变量收到 `CADE_HOOK_EVENT`、`CADE_TOOL_NAME`、`CADE_TOOL_ARGS` 和 `CADE_TOOL_RESULT`。
-
 ## MCP 服务器
 
 MCP 服务器使用 stdio，每个服务器保持一条长连接。
@@ -490,7 +471,7 @@ Cade 是 `src/cade/` 下的独立编码代理。它使用四段流水线，每�
 - `core/compaction.py` 和 `core/window.py`：上下文缩减决策。
 - `tools/workspace.py`、`tools/history.py`：工作区工具和证据检索。
 - `safety/policy.py`、`safety/shell.py`、`safety/grants.py`、`safety/approval.py`、`safety/review.py`：权限和审批。
-- `extensions/skills.py`、`extensions/memory.py`、`extensions/hooks.py`、`extensions/mcp.py`、`extensions/subagents.py`、`extensions/snapshots.py`、`extensions/goal.py`：附加功能和持久宿主状态。
+- `extensions/skills.py`、`extensions/memory.py`、`extensions/mcp.py`、`extensions/subagents.py`、`extensions/snapshots.py`、`extensions/goal.py`：附加功能和持久宿主状态。
 - `app/config.py`、`app/provider.py`、`app/auth.py`、`app/prompts.py`、`app/instructions.py`、`app/note.py`：启动和请求上下文。
 - `hosts/cli.py`、`docs.py`：宿主和文档。
 
@@ -628,7 +609,7 @@ Cade 一次协调一个模型请求，执行请求中指定的工具，并把每
 
 ## 扩展
 
-技能按需补充指令。记忆补充长期事实。钩子在工具前后运行 shell 命令。MCP 增加远程工具。子代理运行独立的子会话。每个扩展都是循环之上的窄适配器，不改变会话格式。
+技能按需补充指令。记忆补充长期事实。MCP 增加远程工具。子代理运行独立的子会话。每个扩展都是循环之上的窄适配器，不改变会话格式。
 
 ## 信任与权限
 
@@ -653,7 +634,7 @@ src/cade/
   core/           日志、投影、请求、循环、压缩、窗口
   tools/          工作区操作和历史检索
   safety/         策略、shell 分析、授权、审批、复核
-  extensions/     技能、记忆、钩子、mcp、子代理、快照、目标
+  extensions/     技能、记忆、mcp、子代理、快照、目标
   app/            配置、provider 组装、凭据、请求上下文
   hosts/          cli、auth
   docs.py
@@ -724,7 +705,6 @@ Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换
 | Policy | `permissions.Policy.check` 返回决策、原因和范围 | `WorkspacePolicy` | 循环、CLI shell |
 | Approval | `ApprovalRequest` 到 `ApprovalResult`，可选异步 | `SessionApprover`、`AutoReviewer` | 授权 |
 | 执行范围 | `ExecutionScope` 和 `PlatformSandbox.wrap` | bubblewrap、Seatbelt、Windows 直接运行 | 工作区工具 |
-| 钩子 | `loop.Hooks.before/after` | `HookRunner` | 循环 |
 | 压缩 | `Compactor(log, budget)` | LLM 摘要压缩器 | 循环 |
 | 会话存储 | `SessionLog` 的追加、分支、打开 | 文件支持的 JSONL 日志 | 其上所有层 |
 | 恢复 | `SnapshotStore` 的捕获和撤销 | 文件快照存储 | 工具、CLI |
@@ -741,10 +721,6 @@ Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换
 ## 策略与审批
 
 策略返回决策，不执行操作。只有 `ask` 才会咨询审批。拒绝会变成工具错误事实，模型可以据此恢复。把两者分开，宿主就能选择 TTY 提示、模型复核或非交互拒绝。
-
-## 钩子
-
-钩子观察工具调用，可以否决，但不改变策略结果。`before_tool` 失败等于拒绝；`after_tool` 失败被忽略。钩子是可信配置，不是沙箱代码。
 
 ## 存储
 
@@ -829,7 +805,7 @@ flowchart LR
 
 # 工具执行
 
-每次工具调用都走同一条流水线。策略和审批决定调用能否执行；钩子可以阻止；循环负责执行和记录。
+每次工具调用都走同一条流水线。策略和审批决定调用能否执行；循环负责执行和记录。
 
 ```mermaid
 flowchart LR
@@ -837,15 +813,11 @@ flowchart LR
   policy -->|deny| denied[Denied tool result]
   policy -->|ask| approval[Approval]
   approval -->|deny| denied
-  approval -->|allow| before[before_tool hooks]
-  policy -->|allow| before
-  before -->|deny| hookdenied[Hook-denied result]
-  before -->|allow| execute[Execute tool]
-  execute --> after[after_tool hooks]
+  approval -->|allow| execute[Execute tool]
+  policy -->|allow| execute
   execute --> result[Tool result]
   result --> log[Append fact]
   denied --> log
-  hookdenied --> log
 ```
 
 ## 顺序
@@ -853,18 +825,12 @@ flowchart LR
 1. 模型返回带 ID 和参数的工具调用。
 2. 策略检查工具名、路径、模式、规则、授权和 shell 分类。
 3. `ask` 决策由宿主解决：TTY 提示、`--yes`、自动复核或拒绝。
-4. 运行 `before_tool` 钩子。非零退出会拒绝调用。
-5. 工具在批准的本次调用范围内执行，带超时和取消令牌。Linux 和 macOS 的工作区工具使用操作系统隔离。
-6. 结果被截断，作为 `tool_result` 事实追加并渲染。它的 `artifact.authorization` 记录决策、原因和范围，但不把这些元数据加入模型对话记录。
-7. 运行 `after_tool` 钩子，其输出被忽略。
+4. 工具在批准的本次调用范围内执行，带超时和取消令牌。Linux 和 macOS 的工作区工具使用操作系统隔离。
+5. 结果被截断，作为 `tool_result` 事实追加并渲染。它的 `artifact.authorization` 记录决策、原因和范围，但不把这些元数据加入模型对话记录。
 
 ## 拒绝与错误
 
 被拒绝的调用不是异常。它会变成错误工具结果，模型可以据此调整。未知工具、格式错误的参数、超时和抛出的异常也会变成错误结果。取消时，运行终止之前会为所有剩余调用追加“已中断”结果。
-
-## 钩子
-
-钩子收到工具名和 JSON 参数；`after_tool` 还收到结果。它们以工作区为当前目录运行。钩子超时意味着拒绝，或作为观察者被静默忽略，绝不会无限等待。
 
 ## 证据保留
 
@@ -873,7 +839,6 @@ flowchart LR
 ## 测试
 
 - `test_loop.py` 覆盖审批、错误、超时、取消、重试和窗口回退。
-- `test_hooks.py` 覆盖 allow、deny 和 after 钩子执行。
 - `test_policy.py` 覆盖模式、规则、授权和边界。
 
 面向用户的行为见[工具与安全](../tools-security.md)。
@@ -906,17 +871,7 @@ Top-level fields. Nested types follow the table.
 | `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
 | `network` | `boolean` | `true` |
 | `rules` | `list[RuleConfig]` | `required` |
-| `hooks` | `list[HookConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
-
-## HookConfig
-
-| Field | Type | Default |
-| --- | --- | --- |
-| `event` | `before_tool \| after_tool` | `required` |
-| `command` | `string` | `required` |
-| `matcher` | `string \| null` | `null` |
-| `timeout_ms` | `integer` | `10000` |
 
 ## McpServerConfig
 
@@ -1029,8 +984,6 @@ flowchart LR
   extensions_goal --> core_loop
   extensions_goal --> core_types
   extensions_goal --> tools_workspace
-  extensions_hooks --> app_config
-  extensions_hooks --> core_types
   extensions_mcp --> app_config
   extensions_mcp --> core_loop
   extensions_mcp --> core_types
@@ -1066,7 +1019,6 @@ flowchart LR
   hosts_cli --> core_window
   hosts_cli --> execution_env_sandbox
   hosts_cli --> extensions_goal
-  hosts_cli --> extensions_hooks
   hosts_cli --> extensions_mcp
   hosts_cli --> extensions_memory
   hosts_cli --> extensions_skills
@@ -1097,7 +1049,6 @@ flowchart LR
   hosts_interaction --> core_types
   hosts_interaction --> core_window
   hosts_interaction --> extensions_goal
-  hosts_interaction --> extensions_hooks
   hosts_interaction --> extensions_recovery
   hosts_interaction --> extensions_skills
   hosts_interaction --> extensions_snapshots
@@ -1284,7 +1235,7 @@ cade --mode build "Use the time MCP tool to get the current time in Asia/Singapo
 ## 相关页面
 
 - [配置](../configuration.md)
-- [钩子、MCP 和子代理](../hooks-mcp-subagents.md)
+- [MCP 和子代理](../mcp-subagents.md)
 - [自定义 MCP 服务器](../cookbook/custom-mcp.md)
 
 # 引导与排队
@@ -1458,10 +1409,6 @@ Cade 把持久历史和宿主状态分开。会话日志是模型看到什么、
 
 回答 `a` 时创建的进程内审批。它匹配相同的工具和路径或命令。
 
-## 钩子（hook）
-
-围绕工具调用配置的 shell 命令（`before_tool` 或 `after_tool`）。
-
 ## 技能（skill）
 
 按需加载的 `SKILL.md` 正文。请求携带技能目录；`skill` 工具加载正文。
@@ -1516,7 +1463,7 @@ uv run --locked python -m cade.docs check
 | CLI 与配置 | `test_cli.py`、`test_config.py` |
 | 指令、技能、记忆、NOTE | `test_instructions.py`、`test_skills.py`、`test_memory.py`、`test_note.py` |
 | 安全与模式 | `test_policy.py`、`test_shell.py`、`test_grants.py` |
-| 扩展 | `test_hooks.py`、`test_mcp.py`、`test_subagents.py` |
+| 扩展 | `test_mcp.py`、`test_subagents.py` |
 | 恢复 | `test_snapshots.py`、`test_goal.py` |
 | 文档 | `test_docs.py` |
 
@@ -1698,7 +1645,7 @@ block 是以下之一：
 - [循环](loop.md)：provider 调用、工具、审批、重试和事实。
 - [工具与策略](tools-policy.md)：工作区工具、模式、规则、授权、shell 分类和审批。
 - [上下文与压缩](context-compaction.md)：摘要、窗口、历史和请求上下文。
-- [扩展](extensions.md)：技能、记忆、钩子、MCP、子代理、快照、目标和宿主。
+- [扩展](extensions.md)：技能、记忆、MCP、子代理、快照、目标和宿主。
 
 子系统页面描述当前行为。历史决策写在[决策记录](../../decisions/README.md)，事故写在[事故复盘](../../postmortem/README.md)。
 
@@ -1863,7 +1810,7 @@ block 是以下之一：
 
 CLI 用项目根目录、私有临时目录、网络设置和受保护路径构造 `PlatformSandbox`。`SubprocessShell` 在启动进程之前包装命令。文件工具通过 `tools._worker` 使用同一个后端；快照存储仍由宿主管理。外部文件修改没有工作区快照。取消信号会传到子进程启动器，工具在返回或清理请求文件之前等待进程终止。
 
-Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端错误会变成工具错误，不会退回到无沙箱重试。钩子和 MCP 服务器进程是可信的宿主扩展，位于这个边界之外。
+Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端错误会变成工具错误，不会退回到无沙箱重试。MCP 服务器进程是可信的宿主扩展，位于这个边界之外。
 
 ## Reviewer
 
@@ -1939,17 +1886,13 @@ Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端�
 
 `MEMORY.md` 属于请求上下文。`memory` 工具追加一条列表项，不能写其他路径。文件有上限，以保护请求预算。
 
-## 钩子
-
-`HookRunner` 在工具前后执行配置的 shell 命令。`before_tool` 可以拒绝；`after_tool` 只观察。钩子可信，并且有超时限制。见[钩子、MCP 和子代理](../hooks-mcp-subagents.md)。
-
 ## MCP
 
 每个配置的 stdio 服务器保持一个常驻进程。发现过程读取 `tools/list`；调用通过串行队列使用 `tools/call`。工具带 `mcp__` 前缀，默认需要确认，在计划模式和只读模式下被拒绝。无法启动的服务器会报告并跳过。
 
 ## 子代理
 
-`SubagentTool` 在 `<sessions>/subagents` 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、钩子、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。`DelegateTool` 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。
+`SubagentTool` 在 `<sessions>/subagents` 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。`DelegateTool` 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。
 
 ## 快照
 
@@ -1965,11 +1908,11 @@ Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端�
 
 ## 限制
 
-扩展刻意保持小。MCP 是 stdio 客户端，不实现完整的 capabilities 协商。钩子是 shell 命令，不是进程内回调。子代理顺序运行，共享父级审批上下文。
+扩展刻意保持小。MCP 是 stdio 客户端，不实现完整的 capabilities 协商。子代理顺序运行，共享父级审批上下文。
 
 ## 测试
 
-`test_skills.py`、`test_memory.py`、`test_hooks.py`、`test_mcp.py`、`test_subagents.py`、`test_snapshots.py` 和 `test_goal.py`。
+`test_skills.py`、`test_memory.py`、`test_mcp.py`、`test_subagents.py`、`test_snapshots.py` 和 `test_goal.py`。
 
 # 工具与安全
 
@@ -2035,7 +1978,7 @@ CLI 让 shell 命令和文件工具走同一套执行策略。在 Linux 和 macO
 
 在 Linux 和 macOS 上，CLI 会对沙箱命令隐藏已有的用户级和项目级 `.cade` 目录，并保护已有的 Git 钩子和 Git 配置不被写入。主目录默认不可写。私有临时目录和常见工具缓存会重定向到会话目录，退出时清理。除隐藏路径外，文件系统仍然可读；这不是完整的秘密隔离。请据此限制凭据和暴露的资源。
 
-钩子、MCP 服务器进程和宿主管理的状态在工具沙箱之外运行。把它们的配置和代码当作可信内容。沙箱不是容器或虚拟机，也不能让不可信的仓库变得安全。
+MCP 服务器进程和宿主管理的状态在工具沙箱之外运行。把它们的配置和代码当作可信内容。沙箱不是容器或虚拟机，也不能让不可信的仓库变得安全。
 
 契约见[决策 0009](../decisions/0009-execution-permissions.md)。
 
@@ -2083,7 +2026,7 @@ cade --undo
 
 新操作会丢弃当前重做链。旧对话分支仍然保留。树导航从不恢复文件；过期的撤销/重做不能跨过已变化的对话位置。Rewind 仍可使用自有检查点，并根据实际操作计算代码变更，包括期间发生的撤销、重做和 revert。复制的会话不继承工作区操作。没有自有检查点的历史提示只支持恢复对话。
 
-恢复在修改文件之前检查所有选中的文件和内容块。目标已变化、结果未知、内容块损坏、符号链接、硬链接或受保护的元数据路径都会阻止自动代码恢复。如果后续编辑冲突，恢复较旧的区间也会失败；没有自动反向补丁合并。文件上限对两份镜像都生效。事后镜像缺失时，该回合的代码检查点会被标记为不完整，不会假装恢复可用。未选中的文件和用户的 Git 索引保持不变。目录树、未跟踪的 shell/钩子变更和外部副作用不会恢复。
+恢复在修改文件之前检查所有选中的文件和内容块。目标已变化、结果未知、内容块损坏、符号链接、硬链接或受保护的元数据路径都会阻止自动代码恢复。如果后续编辑冲突，恢复较旧的区间也会失败；没有自动反向补丁合并。文件上限对两份镜像都生效。事后镜像缺失时，该回合的代码检查点会被标记为不完整，不会假装恢复可用。未选中的文件和用户的 Git 索引保持不变。目录树、未跟踪的 shell 变更和外部副作用不会恢复。
 
 协作操作共用 `.cade/recovery/workspace.lock`。操作日志和检查点链接使用该目录下的封闭记录。`pending.json` 计划在恢复开始前保存两份镜像。文件按单个文件原子替换；多文件恢复不是整个文件系统层面的原子操作。中断后，恢复指定的会话即可幂等完成计划。如果出现第三个外部编辑过的状态，恢复会停止，不覆盖该编辑。解决报告的冲突后继续；不要删除待处理计划来绕过写入保护。在计划完成前，代理的新写入会一直被阻止。外部编辑器不遵守这把锁，恢复期间必须停止它们。只读模式会阻止代码恢复；仅恢复对话仍然可用。Esc 取消预览，不取消正在提交的文件恢复。正常退出 TUI 会等待恢复提交完成；进程被强制中断时使用待处理计划。
 
@@ -2165,35 +2108,11 @@ Run the release checklist...
 
 指令、技能目录、`NOTE.md`、`MEMORY.md` 和活动目标都只属于请求上下文。它们出现在每次请求审计里，但不会变成对话消息。见[会话与上下文](sessions-context.md)。
 
-# 钩子、MCP 和子代理
+# MCP 和子代理
 
-<!-- source: hooks-mcp-subagents.md -->
+<!-- source: mcp-subagents.md -->
 
-# 钩子、MCP 和子代理
-
-## 钩子
-
-钩子在工具前后运行 shell 命令，配置写在 `cade.json`：
-
-```json
-{
-  "hooks": [
-    {
-      "event": "before_tool",
-      "command": "python tools/check_tool.py",
-      "matcher": "bash",
-      "timeout_ms": 10000
-    }
-  ]
-}
-```
-
-- `before_tool` 在策略和审批之后、工具执行之前运行。非零退出会拒绝调用，并记录一条错误工具结果。
-- `after_tool` 在工具执行成功或失败后运行。它的输出被忽略。
-- `matcher` 是精确工具名、以 `*` 结尾的前缀，或省略表示所有工具。
-- 命令以工作区为工作目录运行，并收到 `CADE_HOOK_EVENT`、`CADE_TOOL_NAME`、`CADE_TOOL_ARGS` 和 `CADE_TOOL_RESULT`。
-
-钩子是可信配置。挂起的钩子会在超时后被杀掉。
+# MCP 和子代理
 
 ## MCP
 
@@ -2231,7 +2150,7 @@ MCP 服务器使用 stdio。Cade 为每个服务器启动一个常驻进程，�
 
 子会话：
 
-- 继承父级的 provider、预算、策略、审批者、钩子和请求上下文；
+- 继承父级的 provider、预算、策略、审批者和请求上下文；
 - 获得基础工具，以及绑定到自己日志的 history 工具；
 - 不再获得 `subagent` 工具，因此不能递归；
 - 最多使用 20 个步骤；
@@ -2249,7 +2168,7 @@ MCP 服务器使用 stdio。Cade 为每个服务器启动一个常驻进程，�
 
 ## 限制
 
-MCP 是一个小型 stdio 客户端，不实现完整的 capabilities 协商。钩子是 shell 命令，不是进程内回调。子代理顺序运行，共享父级审批上下文，不并行执行。
+MCP 是一个小型 stdio 客户端，不实现完整的 capabilities 协商。子代理顺序运行，共享父级审批上下文，不并行执行。
 
 # 操作指南
 

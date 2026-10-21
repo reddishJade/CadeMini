@@ -9,7 +9,6 @@ Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换
 | Policy | `permissions.Policy.check` 返回决策、原因和范围 | `WorkspacePolicy` | 循环、CLI shell |
 | Approval | `ApprovalRequest` 到 `ApprovalResult`，可选异步 | `SessionApprover`、`AutoReviewer` | 授权 |
 | 执行范围 | `ExecutionScope` 和 `PlatformSandbox.wrap` | bubblewrap、Seatbelt、Windows 直接运行 | 工作区工具 |
-| 钩子 | `loop.Hooks.before/after` | `HookRunner` | 循环 |
 | 压缩 | `Compactor(log, budget)` | LLM 摘要压缩器 | 循环 |
 | 会话存储 | `SessionLog` 的追加、分支、打开 | 文件支持的 JSONL 日志 | 其上所有层 |
 | 恢复 | `SnapshotStore` 的捕获和撤销 | 文件快照存储 | 工具、CLI |
@@ -26,10 +25,6 @@ Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换
 ## 策略与审批
 
 策略返回决策，不执行操作。只有 `ask` 才会咨询审批。拒绝会变成工具错误事实，模型可以据此恢复。把两者分开，宿主就能选择 TTY 提示、模型复核或非交互拒绝。
-
-## 钩子
-
-钩子观察工具调用，可以否决，但不改变策略结果。`before_tool` 失败等于拒绝；`after_tool` 失败被忽略。钩子是可信配置，不是沙箱代码。
 
 ## 存储
 

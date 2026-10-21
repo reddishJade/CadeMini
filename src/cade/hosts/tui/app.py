@@ -1364,7 +1364,7 @@ class _CadeTui:
             self._state.log.append(_LogEntry("error", str(exc)))
             return
         files = ", ".join(change.path for change in changes) or "No file changes"
-        description = f"Scope: {scope}. {files}. Only tracked file mutations are restored; untracked shell, hook, and external effects remain. Conflicting manual edits block the whole restore."
+        description = f"Scope: {scope}. {files}. Only tracked file mutations are restored; untracked shell and external effects remain. Conflicting manual edits block the whole restore."
         self._open_command_choices(
             [("Cancel", "cancel"), ("Apply restore", "apply")],
             lambda value: (

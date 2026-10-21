@@ -9,7 +9,6 @@ from typing import Any
 from cade.core.log import SessionLog
 from cade.core.loop import (
     CancellationToken,
-    Hooks,
     Policy,
     Provider,
     Tool,
@@ -41,7 +40,6 @@ class SubagentRunner:
         approve: Approver,
         context: Callable[[], Sequence[str]] | None = None,
         max_steps: int = 20,
-        hooks: Hooks | None = None,
         lifecycle: TurnLifecycle | None = None,
     ) -> None:
         self.workspace = workspace.resolve()
@@ -56,7 +54,6 @@ class SubagentRunner:
         self.approve = approve
         self.context = context or (lambda: ())
         self.max_steps = max_steps
-        self.hooks = hooks
         self.lifecycle = lifecycle
 
     async def run_task(
@@ -91,7 +88,6 @@ class SubagentRunner:
             context=child_context,
             max_steps=self.max_steps,
             cancel=signal,
-            hooks=self.hooks,
             lifecycle=self.lifecycle,
         )
         summary = result.answer.strip() or "(no answer)"

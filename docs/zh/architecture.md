@@ -61,7 +61,7 @@ Cade 是 `src/cade/` 下的独立编码代理。它使用四段流水线，每�
 - `core/compaction.py` 和 `core/window.py`：上下文缩减决策。
 - `tools/workspace.py`、`tools/history.py`：工作区工具和证据检索。
 - `safety/policy.py`、`safety/shell.py`、`safety/grants.py`、`safety/approval.py`、`safety/review.py`：权限和审批。
-- `extensions/skills.py`、`extensions/memory.py`、`extensions/hooks.py`、`extensions/mcp.py`、`extensions/subagents.py`、`extensions/snapshots.py`、`extensions/goal.py`：附加功能和持久宿主状态。
+- `extensions/skills.py`、`extensions/memory.py`、`extensions/mcp.py`、`extensions/subagents.py`、`extensions/snapshots.py`、`extensions/goal.py`：附加功能和持久宿主状态。
 - `app/config.py`、`app/provider.py`、`app/auth.py`、`app/prompts.py`、`app/instructions.py`、`app/note.py`：启动和请求上下文。
 - `hosts/cli.py`、`docs.py`：宿主和文档。
 

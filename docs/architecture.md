@@ -80,9 +80,9 @@ fallback are decisions expressed as new log facts.
   retrieval.
 - `safety/policy.py`, `safety/shell.py`, `safety/grants.py`,
   `safety/approval.py`, `safety/review.py`: permissions and approvals.
-- `extensions/skills.py`, `extensions/memory.py`, `extensions/hooks.py`,
-  `extensions/mcp.py`, `extensions/subagents.py`, `extensions/snapshots.py`,
-  `extensions/goal.py`: add-ons and durable host state.
+- `extensions/skills.py`, `extensions/memory.py`, `extensions/mcp.py`,
+  `extensions/subagents.py`, `extensions/snapshots.py`, `extensions/goal.py`:
+  add-ons and durable host state.
 - `app/config.py`, `app/provider.py`, `app/auth.py`, `app/prompts.py`,
   `app/instructions.py`, `app/note.py`: startup and request context.
 - `hosts/cli.py`, `docs.py`: hosts and documentation.

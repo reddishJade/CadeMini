@@ -66,25 +66,6 @@ Cade 默认读取 `<project-root>/cade.json`。用 `--config PATH` 选择其他�
 
 这个例子里 `git status` 仍会被拒绝，因为更宽的 deny 也匹配。要放行，就删除或收窄那条 deny。计划模式约束、受保护路径和 `read_only` 优先于授权和规则。工作区外的写入会申请额外权限，不会被无条件拒绝。作用范围和审批行为见[工具与安全](tools-security.md)。
 
-## 钩子
-
-钩子在工具调用前后执行 shell 命令。`before_tool` 钩子返回非零值时，调用被拒绝。
-
-```json
-{
-  "hooks": [
-    {
-      "event": "before_tool",
-      "command": "python tools/check_tool.py",
-      "matcher": "bash",
-      "timeout_ms": 10000
-    }
-  ]
-}
-```
-
-`event` 是 `before_tool` 或 `after_tool`。`matcher` 是工具名、以 `*` 结尾的前缀，或省略表示所有工具。钩子通过环境变量收到 `CADE_HOOK_EVENT`、`CADE_TOOL_NAME`、`CADE_TOOL_ARGS` 和 `CADE_TOOL_RESULT`。
-
 ## MCP 服务器
 
 MCP 服务器使用 stdio，每个服务器保持一条长连接。

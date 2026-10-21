@@ -28,7 +28,7 @@ uv run --locked python -m cade.docs check
 | CLI 与配置 | `test_cli.py`、`test_config.py` |
 | 指令、技能、记忆、NOTE | `test_instructions.py`、`test_skills.py`、`test_memory.py`、`test_note.py` |
 | 安全与模式 | `test_policy.py`、`test_shell.py`、`test_grants.py` |
-| 扩展 | `test_hooks.py`、`test_mcp.py`、`test_subagents.py` |
+| 扩展 | `test_mcp.py`、`test_subagents.py` |
 | 恢复 | `test_snapshots.py`、`test_goal.py` |
 | 文档 | `test_docs.py` |
 

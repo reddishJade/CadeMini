@@ -10,7 +10,6 @@ implementation can be replaced without changing the session schema or the loop.
 | Policy | `permissions.Policy.check` returns decision, reason, and scope | `WorkspacePolicy` | Loop, CLI shell |
 | Approval | `ApprovalRequest` to `ApprovalResult`, optionally async | `SessionApprover`, `AutoReviewer` | Authorization |
 | Execution scope | `ExecutionScope` and `PlatformSandbox.wrap` | bubblewrap, Seatbelt, Windows direct | Workspace tools |
-| Hooks | `loop.Hooks.before/after` | `HookRunner` | Loop |
 | Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
 | Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |
 | Recovery | `SnapshotStore` capture and undo | File snapshot store | Tools, CLI |
@@ -34,12 +33,6 @@ Policy returns a decision, not an execution. Approval is only consulted for
 `ask`. A denial becomes a tool error fact, so the model can recover. Keeping
 these separate lets the host choose a TTY prompt, a model reviewer, or a
 non-interactive denial.
-
-## Hooks
-
-Hooks observe and can veto a tool call without changing the policy result. A
-`before_tool` failure is a denial; `after_tool` failure is ignored. Hooks are
-trusted configuration, not sandboxed code.
 
 ## Stores
 

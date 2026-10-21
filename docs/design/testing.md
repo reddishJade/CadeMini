@@ -29,7 +29,7 @@ uv run --locked python -m cade.docs check
 | CLI and config | `test_cli.py`, `test_config.py` |
 | Instructions, skills, memory, NOTE | `test_instructions.py`, `test_skills.py`, `test_memory.py`, `test_note.py` |
 | Safety and modes | `test_policy.py`, `test_shell.py`, `test_grants.py` |
-| Extensions | `test_hooks.py`, `test_mcp.py`, `test_subagents.py` |
+| Extensions | `test_mcp.py`, `test_subagents.py` |
 | Recovery | `test_snapshots.py`, `test_goal.py` |
 | Docs | `test_docs.py` |
 

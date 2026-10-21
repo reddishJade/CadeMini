@@ -39,10 +39,9 @@ and share policy, tools, and session storage with every other entry path.
 
 ## Extensions
 
-Skills add on-demand instructions. Memory adds durable facts. Hooks run shell
-commands around tools. MCP adds remote tools. Subagents run an independent child
-session. Each extension is a narrow adapter over the loop, not a change to the
-session schema.
+Skills add on-demand instructions. Memory adds durable facts. MCP adds remote
+tools. Subagents run an independent child session. Each extension is a narrow
+adapter over the loop, not a change to the session schema.
 
 ## Trust and permissions
 

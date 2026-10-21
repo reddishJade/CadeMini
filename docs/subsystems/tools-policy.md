@@ -29,8 +29,8 @@ Cancellation signals reach the subprocess launcher, and tools wait for process
 termination before returning or cleaning up request files.
 
 Linux uses bubblewrap, macOS uses Seatbelt, and Windows runs directly. Backend
-errors become tool errors, not unsandboxed retries. Hooks and MCP server
-processes are trusted host extensions outside this boundary.
+errors become tool errors, not unsandboxed retries. MCP server processes are
+trusted host extensions outside this boundary.
 
 ## Reviewer
 

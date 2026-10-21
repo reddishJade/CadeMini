@@ -13,7 +13,7 @@ src/cade/
   core/           log, projection, request, loop, compaction, window
   tools/          workspace actions and history retrieval
   safety/         policy, shell analysis, grants, approval, review
-  extensions/     skills, memory, hooks, mcp, subagents, snapshots, goal
+  extensions/     skills, memory, mcp, subagents, snapshots, goal
   app/            config, provider assembly, credentials, request context
   hosts/          cli, auth
   docs.py

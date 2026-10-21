@@ -13,12 +13,6 @@ request-only context.
 `MEMORY.md` is request context. The `memory` tool appends one bullet and cannot
 write other paths. The file is capped to protect the request budget.
 
-## Hooks
-
-`HookRunner` executes configured shell commands around tools. `before_tool` can
-deny; `after_tool` observes. Hooks are trusted and time-bounded. See
-[Hooks, MCP, and subagents](../hooks-mcp-subagents.md).
-
 ## MCP
 
 Each configured stdio server keeps one persistent process. Discovery reads
@@ -29,8 +23,8 @@ that cannot start is reported and skipped.
 ## Subagents
 
 `SubagentTool` creates a child session under `<sessions>/subagents`. The child
-gets the parent provider, budget, policy, approver, hooks, context, and base
-tools plus its own history. It cannot spawn another subagent and is limited to
+gets the parent provider, budget, policy, approver, context, and base tools plus
+its own history. It cannot spawn another subagent and is limited to
 20 steps. The parent records only the call and summary. `DelegateTool` runs one
 or more child tasks sequentially and optionally applies a more restrictive
 child mode. Reviewer requests retain ancestor conversations so a child prompt
@@ -55,10 +49,10 @@ policy as every other entry path.
 ## Limits
 
 Extensions are deliberately small. MCP is a stdio client, not a full capability
-negotiation implementation. Hooks are shell commands, not in-process callbacks.
-Subagents are sequential and share the parent approval context.
+negotiation implementation. Subagents are sequential and share the parent
+approval context.
 
 ## Tests
 
-`test_skills.py`, `test_memory.py`, `test_hooks.py`,
-`test_mcp.py`, `test_subagents.py`, `test_snapshots.py`, and `test_goal.py`.
+`test_skills.py`, `test_memory.py`, `test_mcp.py`, `test_subagents.py`,
+`test_snapshots.py`, and `test_goal.py`.

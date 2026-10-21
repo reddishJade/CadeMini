@@ -111,7 +111,6 @@ SPECS: tuple[CommandSpec, ...] = (
     CommandSpec(
         "/permissions", "Review session permissions", "Settings", "[list|clear]"
     ),
-    CommandSpec("/hooks", "Show registered hooks", "Settings"),
     CommandSpec("/tool", "List available tools", "Settings", "[list]"),
     CommandSpec("/skill", "Activate a discovered skill", "Settings", "[name]"),
     CommandSpec("/memory", "Show workspace memory path", "Settings"),

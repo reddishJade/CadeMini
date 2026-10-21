@@ -91,19 +91,6 @@ class Tool(Protocol):
     ) -> ToolResult: ...
 
 
-class Hooks(Protocol):
-    """工具生命周期 hooks。"""
-
-    async def before(self, call: ToolCallBlock) -> tuple[bool, str]: ...
-
-    async def after(
-        self,
-        call: ToolCallBlock,
-        content: str,
-        is_error: bool,
-    ) -> None: ...
-
-
 class TurnLifecycle(Protocol):
     """宿主提供轮次检查点；核心不依赖工作区存储。"""
 
@@ -241,7 +228,6 @@ async def run(
     on_event: Callable[[LoopEvent], None] | None = None,
     compact: Callable[[SessionLog, Budget], Awaitable[bool]] | None = None,
     window: Callable[[SessionLog], bool] | None = None,
-    hooks: Hooks | None = None,
     steering: Callable[[], str | None] | None = None,
     lifecycle: TurnLifecycle | None = None,
 ) -> RunResult:
@@ -447,16 +433,6 @@ async def run(
                 _emit(on_event, ToolEndEvent(call.id, content, True))
                 continue
 
-            if hooks is not None:
-                allowed, hook_output = await hooks.before(call)
-                if not allowed:
-                    content = f"Hook denied {call.name}: {hook_output}".strip()
-                    _append_tool_result(
-                        log, call, content, True, authorization=authorization
-                    )
-                    _emit(on_event, ToolEndEvent(call.id, content, True))
-                    continue
-
             _emit(on_event, ToolStartEvent(call.id, call.name, call.args))
             with (
                 execution_scope(authorization.scope),
@@ -470,8 +446,6 @@ async def run(
                 log, call, content, tool_result.is_error, authorization=authorization
             )
             _emit(on_event, ToolEndEvent(call.id, content, tool_result.is_error))
-            if hooks is not None:
-                await hooks.after(call, content, tool_result.is_error)
 
     return _finish(
         log,

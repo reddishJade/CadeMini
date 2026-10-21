@@ -60,8 +60,6 @@ flowchart LR
   extensions_goal --> core_loop
   extensions_goal --> core_types
   extensions_goal --> tools_workspace
-  extensions_hooks --> app_config
-  extensions_hooks --> core_types
   extensions_mcp --> app_config
   extensions_mcp --> core_loop
   extensions_mcp --> core_types
@@ -97,7 +95,6 @@ flowchart LR
   hosts_cli --> core_window
   hosts_cli --> execution_env_sandbox
   hosts_cli --> extensions_goal
-  hosts_cli --> extensions_hooks
   hosts_cli --> extensions_mcp
   hosts_cli --> extensions_memory
   hosts_cli --> extensions_skills
@@ -128,7 +125,6 @@ flowchart LR
   hosts_interaction --> core_types
   hosts_interaction --> core_window
   hosts_interaction --> extensions_goal
-  hosts_interaction --> extensions_hooks
   hosts_interaction --> extensions_recovery
   hosts_interaction --> extensions_skills
   hosts_interaction --> extensions_snapshots

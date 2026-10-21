@@ -47,13 +47,6 @@ def test_loads_values(tmp_path: Path) -> None:
                         "decision": "allow",
                     }
                 ],
-                "hooks": [
-                    {
-                        "event": "before_tool",
-                        "command": "echo prepare",
-                        "matcher": "bash",
-                    }
-                ],
                 "mcp_servers": {"fake": {"command": "python", "args": ["server.py"]}},
             }
         ),
@@ -77,8 +70,6 @@ def test_loads_values(tmp_path: Path) -> None:
     assert config.network is False
     assert config.rules[0].tool == "bash"
     assert config.rules[0].decision == "allow"
-    assert config.hooks[0].event == "before_tool"
-    assert config.hooks[0].matcher == "bash"
     assert config.mcp_servers["fake"].command == "python"
 
 
