@@ -19,8 +19,8 @@ cancellation, or a provider error.
 
 The projection supplies conversation history. Request-only context supplies
 project instructions, the skill catalog, `NOTE.md`, `MEMORY.md`, and an active
-goal. Tool results are pruned when they no longer fit; the history tool can read
-the original facts.
+goal. Request admission preserves projected tool results and rejects requests
+that exceed the budget. The history tool can read original retained facts.
 
 Compaction adds a summary fact and keeps a recent tail. A window moves the
 context start forward and may include a handoff. Neither operation rewrites the

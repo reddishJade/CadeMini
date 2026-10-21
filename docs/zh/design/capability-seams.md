@@ -4,8 +4,8 @@ Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换
 
 | 接缝 | 契约 | 实现 | 主要使用方 |
 | --- | --- | --- | --- |
-| Provider | `loop.Provider` 流式事件 | OpenAI Responses、ChatGPT 套餐（SIWC）、DeepSeek Responses | 循环、压缩、自动复核 |
-| Tool | `loop.Tool` 的名称、描述、参数、execute | 工作区工具、history、skill、memory、goal、subagent、MCP | 循环 |
+| Provider | `harness.provider.Provider` 流式事件 | OpenAI Responses、ChatGPT 套餐（SIWC）、DeepSeek Responses | 循环、压缩、自动复核 |
+| Tool | `harness.tools.Tool` 的名称、描述、参数、execute | 工作区工具、history、skill、memory、goal、subagent、MCP | 循环 |
 | Policy | `permissions.Policy.check` 返回决策、原因和范围 | `WorkspacePolicy` | 循环、CLI shell |
 | Approval | `ApprovalRequest` 到 `ApprovalResult`，可选异步 | `SessionApprover`、`AutoReviewer` | 授权 |
 | 执行范围 | `ExecutionScope` 和 `PlatformSandbox.wrap` | bubblewrap、Seatbelt、Windows 直接运行 | 工作区工具 |

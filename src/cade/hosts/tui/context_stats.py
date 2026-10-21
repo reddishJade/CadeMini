@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from cade.core.projection import project
-from cade.core.request import build
+from cade.harness.request import build
+from cade.harness.session.projection import project
 
 from .compat import ContextSummary
 

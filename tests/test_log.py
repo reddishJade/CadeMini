@@ -12,9 +12,9 @@ from typing import cast
 
 import pytest
 
-from cade.core.log import SessionLog, list_sessions, session_title
-from cade.core.request import Budget, build
-from cade.core.types import EventType, JsonValue, LogError, UserMessage
+from cade.harness.request import Budget, build
+from cade.harness.session.log import SessionLog, list_sessions, session_title
+from cade.harness.session.types import EventType, JsonValue, LogError, UserMessage
 
 
 def _sessions(tmp_path: Path) -> Path:
@@ -109,7 +109,7 @@ def test_process_writers_keep_one_continuous_branch(tmp_path: Path) -> None:
     log = SessionLog.create(_sessions(tmp_path), session_id="processes")
     script = (
         "from pathlib import Path; import sys; "
-        "from cade.core.log import SessionLog; "
+        "from cade.harness.session.log import SessionLog; "
         "log = SessionLog.open(Path(sys.argv[1])); "
         "[log.append('user', {'text': str(i)}) for i in range(10)]"
     )
@@ -137,7 +137,7 @@ def test_run_lock_rejects_another_process_and_releases(tmp_path: Path) -> None:
     log = SessionLog.create(_sessions(tmp_path), session_id="locked")
     script = (
         "from pathlib import Path; import sys; "
-        "from cade.core.log import SessionLog; "
+        "from cade.harness.session.log import SessionLog; "
         "log = SessionLog.open(Path(sys.argv[1])); "
         "exec('with log.run_lock():\\n pass')"
     )

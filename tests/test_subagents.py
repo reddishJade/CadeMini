@@ -17,19 +17,19 @@ from cade.ai.events import (
     ToolCallEvent,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.core.log import SessionLog
-from cade.core.loop import run
-from cade.core.permissions import ApprovalResult
-from cade.core.request import Budget
-from cade.core.types import ToolCallBlock
-from cade.extensions.subagents import (
+from cade.coding.security.policy import WorkspacePolicy
+from cade.coding.security.review import AutoReviewer
+from cade.coding.subagents import (
     DelegateTool,
     SubagentRunner,
     SubagentTool,
 )
-from cade.safety.policy import WorkspacePolicy
-from cade.safety.review import AutoReviewer
-from cade.tools.workspace import build_tools
+from cade.coding.tools.registry import build_tools
+from cade.harness.loop import run
+from cade.harness.permissions import ApprovalResult
+from cade.harness.request import Budget
+from cade.harness.session.log import SessionLog
+from cade.harness.session.types import ToolCallBlock
 
 
 class FakeProvider:

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from cade.core.permissions import ApprovalRequest
-from cade.core.types import ToolCallBlock
-from cade.safety.approval import SessionApprover
+from cade.coding.security.approval import SessionApprover
+from cade.harness.permissions import ApprovalRequest
+from cade.harness.session.types import ToolCallBlock
 
 
 def _call(name: str = "write") -> ApprovalRequest:

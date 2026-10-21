@@ -5,7 +5,7 @@ Status: accepted
 ## Context
 
 Cade previously shipped a line-oriented REPL alongside one-shot execution.
-The terminal UI now uses `InteractionService` for sessions, approvals, goals,
+The terminal UI now uses `ApplicationSession` for sessions, approvals, goals,
 queueing, and steering. Cade no longer keeps a REPL, and maintaining two
 interactive hosts would duplicate host behavior and tests.
 

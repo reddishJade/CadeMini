@@ -89,7 +89,7 @@ TUI 不注册 `/rename` 和 `/mcp`。恢复操作只改已跟踪文件，不处�
 - `!command`：不联系模型，直接运行 shell 命令。权限检查仍然生效。
 
 ```text
-Review @src/cade/core/loop.py and use $review-only
+Review @src/cade/harness/loop.py and use $review-only
 !git status
 ```
 

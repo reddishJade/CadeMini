@@ -13,7 +13,7 @@ import httpx
 from cade.ai.auth import LoginCancelledError
 
 if TYPE_CHECKING:
-    from cade.hosts.interaction import InteractionService
+    from cade.app.session import ApplicationSession
 
 OpenChoices = Callable[[Sequence[tuple[str, object]], Callable[[object], None]], None]
 
@@ -74,7 +74,7 @@ class TuiLoginFlow:
         open_text: OpenText,
         post: PostMessage,
         run_task: RunTask,
-        service: InteractionService,
+        service: ApplicationSession,
         on_connected: Callable[[str], None],
     ) -> None:
         self._open_choices = open_choices

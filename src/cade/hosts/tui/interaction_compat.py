@@ -9,8 +9,8 @@ from html import escape
 from pathlib import Path
 from typing import Any, cast
 
-from cade.core.types import ToolCallBlock
-from cade.tools.workspace import resolve_workspace_path
+from cade.coding.tools.base import resolve_workspace_path
+from cade.harness.session.types import ToolCallBlock
 
 from .compat import file_reference_event
 from .settings import current_effort_options, current_model_options
@@ -112,7 +112,7 @@ def parse_skill_invocation(text: str) -> tuple[str, str] | None:
 
 
 def available_skill_names(app: object) -> tuple[str, ...]:
-    """从 InteractionService 读取可显式激活的技能名称。"""
+    """从 ApplicationSession 读取可显式激活的技能名称。"""
     service = getattr(app, "service", None)
     skills = getattr(service, "skills", ())
     return tuple(skill.name for skill in skills)

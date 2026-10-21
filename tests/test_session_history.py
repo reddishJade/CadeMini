@@ -8,10 +8,10 @@ from random import Random
 
 import pytest
 
-from cade.core.history import history_tree
-from cade.core.log import SessionLog, list_sessions
-from cade.core.projection import project
-from cade.core.types import LogEntry, LogError, UserMessage
+from cade.harness.session.history import history_tree
+from cade.harness.session.log import SessionLog, list_sessions
+from cade.harness.session.projection import project
+from cade.harness.session.types import LogEntry, LogError, UserMessage
 
 
 def _session(tmp_path: Path) -> tuple[SessionLog, list[LogEntry]]:

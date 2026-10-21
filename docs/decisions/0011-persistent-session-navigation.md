@@ -35,9 +35,9 @@ and write one snapshot. Empty copies retain deferred persistence.
 
 Navigation survives restart without file rollback or an extra model request.
 
-[Storage](../../src/cade/core/log.py),
-[tree projection](../../src/cade/core/history.py), and
-[interaction commands](../../src/cade/hosts/interaction.py) own the behavior.
+[Storage](../../src/cade/harness/session/log.py),
+[tree projection](../../src/cade/harness/session/history.py), and
+[interaction commands](../../src/cade/app/session.py) own the behavior.
 [Core tests](../../tests/test_session_history.py) cover record preservation,
 references, locks, alternate branches, and copies.
 [TUI E2E tests](../../tests/test_history_e2e.py) cover real input, restart,

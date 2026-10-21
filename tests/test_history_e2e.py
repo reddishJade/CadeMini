@@ -8,8 +8,8 @@ from uuid import UUID
 import pytest
 from test_tui_e2e import Runner, Terminal, terminal_runner
 
-import cade.core.log as session_log
-from cade.core.log import SessionLog, list_sessions
+import cade.harness.session.log as session_log
+from cade.harness.session.log import SessionLog, list_sessions
 
 __all__ = ["terminal_runner"]
 

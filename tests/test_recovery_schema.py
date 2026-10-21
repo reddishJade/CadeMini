@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from cade.core.log import SessionLog
-from cade.core.types import LogError
+from cade.harness.session.log import SessionLog
+from cade.harness.session.types import LogError
 
 
 @pytest.mark.parametrize("damage", ["anchor", "user", "phase", "extra"])

@@ -12,9 +12,10 @@ from typing import Any, cast
 from uuid import uuid4
 
 from cade.ai.models import get_model_context_window, get_models
-from cade.core.log import SessionLog, list_sessions
-from cade.core.loop import (
-    CancellationToken,
+from cade.app.session import ApplicationSession
+from cade.coding.security.sensitive import is_sensitive_reason
+from cade.harness.cancellation import CancellationToken
+from cade.harness.events import (
     LoopEvent,
     ReasoningDeltaEvent,
     RunResult,
@@ -23,9 +24,8 @@ from cade.core.loop import (
     ToolStartEvent,
     UsageEvent,
 )
-from cade.core.types import LogEntry, TextBlock, ToolCallBlock
-from cade.hosts.interaction import InteractionService
-from cade.safety.sensitive import is_sensitive_reason
+from cade.harness.session.log import SessionLog, list_sessions
+from cade.harness.session.types import LogEntry, TextBlock, ToolCallBlock
 
 from .compat import (
     AgentHarnessResult,
@@ -83,7 +83,7 @@ def _session_project(path: Path) -> str:
 class CadeSessionStore:
     """把 Cade 的线性会话日志投影成 TUI 需要的会话存储接口。"""
 
-    def __init__(self, service: InteractionService) -> None:
+    def __init__(self, service: ApplicationSession) -> None:
         self._service = service
 
     @property
@@ -223,7 +223,7 @@ class CadeSessionStore:
 class _RunToken:
     """在启动后台线程前准备取消令牌，保留发送后立即中断的请求。"""
 
-    def __init__(self, service: InteractionService) -> None:
+    def __init__(self, service: ApplicationSession) -> None:
         self._service = service
 
     def reset(self) -> None:
@@ -236,13 +236,13 @@ class _RunToken:
 
 
 class CadeAgent:
-    """TUI 看到的 agent 外观；运行由 InteractionService 负责。"""
+    """TUI 看到的 agent 外观；运行由 ApplicationSession 负责。"""
 
     approval_policy = "on-request"
     approvals_reviewer = "user"
     current_mode = "build"
 
-    def __init__(self, service: InteractionService) -> None:
+    def __init__(self, service: ApplicationSession) -> None:
         self._service = service
         self.user_approval_callback: Any = None
         self.session_id = service.log.session_id
@@ -325,7 +325,7 @@ class CadeAgent:
 class _Recorder:
     """把 TUI 的部分回答写入会话日志。"""
 
-    def __init__(self, service: InteractionService) -> None:
+    def __init__(self, service: ApplicationSession) -> None:
         self._service = service
 
     def record_assistant(self, text: str) -> None:
@@ -344,7 +344,7 @@ class _Recorder:
 class CadeInteractionApp:
     """Cade TUI 协议在 Cade 上的实现。"""
 
-    def __init__(self, service: InteractionService) -> None:
+    def __init__(self, service: ApplicationSession) -> None:
         self.service = service
         self.agent = CadeAgent(service)
         self.session_store = CadeSessionStore(service)
@@ -393,7 +393,7 @@ class CadeInteractionApp:
             provider_name, model_name = model.split("/", 1)
         config_provider = provider_name
         from cade.app.provider import ProviderConfig, build_provider
-        from cade.core.request import Budget
+        from cade.harness.request import Budget
 
         previous_budget = self.service.budget
         previous_explicit = self.service.context_window_explicit
@@ -519,6 +519,6 @@ class CadeInteractionApp:
         )
 
 
-def build_app(service: InteractionService) -> CadeInteractionApp:
+def build_app(service: ApplicationSession) -> CadeInteractionApp:
     """由 CLI 使用的工厂，保持入口简洁。"""
     return CadeInteractionApp(service)

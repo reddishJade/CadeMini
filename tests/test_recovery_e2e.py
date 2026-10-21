@@ -10,7 +10,7 @@ import pytest
 from test_tui_e2e import Runner, Terminal, terminal_runner
 
 from cade.ai.events import FinalMessage, ToolCall, ToolCallEvent
-from cade.extensions.snapshots import FileState
+from cade.coding.workspace.snapshots import FileState
 
 __all__ = ["terminal_runner"]
 pytestmark = pytest.mark.e2e

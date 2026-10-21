@@ -10,7 +10,7 @@ audit payloads altogether.
 
 ## Decision
 
-`core/events.py` defines strict Pydantic schemas for every event payload.
+`harness/session/schema.py` defines strict Pydantic schemas for every event payload.
 Validate before append can repair or modify a file, and validate payloads on
 read. Reject missing required fields, unknown fields, wrong primitive types,
 invalid statuses, duplicate calls within an assistant event, and non-finite JSON

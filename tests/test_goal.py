@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from cade.core.types import JsonValue, ToolCallBlock
-from cade.extensions.goal import GoalStore, GoalTool
-from cade.safety.policy import WorkspacePolicy
+from cade.coding.goal import GoalStore, GoalTool
+from cade.coding.security.policy import WorkspacePolicy
+from cade.harness.session.types import JsonValue, ToolCallBlock
 
 
 def _call(action: str, objective: str | None = None) -> ToolCallBlock:

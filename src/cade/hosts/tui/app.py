@@ -41,7 +41,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 from prompt_toolkit.widgets import CheckboxList, RadioList, TextArea
 
-from cade.hosts.interaction import InteractionService, UnavailableProvider
+from cade.app.session import ApplicationSession, UnavailableProvider
 
 from .approval import (
     approval_scope_lines,
@@ -154,7 +154,7 @@ if TYPE_CHECKING:
 
 
 def run_tui(
-    app: CadeInteractionApp | InteractionService,
+    app: CadeInteractionApp | ApplicationSession,
     project_root: Path,
     *,
     resume_latest: bool = False,
@@ -164,7 +164,7 @@ def run_tui(
 ) -> int:
     from .ptk_patch import suppress_windows_ptk_shutdown_noise
 
-    if isinstance(app, InteractionService):
+    if isinstance(app, ApplicationSession):
         app = CadeInteractionApp(app)
     suppress_windows_ptk_shutdown_noise()
     try:
@@ -479,7 +479,7 @@ class _CadeTui:
             None,
         )
         if question_tool is None:
-            from cade.hosts.interaction_question import QuestionTool
+            from cade.coding.tools.question import QuestionTool
 
             question_tool = QuestionTool(self._answer_questions)
             self._agent_app.service.question_tool = question_tool

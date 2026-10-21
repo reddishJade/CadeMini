@@ -26,9 +26,9 @@ from cade.ai.providers.responses import (
     _format_openai_error,
 )
 from cade.ai.types import ProviderConfig, StreamOptions, ToolDefinition
-from cade.core.log import SessionLog
-from cade.core.loop import run
-from cade.core.request import Budget
+from cade.harness.loop import run
+from cade.harness.request import Budget
+from cade.harness.session.log import SessionLog
 
 _RESPONSE_FORMAT = {
     "type": "json_schema",

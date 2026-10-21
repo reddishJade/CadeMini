@@ -7,18 +7,18 @@ from pathlib import Path
 
 import pytest
 
-from cade.app.config import RuleConfig
-from cade.core.permissions import ApprovalRequest
-from cade.core.types import JsonValue, ToolCallBlock
-from cade.safety.approval import SessionApprover
-from cade.safety.grants import GrantStore
-from cade.safety.policy import WorkspacePolicy
-from cade.safety.sensitive import (
+from cade.coding.security.approval import SessionApprover
+from cade.coding.security.grants import GrantStore
+from cade.coding.security.policy import WorkspacePolicy
+from cade.coding.security.rules import RuleConfig
+from cade.coding.security.sensitive import (
     contains_sensitive_path,
     is_sensitive_path,
 )
-from cade.safety.shell import classify_command, risk_reason
-from cade.tools.workspace import build_tools
+from cade.coding.security.shell import classify_command, risk_reason
+from cade.coding.tools.registry import build_tools
+from cade.harness.permissions import ApprovalRequest
+from cade.harness.session.types import JsonValue, ToolCallBlock
 
 
 def _call(name: str, **args: JsonValue) -> ToolCallBlock:

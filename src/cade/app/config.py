@@ -8,30 +8,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from cade.coding.mcp_config import McpServerConfig
+from cade.coding.security.rules import RuleConfig
+
 DEFAULT_CONFIG_NAME = "cade.json"
-
-
-class RuleConfig(BaseModel):
-    """一条静态权限规则；同层冲突按 deny、ask、allow 排序。"""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    tool: str
-    decision: Literal["allow", "deny", "ask"]
-    path_prefix: str | None = None
-    command_prefix: str | None = None
-
-
-class McpServerConfig(BaseModel):
-    """一个 stdio MCP server 的启动配置。"""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    command: str
-    args: list[str] = Field(default_factory=list)
-    env: dict[str, str] | None = None
-    cwd: str | None = None
-    timeout_ms: int = Field(default=30_000, gt=0, le=300_000)
 
 
 class CadeConfig(BaseModel):

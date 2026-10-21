@@ -6,17 +6,29 @@ Cade 是独立项目。`cade` 发行包安装 `cade` 包和 `cade` 命令，不�
 
 ```text
 src/cade/
-  ai/             provider 适配器、事件、认证协议、模型
-  execution_env/  本地子进程执行和输出捕获
-  core/           日志、投影、请求、循环、压缩、窗口
-  tools/          工作区操作和历史检索
-  safety/         策略、shell 分析、授权、审批、复核
-  extensions/     技能、记忆、mcp、子代理、快照、目标
-  app/            配置、provider 组装、凭据、请求上下文
-  hosts/          cli、auth
+  ai/                       provider、模型协议和认证
+  harness/
+    session/                事实、格式、日志、投影和历史
+    execution/              执行范围契约和本地执行后端
+    loop.py                 日志驱动的回合与 provider 重试
+    executor.py             共享工具授权与执行
+    tools.py, provider.py   运行时契约
+    request.py              请求准入与线上格式转换
+    compaction.py           基于摘要的上下文缩减
+    window.py               显式上下文窗口重置
+  coding/
+    tools/                  读写、编辑、搜索、shell、历史和提问工具
+    context/                提示词、指令、技能、笔记和记忆
+    security/               工作区策略、规则、授权、审批和复核
+    workspace/              快照和协调恢复
+    subagents.py            编程子会话和委派工具
+    mcp.py, mcp_config.py    MCP 工具和连接配置
+    goal.py                 工作区目标状态和工具
+  app/                      装配、活动会话、配置、认证和命令
+  hosts/                    CLI 和 TUI 展示
   docs.py
   __main__.py
-tests/            回归和集成测试
+tests/                      回归和集成测试
 ```
 
 provider 和执行模块源自早期的 Cade 项目，现在由本项目拥有和维护。Cade 只包含自己使用的进程执行代码，不包含早期项目的文件系统或 Linux 沙箱实现。自己的进程包装器在 Linux 上使用已安装的 bubblewrap，在 macOS 上使用 Seatbelt；Windows 直接运行。
@@ -34,11 +46,17 @@ uv run --locked cade login
 
 ## 导入方向
 
-- `ai` 和 `execution_env` 不导入应用或宿主模块。
-- `core` 导入核心类型和 AI 协议。
-- `tools`、`safety` 和 `extensions` 把操作和策略接到核心。
-- `app` 负责启动设置、凭据持久化和请求上下文。
-- `hosts` 组装这些组件，并负责用户交互。
+- `ai` 不导入其他 Cade 层。
+- `harness` 只导入自身和 `ai`，本地执行是它的内部实现。
+- `coding` 导入自身、`harness` 和 `ai`。
+- `app` 装配这些下层模块，管理产品级会话操作。
+- `hosts` 调用应用操作，把下层契约适配为输入输出。
+
+`app.bootstrap.create_session()` 是共享装配入口。它接收配置和调用方管理的资源，不导入终端模块。`ApplicationSession.run_task()` 同时用于一次性执行和 TUI。`harness.executor.execute_tool()` 是统一的工具执行边界。
+
+配置类型由对应能力拥有：权限规则放在 `coding/security/rules.py`，MCP 连接设置放在 `coding/mcp_config.py`。`CadeConfig` 组合这些类型，能力模块不反向导入应用配置。
+
+`tests/test_architecture.py` 检查包依赖和执行契约隔离。Cade 根目录不再保留旧的 `core`、`execution_env`、`extensions`、`safety` 或 `tools` 包。
 
 包根目录没有公开再导出；直接导入所属子模块。
 

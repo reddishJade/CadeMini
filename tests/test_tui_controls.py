@@ -17,10 +17,11 @@ from cade.ai.events import ProviderEvent, TextDelta
 from cade.ai.models import get_models
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.app.auth import JsonCredentialStore
-from cade.core.log import SessionLog, list_sessions
-from cade.core.loop import CancellationToken, run
-from cade.core.request import Budget
-from cade.hosts.interaction_settings import SettingsService
+from cade.app.settings import SettingsService
+from cade.harness.cancellation import CancellationToken
+from cade.harness.loop import run
+from cade.harness.request import Budget
+from cade.harness.session.log import SessionLog, list_sessions
 from cade.hosts.tui.app import installed_version
 from cade.hosts.tui.command_handlers import COMMAND_NAMES, COMMAND_REGISTRY
 from cade.hosts.tui.completion import CompletionEngine

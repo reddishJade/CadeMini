@@ -5,10 +5,10 @@
 A tool declares a name, description, JSON schema, and async `execute`. The loop
 records content and the error flag; tools do not append session facts.
 
-`core.permissions.Policy.check` returns a `PermissionCheck` with a decision
+`harness.permissions.Policy.check` returns a `PermissionCheck` with a decision
 (`allow`, `deny`, or `ask`), reason, and `ExecutionScope`. `authorize` resolves
 only asks using an `ApprovalRequest` and `ApprovalResult`.
-The loop and CLI direct-shell path use the same authorization function.
+The loop and direct application calls use `harness.executor.execute_tool`.
 
 `WorkspacePolicy` applies mode constraints and protected paths before explicit
 rules, grants, and mode defaults. Matching rules use deny > ask > allow.
@@ -17,13 +17,13 @@ Subagent modes cannot expand parent permissions. See
 
 ## Execution
 
-The loop installs the authorized scope in a context variable only while the
+The shared executor installs the authorized scope in a context variable only while the
 specific tool runs. This scope is preserved across async tasks and worker
 threads and reset afterward. It never changes the default workspace or grants.
 
-The CLI constructs a `PlatformSandbox` with the project root, private temp,
+Application assembly constructs a `PlatformSandbox` with the project root, private temp,
 network setting, and protected paths. `SubprocessShell` wraps commands before
-spawning. File tools use the same backend through `tools._worker`; snapshot
+spawning. File tools use the same backend through `coding.tools._worker`; snapshot
 storage remains host-owned. External file changes have no workspace snapshot.
 Cancellation signals reach the subprocess launcher, and tools wait for process
 termination before returning or cleaning up request files.

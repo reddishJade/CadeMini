@@ -12,7 +12,7 @@ from typing import Any
 
 from cade.ai.models import get_model_reasoning_efforts, get_models
 from cade.app.config import CadeConfig
-from cade.hosts.interaction_settings import AuthenticationService
+from cade.app.settings import AuthenticationService
 
 CONFIG_FILENAME = "cade.json"
 

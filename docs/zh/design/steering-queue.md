@@ -8,7 +8,7 @@
 prompt_toolkit UI 线程
   |  Enter / Alt+Enter / 斜杠命令
   v
-InteractionService
+ApplicationSession
   |  steering、pending、cancel
   v
 工作线程  --  asyncio.run(run_task)
@@ -17,7 +17,7 @@ InteractionService
 结构化事件队列  -->  UI 线程
 ```
 
-- `InteractionService.run_task` 调用与一次性模式相同的 `run` 循环。
+- `ApplicationSession.run_task` 调用与一次性模式相同的 `run` 循环。
 - `service.steering` 保存下一个模型步骤的指导。
 - `service.pending` 保存下一轮的后续任务。
 - `service.cancel` 立即唤醒等待中的 provider 流，即使它还没有输出。工具在安全点检查同一个取消令牌。

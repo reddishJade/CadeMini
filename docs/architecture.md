@@ -64,40 +64,43 @@ It then calls the provider, appends assistant and tool-result facts, and execute
 tools. It is the only stage that writes during a turn. Compaction and window
 fallback are decisions expressed as new log facts.
 
-## Package map
+## Package boundaries
 
-- `core/types.py`: log, message, block, and error types.
-- `core/events.py`: strict event payload validation.
-- `core/log.py`: append, lock, tail repair, navigation, session listing, fork/clone.
-- `core/history.py`: pure full-tree projection for history selection.
-- `app/recovery.py`: turn checkpoints, LIFO actions, and coordinated recovery.
-- `extensions/recovery.py`: action journal and pending transaction records.
-- `core/projection.py`: deterministic conversation projection.
-- `core/request.py`: budget, admission, wire conversion.
-- `core/loop.py`: provider stream, tool execution, retries, facts.
-- `core/compaction.py` and `core/window.py`: context reduction decisions.
-- `tools/workspace.py`, `tools/history.py`: workspace tools and evidence
-  retrieval.
-- `safety/policy.py`, `safety/shell.py`, `safety/grants.py`,
-  `safety/approval.py`, `safety/review.py`: permissions and approvals.
-- `extensions/skills.py`, `extensions/memory.py`, `extensions/mcp.py`,
-  `extensions/subagents.py`, `extensions/snapshots.py`, `extensions/goal.py`:
-  add-ons and durable host state.
-- `app/config.py`, `app/provider.py`, `app/auth.py`, `app/prompts.py`,
-  `app/instructions.py`, `app/note.py`: startup and request context.
-- `hosts/cli.py`, `docs.py`: hosts and documentation.
+Cade has five runtime packages:
 
-Cade owns `cade.ai` and `cade.execution_env` as lower layers for
-provider protocols and local process execution. It does not depend on the
-earlier Cade project. There are no top-level re-exports; import the owning
-submodule directly.
+- `ai`: model protocols, providers, model metadata, and authentication protocols.
+- `harness`: the log-driven agent loop, session facts and projections, request
+  admission, tool execution contracts, and internal execution backends.
+- `coding`: programming tools, project context, workspace policy, subagents,
+  MCP integration, snapshots, and coordinated workspace recovery.
+- `app`: configuration, credentials, provider assembly, application sessions,
+  settings, and commands.
+- `hosts`: CLI arguments, terminal I/O, and TUI presentation.
+
+Dependencies point from hosts to app, coding, harness, and AI. Each layer may
+use lower layers; lower layers never import higher layers. The harness includes
+agent runtime behavior; there is no parallel agent package. Local process and
+sandbox implementations live inside `harness/execution/local`, not at the
+package root. Execution scope contracts do not import those platform backends.
+`tests/test_architecture.py` checks these boundaries.
+
+`app/bootstrap.py` creates the same `ApplicationSession` for one-shot and TUI
+execution. `app/session.py` owns active-session operations; it does not import
+terminal modules. `harness/executor.py` handles authorization, per-call scope,
+timeouts, and tool errors for both model calls and direct application calls.
+The loop remains responsible for recording model-turn facts and emits completed
+tool events after recording results.
+
+See the [code map](design/code-map.md) for implementation locations. Cade does
+not depend on the earlier Cade project and provides no compatibility import
+paths. Import types and functions from their owning modules.
 
 ## Recovery
 
-Hosts inject a `TurnLifecycle` into the core loop. It creates a root-turn
+Application assembly injects a `TurnLifecycle` into the harness loop. It creates a root-turn
 checkpoint before the user fact, links it after that fact, and closes it after
 execution. Tool workers and synchronous subagents inherit capture ownership.
-The core does not import the workspace store. Recovery serializes cooperating
+The harness does not import the workspace store. Recovery serializes cooperating
 writers with a workspace lock in addition to the session run lock.
 
 The native snapshot store retains both file images. An append-only workspace
@@ -109,14 +112,14 @@ on unknown external edits. See [Snapshots and goals](snapshots-goals.md).
 ## Lower layers and state
 
 `ai/` owns provider protocols, streaming adapters, model metadata, and OAuth.
-`execution_env/` owns local process execution and output capture. Neither layer
-imports application or host modules. The AI layer supports only the Responses
+`harness/execution/` owns execution scopes, local process execution, and output
+capture. Neither AI nor the harness imports application or host modules. The AI layer supports only the Responses
 protocol, as recorded in [decision 0007](decisions/0007-responses-only-provider.md),
 and uses Sign in with ChatGPT for plan usage, as recorded in
 [decision 0008](decisions/0008-siwc-login.md). DeepSeek uses a separate
 transport with the same Responses stream format and its own endpoint.
-`execution_env/sandbox.py` owns bubblewrap and Seatbelt process wrapping.
-`core/permissions.py` carries structured approval results and per-call scopes.
+`harness/execution/local/sandbox.py` owns bubblewrap and Seatbelt process wrapping.
+`harness/permissions.py` carries structured approval results and per-call scopes.
 The CLI confines shell and file workers on Linux/macOS; Windows runs directly.
 See [Tools and security](tools-security.md) for boundaries and trusted extensions.
 

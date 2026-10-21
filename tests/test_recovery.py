@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from cade.app.recovery import WorkspaceRecovery
-from cade.core.log import SessionLog
-from cade.core.projection import project
-from cade.core.types import EventType, JsonValue, LogEntry, UserMessage
-from cade.extensions.recovery import Pending, Scope
-from cade.extensions.snapshots import FileState, SnapshotConflict, SnapshotStore
+from cade.coding.workspace.recovery.coordinator import WorkspaceRecovery
+from cade.coding.workspace.recovery.store import Pending, Scope
+from cade.coding.workspace.snapshots import FileState, SnapshotConflict, SnapshotStore
+from cade.harness.session.log import SessionLog
+from cade.harness.session.projection import project
+from cade.harness.session.types import EventType, JsonValue, LogEntry, UserMessage
 
 
 def _setup(root: Path) -> tuple[SessionLog, SnapshotStore, WorkspaceRecovery]:
@@ -323,7 +323,7 @@ def test_pending_recovery_preserves_a_third_external_state(
 def test_root_recovery_keeps_saved_system_prompt_after_restart(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from cade.hosts.cli import _open_log
+    from cade.app.bootstrap import open_log
 
     sessions = tmp_path / "sessions"
     sessions.mkdir()
@@ -354,7 +354,7 @@ def test_root_recovery_keeps_saved_system_prompt_after_restart(
         patch.setattr(log, "append", fail)
         with pytest.raises(OSError, match="system write"):
             recovery.restore(log, "legacy-user", scope="conversation")
-    reopened = _open_log(
+    reopened = open_log(
         sessions,
         "legacy",
         "changed configuration",

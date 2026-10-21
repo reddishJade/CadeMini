@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from cade.core.permissions import ApprovalRequest
-from cade.core.types import JsonValue, ToolCallBlock
-from cade.safety.approval import SessionApprover
-from cade.safety.grants import GrantStore
+from cade.coding.security.approval import SessionApprover
+from cade.coding.security.grants import GrantStore
+from cade.harness.permissions import ApprovalRequest
+from cade.harness.session.types import JsonValue, ToolCallBlock
 
 
 def _call(name: str, **args: JsonValue) -> ToolCallBlock:

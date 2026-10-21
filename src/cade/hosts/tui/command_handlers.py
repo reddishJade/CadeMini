@@ -1,11 +1,11 @@
-"""把 Cade TUI 的命令契约桥接到 Cade 的 InteractionService。"""
+"""把 Cade TUI 的命令契约桥接到 Cade 的 ApplicationSession。"""
 
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
 
-from cade.hosts.command_catalog import COMMAND_INDEX, SPECS
+from cade.app.commands import COMMAND_INDEX, SPECS
 
 from .compat import CommandContext, SessionEntry
 

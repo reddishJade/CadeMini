@@ -1,4 +1,4 @@
-"""Cade 的命令行入口：单次任务与交互式 TUI。"""
+"""命令行参数、输出和退出码；应用装配与运行由 app 层负责。"""
 
 from __future__ import annotations
 
@@ -6,66 +6,25 @@ import argparse
 import asyncio
 import json
 import sys
-import tempfile
-from collections import deque
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Sequence
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
+from cade.app.bootstrap import create_session, resolve_sessions_dir
 from cade.app.config import CadeConfig
-from cade.app.instructions import load_project_instructions
-from cade.app.note import load_working_note
-from cade.app.prompts import render_system_prompt
-from cade.app.provider import ProviderConfig, build_provider
-from cade.app.recovery import WorkspaceRecovery
-from cade.core.compaction import Compactor
-from cade.core.log import SessionLog, list_sessions
-from cade.core.loop import (
+from cade.coding.goal import GoalStore
+from cade.coding.workspace.snapshots import SnapshotStore
+from cade.harness.events import (
     LoopEvent,
-    Provider,
     RunResult,
     TextDeltaEvent,
-    Tool,
     ToolEndEvent,
     ToolStartEvent,
-    run,
 )
-from cade.core.permissions import (
-    ApprovalRequest,
-    ApprovalResult,
-    Approver,
-)
-from cade.core.request import Budget
-from cade.core.types import LogError
-from cade.core.window import reset_window
-from cade.execution_env.sandbox import PlatformSandbox
-from cade.extensions.goal import GoalStore, GoalTool
-from cade.extensions.mcp import discover_mcp_tools
-from cade.extensions.memory import MemoryTool, load_memory
-from cade.extensions.skills import (
-    LoadSkillTool,
-    discover_skills,
-    render_skill_catalog,
-)
-from cade.extensions.snapshots import SnapshotStore
-from cade.extensions.subagents import (
-    DelegateTool,
-    SubagentRunner,
-    SubagentTool,
-)
-from cade.safety.approval import SessionApprover
-from cade.safety.grants import GrantStore
-from cade.safety.policy import Mode, WorkspacePolicy, filter_tools
-from cade.safety.review import AutoReviewer
-from cade.tools.history import HistoryTool
-from cade.tools.workspace import build_tools
-
-WINDOW_HANDOFF = (
-    "Earlier history was discarded to fit the model window. "
-    "Consult NOTE.md and use the history tool with an entry_id or call_id "
-    "to retrieve exact details."
-)
+from cade.harness.provider import Provider
+from cade.harness.session.log import list_sessions
+from cade.harness.session.types import LogError
 
 
 def main(
@@ -93,7 +52,7 @@ def _main(
     if force_exec:
         raw = raw[1:]
     args = _parser().parse_args(raw)
-    task = getattr(args, "task", None)
+    task = args.task
     one_shot = force_exec or task is not None
     if force_exec and not task:
         print("cade: exec requires a task", file=sys.stderr)
@@ -113,63 +72,45 @@ def _main(
             file=sys.stderr,
         )
         return 2
-
     project_root = args.project_root.resolve()
     if not project_root.is_dir():
-        print(
-            f"cade: project root is not a directory: {project_root}",
-            file=sys.stderr,
-        )
+        print(f"cade: project root is not a directory: {project_root}", file=sys.stderr)
         return 2
     try:
         config = CadeConfig.load(project_root, args.config)
     except ValueError as exc:
         print(f"cade: {exc}", file=sys.stderr)
         return 2
-    goals = GoalStore(project_root)
+    overrides = {
+        name: getattr(args, name)
+        for name in (
+            "provider",
+            "model",
+            "max_steps",
+            "read_only",
+            "instructions",
+            "note",
+            "memory",
+            "auto_review",
+            "mode",
+            "context_window",
+            "sandbox",
+            "network",
+        )
+        if getattr(args, name) is not None
+    }
+    if args.effort is not None:
+        overrides["reasoning_effort"] = args.effort
+    if args.sessions_dir is not None:
+        overrides["sessions_dir"] = str(args.sessions_dir)
+    config = config.model_copy(update=overrides)
     if args.goal:
-        goals.set(args.goal)
-    steering = deque(args.steer or [])
-    if not one_shot and steering:
+        GoalStore(project_root).set(args.goal)
+    if not one_shot and args.steer:
         print("cade: --steer requires a task", file=sys.stderr)
         return 2
-
-    def next_steering() -> str | None:
-        return steering.popleft() if steering else None
-
-    provider_name = args.provider or config.provider or ProviderConfig().provider
-    model_name = args.model or config.model or ProviderConfig().model
-    if args.effort is not None:
-        effort = args.effort
-    elif config.reasoning_effort is not None:
-        effort = config.reasoning_effort
-    else:
-        effort = ProviderConfig().reasoning_effort
-    max_steps = args.max_steps or config.max_steps or 50
-    read_only = args.read_only if args.read_only is not None else config.read_only
-    use_instructions = (
-        args.instructions if args.instructions is not None else config.instructions
-    )
-    use_note = args.note if args.note is not None else config.note
-    use_memory = args.memory if args.memory is not None else config.memory
-    use_auto_review = (
-        args.auto_review if args.auto_review is not None else config.auto_review
-    )
-    mode = cast(Mode, args.mode or config.mode)
-
-    raw_sessions = args.sessions_dir or (
-        Path(config.sessions_dir) if config.sessions_dir else None
-    )
-    if raw_sessions is None:
-        sessions_dir = project_root / ".cade" / "sessions"
-    elif raw_sessions.is_absolute():
-        sessions_dir = raw_sessions
-    else:
-        sessions_dir = project_root / raw_sessions
-    sessions_dir = sessions_dir.resolve()
-
     if args.list_sessions:
-        _print_sessions(sessions_dir)
+        _print_sessions(resolve_sessions_dir(project_root, config))
         return 0
     if args.undo:
         try:
@@ -183,175 +124,39 @@ def _main(
         print(f"restored {snapshot.path}")
         return 0
     if args.continue_ and args.resume is not None:
-        print(
-            "cade: --continue and --resume cannot be combined",
-            file=sys.stderr,
-        )
+        print("cade: --continue and --resume cannot be combined", file=sys.stderr)
         return 2
-    resume = "" if args.continue_ else args.resume
     try:
-        system_prompt = render_system_prompt(project_root, config.prompt_modules)
-    except ValueError as exc:
-        print(f"cade: {exc}", file=sys.stderr)
-        return 2
-
-    try:
-        context_window = args.context_window or config.context_window
-        provider_config = ProviderConfig(
-            provider=provider_name,
-            model=model_name,
-            reasoning_effort=effort,
-            context_window=context_window,
-        )
-        try:
-            selected = provider or build_provider(provider_config)
-        except RuntimeError as exc:
-            if one_shot:
-                raise
-            from cade.hosts.interaction import UnavailableProvider
-
-            selected = UnavailableProvider(model_name, provider_name, str(exc))
-        resolved_window = context_window or getattr(selected, "context_window", None)
-        if resolved_window is None:
-            raise ValueError(
-                "Model context window is unknown; register the model with "
-                "metadata or pass --context-window"
-            )
-        budget = Budget(context_window=resolved_window)
-    except (RuntimeError, ValueError) as exc:
-        print(f"cade: {exc}", file=sys.stderr)
-        return 2
-
-    skills = discover_skills(project_root)
-    skill_catalog = render_skill_catalog(skills)
-    mcp_tools, mcp_errors = asyncio.run(
-        discover_mcp_tools(config.mcp_servers, project_root)
-    )
-    for error in mcp_errors:
-        print(f"cade: mcp: {error}", file=sys.stderr)
-    snapshots = SnapshotStore(project_root)
-    temp_dir = Path(
-        resources.enter_context(tempfile.TemporaryDirectory(prefix="cade-"))
-    )
-    sandbox = PlatformSandbox(
-        project_root,
-        temp_dir,
-        mode=args.sandbox or config.sandbox,
-        network=args.network if args.network is not None else config.network,
-        protected_paths=(
-            project_root / ".git" / "hooks",
-            project_root / ".git" / "config",
-        ),
-        hidden_paths=(project_root / ".cade", Path.home() / ".cade"),
-    )
-    core_tools = (
-        *build_tools(
+        assembled = create_session(
             project_root,
-            snapshots=snapshots,
-            sandbox=sandbox,
-        ),
-        LoadSkillTool(project_root, skills),
-        MemoryTool(project_root),
-        GoalTool(project_root),
-        *mcp_tools,
-    )
-    grants = GrantStore()
-    policy = WorkspacePolicy(
-        project_root,
-        read_only=read_only,
-        mode=mode,
-        sandbox=sandbox.mode,
-        temp_dir=temp_dir,
-        rules=config.rules,
-        grants=grants,
-    )
-    approve: Approver = SessionApprover(auto_approve=args.yes, grants=grants)
-    if use_auto_review and not args.yes:
-        approve = AutoReviewer(selected, workspace=project_root)
-    approval_router = _ApprovalRouter(approve)
-
-    def note_context() -> str | None:
-        return load_working_note(project_root) if use_note else None
-
-    compactor = Compactor(selected, extra_context=note_context)
-    on_event: Callable[[LoopEvent], None] = _json_event if args.json else _human_event
-
-    def fallback_window(log: SessionLog) -> bool:
-        return reset_window(log, handoff=WINDOW_HANDOFF, reason="fallback")
-
-    def context() -> tuple[str, ...]:
-        parts: list[str] = [policy.describe()]
-        if use_instructions:
-            text = load_project_instructions(project_root)
-            if text:
-                parts.append(text)
-        if skill_catalog:
-            parts.append(skill_catalog)
-        note = note_context()
-        if note:
-            parts.append(note)
-        memory = load_memory(project_root) if use_memory else None
-        if memory:
-            parts.append(memory)
-        goal = goals.load()
-        if goal is not None and goal.status == "active":
-            parts.append(f"<goal>\n{goal.objective}\n</goal>")
-        return tuple(parts)
-
-    recovery = WorkspaceRecovery(
-        snapshots, system_prompt=system_prompt, read_only=policy.read_only
-    )
-    subagent_runner = SubagentRunner(
-        workspace=project_root,
-        provider=selected,
-        tools=core_tools,
-        budget=budget,
-        sessions_dir=sessions_dir,
-        system_prompt=system_prompt,
-        policy=policy,
-        approve=approval_router,
-        context=context,
-        max_steps=min(max_steps, 20),
-        lifecycle=recovery,
-    )
-    base_tools = (
-        *core_tools,
-        SubagentTool(runner=subagent_runner),
-        DelegateTool(runner=subagent_runner),
-    )
-
-    try:
-        log = _open_log(
-            sessions_dir,
-            resume,
-            system_prompt,
-            project_root,
-            deferred=not one_shot,
-            recovery=recovery,
+            config,
+            resources=resources,
+            provider=provider,
+            interactive=not one_shot,
+            resume="" if args.continue_ else args.resume,
+            auto_approve=args.yes,
+            config_path=args.config,
         )
-        recovery.recover(log)
-    except (OSError, ValueError, LogError) as exc:
+    except (OSError, ValueError, RuntimeError, LogError) as exc:
         print(f"cade: {exc}", file=sys.stderr)
         return 2
-    tools = _tools_for(base_tools, project_root, log)
-
+    service = assembled.session
+    service.steering.extend(args.steer or ())
+    for warning in assembled.warnings:
+        print(f"cade: mcp: {warning}", file=sys.stderr)
     if one_shot:
-        result = _run_task(
-            log,
-            task or "",
-            selected,
-            tools,
-            policy,
-            approve,
-            budget,
-            context(),
-            max_steps,
-            on_event,
-            compactor,
-            fallback_window,
-            next_steering,
-            recovery,
-        )
+        try:
+            result = asyncio.run(
+                service.run_task(
+                    task or "",
+                    _json_event if args.json else _human_event,
+                    approver=assembled.approver,
+                )
+            )
+        except (LogError, OSError, ValueError) as exc:
+            result = RunResult(
+                answer="", steps=0, termination="aborted", error=str(exc)
+            )
         if args.json:
             _final_json(result)
         else:
@@ -360,40 +165,12 @@ def _main(
                 print(f"[{result.termination}] {result.error}", file=sys.stderr)
         return 0 if result.termination == "completed" else 1
 
-    from cade.hosts.interaction import InteractionService
     from cade.hosts.tui.app import run_tui
 
-    service = InteractionService(
-        log=log,
-        sessions_dir=sessions_dir,
-        system_prompt=system_prompt,
-        provider=selected,
-        provider_config=ProviderConfig(
-            provider=provider_name,
-            model=model_name,
-            reasoning_effort=effort,
-            context_window=context_window,
-        ),
-        tools=base_tools,
-        skills=skills,
-        workspace=project_root,
-        snapshots=snapshots,
-        goals=goals,
-        policy=policy,
-        budget=budget,
-        context=context,
-        max_steps=max_steps,
-        compactor=compactor,
-        window=fallback_window,
-        automatic_approver=approve if args.yes or use_auto_review else None,
-        config_path=args.config,
-        context_window_explicit=bool(args.context_window or config.context_window),
-    )
-    service.auto_approve = bool(args.yes)
     return run_tui(
         service,
         project_root,
-        session_id=log.session_id,
+        session_id=service.log.session_id,
         config_path=args.config,
     )
 
@@ -506,113 +283,6 @@ def _print_sessions(sessions_dir: Path) -> None:
     print(f"{'ID':<12} {'UPDATED':<25} TITLE")
     for info in infos:
         print(f"{info.id:<12} {info.updated_at:<25} {info.title}")
-
-
-def _open_log(
-    sessions_dir: Path,
-    resume: str | None,
-    system_prompt: str,
-    project_root: Path,
-    *,
-    deferred: bool = False,
-    recovery: WorkspaceRecovery | None = None,
-) -> SessionLog:
-    sessions_dir.mkdir(parents=True, exist_ok=True)
-    if resume is None:
-        return _new_log(sessions_dir, system_prompt, project_root, deferred=deferred)
-    if resume == "":
-        sessions = list_sessions(sessions_dir)
-        if not sessions:
-            return _new_log(
-                sessions_dir, system_prompt, project_root, deferred=deferred
-            )
-        log = SessionLog.open(sessions[0].path)
-    else:
-        log = SessionLog.open(sessions_dir / f"session-{resume}.jsonl")
-    if recovery is not None:
-        recovery.recover(log)
-    _ensure_system(log, system_prompt)
-    return log
-
-
-def _new_log(
-    sessions_dir: Path,
-    system_prompt: str,
-    project_root: Path,
-    *,
-    deferred: bool = False,
-) -> SessionLog:
-    log = SessionLog.create(sessions_dir, project_root=project_root, deferred=deferred)
-    log.append("system", {"text": system_prompt})
-    return log
-
-
-def _ensure_system(log: SessionLog, system_prompt: str) -> None:
-    if not any(entry.type == "system" for entry in log.branch()):
-        log.append("system", {"text": system_prompt})
-
-
-def _tools_for(
-    base_tools: Sequence[Tool],
-    workspace: Path,
-    log: SessionLog,
-) -> tuple[Tool, ...]:
-    return (*base_tools, HistoryTool(workspace, log))
-
-
-def _run_task(
-    log: SessionLog,
-    task: str,
-    provider: Provider,
-    tools: Sequence[Tool],
-    policy: WorkspacePolicy,
-    approve: Approver,
-    budget: Budget,
-    context: Sequence[str],
-    max_steps: int,
-    on_event: Callable[[LoopEvent], None],
-    compactor: Compactor,
-    window: Callable[[SessionLog], bool] | None,
-    steering: Callable[[], str | None] | None = None,
-    lifecycle: WorkspaceRecovery | None = None,
-) -> RunResult:
-    tools = filter_tools(tools, policy.mode)
-    try:
-        return asyncio.run(
-            run(
-                log,
-                task,
-                provider=provider,
-                tools=tools,
-                budget=budget,
-                policy=policy,
-                approve=approve,
-                context=context,
-                lifecycle=lifecycle,
-                max_steps=max_steps,
-                on_event=on_event,
-                compact=compactor,
-                window=window,
-                steering=steering,
-            )
-        )
-    except (LogError, OSError, ValueError) as exc:
-        return RunResult(answer="", steps=0, termination="aborted", error=str(exc))
-
-
-class _ApprovalRouter:
-    """让子代理在交互式 TUI 和 one-shot 模式之间复用同一个审批入口。"""
-
-    def __init__(
-        self,
-        target: Approver,
-    ) -> None:
-        self.target = target
-
-    def __call__(
-        self, request: ApprovalRequest
-    ) -> ApprovalResult | Awaitable[ApprovalResult]:
-        return self.target(request)
 
 
 def _human_event(event: LoopEvent) -> None:

@@ -5,15 +5,16 @@ implementation can be replaced without changing the session schema or the loop.
 
 | Seam | Contract | Implementations | Main consumers |
 | --- | --- | --- | --- |
-| Provider | `loop.Provider` streaming events | OpenAI Responses, ChatGPT plan (SIWC), DeepSeek Responses | Loop, compaction, auto-review |
-| Tool | `loop.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
+| Provider | `harness.provider.Provider` streaming events | OpenAI Responses, ChatGPT plan (SIWC), DeepSeek Responses | Loop, compaction, auto-review |
+| Tool | `harness.tools.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
 | Policy | `permissions.Policy.check` returns decision, reason, and scope | `WorkspacePolicy` | Loop, CLI shell |
 | Approval | `ApprovalRequest` to `ApprovalResult`, optionally async | `SessionApprover`, `AutoReviewer` | Authorization |
 | Execution scope | `ExecutionScope` and `PlatformSandbox.wrap` | bubblewrap, Seatbelt, Windows direct | Workspace tools |
 | Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
 | Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |
 | Recovery | `SnapshotStore` capture and undo | File snapshot store | Tools, CLI |
-| Host | A task runner over the loop | CLI | Users |
+| Application | `ApplicationSession` created by `app.bootstrap.create_session` | Shared application service | CLI and TUI |
+| Host | Input, output, and approval adapters over the application | CLI and TUI | Users |
 
 ## Provider
 
@@ -29,7 +30,9 @@ loop records their results.
 
 ## Policy and approval
 
-Policy returns a decision, not an execution. Approval is only consulted for
+`harness.executor.execute_tool` applies policy and authorization for model and
+direct application tool calls. It manages scope, timeout, and errors without
+writing session facts. Policy returns a decision, not an execution. Approval is only consulted for
 `ask`. A denial becomes a tool error fact, so the model can recover. Keeping
 these separate lets the host choose a TTY prompt, a model reviewer, or a
 non-interactive denial.

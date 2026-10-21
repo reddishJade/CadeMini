@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from cade.core.types import JsonValue, ToolCallBlock
-from cade.safety.policy import WorkspacePolicy
-from cade.tools.workspace import WorkspaceTool, build_tools, resolve_workspace_path
+from cade.coding.security.policy import WorkspacePolicy
+from cade.coding.tools.base import WorkspaceTool, resolve_workspace_path
+from cade.coding.tools.registry import build_tools
+from cade.harness.session.types import JsonValue, ToolCallBlock
 
 
 def _workspace(tmp_path: Path) -> Path:

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cade.core.log import SessionLog
-from cade.core.projection import project
-from cade.core.types import JsonValue, SummaryMessage
-from cade.core.window import reset_window
+from cade.harness.session.log import SessionLog
+from cade.harness.session.projection import project
+from cade.harness.session.types import JsonValue, SummaryMessage
+from cade.harness.window import reset_window
 
 
 def _log(tmp_path: Path) -> SessionLog:

@@ -343,7 +343,7 @@ def render_config_catalog() -> str:
 
 def render_event_catalog() -> str:
     """从 EventType 生成会话事件目录。"""
-    from cade.core.types import EventType
+    from cade.harness.session.types import EventType
 
     purposes = {
         "meta": ("No", "Session creation"),

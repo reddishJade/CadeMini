@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from cade.app.prompts import DEFAULT_MODULES, render_system_prompt
+from cade.coding.context.prompts import DEFAULT_MODULES, render_system_prompt
 
 
 def test_default_prompt_contains_modules(tmp_path: Path) -> None:

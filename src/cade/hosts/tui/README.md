@@ -15,7 +15,7 @@ permissions and streaming output share one application event loop.
 - `approval.py`: permission previews; supported grants are once or this session.
 
 Session, provider and command operations belong to
-[`InteractionService`](../interaction.py), not the renderer. The command catalog
+[`ApplicationSession`](../../app/session.py), not the renderer. The command catalog
 is shared by help and completion. Native selectors adapt those operations to
 terminal controls without opening nested terminal event loops.
 

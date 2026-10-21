@@ -1,7 +1,9 @@
 # Tool execution
 
 Every tool call follows the same pipeline. Policy and approval decide whether a
-call may run; the loop owns execution and recording.
+call may run. The shared harness executor owns execution, and the loop records
+model-turn results. Direct application calls use the same executor without
+inventing conversation facts.
 
 ```mermaid
 flowchart LR
@@ -37,9 +39,10 @@ remaining calls before the run terminates.
 
 ## Evidence retention
 
-Tool results are facts. Request admission can replace old bodies with a
-reference that names the `call_id`. The history tool retrieves the exact result
-from the branch, so pruning does not destroy evidence.
+Model-turn tool results are facts. Request admission preserves projected
+messages and rejects an over-budget request rather than replacing old bodies.
+Compaction and window events explicitly reduce visible history. The history
+tool retrieves exact retained facts by `call_id` or entry ID.
 
 ## Tests
 

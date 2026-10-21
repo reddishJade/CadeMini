@@ -10,7 +10,7 @@ and handles keys; the bridge runs the task in a worker thread with its own
 prompt_toolkit UI thread
   |  Enter / Alt+Enter / slash commands
   v
-InteractionService
+ApplicationSession
   |  steering, pending, cancel
   v
 worker thread  --  asyncio.run(run_task)
@@ -19,7 +19,7 @@ worker thread  --  asyncio.run(run_task)
 structured event queue  -->  UI thread
 ```
 
-- `InteractionService.run_task` calls the same `run` loop as one-shot mode.
+- `ApplicationSession.run_task` calls the same `run` loop as one-shot mode.
 - `service.steering` holds guidance for the next model step.
 - `service.pending` holds follow-up tasks for the next turn.
 - `service.cancel` wakes a pending provider stream immediately, even before its

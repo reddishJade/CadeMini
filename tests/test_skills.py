@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from cade.core.types import ToolCallBlock
-from cade.extensions.skills import (
+from cade.coding.context.skills import (
     LoadSkillTool,
     discover_skills,
     render_skill_catalog,
 )
-from cade.safety.policy import WorkspacePolicy
+from cade.coding.security.policy import WorkspacePolicy
+from cade.harness.session.types import ToolCallBlock
 
 
 def _write_skill(

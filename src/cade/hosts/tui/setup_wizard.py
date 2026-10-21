@@ -8,7 +8,7 @@ from typing import Any
 from cade.ai.models import get_models
 from cade.ai.providers.registry import get_environment_api_key
 from cade.ai.resolver import DEFAULT_BASE_URLS, PROVIDER_TRANSPORTS
-from cade.hosts.interaction_settings import (
+from cade.app.settings import (
     AuthenticationService,
     SettingsService,
 )

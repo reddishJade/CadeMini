@@ -6,8 +6,8 @@ from typing import cast
 
 import pytest
 
-from cade.core.projection import project
-from cade.core.types import (
+from cade.harness.session.projection import project
+from cade.harness.session.types import (
     AssistantMessage,
     EventType,
     JsonValue,

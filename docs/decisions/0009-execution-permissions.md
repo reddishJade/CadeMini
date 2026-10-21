@@ -32,10 +32,10 @@ Old `act` configuration values must change to `ask`. Last-match rule ordering
 is removed. Linux requires installed, usable bubblewrap. macOS requires usable
 `sandbox-exec`. Windows retains application checks without OS isolation.
 
-The implementation lives in [permissions](../../src/cade/core/permissions.py),
-[policy](../../src/cade/safety/policy.py),
-[sandbox](../../src/cade/execution_env/sandbox.py), and
-[workspace tools](../../src/cade/tools/workspace.py).
+The implementation lives in [permissions](../../src/cade/harness/permissions.py),
+[policy](../../src/cade/coding/security/policy.py),
+[sandbox](../../src/cade/harness/execution/local/sandbox.py), and
+[workspace tools](../../src/cade/coding/tools/registry.py).
 [Policy tests](../../tests/test_policy.py),
 [Reviewer tests](../../tests/test_review.py), and
 [native sandbox tests](../../tests/test_sandbox.py) enforce the contracts.

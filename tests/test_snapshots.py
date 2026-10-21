@@ -8,9 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from cade.core.types import ToolCallBlock
-from cade.extensions.snapshots import SnapshotConflict, SnapshotStore
-from cade.tools.workspace import BashTool, WriteTool
+from cade.coding.tools.bash import BashTool
+from cade.coding.tools.write import WriteTool
+from cade.coding.workspace.snapshots import SnapshotConflict, SnapshotStore
+from cade.harness.session.types import ToolCallBlock
 
 
 def _call(path: str, content: str) -> ToolCallBlock:

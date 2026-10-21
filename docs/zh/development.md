@@ -65,7 +65,7 @@ uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.htm
 
 ## 边界
 
-Cade 在 `cade.ai` 和 `cade.execution_env` 中拥有 provider 层和进程层。不要添加对早期 Cade 项目的依赖。
+Cade 有 `ai`、`harness`、`coding`、`app` 和 `hosts` 五个运行时包。本地执行位于 `harness/execution/local`。下层不导入上层，`tests/test_architecture.py` 检查这些边界。不要添加对早期 Cade 项目的依赖。
 
 公开接口包括会话格式、配置字段、CLI 参数、工具名和文档清单。修改它们时，测试和文档要在同一个提交里更新。
 

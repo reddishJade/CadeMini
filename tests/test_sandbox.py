@@ -12,20 +12,16 @@ from pathlib import Path
 
 import pytest
 
-from cade.core.loop import CancellationToken
-from cade.core.permissions import ApprovalResult, authorize
-from cade.core.types import ToolCallBlock
-from cade.execution_env.result import ExecutionResult
-from cade.execution_env.sandbox import (
-    ExecutionScope,
-    PlatformSandbox,
-    SandboxMode,
-    SandboxUnavailable,
-    execution_scope,
-)
-from cade.execution_env.subprocess import SubprocessShell
-from cade.safety.policy import WorkspacePolicy
-from cade.tools.workspace import BashTool, build_tools
+from cade.coding.security.policy import WorkspacePolicy
+from cade.coding.tools.bash import BashTool
+from cade.coding.tools.registry import build_tools
+from cade.harness.cancellation import CancellationToken
+from cade.harness.execution.local.sandbox import PlatformSandbox, SandboxUnavailable
+from cade.harness.execution.local.subprocess import SubprocessShell
+from cade.harness.execution.result import ExecutionResult
+from cade.harness.execution.scope import ExecutionScope, SandboxMode, execution_scope
+from cade.harness.permissions import ApprovalResult, authorize
+from cade.harness.session.types import ToolCallBlock
 
 
 def _environment(

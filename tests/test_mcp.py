@@ -6,10 +6,11 @@ import asyncio
 import sys
 from pathlib import Path
 
-from cade.app.config import McpServerConfig, RuleConfig
-from cade.core.types import ToolCallBlock
-from cade.extensions.mcp import McpTool, discover_mcp_tools
-from cade.safety.policy import WorkspacePolicy
+from cade.coding.mcp import McpTool, discover_mcp_tools
+from cade.coding.mcp_config import McpServerConfig
+from cade.coding.security.policy import WorkspacePolicy
+from cade.coding.security.rules import RuleConfig
+from cade.harness.session.types import ToolCallBlock
 
 _SERVER = """\
 import json

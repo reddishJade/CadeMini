@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from cade.safety.shell import classify_command, mutation_targets
+from cade.coding.security.shell import classify_command, mutation_targets
 
 
 @pytest.mark.parametrize(

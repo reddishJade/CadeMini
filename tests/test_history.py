@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from cade.core.log import SessionLog
-from cade.core.projection import project
-from cade.core.types import JsonValue, ToolCallBlock
-from cade.safety.policy import WorkspacePolicy
-from cade.tools.history import HistoryTool
+from cade.coding.security.policy import WorkspacePolicy
+from cade.coding.tools.history import HistoryTool
+from cade.harness.session.log import SessionLog
+from cade.harness.session.projection import project
+from cade.harness.session.types import JsonValue, ToolCallBlock
 
 
 def _call(args: dict[str, JsonValue]) -> ToolCallBlock:

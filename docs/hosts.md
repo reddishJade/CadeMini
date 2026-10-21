@@ -2,7 +2,9 @@
 
 Cade has one terminal host with two modes: an interactive TUI and one-shot
 execution. Both use the same session log, request builder, tools, policy, and
-core loop. The TUI uses `InteractionService` for commands and session control.
+harness loop. Both modes use `app.bootstrap.create_session` and
+`ApplicationSession.run_task`; the TUI also uses the service for commands and
+session control.
 
 ## Terminal UI
 

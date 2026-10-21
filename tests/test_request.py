@@ -8,8 +8,8 @@ import json
 import pytest
 
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.core.request import Budget, RequestTooLarge, build, estimate
-from cade.core.types import (
+from cade.harness.request import Budget, RequestTooLarge, build, estimate
+from cade.harness.session.types import (
     AssistantMessage,
     Message,
     SummaryMessage,

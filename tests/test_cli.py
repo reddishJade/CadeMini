@@ -24,16 +24,15 @@ from cade.ai.events import (
     UsageUpdate,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.core.log import SessionLog
-from cade.core.loop import RunResult, ToolResult
-from cade.core.request import Budget
-from cade.extensions.goal import GoalStore
-from cade.extensions.snapshots import SnapshotStore
-from cade.hosts.cli import (
-    _run_task,
-    main,
-)
-from cade.safety.policy import WorkspacePolicy
+from cade.coding.goal import GoalStore
+from cade.coding.security.policy import WorkspacePolicy
+from cade.coding.workspace.snapshots import SnapshotStore
+from cade.harness.events import RunResult
+from cade.harness.loop import run
+from cade.harness.request import Budget
+from cade.harness.session.log import SessionLog
+from cade.harness.tools import ToolResult
+from cade.hosts.cli import main
 
 
 class FakeProvider:
@@ -198,7 +197,7 @@ def test_cli_resume_appends_to_same_session(tmp_path: Path) -> None:
 def test_cli_interactive_can_start_disconnected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from cade.hosts.interaction import InteractionService, UnavailableProvider
+    from cade.app.session import ApplicationSession, UnavailableProvider
 
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
@@ -206,12 +205,12 @@ def test_cli_interactive_can_start_disconnected(
     def unavailable(config: object) -> None:
         raise RuntimeError("Missing API key")
 
-    def show(service: InteractionService, root: Path, **kwargs: Any) -> int:
+    def show(service: ApplicationSession, root: Path, **kwargs: Any) -> int:
         assert isinstance(service.provider, UnavailableProvider)
         assert not service.log.path.exists()
         return 0
 
-    monkeypatch.setattr("cade.hosts.cli.build_provider", unavailable)
+    monkeypatch.setattr("cade.app.bootstrap.build_provider", unavailable)
     monkeypatch.setattr("cade.hosts.tui.app.run_tui", show)
     assert (
         main(
@@ -232,15 +231,15 @@ def test_cli_interactive_can_start_disconnected(
 def test_tui_sensitive_approval_only_allows_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sensitive: bool
 ) -> None:
-    from cade.core.types import ToolCallBlock
-    from cade.hosts.interaction import InteractionService
+    from cade.app.session import ApplicationSession
+    from cade.harness.session.types import ToolCallBlock
     from cade.hosts.tui.bridge import CadeAgent
     from cade.hosts.tui.compat import ApprovalRequest, HITLResult
 
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
 
-    def show(service: InteractionService, root: Path, **kwargs: Any) -> int:
+    def show(service: ApplicationSession, root: Path, **kwargs: Any) -> int:
         agent = CadeAgent(service)
         call = ToolCallBlock(
             id="approval",
@@ -1124,20 +1123,17 @@ def test_mid_run_steer_reaches_the_next_provider_request(tmp_path: Path) -> None
 
     def worker() -> None:
         results.append(
-            _run_task(
-                log,
-                "inspect the code",
-                provider,
-                (SlowTool(),),
-                WorkspacePolicy(tmp_path),
-                lambda call: True,
-                Budget(100_000),
-                (),
-                4,
-                lambda event: None,
-                None,  # type: ignore[arg-type]
-                None,
-                lambda: steering.popleft() if steering else None,
+            asyncio.run(
+                run(
+                    log,
+                    "inspect the code",
+                    provider=provider,
+                    tools=(SlowTool(),),
+                    policy=WorkspacePolicy(tmp_path),
+                    budget=Budget(100_000),
+                    max_steps=4,
+                    steering=lambda: steering.popleft() if steering else None,
+                )
             )
         )
 

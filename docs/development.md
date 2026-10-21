@@ -73,8 +73,10 @@ research under `docs/history/`.
 
 ## Boundaries
 
-Cade owns the provider and process layers in `cade.ai` and
-`cade.execution_env`. Do not add dependencies on the earlier Cade project.
+Cade owns five runtime packages: `ai`, `harness`, `coding`, `app`, and `hosts`.
+The harness contains local process execution under `harness/execution/local`.
+Lower layers never import higher layers; `tests/test_architecture.py` enforces
+these boundaries. Do not add dependencies on the earlier Cade project.
 
 Public interfaces include the session schema, config fields, CLI flags, tool
 names, and docs manifest. Change them with tests and documentation in the same

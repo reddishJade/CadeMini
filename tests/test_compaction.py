@@ -16,13 +16,13 @@ from cade.ai.events import (
     UsageUpdate,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.core.compaction import CompactionConfig, Compactor
-from cade.core.log import SessionLog
-from cade.core.loop import run
-from cade.core.projection import project
-from cade.core.request import Budget
-from cade.core.types import SummaryMessage
-from cade.core.window import reset_window
+from cade.harness.compaction import CompactionConfig, Compactor
+from cade.harness.loop import run
+from cade.harness.request import Budget
+from cade.harness.session.log import SessionLog
+from cade.harness.session.projection import project
+from cade.harness.session.types import SummaryMessage
+from cade.harness.window import reset_window
 
 
 class FakeProvider:

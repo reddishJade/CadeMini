@@ -18,14 +18,11 @@ submodule directly; the package root has no public re-exports.
 
 ```text
 cade/
-  ai/             provider adapters, auth protocols, models, events
-  execution_env/  subprocess execution and output capture
-  core/           types, log, projection, request, loop, compaction, window
-  tools/          workspace, history
-  safety/         policy, shell, grants, approval, review
-  extensions/     skills, memory, mcp, subagents, snapshots, goal
-  app/            config, provider, credential storage, prompts, instructions, note
-  hosts/          cli, auth
+  ai/             model protocols, providers, authentication
+  harness/        log-driven agent runtime and internal execution backends
+  coding/         programming tools, context, security, workspace recovery
+  app/            configuration, assembly, active sessions, commands
+  hosts/          CLI and TUI presentation
   docs.py
   __main__.py
 ```

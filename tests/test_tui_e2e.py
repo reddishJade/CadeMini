@@ -25,11 +25,11 @@ from cade.ai.events import (
 )
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.app import auth
-from cade.core.log import SessionLog
-from cade.core.types import ToolCallBlock
+from cade.app.commands import SPECS
+from cade.app.session import ApplicationSession
+from cade.harness.session.log import SessionLog
+from cade.harness.session.types import ToolCallBlock
 from cade.hosts import cli
-from cade.hosts.command_catalog import SPECS
-from cade.hosts.interaction import InteractionService
 from cade.hosts.tui import app as tui_module
 from cade.hosts.tui.bridge import CadeInteractionApp
 
@@ -79,7 +79,7 @@ class RecordingOutput(DummyOutput):
 
 class Terminal:
     def __init__(
-        self, tui: tui_module._CadeTui, pipe: PipeInput, service: InteractionService
+        self, tui: tui_module._CadeTui, pipe: PipeInput, service: ApplicationSession
     ) -> None:
         self.tui, self.pipe, self.service = tui, pipe, service
 
@@ -137,17 +137,17 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
     monkeypatch.setattr(auth, "DEFAULT_AUTH_FILE", home / "auth.json")
     monkeypatch.setattr(auth, "DEFAULT_HOST_FILE", home / "host.json")
-    monkeypatch.setattr("cade.extensions.skills._USER_DIR", home / "skills")
+    monkeypatch.setattr("cade.coding.context.skills._USER_DIR", home / "skills")
     for name in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY", "CHATGPT_API_KEY"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
     provider = ScriptedProvider()
     # 模型切换也只替换外部边界，不依赖维护者的真实凭据。
-    monkeypatch.setattr("cade.hosts.interaction.build_provider", lambda _: provider)
+    monkeypatch.setattr("cade.app.session.build_provider", lambda _: provider)
 
     def run(scenario: Scenario, *, resume: str | None = None) -> None:
-        def launch(service: InteractionService, root: Path, **kwargs: Any) -> int:
+        def launch(service: ApplicationSession, root: Path, **kwargs: Any) -> int:
             assert [s.name for s in service.skills] == ["e2e-skill"]
             with create_pipe_input() as pipe:
                 output = RecordingOutput()

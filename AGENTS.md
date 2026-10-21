@@ -24,7 +24,7 @@ Read [HUMAN.md](HUMAN.md) at the start of each task. It defines reporting, progr
 
 ## Project structure and architecture
 
-Cade is a standalone Python 3.12+ coding agent. Package code lives in `src/cade/`; the CLI entry point is `src/cade/hosts/cli.py`. Hosts assemble the application, core pipeline, tools, safety policies, and extensions. `ai/` owns provider protocols and adapters; `execution_env/` owns local process execution. These lower layers do not import application or host modules. Regression tests live in `tests/`, and documentation lives in `docs/`. Do not add dependencies on the separate Cade project or compatibility layers for its interfaces and state.
+Cade is a standalone Python 3.12+ coding agent. Package code lives in `src/cade/`; the CLI entry point is `src/cade/hosts/cli.py`. `app/` assembles application sessions; `hosts/` owns CLI and TUI presentation. `coding/` owns programming tools, context, workspace security, and recovery. `harness/` owns the log-driven agent runtime and internal execution backends; it imports only itself and `ai/`. `ai/` owns provider protocols and adapters and imports no higher layer. Lower layers never import application or host modules. Do not add a parallel agent package or legacy import shims. Regression tests live in `tests/`, and documentation lives in `docs/`. Do not add dependencies on the separate Cade project or compatibility layers for its interfaces and state.
 
 ## Commands
 

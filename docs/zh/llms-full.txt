@@ -279,7 +279,7 @@ TUI 不注册 `/rename` 和 `/mcp`。恢复操作只改已跟踪文件，不处�
 - `!command`：不联系模型，直接运行 shell 命令。权限检查仍然生效。
 
 ```text
-Review @src/cade/core/loop.py and use $review-only
+Review @src/cade/harness/loop.py and use $review-only
 !git status
 ```
 
@@ -457,35 +457,33 @@ Cade 是 `src/cade/` 下的独立编码代理。它使用四段流水线，每�
 
 在追加新的 user 事实之前，`run()` 会为未完成的工具调用保存“已中断”结果。它不会重跑结果未知的工具。随后它调用 provider，追加 assistant 和 tool-result 事实，并执行工具。它是回合内唯一写日志的阶段。压缩和窗口回退都是决策，最终以新的日志事实表示。
 
-## 包地图
+## 包边界
 
-- `core/types.py`：日志、消息、块和错误类型。
-- `core/events.py`：严格的事件载荷校验。
-- `core/log.py`：追加、加锁、尾部修复、导航、会话列表、fork/clone。
-- `core/history.py`：用于历史选择的整棵树纯投影。
-- `app/recovery.py`：回合检查点、后进先出操作和协调恢复。
-- `extensions/recovery.py`：操作日志和待处理事务记录。
-- `core/projection.py`：确定性的对话投影。
-- `core/request.py`：预算、准入、线上格式转换。
-- `core/loop.py`：provider 流、工具执行、重试和事实写入。
-- `core/compaction.py` 和 `core/window.py`：上下文缩减决策。
-- `tools/workspace.py`、`tools/history.py`：工作区工具和证据检索。
-- `safety/policy.py`、`safety/shell.py`、`safety/grants.py`、`safety/approval.py`、`safety/review.py`：权限和审批。
-- `extensions/skills.py`、`extensions/memory.py`、`extensions/mcp.py`、`extensions/subagents.py`、`extensions/snapshots.py`、`extensions/goal.py`：附加功能和持久宿主状态。
-- `app/config.py`、`app/provider.py`、`app/auth.py`、`app/prompts.py`、`app/instructions.py`、`app/note.py`：启动和请求上下文。
-- `hosts/cli.py`、`docs.py`：宿主和文档。
+Cade 有五个运行时包：
 
-Cade 把 `cade.ai` 和 `cade.execution_env` 作为下层模块，分别负责 provider 协议和本地进程执行。它不依赖早期的 Cade 项目。没有顶层再导出，直接导入所属子模块。
+- `ai`：模型协议、provider、模型元数据和认证协议。
+- `harness`：日志驱动的代理循环、会话事实与投影、请求准入、工具执行契约和内部执行后端。
+- `coding`：编程工具、项目上下文、工作区策略、子代理、MCP 集成、快照和工作区恢复。
+- `app`：配置、凭据、provider 装配、应用会话、设置和命令。
+- `hosts`：CLI 参数、终端输入输出和 TUI 展示。
+
+依赖从 hosts 指向 app、coding、harness 和 ai。每层可以使用下层，下层不导入上层。harness 包含代理运行时，不再设置平级的 agent 包。
+
+本地进程与沙箱实现放在 `harness/execution/local`，不作为顶层包暴露。执行范围契约不导入平台后端。`tests/test_architecture.py` 检查这些边界。
+
+`app/bootstrap.py` 为一次性执行和 TUI 创建同一种 `ApplicationSession`。`app/session.py` 管理活动会话，不导入终端模块。`harness/executor.py` 为模型调用和应用直接调用统一处理授权、逐调用执行范围、超时和工具错误。循环仍负责记录模型回合事实，在结果写入后发出工具完成事件。
+
+实现位置见[代码地图](design/code-map.md)。Cade 不依赖早期的 Cade 项目，也不提供兼容导入路径。类型和函数直接从所属模块导入。
 
 ## 恢复
 
-宿主把 `TurnLifecycle` 注入核心循环。它在 user 事实之前创建根回合检查点，在该事实之后建立关联，并在执行结束后关闭检查点。工具工作线程和同步子代理继承捕获所有权。核心不导入工作区存储。恢复除了会话运行锁，还用工作区锁串行化协作写入者。
+应用装配时把 `TurnLifecycle` 注入 harness 循环。它在 user 事实之前创建根回合检查点，在该事实之后建立关联，并在执行结束后关闭检查点。工具工作线程和同步子代理继承捕获所有权。harness 不导入工作区存储。恢复除了会话运行锁，还用工作区锁串行化协作写入者。
 
 原生快照存储保留前后两份文件镜像。追加式工作区操作日志驱动逐步撤销和重做；会话日志仍是对话血统的权威来源。持久化的待处理计划协调文件与对话提交。中断后恢复可以幂等续作，遇到未知的外部编辑就停止。见[快照与目标](snapshots-goals.md)。
 
 ## 下层模块与状态
 
-`ai/` 负责 provider 协议、流式适配器、模型元数据和 OAuth。`execution_env/` 负责本地进程执行和输出捕获。这两层都不导入应用或宿主模块。AI 层只支持 Responses 协议，记录在[决策 0007](../decisions/0007-responses-only-provider.md)；套餐用量使用 Sign in with ChatGPT，记录在[决策 0008](../decisions/0008-siwc-login.md)。DeepSeek 使用独立传输，但流格式同样是 Responses，端点由自己提供。`execution_env/sandbox.py` 负责 bubblewrap 和 Seatbelt 的进程包装。`core/permissions.py` 承载结构化审批结果和每次调用的范围。CLI 在 Linux 和 macOS 上隔离 shell 与文件工作进程；Windows 直接运行。边界和可信扩展见[工具与安全](tools-security.md)。
+`ai/` 负责 provider 协议、流式适配器、模型元数据和 OAuth。`harness/execution/` 负责本地进程执行和输出捕获。这两层都不导入应用或宿主模块。AI 层只支持 Responses 协议，记录在[决策 0007](../decisions/0007-responses-only-provider.md)；套餐用量使用 Sign in with ChatGPT，记录在[决策 0008](../decisions/0008-siwc-login.md)。DeepSeek 使用独立传输，但流格式同样是 Responses，端点由自己提供。`harness/execution/local/sandbox.py` 负责 bubblewrap 和 Seatbelt 的进程包装。`harness/permissions.py` 承载结构化审批结果和每次调用的范围。CLI 在 Linux 和 macOS 上隔离 shell 与文件工作进程；Windows 直接运行。边界和可信扩展见[工具与安全](tools-security.md)。
 
 凭据和用户级技能放在 `~/.cade/`。SIWC 宿主 ID 在 `~/.cade/host.json`。会话、快照、目标和项目技能放在 `<workspace>/.cade/`。项目设置放在 `cade.json`。早期 Cade 项目的状态格式与本项目不兼容；请从干净的 `~/.cade/` 和工作区 `.cade/` 目录开始。
 
@@ -629,17 +627,29 @@ Cade 是独立项目。`cade` 发行包安装 `cade` 包和 `cade` 命令，不�
 
 ```text
 src/cade/
-  ai/             provider 适配器、事件、认证协议、模型
-  execution_env/  本地子进程执行和输出捕获
-  core/           日志、投影、请求、循环、压缩、窗口
-  tools/          工作区操作和历史检索
-  safety/         策略、shell 分析、授权、审批、复核
-  extensions/     技能、记忆、mcp、子代理、快照、目标
-  app/            配置、provider 组装、凭据、请求上下文
-  hosts/          cli、auth
+  ai/                       provider、模型协议和认证
+  harness/
+    session/                事实、格式、日志、投影和历史
+    execution/              执行范围契约和本地执行后端
+    loop.py                 日志驱动的回合与 provider 重试
+    executor.py             共享工具授权与执行
+    tools.py, provider.py   运行时契约
+    request.py              请求准入与线上格式转换
+    compaction.py           基于摘要的上下文缩减
+    window.py               显式上下文窗口重置
+  coding/
+    tools/                  读写、编辑、搜索、shell、历史和提问工具
+    context/                提示词、指令、技能、笔记和记忆
+    security/               工作区策略、规则、授权、审批和复核
+    workspace/              快照和协调恢复
+    subagents.py            编程子会话和委派工具
+    mcp.py, mcp_config.py    MCP 工具和连接配置
+    goal.py                 工作区目标状态和工具
+  app/                      装配、活动会话、配置、认证和命令
+  hosts/                    CLI 和 TUI 展示
   docs.py
   __main__.py
-tests/            回归和集成测试
+tests/                      回归和集成测试
 ```
 
 provider 和执行模块源自早期的 Cade 项目，现在由本项目拥有和维护。Cade 只包含自己使用的进程执行代码，不包含早期项目的文件系统或 Linux 沙箱实现。自己的进程包装器在 Linux 上使用已安装的 bubblewrap，在 macOS 上使用 Seatbelt；Windows 直接运行。
@@ -657,11 +667,17 @@ uv run --locked cade login
 
 ## 导入方向
 
-- `ai` 和 `execution_env` 不导入应用或宿主模块。
-- `core` 导入核心类型和 AI 协议。
-- `tools`、`safety` 和 `extensions` 把操作和策略接到核心。
-- `app` 负责启动设置、凭据持久化和请求上下文。
-- `hosts` 组装这些组件，并负责用户交互。
+- `ai` 不导入其他 Cade 层。
+- `harness` 只导入自身和 `ai`，本地执行是它的内部实现。
+- `coding` 导入自身、`harness` 和 `ai`。
+- `app` 装配这些下层模块，管理产品级会话操作。
+- `hosts` 调用应用操作，把下层契约适配为输入输出。
+
+`app.bootstrap.create_session()` 是共享装配入口。它接收配置和调用方管理的资源，不导入终端模块。`ApplicationSession.run_task()` 同时用于一次性执行和 TUI。`harness.executor.execute_tool()` 是统一的工具执行边界。
+
+配置类型由对应能力拥有：权限规则放在 `coding/security/rules.py`，MCP 连接设置放在 `coding/mcp_config.py`。`CadeConfig` 组合这些类型，能力模块不反向导入应用配置。
+
+`tests/test_architecture.py` 检查包依赖和执行契约隔离。Cade 根目录不再保留旧的 `core`、`execution_env`、`extensions`、`safety` 或 `tools` 包。
 
 包根目录没有公开再导出；直接导入所属子模块。
 
@@ -700,8 +716,8 @@ Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换
 
 | 接缝 | 契约 | 实现 | 主要使用方 |
 | --- | --- | --- | --- |
-| Provider | `loop.Provider` 流式事件 | OpenAI Responses、ChatGPT 套餐（SIWC）、DeepSeek Responses | 循环、压缩、自动复核 |
-| Tool | `loop.Tool` 的名称、描述、参数、execute | 工作区工具、history、skill、memory、goal、subagent、MCP | 循环 |
+| Provider | `harness.provider.Provider` 流式事件 | OpenAI Responses、ChatGPT 套餐（SIWC）、DeepSeek Responses | 循环、压缩、自动复核 |
+| Tool | `harness.tools.Tool` 的名称、描述、参数、execute | 工作区工具、history、skill、memory、goal、subagent、MCP | 循环 |
 | Policy | `permissions.Policy.check` 返回决策、原因和范围 | `WorkspacePolicy` | 循环、CLI shell |
 | Approval | `ApprovalRequest` 到 `ApprovalResult`，可选异步 | `SessionApprover`、`AutoReviewer` | 授权 |
 | 执行范围 | `ExecutionScope` 和 `PlatformSandbox.wrap` | bubblewrap、Seatbelt、Windows 直接运行 | 工作区工具 |
@@ -947,183 +963,255 @@ flowchart LR
   ai_usage --> ai_cache
   ai_usage --> ai_models
   app_auth --> ai_auth
+  app_bootstrap --> app_config
+  app_bootstrap --> app_provider
+  app_bootstrap --> app_session
+  app_bootstrap --> coding_context_instructions
+  app_bootstrap --> coding_context_memory
+  app_bootstrap --> coding_context_note
+  app_bootstrap --> coding_context_prompts
+  app_bootstrap --> coding_context_skills
+  app_bootstrap --> coding_goal
+  app_bootstrap --> coding_mcp
+  app_bootstrap --> coding_security_approval
+  app_bootstrap --> coding_security_grants
+  app_bootstrap --> coding_security_policy
+  app_bootstrap --> coding_security_review
+  app_bootstrap --> coding_subagents
+  app_bootstrap --> coding_tools_registry
+  app_bootstrap --> coding_workspace_recovery_coordinator
+  app_bootstrap --> coding_workspace_snapshots
+  app_bootstrap --> harness_compaction
+  app_bootstrap --> harness_execution_local_sandbox
+  app_bootstrap --> harness_permissions
+  app_bootstrap --> harness_provider
+  app_bootstrap --> harness_request
+  app_bootstrap --> harness_session_log
+  app_bootstrap --> harness_window
+  app_config --> coding_mcp_config
+  app_config --> coding_security_rules
+  app_context_report --> ai_types
+  app_context_report --> coding_security_policy
+  app_context_report --> harness_request
+  app_context_report --> harness_session_projection
+  app_context_report --> harness_session_types
   app_provider --> ai_models
   app_provider --> ai_providers_base
   app_provider --> ai_providers_registry
   app_provider --> ai_resolver
   app_provider --> app_auth
-  app_recovery --> core_log
-  app_recovery --> core_types
-  app_recovery --> extensions_recovery
-  app_recovery --> extensions_snapshots
-  core_compaction --> ai_events
-  core_compaction --> core_log
-  core_compaction --> core_loop
-  core_compaction --> core_projection
-  core_compaction --> core_request
-  core_compaction --> core_types
-  core_events --> ai_types
-  core_events --> core_types
-  core_history --> core_types
-  core_log --> core_events
-  core_log --> core_types
-  core_loop --> ai_events
-  core_loop --> ai_types
-  core_loop --> core_log
-  core_loop --> core_permissions
-  core_loop --> core_projection
-  core_loop --> core_request
-  core_loop --> core_types
-  core_loop --> execution_env_sandbox
-  core_permissions --> core_types
-  core_permissions --> execution_env_sandbox
-  core_projection --> core_types
-  core_request --> ai_types
-  core_request --> core_types
-  core_window --> core_log
-  extensions_goal --> core_loop
-  extensions_goal --> core_types
-  extensions_goal --> tools_workspace
-  extensions_mcp --> app_config
-  extensions_mcp --> core_loop
-  extensions_mcp --> core_types
-  extensions_memory --> core_loop
-  extensions_memory --> core_types
-  extensions_memory --> tools_workspace
-  extensions_recovery --> extensions_snapshots
-  extensions_skills --> core_loop
-  extensions_skills --> core_types
-  extensions_skills --> tools_workspace
-  extensions_subagents --> core_log
-  extensions_subagents --> core_loop
-  extensions_subagents --> core_permissions
-  extensions_subagents --> core_request
-  extensions_subagents --> core_types
-  extensions_subagents --> safety_policy
-  extensions_subagents --> tools_history
-  extensions_subagents --> tools_workspace
+  app_session --> ai_events
+  app_session --> ai_models
+  app_session --> app_commands
+  app_session --> app_context_report
+  app_session --> app_provider
+  app_session --> app_settings
+  app_session --> coding_context_skills
+  app_session --> coding_goal
+  app_session --> coding_security_policy
+  app_session --> coding_security_review
+  app_session --> coding_subagents
+  app_session --> coding_tools_base
+  app_session --> coding_tools_history
+  app_session --> coding_tools_question
+  app_session --> coding_workspace_recovery_coordinator
+  app_session --> coding_workspace_recovery_store
+  app_session --> coding_workspace_snapshots
+  app_session --> harness_cancellation
+  app_session --> harness_compaction
+  app_session --> harness_events
+  app_session --> harness_executor
+  app_session --> harness_loop
+  app_session --> harness_permissions
+  app_session --> harness_provider
+  app_session --> harness_request
+  app_session --> harness_session_history
+  app_session --> harness_session_log
+  app_session --> harness_session_projection
+  app_session --> harness_session_types
+  app_session --> harness_tools
+  app_session --> harness_window
+  app_settings --> ai_auth
+  app_settings --> ai_models
+  app_settings --> ai_providers_registry
+  app_settings --> app_auth
+  app_settings --> app_config
+  app_settings --> app_provider
+  coding_context_memory --> coding_tools_base
+  coding_context_memory --> harness_cancellation
+  coding_context_memory --> harness_session_types
+  coding_context_memory --> harness_tools
+  coding_context_skills --> coding_tools_base
+  coding_context_skills --> harness_session_types
+  coding_context_skills --> harness_tools
+  coding_goal --> coding_tools_base
+  coding_goal --> harness_cancellation
+  coding_goal --> harness_session_types
+  coding_goal --> harness_tools
+  coding_mcp --> coding_mcp_config
+  coding_mcp --> harness_cancellation
+  coding_mcp --> harness_session_types
+  coding_mcp --> harness_tools
+  coding_security_approval --> coding_security_grants
+  coding_security_approval --> coding_security_sensitive
+  coding_security_approval --> harness_permissions
+  coding_security_grants --> harness_session_types
+  coding_security_policy --> coding_security_grants
+  coding_security_policy --> coding_security_rules
+  coding_security_policy --> coding_security_sensitive
+  coding_security_policy --> coding_security_shell
+  coding_security_policy --> harness_execution_paths
+  coding_security_policy --> harness_execution_scope
+  coding_security_policy --> harness_permissions
+  coding_security_policy --> harness_session_types
+  coding_security_policy --> harness_tools
+  coding_security_review --> ai_events
+  coding_security_review --> harness_permissions
+  coding_security_review --> harness_provider
+  coding_security_review --> harness_request
+  coding_security_review --> harness_session_types
+  coding_security_shell --> coding_security_sensitive
+  coding_subagents --> coding_security_policy
+  coding_subagents --> coding_tools_base
+  coding_subagents --> coding_tools_history
+  coding_subagents --> harness_cancellation
+  coding_subagents --> harness_lifecycle
+  coding_subagents --> harness_loop
+  coding_subagents --> harness_permissions
+  coding_subagents --> harness_provider
+  coding_subagents --> harness_request
+  coding_subagents --> harness_session_log
+  coding_subagents --> harness_session_types
+  coding_subagents --> harness_tools
+  coding_tools__worker --> coding_tools_registry
+  coding_tools__worker --> harness_execution_scope
+  coding_tools__worker --> harness_tools
+  coding_tools_base --> coding_workspace_snapshots
+  coding_tools_base --> harness_cancellation
+  coding_tools_base --> harness_execution_local_sandbox
+  coding_tools_base --> harness_execution_local_subprocess
+  coding_tools_base --> harness_execution_paths
+  coding_tools_base --> harness_execution_scope
+  coding_tools_base --> harness_session_types
+  coding_tools_base --> harness_tools
+  coding_tools_bash --> coding_security_shell
+  coding_tools_bash --> coding_tools_base
+  coding_tools_bash --> coding_workspace_snapshots
+  coding_tools_bash --> harness_execution_local_subprocess
+  coding_tools_bash --> harness_execution_paths
+  coding_tools_bash --> harness_session_types
+  coding_tools_bash --> harness_tools
+  coding_tools_edit --> coding_tools_base
+  coding_tools_edit --> coding_workspace_snapshots
+  coding_tools_edit --> harness_session_types
+  coding_tools_edit --> harness_tools
+  coding_tools_history --> coding_tools_base
+  coding_tools_history --> harness_session_log
+  coding_tools_history --> harness_session_types
+  coding_tools_history --> harness_tools
+  coding_tools_question --> harness_cancellation
+  coding_tools_question --> harness_session_types
+  coding_tools_question --> harness_tools
+  coding_tools_read --> coding_tools_base
+  coding_tools_read --> harness_session_types
+  coding_tools_read --> harness_tools
+  coding_tools_registry --> coding_tools_base
+  coding_tools_registry --> coding_tools_bash
+  coding_tools_registry --> coding_tools_edit
+  coding_tools_registry --> coding_tools_read
+  coding_tools_registry --> coding_tools_search
+  coding_tools_registry --> coding_tools_write
+  coding_tools_registry --> coding_workspace_snapshots
+  coding_tools_registry --> harness_execution_local_sandbox
+  coding_tools_search --> coding_tools_base
+  coding_tools_search --> harness_session_types
+  coding_tools_search --> harness_tools
+  coding_tools_write --> coding_tools_base
+  coding_tools_write --> coding_workspace_snapshots
+  coding_tools_write --> harness_session_types
+  coding_tools_write --> harness_tools
+  coding_workspace_recovery_coordinator --> coding_workspace_recovery_store
+  coding_workspace_recovery_coordinator --> coding_workspace_snapshots
+  coding_workspace_recovery_coordinator --> harness_session_log
+  coding_workspace_recovery_coordinator --> harness_session_types
+  coding_workspace_recovery_store --> coding_workspace_snapshots
+  harness_compaction --> ai_events
+  harness_compaction --> harness_provider
+  harness_compaction --> harness_request
+  harness_compaction --> harness_session_log
+  harness_compaction --> harness_session_projection
+  harness_compaction --> harness_session_types
+  harness_events --> harness_session_types
+  harness_execution_local_sandbox --> harness_execution_scope
+  harness_execution_local_subprocess --> harness_execution_result
+  harness_executor --> harness_cancellation
+  harness_executor --> harness_events
+  harness_executor --> harness_execution_scope
+  harness_executor --> harness_permissions
+  harness_executor --> harness_session_types
+  harness_executor --> harness_tools
+  harness_lifecycle --> harness_session_log
+  harness_lifecycle --> harness_session_types
+  harness_loop --> ai_events
+  harness_loop --> ai_types
+  harness_loop --> harness_cancellation
+  harness_loop --> harness_events
+  harness_loop --> harness_executor
+  harness_loop --> harness_lifecycle
+  harness_loop --> harness_permissions
+  harness_loop --> harness_provider
+  harness_loop --> harness_request
+  harness_loop --> harness_session_log
+  harness_loop --> harness_session_projection
+  harness_loop --> harness_session_types
+  harness_loop --> harness_tools
+  harness_permissions --> harness_execution_scope
+  harness_permissions --> harness_session_types
+  harness_provider --> ai_events
+  harness_provider --> ai_types
+  harness_request --> ai_types
+  harness_request --> harness_session_types
+  harness_session_history --> harness_session_types
+  harness_session_log --> harness_session_schema
+  harness_session_log --> harness_session_types
+  harness_session_projection --> harness_session_types
+  harness_session_schema --> ai_types
+  harness_session_schema --> harness_session_types
+  harness_tools --> harness_cancellation
+  harness_tools --> harness_session_types
+  harness_window --> harness_session_log
   hosts_auth --> ai_auth
   hosts_auth --> app_auth
+  hosts_cli --> app_bootstrap
   hosts_cli --> app_config
-  hosts_cli --> app_instructions
-  hosts_cli --> app_note
-  hosts_cli --> app_prompts
-  hosts_cli --> app_provider
-  hosts_cli --> app_recovery
-  hosts_cli --> core_compaction
-  hosts_cli --> core_log
-  hosts_cli --> core_loop
-  hosts_cli --> core_permissions
-  hosts_cli --> core_request
-  hosts_cli --> core_types
-  hosts_cli --> core_window
-  hosts_cli --> execution_env_sandbox
-  hosts_cli --> extensions_goal
-  hosts_cli --> extensions_mcp
-  hosts_cli --> extensions_memory
-  hosts_cli --> extensions_skills
-  hosts_cli --> extensions_snapshots
-  hosts_cli --> extensions_subagents
-  hosts_cli --> safety_approval
-  hosts_cli --> safety_grants
-  hosts_cli --> safety_policy
-  hosts_cli --> safety_review
-  hosts_cli --> tools_history
-  hosts_cli --> tools_workspace
-  hosts_context_report --> ai_types
-  hosts_context_report --> core_projection
-  hosts_context_report --> core_request
-  hosts_context_report --> core_types
-  hosts_context_report --> safety_policy
-  hosts_interaction --> ai_events
-  hosts_interaction --> ai_models
-  hosts_interaction --> app_provider
-  hosts_interaction --> app_recovery
-  hosts_interaction --> core_compaction
-  hosts_interaction --> core_history
-  hosts_interaction --> core_log
-  hosts_interaction --> core_loop
-  hosts_interaction --> core_permissions
-  hosts_interaction --> core_projection
-  hosts_interaction --> core_request
-  hosts_interaction --> core_types
-  hosts_interaction --> core_window
-  hosts_interaction --> extensions_goal
-  hosts_interaction --> extensions_recovery
-  hosts_interaction --> extensions_skills
-  hosts_interaction --> extensions_snapshots
-  hosts_interaction --> extensions_subagents
-  hosts_interaction --> hosts_command_catalog
-  hosts_interaction --> hosts_context_report
-  hosts_interaction --> hosts_interaction_question
-  hosts_interaction --> hosts_interaction_settings
-  hosts_interaction --> safety_policy
-  hosts_interaction --> safety_review
-  hosts_interaction --> tools_history
-  hosts_interaction --> tools_workspace
-  hosts_interaction_question --> core_loop
-  hosts_interaction_question --> core_types
-  hosts_interaction_settings --> ai_auth
-  hosts_interaction_settings --> ai_models
-  hosts_interaction_settings --> ai_providers_registry
-  hosts_interaction_settings --> app_auth
-  hosts_interaction_settings --> app_config
-  hosts_interaction_settings --> app_provider
-  hosts_tui_app --> hosts_interaction
+  hosts_cli --> coding_goal
+  hosts_cli --> coding_workspace_snapshots
+  hosts_cli --> harness_events
+  hosts_cli --> harness_provider
+  hosts_cli --> harness_session_log
+  hosts_cli --> harness_session_types
+  hosts_tui_app --> app_session
   hosts_tui_bridge --> ai_models
-  hosts_tui_bridge --> core_log
-  hosts_tui_bridge --> core_loop
-  hosts_tui_bridge --> core_types
-  hosts_tui_bridge --> hosts_interaction
-  hosts_tui_bridge --> safety_sensitive
-  hosts_tui_command_handlers --> hosts_command_catalog
+  hosts_tui_bridge --> app_session
+  hosts_tui_bridge --> coding_security_sensitive
+  hosts_tui_bridge --> harness_cancellation
+  hosts_tui_bridge --> harness_events
+  hosts_tui_bridge --> harness_session_log
+  hosts_tui_bridge --> harness_session_types
+  hosts_tui_command_handlers --> app_commands
   hosts_tui_config_registry --> ai_models
   hosts_tui_config_registry --> app_config
-  hosts_tui_config_registry --> hosts_interaction_settings
-  hosts_tui_context_stats --> core_projection
-  hosts_tui_context_stats --> core_request
-  hosts_tui_interaction_compat --> core_types
-  hosts_tui_interaction_compat --> tools_workspace
+  hosts_tui_config_registry --> app_settings
+  hosts_tui_context_stats --> harness_request
+  hosts_tui_context_stats --> harness_session_projection
+  hosts_tui_interaction_compat --> coding_tools_base
+  hosts_tui_interaction_compat --> harness_session_types
   hosts_tui_login_flow --> ai_auth
   hosts_tui_settings --> ai_models
   hosts_tui_setup_wizard --> ai_models
   hosts_tui_setup_wizard --> ai_providers_registry
   hosts_tui_setup_wizard --> ai_resolver
-  hosts_tui_setup_wizard --> hosts_interaction_settings
-  safety_approval --> core_permissions
-  safety_approval --> safety_grants
-  safety_approval --> safety_sensitive
-  safety_grants --> core_types
-  safety_policy --> app_config
-  safety_policy --> core_loop
-  safety_policy --> core_permissions
-  safety_policy --> core_types
-  safety_policy --> execution_env_paths
-  safety_policy --> execution_env_sandbox
-  safety_policy --> safety_grants
-  safety_policy --> safety_sensitive
-  safety_policy --> safety_shell
-  safety_review --> ai_events
-  safety_review --> core_loop
-  safety_review --> core_permissions
-  safety_review --> core_request
-  safety_review --> core_types
-  safety_shell --> safety_sensitive
-  tools__worker --> core_loop
-  tools__worker --> execution_env_sandbox
-  tools__worker --> tools_workspace
-  tools_history --> core_log
-  tools_history --> core_loop
-  tools_history --> core_types
-  tools_history --> tools_workspace
-  tools_workspace --> core_loop
-  tools_workspace --> core_types
-  tools_workspace --> execution_env
-  tools_workspace --> execution_env_paths
-  tools_workspace --> execution_env_sandbox
-  tools_workspace --> execution_env_subprocess
-  tools_workspace --> extensions_snapshots
-  tools_workspace --> safety_shell
+  hosts_tui_setup_wizard --> app_settings
 ```
 
 # 工具目录
@@ -1252,7 +1340,7 @@ cade --mode build "Use the time MCP tool to get the current time in Asia/Singapo
 prompt_toolkit UI 线程
   |  Enter / Alt+Enter / 斜杠命令
   v
-InteractionService
+ApplicationSession
   |  steering、pending、cancel
   v
 工作线程  --  asyncio.run(run_task)
@@ -1261,7 +1349,7 @@ InteractionService
 结构化事件队列  -->  UI 线程
 ```
 
-- `InteractionService.run_task` 调用与一次性模式相同的 `run` 循环。
+- `ApplicationSession.run_task` 调用与一次性模式相同的 `run` 循环。
 - `service.steering` 保存下一个模型步骤的指导。
 - `service.pending` 保存下一轮的后续任务。
 - `service.cancel` 立即唤醒等待中的 provider 流，即使它还没有输出。工具在安全点检查同一个取消令牌。
@@ -1800,15 +1888,15 @@ block 是以下之一：
 
 工具声明名称、描述、JSON schema 和异步 `execute`。循环记录内容和错误标志；工具不追加会话事实。
 
-`core.permissions.Policy.check` 返回 `PermissionCheck`，包含决策（`allow`、`deny` 或 `ask`）、原因和 `ExecutionScope`。`authorize` 只用 `ApprovalRequest` 和 `ApprovalResult` 处理 ask。循环和 CLI 的直接 shell 路径使用同一个授权函数。
+`harness.permissions.Policy.check` 返回 `PermissionCheck`，包含决策（`allow`、`deny` 或 `ask`）、原因和 `ExecutionScope`。`authorize` 只用 `ApprovalRequest` 和 `ApprovalResult` 处理 ask。循环和应用直接调用工具时，共用 `harness.executor.execute_tool`。
 
 `WorkspacePolicy` 在显式规则、授权和模式默认值之前应用模式约束和受保护路径。匹配规则按 deny > ask > allow 生效。子代理模式不能扩大父级权限。面向用户的语义见[工具与安全](../tools-security.md)。
 
 ## 执行
 
-循环只在特定工具运行期间，把授权范围放进上下文变量。该范围会跨异步任务和工作线程保留，之后重置。它从不改变默认工作区或授权。
+共享执行器只在特定工具运行期间，把授权范围放进上下文变量。该范围会跨异步任务和工作线程保留，之后重置。它从不改变默认工作区或授权。
 
-CLI 用项目根目录、私有临时目录、网络设置和受保护路径构造 `PlatformSandbox`。`SubprocessShell` 在启动进程之前包装命令。文件工具通过 `tools._worker` 使用同一个后端；快照存储仍由宿主管理。外部文件修改没有工作区快照。取消信号会传到子进程启动器，工具在返回或清理请求文件之前等待进程终止。
+应用装配时用项目根目录、私有临时目录、网络设置和受保护路径构造 `PlatformSandbox`。`SubprocessShell` 在启动进程之前包装命令。文件工具通过 `coding.tools._worker` 使用同一个后端；快照存储与工作进程分开管理。外部文件修改没有工作区快照。取消信号会传到子进程启动器，工具在返回或清理请求文件之前等待进程终止。
 
 Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端错误会变成工具错误，不会退回到无沙箱重试。MCP 服务器进程是可信的宿主扩展，位于这个边界之外。
 
@@ -2415,7 +2503,7 @@ MCP 工具默认询问。无人值守运行时，为特定工具添加规则：
 
 # 宿主
 
-Cade 只有一个终端宿主，包含两种模式：交互式 TUI 和一次性执行。两者共用同一个会话日志、请求构造器、工具、策略和核心循环。TUI 用 `InteractionService` 处理命令和会话控制。
+Cade 只有一个终端宿主，包含两种模式：交互式 TUI 和一次性执行。两者共用同一个会话日志、请求构造器、工具、策略和核心循环。TUI 用 `ApplicationSession` 处理命令和会话控制。
 
 ## 终端 UI
 
@@ -2521,7 +2609,7 @@ uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.htm
 
 ## 边界
 
-Cade 在 `cade.ai` 和 `cade.execution_env` 中拥有 provider 层和进程层。不要添加对早期 Cade 项目的依赖。
+Cade 有 `ai`、`harness`、`coding`、`app` 和 `hosts` 五个运行时包。本地执行位于 `harness/execution/local`。下层不导入上层，`tests/test_architecture.py` 检查这些边界。不要添加对早期 Cade 项目的依赖。
 
 公开接口包括会话格式、配置字段、CLI 参数、工具名和文档清单。修改它们时，测试和文档要在同一个提交里更新。
 

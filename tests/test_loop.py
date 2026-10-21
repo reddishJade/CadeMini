@@ -20,22 +20,18 @@ from cade.ai.events import (
     UsageUpdate,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
-from cade.core.log import SessionLog
-from cade.core.loop import (
-    CancellationToken,
-    TextDeltaEvent,
-    ToolEndEvent,
-    ToolResult,
-    ToolStartEvent,
-    run,
-)
-from cade.core.permissions import ApprovalResult, PermissionCheck
-from cade.core.projection import project
-from cade.core.request import Budget
-from cade.core.types import LogError, ToolCallBlock
-from cade.core.window import reset_window
-from cade.safety.policy import WorkspacePolicy
-from cade.tools.workspace import build_tools
+from cade.coding.security.policy import WorkspacePolicy
+from cade.coding.tools.registry import build_tools
+from cade.harness.cancellation import CancellationToken
+from cade.harness.events import TextDeltaEvent, ToolEndEvent, ToolStartEvent
+from cade.harness.loop import run
+from cade.harness.permissions import ApprovalResult, PermissionCheck
+from cade.harness.request import Budget
+from cade.harness.session.log import SessionLog
+from cade.harness.session.projection import project
+from cade.harness.session.types import LogError, ToolCallBlock
+from cade.harness.tools import ToolResult
+from cade.harness.window import reset_window
 
 
 class FakeProvider:

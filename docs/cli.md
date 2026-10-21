@@ -132,7 +132,7 @@ conversation undo command.
   checks still apply.
 
 ```text
-Review @src/cade/core/loop.py and use $review-only
+Review @src/cade/harness/loop.py and use $review-only
 !git status
 ```
 
