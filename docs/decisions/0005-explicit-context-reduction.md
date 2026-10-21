@@ -25,5 +25,5 @@ separate, existing behaviors; this decision removes request admission pruning.
 
 A large current-turn tool result may stop the run instead of being hidden.
 Earlier evidence remains available through history retrieval. Tests in
-`test_mini_request.py` protect complete over-budget inputs; loop and compaction
+`test_request.py` protect complete over-budget inputs; loop and compaction
 tests cover failed summary fallback and current-turn overflow.

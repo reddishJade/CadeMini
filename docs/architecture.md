@@ -1,6 +1,6 @@
 # Architecture
 
-Cade Mini is a standalone coding agent in `src/cade_mini/`. It uses a pipeline
+Cade is a standalone coding agent in `src/cade/`. It uses a pipeline
 with four stages. Each stage has one owner and one direction of data flow.
 
 ```text
@@ -87,11 +87,10 @@ fallback are decisions expressed as new log facts.
   `app/instructions.py`, `app/note.py`: startup and request context.
 - `hosts/cli.py`, `docs.py`: hosts and documentation.
 
-Mini owns `cade_mini.ai` and `cade_mini.execution_env` as lower layers for
+Cade owns `cade.ai` and `cade.execution_env` as lower layers for
 provider protocols and local process execution. It does not depend on the
-separate Cade project. `test_mini_boundary.py` rejects old Cade imports and
-application dependencies in these lower layers. There are no top-level
-re-exports; import the owning submodule directly.
+earlier Cade project. There are no top-level re-exports; import the owning
+submodule directly.
 
 ## Recovery
 
@@ -121,10 +120,11 @@ transport with the same Responses stream format and its own endpoint.
 The CLI confines shell and file workers on Linux/macOS; Windows runs directly.
 See [Tools and security](tools-security.md) for boundaries and trusted extensions.
 
-Credentials and user skills use `~/.cade-mini/`. The SIWC host ID lives in
-`~/.cade-mini/host.json`. Sessions, snapshots, goals,
-and project skills use `<workspace>/.cade-mini/`. Project settings live in
-`cade-mini.json`. Mini does not discover old Cade state.
+Credentials and user skills use `~/.cade/`. The SIWC host ID lives in
+`~/.cade/host.json`. Sessions, snapshots, goals,
+and project skills use `<workspace>/.cade/`. Project settings live in
+`cade.json`. The earlier Cade project's state formats are not compatible with
+this project; start from clean `~/.cade/` and workspace `.cade/` directories.
 
 See the [code map](design/code-map.md) and
 [persistence catalog](design/persistence-catalog.md) for implementation locations
@@ -133,6 +133,6 @@ and durable state ownership.
 ## Why the split
 
 The split prevents a common failure: the request builder starts hiding
-messages, then the history rewrite becomes the only copy of what happened. Mini
+messages, then the history rewrite becomes the only copy of what happened. Cade
 keeps the original facts and lets the projection and admission be replaced
 without losing history.

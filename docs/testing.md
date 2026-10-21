@@ -10,18 +10,18 @@ After code changes, run:
 
 ```bash
 mkdir -p e2e-results
-uv run --locked ruff check src/cade_mini/ tests/
-uv run --locked ruff format --check src/cade_mini/ tests/
-uv run --locked pyright src/cade_mini/
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
 uv run --locked pytest -q tests --basetemp=e2e-results/pytest
 ```
 
 After import, package, or entry-point changes, also check:
 
 ```bash
-uv run --locked cade-mini --help
-uv run --locked python -m cade_mini --help
-uv run --locked cade-mini login --help
+uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
 uv build --no-sources
 ```
 

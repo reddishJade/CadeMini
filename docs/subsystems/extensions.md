@@ -44,7 +44,7 @@ state, not session facts.
 
 ## Goals
 
-`GoalStore` persists one objective in `.cade-mini/goal.json`. The `goal` tool and
+`GoalStore` persists one objective in `.cade/goal.json`. The `goal` tool and
 `/goal` command manage it. An active goal is request context.
 
 ## Hosts
@@ -60,5 +60,5 @@ Subagents are sequential and share the parent approval context.
 
 ## Tests
 
-`test_mini_skills.py`, `test_mini_memory.py`, `test_mini_hooks.py`,
-`test_mini_mcp.py`, `test_mini_subagents.py`, `test_mini_snapshots.py`, and `test_mini_goal.py`.
+`test_skills.py`, `test_memory.py`, `test_hooks.py`,
+`test_mcp.py`, `test_subagents.py`, `test_snapshots.py`, and `test_goal.py`.

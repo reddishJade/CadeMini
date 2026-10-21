@@ -17,13 +17,13 @@ dependencies, and provider-specific fields in generic configuration.
 
 ## Decision
 
-Cade Mini supports only the Responses protocol. Three transports remain:
+Cade supports only the Responses protocol. Three transports remain:
 
 - `openai_responses` uses an API key from `OPENAI_API_KEY` or
-  `cade-mini login --provider openai`.
-- `chatgpt` uses Sign in with ChatGPT (SIWC) from `cade-mini login`.
+  `cade login --provider openai`.
+- `chatgpt` uses Sign in with ChatGPT (SIWC) from `cade login`.
 - `deepseek_responses` uses an API key from `DEEPSEEK_API_KEY` or
-  `cade-mini login --provider deepseek`.
+  `cade login --provider deepseek`.
 
 `build_model_provider` in `ai/providers/registry.py` constructs exactly these
 three adapters. DeepSeek reuses the Responses decoder but has its own endpoint,
@@ -44,9 +44,9 @@ The SIWC login contract is defined in
 - Existing ChatGLM, MiMo, and OpenAI Chat Completions configurations are
   rejected or resolve to Responses behavior. Users must select `chatgpt`,
   `openai`, or `deepseek`.
-- `tests/test_mini_provider.py`, `tests/test_mini_auth.py`,
-  `tests/test_mini_config.py`, and `tests/test_responses_siwc_contract.py`
+- `tests/test_provider.py`, `tests/test_auth.py`,
+  `tests/test_config.py`, and `tests/test_responses_siwc_contract.py`
   enforce the transport and login surface.
 
 The invariant is documented in [Architecture](../architecture.md) and the
-[provider adapters](../../src/cade_mini/ai/providers/README.md).
+[provider adapters](../../src/cade/ai/providers/README.md).

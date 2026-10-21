@@ -12,23 +12,23 @@ from typing import Any, ClassVar
 import pytest
 from openai.types.responses import ResponseFailedEvent
 
-from cade_mini.ai.events import (
+from cade.ai.events import (
     FinalMessage,
     ProviderEvent,
     ProviderFailure,
     ToolCallEvent,
     UsageUpdate,
 )
-from cade_mini.ai.providers.responses import (
+from cade.ai.providers.responses import (
     ChatGPTResponsesProvider,
     OpenAIResponsesProvider,
     ProviderRequestError,
     _format_openai_error,
 )
-from cade_mini.ai.types import ProviderConfig, StreamOptions, ToolDefinition
-from cade_mini.core.log import SessionLog
-from cade_mini.core.loop import run
-from cade_mini.core.request import Budget
+from cade.ai.types import ProviderConfig, StreamOptions, ToolDefinition
+from cade.core.log import SessionLog
+from cade.core.loop import run
+from cade.core.request import Budget
 
 _RESPONSE_FORMAT = {
     "type": "json_schema",

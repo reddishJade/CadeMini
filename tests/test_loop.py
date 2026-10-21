@@ -1,0 +1,810 @@
+"""Cade agent 循环的回归测试。"""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import AsyncIterator
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from cade.ai.events import (
+    FinalMessage,
+    ProviderEvent,
+    ProviderFailure,
+    TextDelta,
+    ToolCall,
+    ToolCallEvent,
+    UsageUpdate,
+)
+from cade.ai.types import StreamOptions, ToolDefinition
+from cade.core.log import SessionLog
+from cade.core.loop import (
+    CancellationToken,
+    TextDeltaEvent,
+    ToolEndEvent,
+    ToolResult,
+    ToolStartEvent,
+    run,
+)
+from cade.core.permissions import ApprovalResult, PermissionCheck
+from cade.core.projection import project
+from cade.core.request import Budget
+from cade.core.types import LogError, ToolCallBlock
+from cade.core.window import reset_window
+from cade.safety.policy import WorkspacePolicy
+from cade.tools.workspace import build_tools
+
+
+class FakeProvider:
+    model = "fake"
+    transport = "fake"
+
+    def __init__(self, batches: list[list[ProviderEvent]]) -> None:
+        self.batches = list(batches)
+        self.requests: list[
+            tuple[
+                list[dict[str, Any]],
+                list[ToolDefinition],
+                StreamOptions | None,
+            ]
+        ] = []
+
+    def stream(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolDefinition],
+        options: StreamOptions | None = None,
+    ) -> AsyncIterator[ProviderEvent]:
+        self.requests.append((messages, tools, options))
+        batch = self.batches.pop(0)
+
+        async def events() -> AsyncIterator[ProviderEvent]:
+            for event in batch:
+                yield event
+
+        return events()
+
+
+class EchoTool:
+    name: str = "echo"
+    description: str = "Echo the text argument."
+
+    def __init__(self) -> None:
+        self.calls: list[ToolCallBlock] = []
+        self.parameters: dict[str, Any] = {
+            "type": "object",
+            "properties": {"text": {"type": "string"}},
+            "required": ["text"],
+        }
+
+    async def execute(
+        self,
+        call: ToolCallBlock,
+        signal: CancellationToken | None = None,
+    ) -> ToolResult:
+        self.calls.append(call)
+        return ToolResult(content=str(call.args.get("text", "")))
+
+
+class AllowAll:
+    def check(self, call: ToolCallBlock) -> PermissionCheck:
+        return PermissionCheck("allow")
+
+
+class DenyAll:
+    def check(self, call: ToolCallBlock) -> PermissionCheck:
+        return PermissionCheck("deny", "Denied by the test policy.")
+
+
+def _log(tmp_path: Path) -> SessionLog:
+    return SessionLog.create(tmp_path / "sessions", session_id="s1")
+
+
+def _text_response(text: str) -> list[ProviderEvent]:
+    return [TextDelta(text), FinalMessage(text, "end_turn")]
+
+
+def _tool_response(call_id: str, text: str = "hi") -> list[ProviderEvent]:
+    return [
+        ToolCallEvent([ToolCall(id=call_id, name="echo", input={"text": text})]),
+        FinalMessage("", "tool_use"),
+    ]
+
+
+@pytest.mark.parametrize("selection", ["assistant", "first_result"])
+async def test_tree_continuation_recovers_only_selected_path_calls(
+    tmp_path: Path,
+    selection: str,
+) -> None:
+    log = SessionLog.create(tmp_path)
+    log.append("system", {"text": "sys"})
+    log.append("user", {"text": "original task"})
+    assistant = log.append(
+        "assistant",
+        {
+            "blocks": [
+                {
+                    "type": "tool_call",
+                    "id": "c1",
+                    "name": "echo",
+                    "args": {"text": "one"},
+                },
+                {
+                    "type": "tool_call",
+                    "id": "c2",
+                    "name": "echo",
+                    "args": {"text": "two"},
+                },
+            ]
+        },
+    )
+    first = log.append(
+        "tool_result", {"call_id": "c1", "status": "ok", "content": "OLD RESULT ONE"}
+    )
+    second = log.append(
+        "tool_result", {"call_id": "c2", "status": "ok", "content": "OLD RESULT TWO"}
+    )
+    log.switch_branch(assistant.id if selection == "assistant" else first.id)
+    provider = FakeProvider([[FinalMessage("checked", "end_turn")]])
+    tool = EchoTool()
+    result = await run(
+        log, "continue", provider=provider, tools=(tool,), budget=Budget(100_000)
+    )
+    assert result.termination == "completed"
+    assert tool.calls == []
+    results = [e for e in log.branch() if e.type == "tool_result"]
+    assert [e.data["call_id"] for e in results] == ["c1", "c2"]
+    assert results[-1].data["status"] == "interrupted"
+    assert results[0].data["status"] == (
+        "interrupted" if selection == "assistant" else "ok"
+    )
+    wire = str(provider.requests[-1][0])
+    assert "OLD RESULT TWO" not in wire
+    assert ("OLD RESULT ONE" in wire) == (selection == "first_result")
+    assert second.id in {e.id for e in log.entries()}
+    assert second.id not in {e.id for e in log.branch()}
+
+
+async def test_run_completes_without_tools(tmp_path: Path) -> None:
+    provider = FakeProvider([_text_response("hello")])
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "hi",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+    )
+
+    assert result.termination == "completed"
+    assert result.answer == "hello"
+    assert result.steps == 1
+    assert [entry.type for entry in log.branch()] == [
+        "meta",
+        "user",
+        "request",
+        "assistant",
+        "run",
+    ]
+    assert [message.role for message in project(log.branch())] == [
+        "user",
+        "assistant",
+    ]
+
+
+@pytest.mark.parametrize("completed_count", [0, 1, 2])
+async def test_resume_persists_only_missing_tool_results(
+    tmp_path: Path, completed_count: int
+) -> None:
+    log = _log(tmp_path)
+    log.append("user", {"text": "old task"})
+    log.append(
+        "assistant",
+        {
+            "blocks": [
+                {"type": "tool_call", "id": call_id, "name": "echo", "args": {}}
+                for call_id in ("c1", "c2")
+            ]
+        },
+    )
+    for call_id in ("c1", "c2")[:completed_count]:
+        log.append(
+            "tool_result", {"call_id": call_id, "status": "ok", "content": "done"}
+        )
+    tool = EchoTool()
+    provider = FakeProvider([_text_response("resumed"), _text_response("again")])
+
+    for text in ("next task", "another task"):
+        result = await run(
+            SessionLog.open(log.path),
+            text,
+            provider=provider,
+            tools=(tool,),
+            budget=Budget(100_000),
+        )
+        assert result.termination == "completed"
+
+    branch = log.branch()
+    results = [entry for entry in branch if entry.type == "tool_result"]
+    assert [entry.data["call_id"] for entry in results] == ["c1", "c2"]
+    assert [entry.data["status"] for entry in results] == (
+        ["ok"] * completed_count + ["interrupted"] * (2 - completed_count)
+    )
+    next_user = next(entry for entry in branch if entry.data.get("text") == "next task")
+    assert branch.index(results[-1]) < branch.index(next_user)
+    assert tool.calls == []
+    project(branch)
+
+
+async def test_resume_does_not_repeat_unknown_tool_effect(tmp_path: Path) -> None:
+    class InterruptedTool(EchoTool):
+        async def execute(
+            self, call: ToolCallBlock, signal: CancellationToken | None = None
+        ) -> ToolResult:
+            self.calls.append(call)
+            (tmp_path / "effect.txt").write_text("effect happened", encoding="utf-8")
+            raise asyncio.CancelledError
+
+    log = _log(tmp_path)
+    tool = InterruptedTool()
+    with pytest.raises(asyncio.CancelledError):
+        await run(
+            log,
+            "do work",
+            provider=FakeProvider([_tool_response("c1")]),
+            tools=(tool,),
+            budget=Budget(100_000),
+        )
+
+    result = await run(
+        SessionLog.open(log.path),
+        "inspect work",
+        provider=FakeProvider([_text_response("resumed")]),
+        tools=(tool,),
+        budget=Budget(100_000),
+    )
+
+    assert result.termination == "completed"
+    assert len(tool.calls) == 1
+    assert (tmp_path / "effect.txt").read_text(encoding="utf-8") == "effect happened"
+    results = [entry for entry in log.branch() if entry.type == "tool_result"]
+    assert len(results) == 1
+    assert results[0].data["status"] == "interrupted"
+    project(log.branch())
+
+
+async def test_concurrent_run_is_rejected_without_writing(tmp_path: Path) -> None:
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class WaitingProvider(FakeProvider):
+        async def stream(self, messages, tools, options=None):
+            entered.set()
+            await release.wait()
+            yield FinalMessage("done", "end_turn")
+
+    log = _log(tmp_path)
+    provider = WaitingProvider([])
+    task = asyncio.create_task(
+        run(log, "first", provider=provider, tools=(), budget=Budget(100_000))
+    )
+    try:
+        await entered.wait()
+        before = log.path.read_bytes()
+        for contender in (log, SessionLog.open(log.path)):
+            with pytest.raises(LogError, match="already running"):
+                await run(
+                    contender,
+                    "second",
+                    provider=provider,
+                    tools=(),
+                    budget=Budget(100_000),
+                )
+        assert log.path.read_bytes() == before
+    finally:
+        release.set()
+        await task
+
+    result = await run(
+        SessionLog.open(log.path),
+        "next",
+        provider=FakeProvider([_text_response("ok")]),
+        tools=(),
+        budget=Budget(100_000),
+    )
+    assert result.termination == "completed"
+
+
+async def test_request_is_persisted_before_provider_call(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+
+    class AuditedProvider(FakeProvider):
+        async def stream(self, messages, tools, options=None):
+            saved = log.branch()[-1]
+            assert saved.type == "request"
+            snapshot = saved.data["snapshot"]
+            assert isinstance(snapshot, dict)
+            assert snapshot["messages"] == messages
+            assert snapshot["tools"] == [asdict(tool) for tool in tools]
+            assert snapshot["options"] is None
+            yield FinalMessage("done", "end_turn")
+
+    result = await run(
+        log,
+        "task",
+        provider=AuditedProvider([]),
+        tools=(EchoTool(),),
+        budget=Budget(100_000),
+        context=("instructions",),
+    )
+    assert result.termination == "completed"
+
+
+async def test_run_executes_tool_and_continues(tmp_path: Path) -> None:
+    provider = FakeProvider(
+        [
+            _tool_response("c1"),
+            _text_response("done"),
+        ]
+    )
+    log = _log(tmp_path)
+    tool = EchoTool()
+
+    result = await run(
+        log,
+        "run echo",
+        provider=provider,
+        tools=(tool,),
+        budget=Budget(100_000),
+    )
+
+    assert result.termination == "completed"
+    assert result.answer == "done"
+    assert len(provider.requests) == 2
+    assert len(tool.calls) == 1
+    branch = log.branch()
+    assert [entry.type for entry in branch].count("assistant") == 2
+    tool_result = next(entry for entry in branch if entry.type == "tool_result")
+    assert tool_result.data["content"] == "hi"
+    assert tool_result.data["status"] == "ok"
+
+
+async def test_run_denied_tool_returns_error_result(tmp_path: Path) -> None:
+    provider = FakeProvider([_tool_response("c1"), _text_response("done")])
+    log = _log(tmp_path)
+    tool = EchoTool()
+
+    result = await run(
+        log,
+        "run echo",
+        provider=provider,
+        tools=(tool,),
+        budget=Budget(100_000),
+        policy=DenyAll(),
+    )
+
+    assert result.termination == "completed"
+    assert tool.calls == []
+    tool_result = next(entry for entry in log.branch() if entry.type == "tool_result")
+    assert tool_result.data["status"] == "error"
+    assert "Permission denied" in str(tool_result.data["content"])
+
+
+async def test_run_unknown_tool_returns_error_result(tmp_path: Path) -> None:
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent([ToolCall(id="c1", name="missing", input={})]),
+                FinalMessage("", "tool_use"),
+            ],
+            _text_response("done"),
+        ]
+    )
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "call missing",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+    )
+
+    assert result.termination == "completed"
+    tool_result = next(entry for entry in log.branch() if entry.type == "tool_result")
+    assert tool_result.data["status"] == "error"
+    assert "Unknown tool" in str(tool_result.data["content"])
+
+
+async def test_run_step_limit(tmp_path: Path) -> None:
+    provider = FakeProvider(
+        [
+            _tool_response("c1"),
+            _tool_response("c2"),
+        ]
+    )
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "loop",
+        provider=provider,
+        tools=(EchoTool(),),
+        budget=Budget(100_000),
+        max_steps=2,
+    )
+
+    assert result.termination == "step_limit"
+    assert result.steps == 2
+    assert len(provider.requests) == 2
+    run_entry = log.branch()[-1]
+    assert run_entry.type == "run"
+    assert run_entry.data["termination"] == "step_limit"
+
+
+async def test_run_provider_failure_retries_once(tmp_path: Path) -> None:
+    provider = FakeProvider(
+        [
+            [ProviderFailure("timeout", "TimeoutError")],
+            _text_response("recovered"),
+        ]
+    )
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "hi",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+        max_provider_retries=1,
+        retry_delay_seconds=0,
+    )
+
+    assert result.termination == "completed"
+    assert result.answer == "recovered"
+    assert [entry.type for entry in log.branch()].count("attempt") == 1
+
+
+async def test_run_context_over_budget_without_compaction(tmp_path: Path) -> None:
+    provider = FakeProvider([])
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "x" * 100_000,
+        provider=provider,
+        tools=(),
+        budget=Budget(context_window=1_000, output_reserve=0, headroom_tokens=0),
+    )
+
+    assert result.termination == "context_error"
+    assert provider.requests == []
+    assert [entry.type for entry in log.branch()] == ["meta", "user", "run"]
+
+
+async def test_run_cancelled_before_first_step(tmp_path: Path) -> None:
+    provider = FakeProvider([])
+    log = _log(tmp_path)
+    token = CancellationToken()
+    token.cancel("stop")
+
+    result = await run(
+        log,
+        "hi",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+        cancel=token,
+    )
+
+    assert result.termination == "aborted"
+    assert result.error == "stop"
+    assert provider.requests == []
+
+
+async def test_run_uses_compaction_hook_before_giving_up(
+    tmp_path: Path,
+) -> None:
+    called: list[bool] = []
+
+    async def compact(log: SessionLog, budget: Budget) -> bool:
+        called.append(True)
+        return True
+
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "hi",
+        provider=FakeProvider([]),
+        tools=(),
+        budget=Budget(context_window=1_000, output_reserve=0, headroom_tokens=0),
+        context=("x" * 100_000,),
+        compact=compact,
+    )
+
+    assert called == [True]
+    assert result.termination == "context_error"
+
+
+async def test_run_compacts_before_building_request(
+    tmp_path: Path,
+) -> None:
+    log = _log(tmp_path)
+    log.append("user", {"text": "old " * 5_000, "source": "user"})
+    log.append(
+        "assistant",
+        {
+            "blocks": [{"type": "text", "text": "old answer " * 5_000}],
+            "model": "m",
+            "provider": "p",
+            "usage": None,
+            "provider_state": None,
+        },
+    )
+    provider = FakeProvider([_text_response("done")])
+    called: list[bool] = []
+
+    async def compact(log: SessionLog, budget: Budget) -> bool:
+        called.append(True)
+        entries = log.branch()
+        latest_user = next(entry for entry in reversed(entries) if entry.type == "user")
+        log.append(
+            "window",
+            {
+                "start_id": latest_user.id,
+                "reason": "manual",
+                "handoff": None,
+            },
+        )
+        return True
+
+    result = await run(
+        log,
+        "new",
+        provider=provider,
+        tools=(),
+        budget=Budget(context_window=2_000, output_reserve=0, headroom_tokens=0),
+        compact=compact,
+    )
+
+    assert called == [True]
+    assert result.termination == "completed"
+    assert result.answer == "done"
+    first_request = provider.requests[0][0]
+    assert all(
+        "old" not in str(message.get("content", "")) for message in first_request
+    )
+
+
+async def test_run_reports_usage_and_max_tokens(tmp_path: Path) -> None:
+    provider = FakeProvider(
+        [
+            [
+                UsageUpdate(10, 5),
+                TextDelta("partial"),
+                FinalMessage("partial", "max_tokens"),
+            ]
+        ]
+    )
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "hi",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+    )
+
+    assert result.termination == "max_tokens"
+    assert result.answer == "partial"
+    assert result.usage == {"input": 10, "output": 5}
+    run_entry = log.branch()[-1]
+    assert run_entry.data["usage"] == {"input": 10, "output": 5}
+
+
+async def test_failed_attempt_preserves_reported_usage(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+    result = await run(
+        log,
+        "hi",
+        provider=FakeProvider(
+            [
+                [UsageUpdate(10, 2), ProviderFailure("timeout", "TimeoutError")],
+                [UsageUpdate(20, 3), *_text_response("recovered")],
+            ]
+        ),
+        tools=(),
+        budget=Budget(100_000),
+        retry_delay_seconds=0,
+    )
+    assert result.termination == "completed"
+    assert result.usage == {"input": 30, "output": 5}
+    attempt = next(entry for entry in log.branch() if entry.type == "attempt")
+    assert attempt.data["usage"] == {"input": 10, "output": 2}
+
+
+async def test_cancellation_keeps_usage_from_finished_step(tmp_path: Path) -> None:
+    token = CancellationToken()
+
+    def cancel_after_tool(event: object) -> None:
+        if isinstance(event, ToolEndEvent):
+            token.cancel()
+
+    result = await run(
+        _log(tmp_path),
+        "hi",
+        provider=FakeProvider([[UsageUpdate(10, 2), *_tool_response("c1")]]),
+        tools=(EchoTool(),),
+        budget=Budget(100_000),
+        cancel=token,
+        on_event=cancel_after_tool,
+    )
+    assert result.termination == "aborted"
+    assert result.usage == {"input": 10, "output": 2}
+
+
+async def test_run_empty_response_is_a_provider_error(tmp_path: Path) -> None:
+    provider = FakeProvider([[FinalMessage("", "end_turn")]])
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "hi",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+    )
+
+    assert result.termination == "provider_error"
+    assert result.error == "empty model response"
+    assert [entry.type for entry in log.branch()].count("attempt") == 1
+
+
+async def test_run_emits_stream_and_tool_events(tmp_path: Path) -> None:
+    provider = FakeProvider([_tool_response("c1"), _text_response("done")])
+    log = _log(tmp_path)
+    events: list[object] = []
+
+    await run(
+        log,
+        "run echo",
+        provider=provider,
+        tools=(EchoTool(),),
+        budget=Budget(100_000),
+        on_event=events.append,
+    )
+
+    assert any(isinstance(event, ToolStartEvent) for event in events)
+    assert any(isinstance(event, ToolEndEvent) for event in events)
+    assert any(isinstance(event, TextDeltaEvent) for event in events)
+
+
+async def test_run_executes_workspace_tools_with_policy(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="w1",
+                            name="write",
+                            input={"path": "a.txt", "content": "hello"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            [
+                ToolCallEvent(
+                    [ToolCall(id="r1", name="read", input={"path": "a.txt"})]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text_response("done"),
+        ]
+    )
+    log = _log(tmp_path)
+
+    result = await run(
+        log,
+        "write then read",
+        provider=provider,
+        tools=build_tools(workspace),
+        budget=Budget(100_000),
+        policy=WorkspacePolicy(workspace),
+        approve=lambda request: ApprovalResult(True, "Approved for test"),
+    )
+
+    assert result.termination == "completed"
+    assert result.answer == "done"
+    assert (workspace / "a.txt").read_text(encoding="utf-8") == "hello"
+    tool_results = [entry for entry in log.branch() if entry.type == "tool_result"]
+    assert any("hello" in str(entry.data["content"]) for entry in tool_results)
+
+
+async def test_run_falls_back_to_window_when_over_budget(
+    tmp_path: Path,
+) -> None:
+    log = _log(tmp_path)
+    old = log.append("user", {"text": "old task", "source": "user"})
+    log.append(
+        "compaction",
+        {
+            "summary": "x" * 40_000,
+            "first_kept_id": old.id,
+            "tokens_before": 1,
+            "model": "m",
+            "provider": "p",
+            "usage": None,
+            "details": None,
+        },
+    )
+    provider = FakeProvider([_text_response("done")])
+    called: list[bool] = []
+
+    def window(log: SessionLog) -> bool:
+        called.append(True)
+        return reset_window(log, handoff="handoff", reason="fallback")
+
+    result = await run(
+        log,
+        "new task",
+        provider=provider,
+        tools=(),
+        budget=Budget(context_window=2_000, output_reserve=0, headroom_tokens=0),
+        window=window,
+    )
+
+    assert called == [True]
+    assert result.termination == "completed"
+    assert result.answer == "done"
+    assert any(entry.type == "window" for entry in log.branch())
+
+
+async def test_current_turn_overflow_does_not_hide_tool_output(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+    provider = FakeProvider([_tool_response("c1", "x" * 20_000)])
+    result = await run(
+        log,
+        "echo",
+        provider=provider,
+        tools=(EchoTool(),),
+        budget=Budget(2_000, output_reserve=0, headroom_tokens=0),
+        window=lambda log: reset_window(log, reason="fallback"),
+    )
+    assert result.termination == "context_error"
+    assert len(provider.requests) == 1
+    tool_result = next(entry for entry in log.branch() if entry.type == "tool_result")
+    assert tool_result.data["content"] == "x" * 20_000
+    assert len([entry for entry in log.branch() if entry.type == "window"]) == 1
+
+
+async def test_run_appends_steering_at_step_boundary(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+    provider = FakeProvider([_text_response("done")])
+    messages = iter(["focus on the parser"])
+
+    result = await run(
+        log,
+        "inspect the code",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+        steering=lambda: next(messages, None),
+    )
+
+    assert result.termination == "completed"
+    users = [entry for entry in log.branch() if entry.type == "user"]
+    assert [entry.data["text"] for entry in users] == [
+        "inspect the code",
+        "focus on the parser",
+    ]

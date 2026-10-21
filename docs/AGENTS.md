@@ -1,6 +1,6 @@
 # Documentation guide
 
-The published Cade Mini docs live in `docs/`. The site is generated
+The published Cade docs live in `docs/`. The site is generated
 from Markdown and `docs.json`; do not edit `docs/index.html` by hand.
 
 ## Rules
@@ -37,10 +37,10 @@ hand.
 ## Checks
 
 ```bash
-uv run --locked python -m cade_mini.docs check
-uv run --locked --extra docs python -m cade_mini.docs build
-uv run --locked python -m cade_mini.docs llms --write
-uv run --locked python -m cade_mini.docs catalogs --write
+uv run --locked python -m cade.docs check
+uv run --locked --extra docs python -m cade.docs build
+uv run --locked python -m cade.docs llms --write
+uv run --locked python -m cade.docs catalogs --write
 ```
 
 `check` validates the manifest, page existence, relative links, anchors,

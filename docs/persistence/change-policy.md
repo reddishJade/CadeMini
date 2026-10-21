@@ -1,6 +1,6 @@
 # Change policy
 
-Cade Mini is under active development. Persisted data has one current, closed
+Cade is under active development. Persisted data has one current, closed
 structure with no format-version fields. Breaking changes are allowed. Do not
 add compatibility readers, migration commands, or special handling for earlier
 formats.

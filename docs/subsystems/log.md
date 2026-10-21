@@ -70,7 +70,7 @@ historical timestamps do not make a newly created session appear old.
 
 ## Tests
 
-`test_mini_log.py` covers create, append, resume, tail repair, and listing.
-`test_mini_session_history.py` covers navigation, old-format recovery, inactive
-forks, and independent copies. `test_mini_projection.py` covers malformed paths.
-`test_mini_history_e2e.py` verifies the public commands through real TUI input.
+`test_log.py` covers create, append, resume, tail repair, and listing.
+`test_session_history.py` covers navigation, old-format recovery, inactive
+forks, and independent copies. `test_projection.py` covers malformed paths.
+`test_history_e2e.py` verifies the public commands through real TUI input.

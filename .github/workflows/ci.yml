@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           bash -n .githooks/pre-push
-          blocked="$(git ls-files -- benchmarks .cade .cade-mini \
+          blocked="$(git ls-files -- benchmarks .cade .cade \
             e2e-results benchmark-results eval-results evals)"
           if [[ -n "$blocked" ]]; then
             printf 'Internal assets must stay outside the public tree:\n%s\n' "$blocked" >&2
@@ -55,31 +55,31 @@ jobs:
       - name: Install check dependencies
         run: uv sync --locked --extra dev --extra docs
       - name: Docs check
-        run: uv run --locked python -m cade_mini.docs check
+        run: uv run --locked python -m cade.docs check
       - name: Ruff lint check
-        run: uv run --locked ruff check src/cade_mini/ tests/
+        run: uv run --locked ruff check src/cade/ tests/
       - name: Ruff format check
-        run: uv run --locked ruff format --check src/cade_mini/ tests/
+        run: uv run --locked ruff format --check src/cade/ tests/
       - name: Pyright type check
-        run: uv run --locked pyright src/cade_mini/
+        run: uv run --locked pyright src/cade/
       - name: Regression tests
         run: |
           mkdir -p e2e-results/ci
           uv run --locked pytest -q tests --basetemp=e2e-results/ci/pytest
       - name: Headless TUI acceptance
         run: |
-          uv run --locked pytest -q tests/test_mini_tui_e2e.py \
-            tests/test_mini_history_e2e.py tests/test_mini_recovery_e2e.py -m e2e \
+          uv run --locked pytest -q tests/test_tui_e2e.py \
+            tests/test_history_e2e.py tests/test_recovery_e2e.py -m e2e \
             --basetemp=e2e-results/ci/tui --junitxml=e2e-results/ci/tui.xml
       - name: CLI startup check
-        run: uv run --locked cade-mini --help
+        run: uv run --locked cade --help
       - name: Module startup check
-        run: uv run --locked python -m cade_mini --help
+        run: uv run --locked python -m cade --help
       - name: Login startup check
-        run: uv run --locked cade-mini login --help
+        run: uv run --locked cade login --help
       - name: Build distributions
         run: uv build --no-sources
-      - name: Check installed wheel without Cade
+      - name: Check installed wheel
         shell: bash
         run: |
           uv venv --python 3.12 e2e-results/wheel-env
@@ -89,11 +89,11 @@ jobs:
             -r e2e-results/runtime-requirements.txt dist/*.whl
           mkdir -p e2e-results/wheel-workspace
           cd e2e-results/wheel-workspace
-          ../wheel-env/bin/cade-mini --help
-          ../wheel-env/bin/python -I -m cade_mini --help
-          ../wheel-env/bin/cade-mini login --help
+          ../wheel-env/bin/cade --help
+          ../wheel-env/bin/python -I -m cade --help
+          ../wheel-env/bin/cade login --help
           ../wheel-env/bin/python -I -c \
-            'import importlib.util; assert importlib.util.find_spec("cade") is None'
+            'import cade; print(cade.__file__)'
       - name: Calculate distribution checksums
         if: inputs.upload-artifacts
         working-directory: dist
@@ -124,6 +124,6 @@ jobs:
       - name: Check native Seatbelt execution and CLI integration
         run: |
           mkdir -p e2e-results/ci
-          uv run --locked pytest -q tests/test_mini_sandbox.py tests/test_mini_cli.py \
-            tests/test_mini_policy.py tests/test_mini_review.py \
+          uv run --locked pytest -q tests/test_sandbox.py tests/test_cli.py \
+            tests/test_policy.py tests/test_review.py \
             --basetemp=e2e-results/ci/pytest

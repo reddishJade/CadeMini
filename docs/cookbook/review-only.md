@@ -5,7 +5,7 @@ Use `plan` and `--read-only` when the task is to inspect, not change.
 ## Procedure
 
 ```bash
-cade-mini --mode plan --read-only "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
+cade --mode plan --read-only "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
 ```
 
 Plan mode hides write and edit tools and denies mutating shell commands.

@@ -8,20 +8,20 @@ repository's tests.
 1. Reproduce the failure:
 
    ```bash
-   cade-mini --mode plan "Read the failing test and explain the failure."
+   cade --mode plan "Read the failing test and explain the failure."
    ```
 
 2. Fix it:
 
    ```bash
-   cade-mini --mode build --yes "Fix the failing test with the smallest change, then run pytest."
+   cade --mode build --yes "Fix the failing test with the smallest change, then run pytest."
    ```
 
 3. Inspect the diff and the snapshot:
 
    ```bash
    git diff
-   cade-mini --undo  # only if the change is wrong
+   cade --undo  # only if the change is wrong
    ```
 
 ## Verify

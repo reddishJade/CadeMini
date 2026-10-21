@@ -1,6 +1,6 @@
 # MCP reference servers
 
-Cade Mini implements stdio `initialize`, `tools/list`, and `tools/call` with a
+Cade implements stdio `initialize`, `tools/list`, and `tools/call` with a
 persistent connection per server. That is enough for the reference servers that
 expose tools.
 
@@ -40,7 +40,7 @@ example `--repository <path>`; pass the exact arguments the server expects.
 
 ## Capability boundary
 
-The reference servers above are tool servers. Cade Mini does not implement MCP
+The reference servers above are tool servers. Cade does not implement MCP
 resources, prompts, sampling, or server-initiated requests. A server that relies
 on those features will start but expose only its tools.
 
@@ -60,11 +60,11 @@ plan mode and with `--read-only`, and can be allowed by a rule:
 ## Verify
 
 ```bash
-cade-mini --mode build "Use the time MCP tool to get the current time in Asia/Singapore."
+cade --mode build "Use the time MCP tool to get the current time in Asia/Singapore."
 ```
 
 The log records a `tool_result` with the server's text content. A server process
-is closed when Cade Mini exits.
+is closed when Cade exits.
 
 ## Related
 

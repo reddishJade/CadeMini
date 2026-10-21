@@ -1,6 +1,6 @@
 # Capability seams
 
-Cade Mini keeps a small number of explicit contracts. A seam is a place where an
+Cade keeps a small number of explicit contracts. A seam is a place where an
 implementation can be replaced without changing the session schema or the loop.
 
 | Seam | Contract | Implementations | Main consumers |
@@ -20,7 +20,7 @@ implementation can be replaced without changing the session schema or the loop.
 
 The loop needs a streaming event source: text deltas, tool calls, a final
 message, usage, and failures. A provider owns wire conversion and replay state.
-Cade Mini does not depend on provider-specific message types above this seam.
+Cade does not depend on provider-specific message types above this seam.
 
 ## Tool
 
@@ -56,6 +56,5 @@ changing either.
 
 ## Tests as contracts
 
-Each seam has a focused test module. `test_mini_boundary.py` enforces the import
-firewall, so a seam cannot quietly become a dependency on the Cade product
-layers.
+Each seam has a focused test module so a seam cannot quietly become a hidden
+dependency.

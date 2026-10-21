@@ -1,4 +1,4 @@
-# Cade Mini session schema
+# Cade session schema
 
 > This is the current persistent structure and projection contract.
 > Records have no format-version field.
@@ -169,7 +169,7 @@ hosts can render it differently.
 
 ## Storage
 
-- Directory: `.cade-mini/sessions/` by default.
+- Directory: `.cade/sessions/` by default.
 - File: `session-<id>.jsonl`.
 - New interactive sessions defer file creation until the first user or assistant
   message. Setup events stay in memory and are flushed with that message.

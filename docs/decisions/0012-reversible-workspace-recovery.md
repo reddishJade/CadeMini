@@ -6,7 +6,7 @@ Status: accepted
 
 History navigation preserves conversation branches but does not restore files.
 The existing file journal has no turn ownership or redo history. OpenCode's
-staged revert restores an entire range on redo, whereas Mini needs stepwise LIFO
+staged revert restores an entire range on redo, whereas Cade needs stepwise LIFO
 undo/redo. Claude Code and Gemini CLI provide the reference for selecting a user
 prompt and choosing conversation, code, or both.
 

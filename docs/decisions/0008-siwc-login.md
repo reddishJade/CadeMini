@@ -4,7 +4,7 @@ Status: accepted
 
 ## Context
 
-Cade Mini's legacy `openai-codex` provider used the legacy Codex OAuth flow. It
+Cade's legacy `openai-codex` provider used the legacy Codex OAuth flow. It
 relied on a fixed Codex client ID, a device-code endpoint, and the
 `chatgpt.com/backend-api` transport. OpenAI now documents Sign in with ChatGPT
 (SIWC) for open-source apps that use a user's ChatGPT plan. SIWC uses dynamic
@@ -47,20 +47,20 @@ implementation follows SIWC:
 - Function tools are sent in an `additional_tools` input item.
 - Device-code login is removed because SIWC does not define it.
 
-The stable host ID lives in `~/.cade-mini/host.json`, separate from
-`~/.cade-mini/auth.json`.
+The stable host ID lives in `~/.cade/host.json`, separate from
+`~/.cade/auth.json`.
 
 ## Consequences
 
 - Configurations that use `openai-codex` must change to `chatgpt`. Saved
-  `openai-codex` credentials are ignored, so run `cade-mini login` again.
+  `openai-codex` credentials are ignored, so run `cade login` again.
 - Headless hosts cannot use a device code. Complete login locally, copy
   `auth.json` to the remote host, and let that host create its own host ID on the
   next login. Or use an OpenAI API key.
 - The ChatGPT backend, Codex protocol headers, and Codex-specific request
   rewriting are removed.
-- `tests/test_mini_siwc_auth.py`, `tests/test_mini_auth.py`,
-  `tests/test_mini_provider.py`, and `tests/test_responses_siwc_contract.py`
+- `tests/test_siwc_auth.py`, `tests/test_auth.py`,
+  `tests/test_provider.py`, and `tests/test_responses_siwc_contract.py`
   enforce this contract.
 - `pyjwt[crypto]` is a dependency because ID token signature validation is
   required.

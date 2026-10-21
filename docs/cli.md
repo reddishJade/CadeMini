@@ -1,29 +1,29 @@
 # CLI
 
-The `cade-mini` entry point runs one task, starts an interactive terminal host,
+The `cade` entry point runs one task, starts an interactive terminal host,
 or manages sessions.
 
 ```bash
-cade-mini [TASK] [options]
-cade-mini exec TASK [options]
+cade [TASK] [options]
+cade exec TASK [options]
 ```
 
-`exec` is an explicit alias for a one-shot task. Without a task, `cade-mini`
+`exec` is an explicit alias for a one-shot task. Without a task, `cade`
 starts the TUI in an interactive terminal.
 
 ## Login
 
 ```bash
-cade-mini login
-cade-mini login --provider openai
-cade-mini login --provider deepseek
+cade login
+cade login --provider openai
+cade login --provider deepseek
 ```
 
 `--provider` defaults to `chatgpt`, which uses Sign in with ChatGPT (SIWC)
 in a browser. `openai` and `deepseek` use `api_key` with a hidden input prompt.
-Credentials are stored in `~/.cade-mini/auth.json`; the stable SIWC host ID is
-stored in `~/.cade-mini/host.json`. Login does not change project provider or
-model settings. Cade Mini supports only the Responses protocol. ChatGPT login
+Credentials are stored in `~/.cade/auth.json`; the stable SIWC host ID is
+stored in `~/.cade/host.json`. Login does not change project provider or
+model settings. Cade supports only the Responses protocol. ChatGPT login
 and OpenAI API keys expose the registered OpenAI chat model pool through separate
 authentication routes. A refreshable OAuth token still makes models selectable;
 the provider refreshes it when needed.
@@ -33,7 +33,7 @@ the provider refreshes it when needed.
 - `--project-root PATH` sets the workspace. The default is the current
   directory.
 - `--config PATH` selects a config file. The default is
-  `<project-root>/cade-mini.json`.
+  `<project-root>/cade.json`.
 - `--provider NAME`, `--model NAME`, and `--effort EFFORT` override provider
   defaults.
 - `--mode plan|build|ask` selects the work mode. Default is `build`.
@@ -132,7 +132,7 @@ conversation undo command.
   checks still apply.
 
 ```text
-Review @src/cade_mini/core/loop.py and use $review-only
+Review @src/cade/core/loop.py and use $review-only
 !git status
 ```
 
@@ -165,9 +165,9 @@ tool. See [Steering and queueing](design/steering-queue.md).
 ## Examples
 
 ```bash
-cade-mini --list-sessions
-cade-mini --continue "Summarize the current state."
-cade-mini --undo
-cade-mini --mode plan "Find the smallest fix for the failing test."
-cade-mini --mode build --yes "Fix the test and run pytest."
+cade --list-sessions
+cade --continue "Summarize the current state."
+cade --undo
+cade --mode plan "Find the smallest fix for the failing test."
+cade --mode build --yes "Fix the test and run pytest."
 ```

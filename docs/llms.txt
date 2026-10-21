@@ -1,9 +1,9 @@
-# Cade Mini
+# Cade
 
 > A small, durable coding agent built on one append-only session log.
 
 ## Overview
-- [Cade Mini](README.md)
+- [Cade](README.md)
 
 ## Start
 - [Quickstart](quickstart.md)
@@ -13,11 +13,11 @@
 ## Concepts
 - [Architecture](architecture.md)
 - [Sessions and context](sessions-context.md)
-- [How Cade Mini works](design/how-it-works.md)
+- [How Cade works](design/how-it-works.md)
 
 ## Design
 - [Code map](design/code-map.md)
-- [Relationship to Cade](design/cade-comparison.md)
+- [Relationship to the earlier Cade project](design/cade-comparison.md)
 - [Capability seams](design/capability-seams.md)
 - [Event model](design/event-model.md)
 - [Tool execution](design/tool-execution.md)
@@ -32,7 +32,7 @@
 - [Testing](design/testing.md)
 
 ## Reference
-- [Cade Mini session schema](reference/session-schema.md)
+- [Cade session schema](reference/session-schema.md)
 
 ## Subsystems
 - [Subsystems](subsystems/README.md)
@@ -63,7 +63,7 @@
 - [Hosts](hosts.md)
 - [Development](development.md)
 - [Validation guidelines](testing.md)
-- [Cade Mini review standards](review-standards.md)
+- [Cade review standards](review-standards.md)
 - [Parity](parity.md)
 
 ## History

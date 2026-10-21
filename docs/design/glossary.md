@@ -78,7 +78,7 @@ tool loads the body.
 
 ## MCP
 
-Model Context Protocol. Cade Mini runs stdio MCP servers and exposes their tools
+Model Context Protocol. Cade runs stdio MCP servers and exposes their tools
 as `mcp__<server>__<tool>`.
 
 ## subagent
@@ -92,5 +92,5 @@ A pre-change copy of a file, used by the one-shot `--undo` option.
 
 ## goal
 
-A durable objective in `.cade-mini/goal.json`, separate from the session
+A durable objective in `.cade/goal.json`, separate from the session
 schema.

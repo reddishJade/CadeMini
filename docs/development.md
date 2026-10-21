@@ -1,6 +1,6 @@
 # Development
 
-Cade Mini is maintained independently of Cade. Work from this repository root.
+Cade is maintained independently of Cade. Work from this repository root.
 
 ## Setup
 
@@ -17,20 +17,20 @@ uv sync --locked --extra dev --extra docs
 mkdir -p e2e-results
 ```
 
-Code lives in `src/cade_mini/`, tests in `tests/`, and documentation in `docs/`.
+Code lives in `src/cade/`, tests in `tests/`, and documentation in `docs/`.
 See [Architecture](architecture.md) for module boundaries.
 
 ## Checks
 
 ```bash
-uv run --locked ruff check src/cade_mini/ tests/
-uv run --locked ruff format --check src/cade_mini/ tests/
-uv run --locked pyright src/cade_mini/
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
 uv run --locked pytest -q tests --basetemp=e2e-results/pytest
-uv run --locked cade-mini --help
-uv run --locked python -m cade_mini --help
-uv run --locked cade-mini login --help
-uv run --locked python -m cade_mini.docs check
+uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
+uv run --locked python -m cade.docs check
 uv build --no-sources
 ```
 
@@ -45,10 +45,10 @@ navigation order and published pages. [docs/README.md](README.md) is the manual
 entry point. [docs/AGENTS.md](AGENTS.md) defines documentation rules.
 
 ```bash
-uv run --locked python -m cade_mini.docs catalogs --write
-uv run --locked python -m cade_mini.docs llms --write
-uv run --locked python -m cade_mini.docs build
-uv run --locked python -m cade_mini.docs check
+uv run --locked python -m cade.docs catalogs --write
+uv run --locked python -m cade.docs llms --write
+uv run --locked python -m cade.docs build
+uv run --locked python -m cade.docs check
 ```
 
 `check` validates the manifest, page files, relative links, anchors, and generated
@@ -73,9 +73,8 @@ research under `docs/history/`.
 
 ## Boundaries
 
-Mini owns the provider and process layers in `cade_mini.ai` and
-`cade_mini.execution_env`. `tests/test_mini_boundary.py` rejects imports from
-the old `cade` namespace. Do not add dependencies on the separate Cade project.
+Cade owns the provider and process layers in `cade.ai` and
+`cade.execution_env`. Do not add dependencies on the earlier Cade project.
 
 Public interfaces include the session schema, config fields, CLI flags, tool
 names, and docs manifest. Change them with tests and documentation in the same
@@ -84,8 +83,8 @@ commit.
 ## Commits and releases
 
 Review the diff and run checks before committing. Do not push or publish without
-maintainer approval. Confirm that the Git remote points to the Mini repository,
-not the separate Cade repository, before pushing.
+maintainer approval. Confirm that the Git remote points to this repository, not
+the earlier Cade project, before pushing.
 
 The CI workflow checks code, tests, docs, startup, and distribution builds.
 Version tags (`vX.Y.Z`) must match `pyproject.toml` and belong to `main`. The

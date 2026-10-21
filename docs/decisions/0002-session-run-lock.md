@@ -22,5 +22,5 @@ serialize whole turns.
 ## Consequences
 
 Hosts can report a busy session without blocking the event loop. Cancellation and
-exceptions release the lock. `test_mini_loop.py` covers concurrent async runs and
-resume after cancellation; `test_mini_log.py` covers competing processes.
+exceptions release the lock. `test_loop.py` covers concurrent async runs and
+resume after cancellation; `test_log.py` covers competing processes.

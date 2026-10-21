@@ -2,8 +2,8 @@
 
 ## File snapshots
 
-Cade Mini records a snapshot before a file tool changes a file. Snapshots live
-under `.cade-mini/snapshots` with a JSONL index and one directory per snapshot.
+Cade records a snapshot before a file tool changes a file. Snapshots live
+under `.cade/snapshots` with a JSONL index and one directory per snapshot.
 
 Covered changes:
 
@@ -24,7 +24,7 @@ Not covered:
 ## Undo
 
 ```bash
-cade-mini --undo
+cade --undo
 ```
 
 This legacy CLI operation restores one file snapshot without contacting a
@@ -69,7 +69,7 @@ code checkpoint incomplete rather than pretending that recovery is available.
 Unselected files and the user's Git index remain untouched. Directory trees,
 untracked shell/hook changes, and external side effects are not restored.
 
-Cooperating operations share `.cade-mini/recovery/workspace.lock`. The action
+Cooperating operations share `.cade/recovery/workspace.lock`. The action
 journal and checkpoint links use closed records under that directory. A
 `pending.json` plan stores both images before restoration begins. Files use
 atomic per-file replacement; a multi-file restore is not a filesystem-wide
@@ -89,11 +89,11 @@ rewind with conversation history.
 
 ## Goals
 
-A goal is one durable objective stored in `.cade-mini/goal.json`. It has an
+A goal is one durable objective stored in `.cade/goal.json`. It has an
 objective, a status (`active` or `done`), and an update time.
 
 ```bash
-cade-mini --goal "Add a regression test for the parser" "Start the task."
+cade --goal "Add a regression test for the parser" "Start the task."
 ```
 
 In the TUI:

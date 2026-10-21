@@ -1,7 +1,10 @@
 # Parity
 
-Cade Mini was accepted against Cade on two real repository workflows and a
-session resume. The full report is [Cade Mini parity](history/parity-acceptance.md).
+Before this project was renamed from Cade Mini to Cade, it was accepted against
+the earlier Cade project on two real repository workflows and a session resume.
+This page keeps the labels from that run: "Mini" means this project at the time,
+and "Cade" means the earlier project. The full report is
+[the historical parity acceptance](history/parity-acceptance.md).
 
 ## Workflows
 
@@ -29,7 +32,7 @@ Resume:
 
 - Mini ran with `--mode build --yes`; Cade ran with `--mode build --approval
   auto-review`.
-- Both used DeepSeek `deepseek-chat` at the time of the run. Cade Mini now
+- Both used DeepSeek `deepseek-chat` at the time of the run. Cade now
   supports only the Responses protocol.
 - Mini used five steps per workflow; Cade used four. Mini issued an extra `glob`
   inspection, which did not change the result.
@@ -50,4 +53,4 @@ Resume:
 The parity report records the concrete fixtures and observed results. Re-run a
 workflow by creating a clean fixture, running both agents with the same provider
 and settings, and comparing the diff and test result rather than the prose
-answer. Cade Mini supports only the Responses protocol.
+answer. Cade supports only the Responses protocol.

@@ -1,6 +1,6 @@
 # Configuration
 
-Cade Mini reads `<project-root>/cade-mini.json` by default. Use `--config PATH`
+Cade reads `<project-root>/cade.json` by default. Use `--config PATH`
 to select another file. Command-line options override the file; the file
 overrides built-in defaults.
 
@@ -16,7 +16,7 @@ silently ignored.
   "reasoning_effort": "high",
   "context_window": 128000,
   "max_steps": 30,
-  "sessions_dir": ".cade-mini/sessions",
+  "sessions_dir": ".cade/sessions",
   "mode": "build",
   "sandbox": "workspace-write",
   "network": true,
@@ -44,7 +44,7 @@ silently ignored.
 - `reasoning_effort`: provider reasoning effort. The CLI flag is `--effort`.
 - `context_window`: model context window in tokens. The default comes from the
   registered model metadata. Unregistered models require this field or
-  `--context-window`; Cade Mini rejects them otherwise.
+  `--context-window`; Cade rejects them otherwise.
 - `max_steps`: maximum model steps in one run.
 - `sessions_dir`: session directory. Relative paths resolve against the project
   root.

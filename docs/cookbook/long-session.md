@@ -8,7 +8,7 @@ goal, and the history tool.
 1. Set a goal:
 
    ```bash
-   cade-mini --goal "Migrate the request builder to the new budget model" "Start by mapping the current admission rules."
+   cade --goal "Migrate the request builder to the new budget model" "Start by mapping the current admission rules."
    ```
 
 2. Keep a working note. Ask the model to update `NOTE.md` after each milestone:
@@ -20,7 +20,7 @@ goal, and the history tool.
 3. Continue the same session:
 
    ```bash
-   cade-mini --continue "Resume from NOTE.md and run the next step."
+   cade --continue "Resume from NOTE.md and run the next step."
    ```
 
 4. Compact when the session grows:

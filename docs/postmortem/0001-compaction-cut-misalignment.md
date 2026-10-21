@@ -33,7 +33,7 @@ new task and the summary request contains the prior summary.
 
 ## Verification
 
-`test_mini_compaction.py::test_iterative_compaction_includes_prior_summary`
+`test_compaction.py::test_iterative_compaction_includes_prior_summary`
 passes. The projected roles are `system, summary, user`.
 
 ## Follow-up

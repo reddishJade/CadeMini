@@ -24,6 +24,6 @@ Treat session files as sensitive.
 
 Audits increase session size with each request. Compaction bounds model context,
 not log storage. `Request.as_record()` is pure and returns an isolated JSON tree.
-`test_mini_request.py` checks contents and credential exclusions;
-`test_mini_loop.py` checks audit-before-send with the provider inputs;
-`test_mini_log.py` checks nested audit validation.
+`test_request.py` checks contents and credential exclusions;
+`test_loop.py` checks audit-before-send with the provider inputs;
+`test_log.py` checks nested audit validation.

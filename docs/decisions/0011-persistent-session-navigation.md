@@ -4,7 +4,7 @@ Status: accepted
 
 ## Context
 
-Pi separates same-session tree navigation from fork and clone. Mini already has
+Pi separates same-session tree navigation from fork and clone. Cade already has
 parent-linked facts but follows the last physical record. Changing an in-memory
 cursor would lose the selected position on restart. A mutable sidecar creates a
 second authority, and copying a session cannot preserve same-session semantics.
@@ -35,10 +35,10 @@ and write one snapshot. Empty copies retain deferred persistence.
 
 Navigation survives restart without file rollback or an extra model request.
 
-[Storage](../../src/cade_mini/core/log.py),
-[tree projection](../../src/cade_mini/core/history.py), and
-[interaction commands](../../src/cade_mini/hosts/interaction.py) own the behavior.
-[Core tests](../../tests/test_mini_session_history.py) cover record preservation,
+[Storage](../../src/cade/core/log.py),
+[tree projection](../../src/cade/core/history.py), and
+[interaction commands](../../src/cade/hosts/interaction.py) own the behavior.
+[Core tests](../../tests/test_session_history.py) cover record preservation,
 references, locks, alternate branches, and copies.
-[TUI E2E tests](../../tests/test_mini_history_e2e.py) cover real input, restart,
+[TUI E2E tests](../../tests/test_history_e2e.py) cover real input, restart,
 request isolation, inactive forks, and independent sessions.

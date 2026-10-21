@@ -1,14 +1,29 @@
 # Upgrade guide
 
-Cade Mini is under active development. Breaking changes are allowed. Persisted
+Cade is under active development. Breaking changes are allowed. Persisted
 records have one current structure, with no compatibility or migration layer.
 See [Change policy](../persistence/change-policy.md).
 
+## Rename from Cade Mini
+
+The distribution, Python package, command, configuration file, and state
+directories are now `cade`. The tool does not read the old paths. To keep
+existing data, move it before the first run:
+
+```bash
+mv ~/.cade-mini ~/.cade
+mv .cade-mini .cade
+mv cade-mini.json cade.json
+```
+
+Repeat the project moves in each workspace that used the old name. Sessions,
+snapshots, goals, skills, and credentials keep working after the move.
+
 ## Sign in with ChatGPT
 
-Use `chatgpt` for ChatGPT plan usage and `cade-mini login` for Sign in with
+Use `chatgpt` for ChatGPT plan usage and `cade login` for Sign in with
 ChatGPT. For API-key authentication, use `openai` or `deepseek`. Credentials live
-under `~/.cade-mini/`. See [CLI authentication](../cli.md#login).
+under `~/.cade/`. See [CLI authentication](../cli.md#login).
 
 ## Session and workspace recovery
 

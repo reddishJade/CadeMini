@@ -18,7 +18,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
   blocked="$(git log --format= --name-only --no-renames --diff-filter=ACM \
     "$local_sha" --not --remotes=origin -- \
-    benchmarks .cade .cade-mini e2e-results benchmark-results eval-results evals)"
+    benchmarks .cade e2e-results benchmark-results eval-results evals)"
   if [[ -n "$blocked" ]]; then
     printf 'New public history contains internal assets:\n%s\n' "$blocked" >&2
     exit 1

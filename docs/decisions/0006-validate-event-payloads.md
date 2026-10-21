@@ -27,6 +27,6 @@ records from earlier unchecked writers now fail on read; fix their producer and
 inspect a backup rather than silently repairing complete records. Error messages
 identify the event type without including the rejected data.
 
-`test_mini_log.py` covers every event category, nested snapshot errors, rejection
+`test_log.py` covers every event category, nested snapshot errors, rejection
 before torn-tail repair, and read validation.
 Existing loop, provider, compaction, and acceptance tests exercise valid producers.

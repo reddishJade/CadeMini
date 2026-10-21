@@ -45,5 +45,5 @@ presentation; facts are durable. A host can drop events without losing history.
 
 ## Tests
 
-`test_mini_loop.py` covers completion, tool use, approvals, retries, timeouts,
+`test_loop.py` covers completion, tool use, approvals, retries, timeouts,
 cancellation, context errors, and window fallback.

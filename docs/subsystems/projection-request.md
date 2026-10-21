@@ -38,5 +38,5 @@ non-authentication options, and budget. Session files can contain sensitive inpu
 
 ## Tests
 
-`test_mini_projection.py`, `test_mini_request.py`, and
-`test_mini_compaction.py` cover cuts, strict admission, and wire-format contracts.
+`test_projection.py`, `test_request.py`, and
+`test_compaction.py` cover cuts, strict admission, and wire-format contracts.

@@ -2,7 +2,7 @@
 
 ## Hooks
 
-Hooks run shell commands around tools. They are configured in `cade-mini.json`:
+Hooks run shell commands around tools. They are configured in `cade.json`:
 
 ```json
 {
@@ -30,7 +30,7 @@ Hooks are trusted configuration. A hook that hangs is killed after its timeout.
 
 ## MCP
 
-MCP servers use stdio. Cade Mini starts one persistent process per server and
+MCP servers use stdio. Cade starts one persistent process per server and
 discovers its tools at startup:
 
 ```json

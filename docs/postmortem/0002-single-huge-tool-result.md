@@ -36,7 +36,7 @@ retrievable. A regression test covers a single huge result.
 
 ## Verification
 
-`test_mini_request.py::test_build_prunes_a_single_huge_tool_result` passes and
+`test_request.py::test_build_prunes_a_single_huge_tool_result` passes and
 the resulting request is under budget.
 
 ## Follow-up

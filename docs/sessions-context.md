@@ -1,19 +1,19 @@
 # Sessions and context
 
-A session is an append-only JSONL file under `.cade-mini/sessions` by default.
+A session is an append-only JSONL file under `.cade/sessions` by default.
 The file name is `session-<id>.jsonl`. The session title is derived from the
 first user message; no extra event type is needed.
 
 ## Resume
 
 ```bash
-cade-mini --list-sessions
-cade-mini --continue "Continue where we stopped."
-cade-mini --resume SESSION_ID "Explain the current state."
+cade --list-sessions
+cade --continue "Continue where we stopped."
+cade --resume SESSION_ID "Explain the current state."
 ```
 
 `--continue` and `--resume` open the latest or a specific session. Existing
-sessions keep their original system fact; a new `cade-mini.json` does not rewrite
+sessions keep their original system fact; a new `cade.json` does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.
 
 ## Tree, fork, and clone

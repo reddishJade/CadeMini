@@ -1,6 +1,6 @@
 # Hosts
 
-Cade Mini has one terminal host with two modes: an interactive TUI and one-shot
+Cade has one terminal host with two modes: an interactive TUI and one-shot
 execution. Both use the same session log, request builder, tools, policy, and
 core loop. The TUI uses `InteractionService` for commands and session control.
 
@@ -9,7 +9,7 @@ core loop. The TUI uses `InteractionService` for commands and session control.
 Without a task, the CLI starts the TUI in an interactive terminal:
 
 ```bash
-cade-mini
+cade
 ```
 
 The TUI keeps the conversation in a scrollable transcript, shows streaming
@@ -39,8 +39,8 @@ non-interactive process, provide a task instead.
 With a task, the CLI runs once and exits:
 
 ```bash
-cade-mini "Fix the failing test."
-cade-mini exec "Fix the failing test."
+cade "Fix the failing test."
+cade exec "Fix the failing test."
 ```
 
 One-shot mode supports `--json` for a JSONL event stream. Use `--read-only` or

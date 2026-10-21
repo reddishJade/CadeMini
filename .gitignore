@@ -4,7 +4,6 @@
 !/.agents/notes/**
 /.antigravitycli/
 /.cade/
-/.cade-mini/
 /.claude/
 /.codex/
 /.vscode/
@@ -18,7 +17,7 @@
 /.aws/
 /.local/
 .venv*/
-/cade-mini.json
+/cade.json
 /opencode.json*
 
 # Python 缓存与构建产物

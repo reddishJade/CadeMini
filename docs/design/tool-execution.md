@@ -55,9 +55,9 @@ from the branch, so pruning does not destroy evidence.
 
 ## Tests
 
-- `test_mini_loop.py` covers approval, errors, timeouts, cancellation, retries,
+- `test_loop.py` covers approval, errors, timeouts, cancellation, retries,
   and window fallback.
-- `test_mini_hooks.py` covers allow, deny, and after-hook execution.
-- `test_mini_policy.py` covers modes, rules, grants, and boundaries.
+- `test_hooks.py` covers allow, deny, and after-hook execution.
+- `test_policy.py` covers modes, rules, grants, and boundaries.
 
 See [Tools and security](../tools-security.md) for user-facing behavior.

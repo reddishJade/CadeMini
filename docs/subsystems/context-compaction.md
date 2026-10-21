@@ -49,5 +49,5 @@ transition or fails with `context_error`. See
 
 ## Tests
 
-`test_mini_compaction.py`, `test_mini_window.py`, `test_mini_history.py`, and
+`test_compaction.py`, `test_window.py`, `test_history.py`, and
 the request tests cover cuts, summaries, fallback, and retrieval.

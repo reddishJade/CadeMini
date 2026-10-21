@@ -1,22 +1,22 @@
 # Persistence catalog
 
-Cade Mini separates durable history from host state. The session log is the
+Cade separates durable history from host state. The session log is the
 authority for what the model saw and what happened; the other stores have
 narrower jobs.
 
 | Artifact | Default location | Owner | Lifetime | Schema |
 | --- | --- | --- | --- | --- |
-| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Current closed structure |
-| Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
-| Recovery | `.cade-mini/recovery/` | Recovery coordinator | Workspace | Closed records; action journal and pending plan |
-| Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
+| Session log | `.cade/sessions/session-*.jsonl` | `SessionLog` | Project | Current closed structure |
+| Snapshots | `.cade/snapshots/` | `SnapshotStore` | Project | Local index |
+| Recovery | `.cade/recovery/` | Recovery coordinator | Workspace | Closed records; action journal and pending plan |
+| Goal | `.cade/goal.json` | `GoalStore` | Project | One object |
 | Working note | `NOTE.md` | Project | Project | Markdown |
 | Memory | `MEMORY.md` | `MemoryTool` | Project | Markdown |
 | Instructions | `AGENTS.md`, `CLAUDE.md`, overrides | Project | Project | Markdown |
-| Skills | `~/.cade-mini/skills`, `.cade-mini/skills` | Discovery | User or project | `SKILL.md` |
-| Config | `cade-mini.json` | `MiniConfig` | Project | Pydantic, strict |
-| Credentials | `~/.cade-mini/auth.json` | `JsonCredentialStore` | User | Provider credentials |
-| SIWC host ID | `~/.cade-mini/host.json` | `load_or_create_host_id` | User | Stable agent host identifier |
+| Skills | `~/.cade/skills`, `.cade/skills` | Discovery | User or project | `SKILL.md` |
+| Config | `cade.json` | `CadeConfig` | Project | Pydantic, strict |
+| Credentials | `~/.cade/auth.json` | `JsonCredentialStore` | User | Provider credentials |
+| SIWC host ID | `~/.cade/host.json` | `load_or_create_host_id` | User | Stable agent host identifier |
 | Docs site | `docs/index.html` | Docs tool | Repository | Generated |
 | LLM catalogs | `docs/llms*.txt` | Docs tool | Repository | Generated |
 

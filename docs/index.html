@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cade Mini</title>
+<title>Cade</title>
 <meta name="description" content="A small, durable coding agent built on one append-only session log.">
 <style>
 :root { --ink:#1d1c19; --paper:#faf9f5; --muted:#6b6961; --line:#ddd9ce; --accent:#b85c3d; --code:#f1efe8; }
@@ -34,9 +34,9 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 </style>
 </head>
 <body>
-<header><strong>Cade Mini</strong><input id="search" placeholder="Search docs" aria-label="Search docs"><button id="theme" type="button">Theme</button></header>
+<header><strong>Cade</strong><input id="search" placeholder="Search docs" aria-label="Search docs"><button id="theme" type="button">Theme</button></header>
 <main><nav><div class="nav-group"><p>Overview</p>
-<a href="#page-readme">Cade Mini</a>
+<a href="#page-readme">Cade</a>
 </div>
 <div class="nav-group"><p>Start</p>
 <a href="#page-quickstart">Quickstart</a>
@@ -46,11 +46,11 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <div class="nav-group"><p>Concepts</p>
 <a href="#page-architecture">Architecture</a>
 <a href="#page-sessions-context">Sessions and context</a>
-<a href="#page-how-it-works">How Cade Mini works</a>
+<a href="#page-how-it-works">How Cade works</a>
 </div>
 <div class="nav-group"><p>Design</p>
 <a href="#page-code-map">Code map</a>
-<a href="#page-cade-comparison">Relationship to Cade</a>
+<a href="#page-cade-comparison">Relationship to the earlier Cade project</a>
 <a href="#page-capability-seams">Capability seams</a>
 <a href="#page-event-model">Event model</a>
 <a href="#page-tool-execution">Tool execution</a>
@@ -65,7 +65,7 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <a href="#page-testing">Testing</a>
 </div>
 <div class="nav-group"><p>Reference</p>
-<a href="#page-session-schema">Cade Mini session schema</a>
+<a href="#page-session-schema">Cade session schema</a>
 </div>
 <div class="nav-group"><p>Subsystems</p>
 <a href="#page-readme">Subsystems</a>
@@ -96,7 +96,7 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <a href="#page-hosts">Hosts</a>
 <a href="#page-development">Development</a>
 <a href="#page-testing">Validation guidelines</a>
-<a href="#page-review-standards">Cade Mini review standards</a>
+<a href="#page-review-standards">Cade review standards</a>
 <a href="#page-parity">Parity</a>
 </div>
 <div class="nav-group"><p>History</p>
@@ -109,9 +109,9 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <a href="#page-design-proposal">Cade Mini: a full refactor of Cade&#x27;s core</a>
 <a href="#page-harvest-audit">Cade Mini harvest audit</a>
 <a href="#page-parity-acceptance">Cade Mini parity acceptance</a>
-</div></nav><article><section class="page" id="page-readme" data-title="Cade Mini">
-<h1>Cade Mini</h1>
-<p>Cade Mini is a standalone coding agent. It keeps one rule at the center of the
+</div></nav><article><section class="page" id="page-readme" data-title="Cade">
+<h1>Cade</h1>
+<p>Cade is a standalone coding agent. It keeps one rule at the center of the
 design:</p>
 <blockquote>
 <p>The session log is the source of truth. The model-visible history is a
@@ -124,7 +124,7 @@ process restarts without inventing history.</p>
 <ul>
 <li><a href="#page-quickstart">Quickstart</a> installs and runs the first task.</li>
 <li><a href="#page-cli">CLI</a> lists one-shot, TUI, session, and recovery commands.</li>
-<li><a href="#page-configuration">Configuration</a> documents <code>cade-mini.json</code>.</li>
+<li><a href="#page-configuration">Configuration</a> documents <code>cade.json</code>.</li>
 <li><a href="#page-architecture">Architecture</a> explains the log, projection, request, and run
 pipeline.</li>
 <li><a href="#page-sessions-context">Sessions and context</a> covers resume, compaction,
@@ -140,7 +140,7 @@ analysis.</li>
 </ul>
 <h2>Design</h2>
 <ul>
-<li><a href="#page-how-it-works">How Cade Mini works</a> is the short end-to-end model.</li>
+<li><a href="#page-how-it-works">How Cade works</a> is the short end-to-end model.</li>
 <li><a href="#page-code-map">Code map</a> explains package boundaries and entry points.</li>
 <li><a href="#page-cade-comparison">Relationship to Cade</a> explains independent ownership.</li>
 <li><a href="#page-capability-seams">Capability seams</a> lists the replaceable
@@ -179,7 +179,7 @@ change policy.</li>
 contract. Historical research and acceptance records describe the project before
 it became independent:</p>
 <ul>
-<li><a href="#page-design-proposal">Cade Mini design</a></li>
+<li><a href="#page-design-proposal">Cade design</a></li>
 <li><a href="#page-session-schema">Session log schema</a></li>
 <li><a href="#page-harvest-audit">Harvest notes</a></li>
 <li><a href="#page-parity-acceptance">Parity acceptance</a></li>
@@ -187,10 +187,10 @@ it became independent:</p>
 <h2>Built docs</h2>
 <p>The docs are Markdown-first. A small tool validates links and anchors, builds a
 single-page site, and generates an <code>llms.txt</code> catalog for agents:</p>
-<pre><code class="language-bash">python -m cade_mini.docs check
-python -m cade_mini.docs build
-python -m cade_mini.docs llms --write
-python -m cade_mini.docs catalogs --write
+<pre><code class="language-bash">python -m cade.docs check
+python -m cade.docs build
+python -m cade.docs llms --write
+python -m cade.docs catalogs --write
 </code></pre>
 <p>The generated site is <a href="index.html">docs/index.html</a>; the generated
 catalogs are <code>docs/llms.txt</code>, <code>docs/llms-full.txt</code>, and the
@@ -199,43 +199,44 @@ config, event, and module pages under <code>design/</code>.</p>
 </section>
 <section class="page" id="page-quickstart" data-title="Quickstart">
 <h1>Quickstart</h1>
-<p>Cade Mini requires Python 3.12 or newer. The repository uses <code>uv</code> for
-development and for the <code>cade-mini</code> entry point.</p>
+<p>Cade requires Python 3.12 or newer. The repository uses <code>uv</code> for
+development and for the <code>cade</code> entry point.</p>
 <h2>Install and authenticate</h2>
 <p>From the repository root:</p>
 <pre><code class="language-bash">uv sync --locked
 </code></pre>
-<p>Cade Mini owns its credential store at <code>~/.cade-mini/auth.json</code>. Log in with
+<p>Cade owns its credential store at <code>~/.cade/auth.json</code>. Log in with
 Sign in with ChatGPT (SIWC) in a browser:</p>
-<pre><code class="language-bash">uv run --locked cade-mini login
+<pre><code class="language-bash">uv run --locked cade login
 </code></pre>
-<p>The browser flow registers Cade Mini on first use and reuses that registration
-on later sign-ins. It stores a stable host ID at <code>~/.cade-mini/host.json</code>. SIWC
+<p>The browser flow registers Cade on first use and reuses that registration
+on later sign-ins. It stores a stable host ID at <code>~/.cade/host.json</code>. SIWC
 has no device-code flow. On a headless host, complete the login locally, copy
 <code>auth.json</code>, and let the remote host create its own host ID on the next login.
 Or use an API key.</p>
 <p>For an OpenAI API key, use a hidden key prompt or set the environment variable:</p>
-<pre><code class="language-bash">uv run --locked cade-mini login --provider openai
+<pre><code class="language-bash">uv run --locked cade login --provider openai
 export OPENAI_API_KEY=...
-uv run --locked cade-mini --provider openai --model gpt-5.5 &quot;Review this project.&quot;
+uv run --locked cade --provider openai --model gpt-5.5 &quot;Review this project.&quot;
 </code></pre>
 <p>DeepSeek uses the same Responses protocol with its own API key:</p>
-<pre><code class="language-bash">uv run --locked cade-mini login --provider deepseek
+<pre><code class="language-bash">uv run --locked cade login --provider deepseek
 export DEEPSEEK_API_KEY=...
-uv run --locked cade-mini --provider deepseek --model deepseek-flash &quot;Review this project.&quot;
+uv run --locked cade --provider deepseek --model deepseek-flash &quot;Review this project.&quot;
 </code></pre>
 <p>The default provider is <code>chatgpt</code>. Set <code>provider</code> and <code>model</code> in
-<code>cade-mini.json</code> to choose other startup defaults. Cade Mini supports only the
+<code>cade.json</code> to choose other startup defaults. Cade supports only the
 Responses protocol: <code>chatgpt</code> for ChatGPT plan usage, <code>openai</code> for an OpenAI
-API key, and <code>deepseek</code> for a DeepSeek API key. Mini does not read Cade's
-credentials, skills, or settings.</p>
+API key, and <code>deepseek</code> for a DeepSeek API key. State from the earlier Cade
+project is not compatible; use clean <code>~/.cade/</code> and workspace <code>.cade/</code>
+directories.</p>
 <h2>Run one task</h2>
-<pre><code class="language-bash">uv run --locked cade-mini &quot;Read README.md and explain the entry point in three bullets.&quot;
+<pre><code class="language-bash">uv run --locked cade &quot;Read README.md and explain the entry point in three bullets.&quot;
 </code></pre>
 <p>The same command can be written explicitly:</p>
-<pre><code class="language-bash">uv run --locked cade-mini exec &quot;Read README.md and explain the entry point.&quot;
+<pre><code class="language-bash">uv run --locked cade exec &quot;Read README.md and explain the entry point.&quot;
 </code></pre>
-<p>Cade Mini runs in the current directory by default. Use <code>--project-root</code> to
+<p>Cade runs in the current directory by default. Use <code>--project-root</code> to
 point at another workspace.</p>
 <h2>Choose a mode</h2>
 <ul>
@@ -245,47 +246,47 @@ commands still ask.</li>
 <li><code>plan</code> hides write and edit tools and denies mutations. Read-only shell
 commands are allowed.</li>
 </ul>
-<pre><code class="language-bash">uv run --locked cade-mini --mode plan &quot;Propose a fix for the failing test.&quot;
-uv run --locked cade-mini --mode build &quot;Fix the bug and run the test.&quot;
+<pre><code class="language-bash">uv run --locked cade --mode plan &quot;Propose a fix for the failing test.&quot;
+uv run --locked cade --mode build &quot;Fix the bug and run the test.&quot;
 </code></pre>
 <p>For non-interactive automation, <code>--yes</code> approves asks, and <code>--read-only</code> denies
 writes and shell commands. Prefer rule-based allows over <code>--yes</code> for shared
 repositories; see <a href="#page-configuration">Configuration</a>.</p>
 <h2>Continue work</h2>
-<p>Sessions live under <code>.cade-mini/sessions</code> by default.</p>
-<pre><code class="language-bash">uv run --locked cade-mini --list-sessions
-uv run --locked cade-mini --continue &quot;What did you change?&quot;
-uv run --locked cade-mini --resume SESSION_ID &quot;Continue the task.&quot;
+<p>Sessions live under <code>.cade/sessions</code> by default.</p>
+<pre><code class="language-bash">uv run --locked cade --list-sessions
+uv run --locked cade --continue &quot;What did you change?&quot;
+uv run --locked cade --resume SESSION_ID &quot;Continue the task.&quot;
 </code></pre>
 <p>Omitting the task starts the full-screen TUI. See <a href="#page-cli">CLI</a> for interactive
 commands and <a href="#page-hosts">Hosts</a> for key bindings.</p>
 <h2>Build the docs</h2>
 <pre><code class="language-bash">uv sync --locked --extra docs
-uv run --locked python -m cade_mini.docs check
-uv run --locked python -m cade_mini.docs build
+uv run --locked python -m cade.docs check
+uv run --locked python -m cade.docs build
 </code></pre>
 <p>Open <code>docs/index.html</code>. The docs source is under <code>docs/</code>.</p>
 
 </section>
 <section class="page" id="page-cli" data-title="CLI">
 <h1>CLI</h1>
-<p>The <code>cade-mini</code> entry point runs one task, starts an interactive terminal host,
+<p>The <code>cade</code> entry point runs one task, starts an interactive terminal host,
 or manages sessions.</p>
-<pre><code class="language-bash">cade-mini [TASK] [options]
-cade-mini exec TASK [options]
+<pre><code class="language-bash">cade [TASK] [options]
+cade exec TASK [options]
 </code></pre>
-<p><code>exec</code> is an explicit alias for a one-shot task. Without a task, <code>cade-mini</code>
+<p><code>exec</code> is an explicit alias for a one-shot task. Without a task, <code>cade</code>
 starts the TUI in an interactive terminal.</p>
 <h2>Login</h2>
-<pre><code class="language-bash">cade-mini login
-cade-mini login --provider openai
-cade-mini login --provider deepseek
+<pre><code class="language-bash">cade login
+cade login --provider openai
+cade login --provider deepseek
 </code></pre>
 <p><code>--provider</code> defaults to <code>chatgpt</code>, which uses Sign in with ChatGPT (SIWC)
 in a browser. <code>openai</code> and <code>deepseek</code> use <code>api_key</code> with a hidden input prompt.
-Credentials are stored in <code>~/.cade-mini/auth.json</code>; the stable SIWC host ID is
-stored in <code>~/.cade-mini/host.json</code>. Login does not change project provider or
-model settings. Cade Mini supports only the Responses protocol. ChatGPT login
+Credentials are stored in <code>~/.cade/auth.json</code>; the stable SIWC host ID is
+stored in <code>~/.cade/host.json</code>. Login does not change project provider or
+model settings. Cade supports only the Responses protocol. ChatGPT login
 and OpenAI API keys expose the registered OpenAI chat model pool through separate
 authentication routes. A refreshable OAuth token still makes models selectable;
 the provider refreshes it when needed.</p>
@@ -294,7 +295,7 @@ the provider refreshes it when needed.</p>
 <li><code>--project-root PATH</code> sets the workspace. The default is the current
 directory.</li>
 <li><code>--config PATH</code> selects a config file. The default is
-<code>&lt;project-root&gt;/cade-mini.json</code>.</li>
+<code>&lt;project-root&gt;/cade.json</code>.</li>
 <li><code>--provider NAME</code>, <code>--model NAME</code>, and <code>--effort EFFORT</code> override provider
 defaults.</li>
 <li><code>--mode plan|build|ask</code> selects the work mode. Default is <code>build</code>.</li>
@@ -389,7 +390,7 @@ conversation undo command.</p>
 <li><code>!command</code> runs a shell command without contacting the model. Permission
 checks still apply.</li>
 </ul>
-<pre><code class="language-text">Review @src/cade_mini/core/loop.py and use $review-only
+<pre><code class="language-text">Review @src/cade/core/loop.py and use $review-only
 !git status
 </code></pre>
 <p>During a task, the TUI keeps reading input:</p>
@@ -417,17 +418,17 @@ tool. See <a href="#page-steering-queue">Steering and queueing</a>.</p>
 <li><code>130</code>: login was cancelled.</li>
 </ul>
 <h2>Examples</h2>
-<pre><code class="language-bash">cade-mini --list-sessions
-cade-mini --continue &quot;Summarize the current state.&quot;
-cade-mini --undo
-cade-mini --mode plan &quot;Find the smallest fix for the failing test.&quot;
-cade-mini --mode build --yes &quot;Fix the test and run pytest.&quot;
+<pre><code class="language-bash">cade --list-sessions
+cade --continue &quot;Summarize the current state.&quot;
+cade --undo
+cade --mode plan &quot;Find the smallest fix for the failing test.&quot;
+cade --mode build --yes &quot;Fix the test and run pytest.&quot;
 </code></pre>
 
 </section>
 <section class="page" id="page-configuration" data-title="Configuration">
 <h1>Configuration</h1>
-<p>Cade Mini reads <code>&lt;project-root&gt;/cade-mini.json</code> by default. Use <code>--config PATH</code>
+<p>Cade reads <code>&lt;project-root&gt;/cade.json</code> by default. Use <code>--config PATH</code>
 to select another file. Command-line options override the file; the file
 overrides built-in defaults.</p>
 <p>The file is strict: unknown keys and invalid values are rejected instead of
@@ -439,7 +440,7 @@ silently ignored.</p>
   &quot;reasoning_effort&quot;: &quot;high&quot;,
   &quot;context_window&quot;: 128000,
   &quot;max_steps&quot;: 30,
-  &quot;sessions_dir&quot;: &quot;.cade-mini/sessions&quot;,
+  &quot;sessions_dir&quot;: &quot;.cade/sessions&quot;,
   &quot;mode&quot;: &quot;build&quot;,
   &quot;sandbox&quot;: &quot;workspace-write&quot;,
   &quot;network&quot;: true,
@@ -466,7 +467,7 @@ key, or <code>deepseek</code> for a DeepSeek API key. The CLI flags override bot
 <li><code>reasoning_effort</code>: provider reasoning effort. The CLI flag is <code>--effort</code>.</li>
 <li><code>context_window</code>: model context window in tokens. The default comes from the
 registered model metadata. Unregistered models require this field or
-<code>--context-window</code>; Cade Mini rejects them otherwise.</li>
+<code>--context-window</code>; Cade rejects them otherwise.</li>
 <li><code>max_steps</code>: maximum model steps in one run.</li>
 <li><code>sessions_dir</code>: session directory. Relative paths resolve against the project
 root.</li>
@@ -538,7 +539,7 @@ are denied in plan mode and read-only mode, and can be allowed by a rule.</p>
 </section>
 <section class="page" id="page-architecture" data-title="Architecture">
 <h1>Architecture</h1>
-<p>Cade Mini is a standalone coding agent in <code>src/cade_mini/</code>. It uses a pipeline
+<p>Cade is a standalone coding agent in <code>src/cade/</code>. It uses a pipeline
 with four stages. Each stage has one owner and one direction of data flow.</p>
 <pre><code class="language-text">Session log -&gt; Conversation projection -&gt; Request -&gt; Run
 </code></pre>
@@ -613,11 +614,10 @@ retrieval.</li>
 <code>app/instructions.py</code>, <code>app/note.py</code>: startup and request context.</li>
 <li><code>hosts/cli.py</code>, <code>docs.py</code>: hosts and documentation.</li>
 </ul>
-<p>Mini owns <code>cade_mini.ai</code> and <code>cade_mini.execution_env</code> as lower layers for
+<p>Cade owns <code>cade.ai</code> and <code>cade.execution_env</code> as lower layers for
 provider protocols and local process execution. It does not depend on the
-separate Cade project. <code>test_mini_boundary.py</code> rejects old Cade imports and
-application dependencies in these lower layers. There are no top-level
-re-exports; import the owning submodule directly.</p>
+earlier Cade project. There are no top-level re-exports; import the owning
+submodule directly.</p>
 <h2>Recovery</h2>
 <p>Hosts inject a <code>TurnLifecycle</code> into the core loop. It creates a root-turn
 checkpoint before the user fact, links it after that fact, and closes it after
@@ -641,32 +641,33 @@ transport with the same Responses stream format and its own endpoint.
 <code>core/permissions.py</code> carries structured approval results and per-call scopes.
 The CLI confines shell and file workers on Linux/macOS; Windows runs directly.
 See <a href="#page-tools-security">Tools and security</a> for boundaries and trusted extensions.</p>
-<p>Credentials and user skills use <code>~/.cade-mini/</code>. The SIWC host ID lives in
-<code>~/.cade-mini/host.json</code>. Sessions, snapshots, goals,
-and project skills use <code>&lt;workspace&gt;/.cade-mini/</code>. Project settings live in
-<code>cade-mini.json</code>. Mini does not discover old Cade state.</p>
+<p>Credentials and user skills use <code>~/.cade/</code>. The SIWC host ID lives in
+<code>~/.cade/host.json</code>. Sessions, snapshots, goals,
+and project skills use <code>&lt;workspace&gt;/.cade/</code>. Project settings live in
+<code>cade.json</code>. The earlier Cade project's state formats are not compatible with
+this project; start from clean <code>~/.cade/</code> and workspace <code>.cade/</code> directories.</p>
 <p>See the <a href="#page-code-map">code map</a> and
 <a href="#page-persistence-catalog">persistence catalog</a> for implementation locations
 and durable state ownership.</p>
 <h2>Why the split</h2>
 <p>The split prevents a common failure: the request builder starts hiding
-messages, then the history rewrite becomes the only copy of what happened. Mini
+messages, then the history rewrite becomes the only copy of what happened. Cade
 keeps the original facts and lets the projection and admission be replaced
 without losing history.</p>
 
 </section>
 <section class="page" id="page-sessions-context" data-title="Sessions and context">
 <h1>Sessions and context</h1>
-<p>A session is an append-only JSONL file under <code>.cade-mini/sessions</code> by default.
+<p>A session is an append-only JSONL file under <code>.cade/sessions</code> by default.
 The file name is <code>session-&lt;id&gt;.jsonl</code>. The session title is derived from the
 first user message; no extra event type is needed.</p>
 <h2>Resume</h2>
-<pre><code class="language-bash">cade-mini --list-sessions
-cade-mini --continue &quot;Continue where we stopped.&quot;
-cade-mini --resume SESSION_ID &quot;Explain the current state.&quot;
+<pre><code class="language-bash">cade --list-sessions
+cade --continue &quot;Continue where we stopped.&quot;
+cade --resume SESSION_ID &quot;Explain the current state.&quot;
 </code></pre>
 <p><code>--continue</code> and <code>--resume</code> open the latest or a specific session. Existing
-sessions keep their original system fact; a new <code>cade-mini.json</code> does not rewrite
+sessions keep their original system fact; a new <code>cade.json</code> does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.</p>
 <h2>Tree, fork, and clone</h2>
 <table>
@@ -770,12 +771,12 @@ never become conversation facts. See <a href="#page-architecture">Architecture</
 <a href="#page-design-proposal">design</a>.</p>
 
 </section>
-<section class="page" id="page-how-it-works" data-title="How Cade Mini works">
-<h1>How Cade Mini works</h1>
-<p>Cade Mini coordinates one model request at a time, executes the requested tools,
+<section class="page" id="page-how-it-works" data-title="How Cade works">
+<h1>How Cade works</h1>
+<p>Cade coordinates one model request at a time, executes the requested tools,
 and records every durable fact in a session log.</p>
 <h2>One run</h2>
-<p>A submitted task is appended as a <code>user</code> fact. Cade Mini projects the active
+<p>A submitted task is appended as a <code>user</code> fact. Cade projects the active
 branch, builds a request for the current budget, and sends it to the provider.
 The provider streams text and tool calls. The loop records the assistant
 message, executes each tool call, and records a tool result. If the model needs
@@ -792,7 +793,7 @@ the original facts.</p>
 context start forward and may include a handoff. Neither operation rewrites the
 original messages.</p>
 <h2>Sessions</h2>
-<p>Sessions are JSONL files under <code>.cade-mini/sessions</code>. Entries have IDs and parent
+<p>Sessions are JSONL files under <code>.cade/sessions</code>. Entries have IDs and parent
 IDs, so a session can form a tree; the active branch ends at the latest entry.
 Resuming opens the same file and appends new facts.</p>
 <h2>Interfaces</h2>
@@ -814,11 +815,11 @@ shell and file tools also use OS confinement; Windows runs directly. See
 </section>
 <section class="page" id="page-code-map" data-title="Code map">
 <h1>Code map</h1>
-<p>Cade Mini is an independent project. The <code>cade-mini</code> distribution installs the
-<code>cade_mini</code> package and the <code>cade-mini</code> command. It does not install or depend
-on Cade.</p>
+<p>Cade is an independent project. The <code>cade</code> distribution installs the
+<code>cade</code> package and the <code>cade</code> command. It does not install or depend
+on the earlier Cade project.</p>
 <h2>Package layout</h2>
-<pre><code class="language-text">src/cade_mini/
+<pre><code class="language-text">src/cade/
   ai/             provider adapters, events, auth protocols, models
   execution_env/  local subprocess execution and output capture
   core/           log, projection, request, loop, compaction, window
@@ -831,20 +832,21 @@ on Cade.</p>
   __main__.py
 tests/            regression and integration tests
 </code></pre>
-<p>Provider and execution modules originated in Cade and are now owned and
-maintained here. Mini includes only the process execution code it uses, not
-Cade's filesystem or Linux sandbox implementation. Mini's own process wrapper
-uses installed bubblewrap on Linux and Seatbelt on macOS; Windows runs directly.</p>
+<p>Provider and execution modules originated in the earlier Cade project and are
+now owned and maintained here. Cade includes only the process execution code it
+uses, not the earlier project's filesystem or Linux sandbox implementation. Its
+own process wrapper uses installed bubblewrap on Linux and Seatbelt on macOS;
+Windows runs directly.</p>
 <h2>Entry points</h2>
-<pre><code class="language-bash">uv run --locked cade-mini
-uv run --locked cade-mini exec &quot;Fix the failing test.&quot;
-uv run --locked python -m cade_mini
-uv run --locked cade-mini login
+<pre><code class="language-bash">uv run --locked cade
+uv run --locked cade exec &quot;Fix the failing test.&quot;
+uv run --locked python -m cade
+uv run --locked cade login
 </code></pre>
-<p>The console script and Python module call <code>cade_mini.hosts.cli:main</code>. Login
-is handled by <code>cade_mini.hosts.auth</code>. Credentials and user skills live under
-<code>~/.cade-mini/</code>. Project sessions and other state live under <code>.cade-mini/</code>.
-No old Cade directories or commands are used.</p>
+<p>The console script and Python module call <code>cade.hosts.cli:main</code>. Login
+is handled by <code>cade.hosts.auth</code>. Credentials and user skills live under
+<code>~/.cade/</code>. Project sessions and other state live under <code>.cade/</code>.
+State from the earlier Cade project is not compatible.</p>
 <h2>Import direction</h2>
 <ul>
 <li><code>ai</code> and <code>execution_env</code> do not import application or host modules.</li>
@@ -853,24 +855,25 @@ No old Cade directories or commands are used.</p>
 <li><code>app</code> owns startup settings, credential persistence, and request context.</li>
 <li><code>hosts</code> assemble these components and own user interaction.</li>
 </ul>
-<p><code>tests/test_mini_boundary.py</code> rejects imports from the old <code>cade</code> namespace
-and application imports in the lower layers. The package root has no public
-re-exports; import the owning submodule directly.</p>
+<p>The package root has no public re-exports; import the owning submodule
+directly.</p>
 <p>See <a href="#page-architecture">Architecture</a>,
-<a href="#page-how-it-works">How Cade Mini works</a>, and
+<a href="#page-how-it-works">How Cade works</a>, and
 <a href="#page-capability-seams">Capability seams</a> for runtime contracts.</p>
 
 </section>
-<section class="page" id="page-cade-comparison" data-title="Relationship to Cade">
-<h1>Relationship to Cade</h1>
-<p>Cade and Cade Mini are separate projects. This repository develops, tests, and
-releases only Cade Mini. It does not provide compatibility with Cade's Python
-package, commands, settings, credentials, or session formats.</p>
-<p>Mini originated as a log-first implementation alongside Cade. Its provider
-adapters and process execution code were brought into the <code>cade_mini</code> package
-when it became independent. They are no longer shared runtime dependencies.</p>
-<h2>Mini's product boundary</h2>
-<p>Mini provides a terminal TUI and one-shot execution. Its core separates
+<section class="page" id="page-cade-comparison" data-title="Relationship to the earlier Cade project">
+<h1>Relationship to the earlier Cade project</h1>
+<p>This repository was previously named Cade Mini. It is separate from the earlier
+Cade implementation. It develops, tests, and releases only this Cade
+implementation and does not provide compatibility with the earlier project's
+Python package, commands, settings, credentials, or session formats.</p>
+<p>This project originated as a log-first implementation alongside the earlier
+Cade. Its provider adapters and process execution code were brought into the
+<code>cade</code> package when it became independent. They are no longer shared runtime
+dependencies.</p>
+<h2>Product boundary</h2>
+<p>Cade provides a terminal TUI and one-shot execution. Its core separates
 append-only session facts, deterministic projection, request admission, and the
 run loop.</p>
 <p>Intentional limits include:</p>
@@ -887,7 +890,7 @@ before separation. It is not a promise of future feature parity. See the
 </section>
 <section class="page" id="page-capability-seams" data-title="Capability seams">
 <h1>Capability seams</h1>
-<p>Cade Mini keeps a small number of explicit contracts. A seam is a place where an
+<p>Cade keeps a small number of explicit contracts. A seam is a place where an
 implementation can be replaced without changing the session schema or the loop.</p>
 <table>
 <thead>
@@ -964,7 +967,7 @@ implementation can be replaced without changing the session schema or the loop.<
 <h2>Provider</h2>
 <p>The loop needs a streaming event source: text deltas, tool calls, a final
 message, usage, and failures. A provider owns wire conversion and replay state.
-Cade Mini does not depend on provider-specific message types above this seam.</p>
+Cade does not depend on provider-specific message types above this seam.</p>
 <h2>Tool</h2>
 <p>A tool declares a JSON schema and an async <code>execute</code>. A tool result is content,
 an error flag, and optional metadata. Tools do not write the session log; the
@@ -988,9 +991,8 @@ state.</p>
 the agent loop or the schema. The CLI renders events and runs tasks without
 changing either.</p>
 <h2>Tests as contracts</h2>
-<p>Each seam has a focused test module. <code>test_mini_boundary.py</code> enforces the import
-firewall, so a seam cannot quietly become a dependency on the Cade product
-layers.</p>
+<p>Each seam has a focused test module so a seam cannot quietly become a hidden
+dependency.</p>
 
 </section>
 <section class="page" id="page-event-model" data-title="Event model">
@@ -1144,16 +1146,16 @@ reference that names the <code>call_id</code>. The history tool retrieves the ex
 from the branch, so pruning does not destroy evidence.</p>
 <h2>Tests</h2>
 <ul>
-<li><code>test_mini_loop.py</code> covers approval, errors, timeouts, cancellation, retries,
+<li><code>test_loop.py</code> covers approval, errors, timeouts, cancellation, retries,
 and window fallback.</li>
-<li><code>test_mini_hooks.py</code> covers allow, deny, and after-hook execution.</li>
-<li><code>test_mini_policy.py</code> covers modes, rules, grants, and boundaries.</li>
+<li><code>test_hooks.py</code> covers allow, deny, and after-hook execution.</li>
+<li><code>test_policy.py</code> covers modes, rules, grants, and boundaries.</li>
 </ul>
 <p>See <a href="#page-tools-security">Tools and security</a> for user-facing behavior.</p>
 
 </section>
 <section class="page" id="page-config-catalog" data-title="Configuration catalog">
-<p>&lt;!-- Generated by <code>python -m cade_mini.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
+<p>&lt;!-- Generated by <code>python -m cade.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
 <h1>Configuration catalog</h1>
 <p>Top-level fields. Nested types follow the table.</p>
 <table>
@@ -1361,7 +1363,7 @@ and window fallback.</li>
 
 </section>
 <section class="page" id="page-event-catalog" data-title="Event catalog">
-<p>&lt;!-- Generated by <code>python -m cade_mini.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
+<p>&lt;!-- Generated by <code>python -m cade.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
 <h1>Event catalog</h1>
 <p>Session entry types from <code>EventType</code>.</p>
 <table>
@@ -1443,9 +1445,9 @@ and window fallback.</li>
 
 </section>
 <section class="page" id="page-module-graph" data-title="Module graph">
-<p>&lt;!-- Generated by <code>python -m cade_mini.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
+<p>&lt;!-- Generated by <code>python -m cade.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
 <h1>Module graph</h1>
-<p>Absolute imports inside <code>src/cade_mini/</code>.</p>
+<p>Absolute imports inside <code>src/cade/</code>.</p>
 <pre><code class="language-mermaid">flowchart LR
   ai_events --&gt; ai_types
   ai_models --&gt; ai_types
@@ -1719,7 +1721,7 @@ and window fallback.</li>
 <tr>
 <td><code>goal</code></td>
 <td><code>action</code>, <code>objective</code></td>
-<td>Updates <code>.cade-mini/goal.json</code></td>
+<td>Updates <code>.cade/goal.json</code></td>
 <td>Allow</td>
 </tr>
 <tr>
@@ -1764,7 +1766,7 @@ navigation aid; when it disagrees with the tool schema, the schema wins.</p>
 </section>
 <section class="page" id="page-mcp-reference" data-title="MCP reference servers">
 <h1>MCP reference servers</h1>
-<p>Cade Mini implements stdio <code>initialize</code>, <code>tools/list</code>, and <code>tools/call</code> with a
+<p>Cade implements stdio <code>initialize</code>, <code>tools/list</code>, and <code>tools/call</code> with a
 persistent connection per server. That is enough for the reference servers that
 expose tools.</p>
 <h2>Verified servers</h2>
@@ -1825,7 +1827,7 @@ expose tools.</p>
 <p>On POSIX use <code>npx</code> directly. The Git server needs its repository flag, for
 example <code>--repository &lt;path&gt;</code>; pass the exact arguments the server expects.</p>
 <h2>Capability boundary</h2>
-<p>The reference servers above are tool servers. Cade Mini does not implement MCP
+<p>The reference servers above are tool servers. Cade does not implement MCP
 resources, prompts, sampling, or server-initiated requests. A server that relies
 on those features will start but expose only its tools.</p>
 <h2>Policy</h2>
@@ -1838,10 +1840,10 @@ plan mode and with <code>--read-only</code>, and can be allowed by a rule:</p>
 }
 </code></pre>
 <h2>Verify</h2>
-<pre><code class="language-bash">cade-mini --mode build &quot;Use the time MCP tool to get the current time in Asia/Singapore.&quot;
+<pre><code class="language-bash">cade --mode build &quot;Use the time MCP tool to get the current time in Asia/Singapore.&quot;
 </code></pre>
 <p>The log records a <code>tool_result</code> with the server's text content. A server process
-is closed when Cade Mini exits.</p>
+is closed when Cade exits.</p>
 <h2>Related</h2>
 <ul>
 <li><a href="#page-configuration">Configuration</a></li>
@@ -1957,7 +1959,7 @@ steering fact.</p>
 </section>
 <section class="page" id="page-persistence-catalog" data-title="Persistence catalog">
 <h1>Persistence catalog</h1>
-<p>Cade Mini separates durable history from host state. The session log is the
+<p>Cade separates durable history from host state. The session log is the
 authority for what the model saw and what happened; the other stores have
 narrower jobs.</p>
 <table>
@@ -1973,28 +1975,28 @@ narrower jobs.</p>
 <tbody>
 <tr>
 <td>Session log</td>
-<td><code>.cade-mini/sessions/session-*.jsonl</code></td>
+<td><code>.cade/sessions/session-*.jsonl</code></td>
 <td><code>SessionLog</code></td>
 <td>Project</td>
 <td>Current closed structure</td>
 </tr>
 <tr>
 <td>Snapshots</td>
-<td><code>.cade-mini/snapshots/</code></td>
+<td><code>.cade/snapshots/</code></td>
 <td><code>SnapshotStore</code></td>
 <td>Project</td>
 <td>Local index</td>
 </tr>
 <tr>
 <td>Recovery</td>
-<td><code>.cade-mini/recovery/</code></td>
+<td><code>.cade/recovery/</code></td>
 <td>Recovery coordinator</td>
 <td>Workspace</td>
 <td>Closed records; action journal and pending plan</td>
 </tr>
 <tr>
 <td>Goal</td>
-<td><code>.cade-mini/goal.json</code></td>
+<td><code>.cade/goal.json</code></td>
 <td><code>GoalStore</code></td>
 <td>Project</td>
 <td>One object</td>
@@ -2022,28 +2024,28 @@ narrower jobs.</p>
 </tr>
 <tr>
 <td>Skills</td>
-<td><code>~/.cade-mini/skills</code>, <code>.cade-mini/skills</code></td>
+<td><code>~/.cade/skills</code>, <code>.cade/skills</code></td>
 <td>Discovery</td>
 <td>User or project</td>
 <td><code>SKILL.md</code></td>
 </tr>
 <tr>
 <td>Config</td>
-<td><code>cade-mini.json</code></td>
-<td><code>MiniConfig</code></td>
+<td><code>cade.json</code></td>
+<td><code>CadeConfig</code></td>
 <td>Project</td>
 <td>Pydantic, strict</td>
 </tr>
 <tr>
 <td>Credentials</td>
-<td><code>~/.cade-mini/auth.json</code></td>
+<td><code>~/.cade/auth.json</code></td>
 <td><code>JsonCredentialStore</code></td>
 <td>User</td>
 <td>Provider credentials</td>
 </tr>
 <tr>
 <td>SIWC host ID</td>
-<td><code>~/.cade-mini/host.json</code></td>
+<td><code>~/.cade/host.json</code></td>
 <td><code>load_or_create_host_id</code></td>
 <td>User</td>
 <td>Stable agent host identifier</td>
@@ -2142,7 +2144,7 @@ path or command.</p>
 <p>A <code>SKILL.md</code> body loaded on demand. The request carries a catalog; the <code>skill</code>
 tool loads the body.</p>
 <h2>MCP</h2>
-<p>Model Context Protocol. Cade Mini runs stdio MCP servers and exposes their tools
+<p>Model Context Protocol. Cade runs stdio MCP servers and exposes their tools
 as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>.</p>
 <h2>subagent</h2>
 <p>A child run with its own session and a restricted tool set. It cannot spawn
@@ -2150,7 +2152,7 @@ another subagent.</p>
 <h2>snapshot</h2>
 <p>A pre-change copy of a file, used by the one-shot <code>--undo</code> option.</p>
 <h2>goal</h2>
-<p>A durable objective in <code>.cade-mini/goal.json</code>, separate from the session
+<p>A durable objective in <code>.cade/goal.json</code>, separate from the session
 schema.</p>
 
 </section>
@@ -2161,11 +2163,11 @@ a change, then the full suite before a release.</p>
 <h2>Commands</h2>
 <pre><code class="language-bash">mkdir -p e2e-results
 uv run --locked pytest -q tests --basetemp=e2e-results/pytest
-uv run --locked pytest -q tests/test_mini_loop.py --basetemp=e2e-results/pytest
-uv run --locked ruff check src/cade_mini/ tests/
-uv run --locked ruff format --check src/cade_mini/ tests/
-uv run --locked pyright src/cade_mini/
-uv run --locked python -m cade_mini.docs check
+uv run --locked pytest -q tests/test_loop.py --basetemp=e2e-results/pytest
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
+uv run --locked python -m cade.docs check
 </code></pre>
 <h2>Coverage map</h2>
 <table>
@@ -2178,59 +2180,55 @@ uv run --locked python -m cade_mini.docs check
 <tbody>
 <tr>
 <td>Sessions</td>
-<td><code>test_mini_log.py</code></td>
+<td><code>test_log.py</code></td>
 </tr>
 <tr>
 <td>Projection and pairing</td>
-<td><code>test_mini_projection.py</code></td>
+<td><code>test_projection.py</code></td>
 </tr>
 <tr>
 <td>Budget, pruning, wire format</td>
-<td><code>test_mini_request.py</code></td>
+<td><code>test_request.py</code></td>
 </tr>
 <tr>
 <td>Loop, approvals, retries, windows</td>
-<td><code>test_mini_loop.py</code></td>
+<td><code>test_loop.py</code></td>
 </tr>
 <tr>
 <td>Provider and auth</td>
-<td><code>test_mini_provider.py</code>, <code>test_mini_auth.py</code>, <code>test_mini_siwc_auth.py</code>, <code>test_responses_siwc_contract.py</code></td>
+<td><code>test_provider.py</code>, <code>test_auth.py</code>, <code>test_siwc_auth.py</code>, <code>test_responses_siwc_contract.py</code></td>
 </tr>
 <tr>
 <td>Workspace tools</td>
-<td><code>test_mini_tools.py</code></td>
+<td><code>test_tools.py</code></td>
 </tr>
 <tr>
 <td>Compaction and windows</td>
-<td><code>test_mini_compaction.py</code>, <code>test_mini_window.py</code></td>
+<td><code>test_compaction.py</code>, <code>test_window.py</code></td>
 </tr>
 <tr>
 <td>CLI and config</td>
-<td><code>test_mini_cli.py</code>, <code>test_mini_config.py</code></td>
+<td><code>test_cli.py</code>, <code>test_config.py</code></td>
 </tr>
 <tr>
 <td>Instructions, skills, memory, NOTE</td>
-<td><code>test_mini_instructions.py</code>, <code>test_mini_skills.py</code>, <code>test_mini_memory.py</code>, <code>test_mini_note.py</code></td>
+<td><code>test_instructions.py</code>, <code>test_skills.py</code>, <code>test_memory.py</code>, <code>test_note.py</code></td>
 </tr>
 <tr>
 <td>Safety and modes</td>
-<td><code>test_mini_policy.py</code>, <code>test_mini_shell.py</code>, <code>test_mini_grants.py</code></td>
+<td><code>test_policy.py</code>, <code>test_shell.py</code>, <code>test_grants.py</code></td>
 </tr>
 <tr>
 <td>Extensions</td>
-<td><code>test_mini_hooks.py</code>, <code>test_mini_mcp.py</code>, <code>test_mini_subagents.py</code></td>
+<td><code>test_hooks.py</code>, <code>test_mcp.py</code>, <code>test_subagents.py</code></td>
 </tr>
 <tr>
 <td>Recovery</td>
-<td><code>test_mini_snapshots.py</code>, <code>test_mini_goal.py</code></td>
+<td><code>test_snapshots.py</code>, <code>test_goal.py</code></td>
 </tr>
 <tr>
 <td>Docs</td>
-<td><code>test_mini_docs.py</code></td>
-</tr>
-<tr>
-<td>Import firewall</td>
-<td><code>test_mini_boundary.py</code></td>
+<td><code>test_docs.py</code></td>
 </tr>
 </tbody>
 </table>
@@ -2240,17 +2238,18 @@ and are not part of the default test suite. They cover tool use, resume,
 compaction, skills, build mode, and write/read. Record the command and observed
 result in the change that adds a new acceptance.</p>
 <h2>Docs checks</h2>
-<p><code>test_mini_docs.py</code> and <code>python -m cade_mini.docs check</code> validate the manifest,
+<p><code>test_docs.py</code> and <code>python -m cade.docs check</code> validate the manifest,
 links, anchors, and generated catalogs. The docs job runs in CI.</p>
 <h2>Standalone distribution</h2>
 <p>Build the wheel and source archive with <code>uv build --no-sources</code>. Install the
-wheel in a clean virtual environment and check both <code>cade-mini --help</code> and
-<code>python -m cade_mini --help</code> outside the source tree. No Cade package or command
-should be present. See the <a href="#page-testing">validation guidelines</a>.</p>
+wheel in a clean virtual environment and check both <code>cade --help</code> and
+<code>python -m cade --help</code> outside the source tree. The installed environment must
+contain only this distribution's package and command. See the
+<a href="#page-testing">validation guidelines</a>.</p>
 
 </section>
-<section class="page" id="page-session-schema" data-title="Cade Mini session schema">
-<h1>Cade Mini session schema</h1>
+<section class="page" id="page-session-schema" data-title="Cade session schema">
+<h1>Cade session schema</h1>
 <blockquote>
 <p>This is the current persistent structure and projection contract.
 Records have no format-version field.</p>
@@ -2487,7 +2486,7 @@ retained tail.</p>
 hosts can render it differently.</p>
 <h2>Storage</h2>
 <ul>
-<li>Directory: <code>.cade-mini/sessions/</code> by default.</li>
+<li>Directory: <code>.cade/sessions/</code> by default.</li>
 <li>File: <code>session-&lt;id&gt;.jsonl</code>.</li>
 <li>New interactive sessions defer file creation until the first user or assistant
 message. Setup events stay in memory and are flushed with that message.
@@ -2602,10 +2601,10 @@ historical timestamps do not make a newly created session appear old.</p>
 <li>The schema is closed; new event types require a decision record.</li>
 </ul>
 <h2>Tests</h2>
-<p><code>test_mini_log.py</code> covers create, append, resume, tail repair, and listing.
-<code>test_mini_session_history.py</code> covers navigation, old-format recovery, inactive
-forks, and independent copies. <code>test_mini_projection.py</code> covers malformed paths.
-<code>test_mini_history_e2e.py</code> verifies the public commands through real TUI input.</p>
+<p><code>test_log.py</code> covers create, append, resume, tail repair, and listing.
+<code>test_session_history.py</code> covers navigation, old-format recovery, inactive
+forks, and independent copies. <code>test_projection.py</code> covers malformed paths.
+<code>test_history_e2e.py</code> verifies the public commands through real TUI input.</p>
 
 </section>
 <section class="page" id="page-projection-request" data-title="Projection and request">
@@ -2641,8 +2640,8 @@ skill catalog, NOTE, memory, and goal. These inputs are request-only; the
 The request audit records their full text, the admitted messages, tool definitions,
 non-authentication options, and budget. Session files can contain sensitive input.</p>
 <h2>Tests</h2>
-<p><code>test_mini_projection.py</code>, <code>test_mini_request.py</code>, and
-<code>test_mini_compaction.py</code> cover cuts, strict admission, and wire-format contracts.</p>
+<p><code>test_projection.py</code>, <code>test_request.py</code>, and
+<code>test_compaction.py</code> cover cuts, strict admission, and wire-format contracts.</p>
 
 </section>
 <section class="page" id="page-loop" data-title="Loop">
@@ -2687,7 +2686,7 @@ reason in its <code>run</code> fact.</p>
 <p>The host receives text deltas, tool start, tool end, and final output. Events are
 presentation; facts are durable. A host can drop events without losing history.</p>
 <h2>Tests</h2>
-<p><code>test_mini_loop.py</code> covers completion, tool use, approvals, retries, timeouts,
+<p><code>test_loop.py</code> covers completion, tool use, approvals, retries, timeouts,
 cancellation, context errors, and window fallback.</p>
 
 </section>
@@ -2725,11 +2724,11 @@ truncated. Output is a strict object with <code>allowed: bool</code> and <code>r
 Rejections and failures return their reasons to the model as tool errors.</p>
 <h2>Tests</h2>
 <ul>
-<li><code>test_mini_policy.py</code>: mode constraints, precedence, and write scope.</li>
-<li><code>test_mini_grants.py</code>: exact grants and scope isolation.</li>
-<li><code>test_mini_review.py</code>: strict responses and model-visible denial reasons.</li>
-<li><code>test_mini_subagents.py</code>: child permission ceilings.</li>
-<li><code>test_mini_sandbox.py</code>: real OS file/network isolation, worker integration,
+<li><code>test_policy.py</code>: mode constraints, precedence, and write scope.</li>
+<li><code>test_grants.py</code>: exact grants and scope isolation.</li>
+<li><code>test_review.py</code>: strict responses and model-visible denial reasons.</li>
+<li><code>test_subagents.py</code>: child permission ceilings.</li>
+<li><code>test_sandbox.py</code>: real OS file/network isolation, worker integration,
 cancellation, Windows bypass, and unavailable backends.</li>
 </ul>
 
@@ -2774,7 +2773,7 @@ Exact content is capped; search results point to entry IDs.</p>
 transition or fails with <code>context_error</code>. See
 <a href="#page-projection-request">Projection and request</a>.</p>
 <h2>Tests</h2>
-<p><code>test_mini_compaction.py</code>, <code>test_mini_window.py</code>, <code>test_mini_history.py</code>, and
+<p><code>test_compaction.py</code>, <code>test_window.py</code>, <code>test_history.py</code>, and
 the request tests cover cuts, summaries, fallback, and retrieval.</p>
 
 </section>
@@ -2810,7 +2809,7 @@ cannot replace human restrictions.</p>
 mutations. The one-shot <code>--undo</code> option restores the latest snapshot. Snapshots are project
 state, not session facts.</p>
 <h2>Goals</h2>
-<p><code>GoalStore</code> persists one objective in <code>.cade-mini/goal.json</code>. The <code>goal</code> tool and
+<p><code>GoalStore</code> persists one objective in <code>.cade/goal.json</code>. The <code>goal</code> tool and
 <code>/goal</code> command manage it. An active goal is request context.</p>
 <h2>Hosts</h2>
 <p>The terminal host runs one-shot tasks and the TUI. It uses the same loop and
@@ -2820,8 +2819,8 @@ policy as every other entry path.</p>
 negotiation implementation. Hooks are shell commands, not in-process callbacks.
 Subagents are sequential and share the parent approval context.</p>
 <h2>Tests</h2>
-<p><code>test_mini_skills.py</code>, <code>test_mini_memory.py</code>, <code>test_mini_hooks.py</code>,
-<code>test_mini_mcp.py</code>, <code>test_mini_subagents.py</code>, <code>test_mini_snapshots.py</code>, and <code>test_mini_goal.py</code>.</p>
+<p><code>test_skills.py</code>, <code>test_memory.py</code>, <code>test_hooks.py</code>,
+<code>test_mcp.py</code>, <code>test_subagents.py</code>, <code>test_snapshots.py</code>, and <code>test_goal.py</code>.</p>
 
 </section>
 <section class="page" id="page-tools-security" data-title="Tools and security">
@@ -2848,7 +2847,7 @@ operations require approval.</li>
 unclassified shell commands.</li>
 <li><code>plan</code> supports exploration and discussion, not implementation. Project
 changes, memory changes, goal changes, and MCP calls are denied. File tools
-can write under <code>&lt;workspace&gt;/.cade-mini-plans/</code> only after approval for a
+can write under <code>&lt;workspace&gt;/.cade-plans/</code> only after approval for a
 user-requested plan. Implementation requires the user to switch modes.</li>
 </ul>
 <p>Subagents inherit the parent's limits. A child mode can only narrow them.
@@ -2856,7 +2855,7 @@ user-requested plan. Implementation requires the user to switch modes.</li>
 read-only shell commands. These constraints cannot be overridden by rules,
 grants, <code>--yes</code>, or Reviewer approval.</p>
 <h2>Rules and grants</h2>
-<p>Rules in <code>cade-mini.json</code> match a tool, normalized path subtree, or command
+<p>Rules in <code>cade.json</code> match a tool, normalized path subtree, or command
 prefix. All matching rules participate: <code>deny</code> wins over <code>ask</code>, which wins over
 <code>allow</code>. An explicit allow overrides a default ask, not an effective deny.
 Remove or change a deny rule to revoke it; an approval answer cannot do that.</p>
@@ -2927,7 +2926,7 @@ write permissions. Approvals never silently grant full host access.</p>
 sandbox network access; approving network access does not grant external file
 writes. Windows and <code>danger-full-access</code> do not provide OS-level network
 restriction. The provider connection runs outside the tool sandbox.</p>
-<p>On Linux/macOS, the CLI hides existing user and project <code>.cade-mini</code> directories
+<p>On Linux/macOS, the CLI hides existing user and project <code>.cade</code> directories
 from sandboxed commands and protects existing Git hooks and Git configuration
 from writes. The home directory is not writable by default. Private temp and
 common tool caches are redirected to a session directory, cleaned on exit.
@@ -2942,8 +2941,8 @@ container or VM, and it does not make an untrusted repository safe.</p>
 <section class="page" id="page-snapshots-goals" data-title="Snapshots and goals">
 <h1>Snapshots and goals</h1>
 <h2>File snapshots</h2>
-<p>Cade Mini records a snapshot before a file tool changes a file. Snapshots live
-under <code>.cade-mini/snapshots</code> with a JSONL index and one directory per snapshot.</p>
+<p>Cade records a snapshot before a file tool changes a file. Snapshots live
+under <code>.cade/snapshots</code> with a JSONL index and one directory per snapshot.</p>
 <p>Covered changes:</p>
 <ul>
 <li><code>write</code> and <code>edit</code>.</li>
@@ -2961,7 +2960,7 @@ silently skipped.</li>
 <li>Directory trees are not copied; directory mutations are skipped.</li>
 </ul>
 <h2>Undo</h2>
-<pre><code class="language-bash">cade-mini --undo
+<pre><code class="language-bash">cade --undo
 </code></pre>
 <p>This legacy CLI operation restores one file snapshot without contacting a
 provider. It does not rewind conversation and is not an alias for TUI <code>/undo</code>.
@@ -2999,7 +2998,7 @@ File limits apply to both images. A missing post-change image makes that turn's
 code checkpoint incomplete rather than pretending that recovery is available.
 Unselected files and the user's Git index remain untouched. Directory trees,
 untracked shell/hook changes, and external side effects are not restored.</p>
-<p>Cooperating operations share <code>.cade-mini/recovery/workspace.lock</code>. The action
+<p>Cooperating operations share <code>.cade/recovery/workspace.lock</code>. The action
 journal and checkpoint links use closed records under that directory. A
 <code>pending.json</code> plan stores both images before restoration begins. Files use
 atomic per-file replacement; a multi-file restore is not a filesystem-wide
@@ -3016,9 +3015,9 @@ request receives an audited notice to inspect restored files rather than trust
 older tool effects. Settings, credentials, grants, and external services do not
 rewind with conversation history.</p>
 <h2>Goals</h2>
-<p>A goal is one durable objective stored in <code>.cade-mini/goal.json</code>. It has an
+<p>A goal is one durable objective stored in <code>.cade/goal.json</code>. It has an
 objective, a status (<code>active</code> or <code>done</code>), and an update time.</p>
-<pre><code class="language-bash">cade-mini --goal &quot;Add a regression test for the parser&quot; &quot;Start the task.&quot;
+<pre><code class="language-bash">cade --goal &quot;Add a regression test for the parser&quot; &quot;Start the task.&quot;
 </code></pre>
 <p>In the TUI:</p>
 <ul>
@@ -3037,10 +3036,10 @@ for facts that outlive the objective.</p>
 <section class="page" id="page-skills-memory" data-title="Skills and memory">
 <h1>Skills and memory</h1>
 <h2>Skills</h2>
-<p>Cade Mini discovers <code>SKILL.md</code> files in two roots:</p>
+<p>Cade discovers <code>SKILL.md</code> files in two roots:</p>
 <ol>
-<li><code>~/.cade-mini/skills/&lt;name&gt;/SKILL.md</code> for user skills.</li>
-<li><code>&lt;project&gt;/.cade-mini/skills/&lt;name&gt;/SKILL.md</code> for project skills.</li>
+<li><code>~/.cade/skills/&lt;name&gt;/SKILL.md</code> for user skills.</li>
+<li><code>&lt;project&gt;/.cade/skills/&lt;name&gt;/SKILL.md</code> for project skills.</li>
 </ol>
 <p>Later roots override earlier roots with the same skill name. A skill file can
 start with YAML frontmatter:</p>
@@ -3083,7 +3082,7 @@ conversation messages. See <a href="#page-sessions-context">Sessions and context
 <section class="page" id="page-hooks-mcp-subagents" data-title="Hooks, MCP, and subagents">
 <h1>Hooks, MCP, and subagents</h1>
 <h2>Hooks</h2>
-<p>Hooks run shell commands around tools. They are configured in <code>cade-mini.json</code>:</p>
+<p>Hooks run shell commands around tools. They are configured in <code>cade.json</code>:</p>
 <pre><code class="language-json">{
   &quot;hooks&quot;: [
     {
@@ -3107,7 +3106,7 @@ ignored.</li>
 </ul>
 <p>Hooks are trusted configuration. A hook that hangs is killed after its timeout.</p>
 <h2>MCP</h2>
-<p>MCP servers use stdio. Cade Mini starts one persistent process per server and
+<p>MCP servers use stdio. Cade starts one persistent process per server and
 discovers its tools at startup:</p>
 <pre><code class="language-json">{
   &quot;mcp_servers&quot;: {
@@ -3180,18 +3179,18 @@ repository's tests.</p>
 <ol>
 <li>
 <p>Reproduce the failure:</p>
-<pre><code class="language-bash">cade-mini --mode plan &quot;Read the failing test and explain the failure.&quot;
+<pre><code class="language-bash">cade --mode plan &quot;Read the failing test and explain the failure.&quot;
 </code></pre>
 </li>
 <li>
 <p>Fix it:</p>
-<pre><code class="language-bash">cade-mini --mode build --yes &quot;Fix the failing test with the smallest change, then run pytest.&quot;
+<pre><code class="language-bash">cade --mode build --yes &quot;Fix the failing test with the smallest change, then run pytest.&quot;
 </code></pre>
 </li>
 <li>
 <p>Inspect the diff and the snapshot:</p>
 <pre><code class="language-bash">git diff
-cade-mini --undo  # only if the change is wrong
+cade --undo  # only if the change is wrong
 </code></pre>
 </li>
 </ol>
@@ -3222,12 +3221,12 @@ diff reviewable.</p>
 <ol>
 <li>
 <p>Ask for a failing test or write it yourself:</p>
-<pre><code class="language-bash">cade-mini --mode build --yes &quot;Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails.&quot;
+<pre><code class="language-bash">cade --mode build --yes &quot;Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails.&quot;
 </code></pre>
 </li>
 <li>
 <p>Implement the smallest change:</p>
-<pre><code class="language-bash">cade-mini --mode build --yes &quot;Implement mul() and run the new test.&quot;
+<pre><code class="language-bash">cade --mode build --yes &quot;Implement mul() and run the new test.&quot;
 </code></pre>
 </li>
 <li>
@@ -3245,7 +3244,7 @@ pytest -q
 <li>Public behavior is documented in the relevant guide.</li>
 </ul>
 <h2>Undo</h2>
-<p>If the change is wrong, use <code>cade-mini --undo</code> before starting another attempt.
+<p>If the change is wrong, use <code>cade --undo</code> before starting another attempt.
 This restores one recorded file change at a time; it does not rewind the
 conversation.</p>
 <h2>Keep</h2>
@@ -3257,7 +3256,7 @@ Tests belong in <code>tests/</code>; docs belong under <code>docs/</code>.</p>
 <h1>Review only</h1>
 <p>Use <code>plan</code> and <code>--read-only</code> when the task is to inspect, not change.</p>
 <h2>Procedure</h2>
-<pre><code class="language-bash">cade-mini --mode plan --read-only &quot;Review the request builder for evidence loss. Cite files and lines; do not modify anything.&quot;
+<pre><code class="language-bash">cade --mode plan --read-only &quot;Review the request builder for evidence loss. Cite files and lines; do not modify anything.&quot;
 </code></pre>
 <p>Plan mode hides write and edit tools and denies mutating shell commands.
 <code>--read-only</code> also denies memory, MCP, and any remaining mutation.</p>
@@ -3285,7 +3284,7 @@ goal, and the history tool.</p>
 <ol>
 <li>
 <p>Set a goal:</p>
-<pre><code class="language-bash">cade-mini --goal &quot;Migrate the request builder to the new budget model&quot; &quot;Start by mapping the current admission rules.&quot;
+<pre><code class="language-bash">cade --goal &quot;Migrate the request builder to the new budget model&quot; &quot;Start by mapping the current admission rules.&quot;
 </code></pre>
 </li>
 <li>
@@ -3295,7 +3294,7 @@ goal, and the history tool.</p>
 </li>
 <li>
 <p>Continue the same session:</p>
-<pre><code class="language-bash">cade-mini --continue &quot;Resume from NOTE.md and run the next step.&quot;
+<pre><code class="language-bash">cade --continue &quot;Resume from NOTE.md and run the next step.&quot;
 </code></pre>
 </li>
 <li>
@@ -3323,10 +3322,10 @@ evidence.</p>
 </section>
 <section class="page" id="page-custom-mcp" data-title="Connect a custom MCP server">
 <h1>Connect a custom MCP server</h1>
-<p>MCP servers use stdio. Cade Mini keeps one process per server and exposes each
+<p>MCP servers use stdio. Cade keeps one process per server and exposes each
 tool as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>.</p>
 <h2>Configure</h2>
-<p>Add the server to <code>cade-mini.json</code>:</p>
+<p>Add the server to <code>cade.json</code>:</p>
 <pre><code class="language-json">{
   &quot;mcp_servers&quot;: {
     &quot;files&quot;: {
@@ -3352,10 +3351,10 @@ it:</p>
 <p>Plan mode and <code>--read-only</code> deny MCP tools even with a rule.</p>
 <h2>Verify</h2>
 <ol>
-<li>Start Cade Mini; it prints a startup error if the server cannot start.</li>
+<li>Start Cade; it prints a startup error if the server cannot start.</li>
 <li>Ask the model to list or call a discovered tool.</li>
 <li>Check the tool result and the <code>mcp__</code> prefix in the log.</li>
-<li>Stop Cade Mini; the server process closes at exit.</li>
+<li>Stop Cade; the server process closes at exit.</li>
 </ol>
 <h2>Limits</h2>
 <p>The client implements <code>initialize</code>, <code>tools/list</code>, and <code>tools/call</code>. It does not
@@ -3365,12 +3364,12 @@ that hangs is killed after the configured timeout.</p>
 </section>
 <section class="page" id="page-hosts" data-title="Hosts">
 <h1>Hosts</h1>
-<p>Cade Mini has one terminal host with two modes: an interactive TUI and one-shot
+<p>Cade has one terminal host with two modes: an interactive TUI and one-shot
 execution. Both use the same session log, request builder, tools, policy, and
 core loop. The TUI uses <code>InteractionService</code> for commands and session control.</p>
 <h2>Terminal UI</h2>
 <p>Without a task, the CLI starts the TUI in an interactive terminal:</p>
-<pre><code class="language-bash">cade-mini
+<pre><code class="language-bash">cade
 </code></pre>
 <p>The TUI keeps the conversation in a scrollable transcript, shows streaming
 assistant text and tool progress, and handles approvals and questions without
@@ -3394,8 +3393,8 @@ command reference.</p>
 non-interactive process, provide a task instead.</p>
 <h2>One-shot</h2>
 <p>With a task, the CLI runs once and exits:</p>
-<pre><code class="language-bash">cade-mini &quot;Fix the failing test.&quot;
-cade-mini exec &quot;Fix the failing test.&quot;
+<pre><code class="language-bash">cade &quot;Fix the failing test.&quot;
+cade exec &quot;Fix the failing test.&quot;
 </code></pre>
 <p>One-shot mode supports <code>--json</code> for a JSONL event stream. Use <code>--read-only</code> or
 explicit rules rather than a blanket <code>--yes</code> in automation and CI.</p>
@@ -3403,7 +3402,7 @@ explicit rules rather than a blanket <code>--yes</code> in automation and CI.</p
 </section>
 <section class="page" id="page-development" data-title="Development">
 <h1>Development</h1>
-<p>Cade Mini is maintained independently of Cade. Work from this repository root.</p>
+<p>Cade is maintained independently of Cade. Work from this repository root.</p>
 <h2>Setup</h2>
 <p>You need Python 3.12+ and uv. Linux tool execution also requires usable
 bubblewrap (<code>sudo apt-get install bubblewrap</code> on Debian/Ubuntu) and a host that
@@ -3415,17 +3414,17 @@ skips those tests and executes tools directly.</p>
 <pre><code class="language-bash">uv sync --locked --extra dev --extra docs
 mkdir -p e2e-results
 </code></pre>
-<p>Code lives in <code>src/cade_mini/</code>, tests in <code>tests/</code>, and documentation in <code>docs/</code>.
+<p>Code lives in <code>src/cade/</code>, tests in <code>tests/</code>, and documentation in <code>docs/</code>.
 See <a href="#page-architecture">Architecture</a> for module boundaries.</p>
 <h2>Checks</h2>
-<pre><code class="language-bash">uv run --locked ruff check src/cade_mini/ tests/
-uv run --locked ruff format --check src/cade_mini/ tests/
-uv run --locked pyright src/cade_mini/
+<pre><code class="language-bash">uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
 uv run --locked pytest -q tests --basetemp=e2e-results/pytest
-uv run --locked cade-mini --help
-uv run --locked python -m cade_mini --help
-uv run --locked cade-mini login --help
-uv run --locked python -m cade_mini.docs check
+uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
+uv run --locked python -m cade.docs check
 uv build --no-sources
 </code></pre>
 <p>Follow the <a href="#page-testing">validation guidelines</a> to select focused checks.
@@ -3435,10 +3434,10 @@ credentials or raw provider traces.</p>
 <p>The docs source is <code>docs/</code>. The manifest is <code>docs/docs.json</code>; it defines
 navigation order and published pages. <a href="#page-readme">docs/README.md</a> is the manual
 entry point. <a href="AGENTS.md">docs/AGENTS.md</a> defines documentation rules.</p>
-<pre><code class="language-bash">uv run --locked python -m cade_mini.docs catalogs --write
-uv run --locked python -m cade_mini.docs llms --write
-uv run --locked python -m cade_mini.docs build
-uv run --locked python -m cade_mini.docs check
+<pre><code class="language-bash">uv run --locked python -m cade.docs catalogs --write
+uv run --locked python -m cade.docs llms --write
+uv run --locked python -m cade.docs build
+uv run --locked python -m cade.docs check
 </code></pre>
 <p><code>check</code> validates the manifest, page files, relative links, anchors, and generated
 catalogs. It uses only the standard library and runs in CI. <code>build</code> renders
@@ -3458,16 +3457,15 @@ The excluded files are agent instructions, decision records, and the postmortem
 template. Put session format references under <code>docs/reference/</code> and historical
 research under <code>docs/history/</code>.</p>
 <h2>Boundaries</h2>
-<p>Mini owns the provider and process layers in <code>cade_mini.ai</code> and
-<code>cade_mini.execution_env</code>. <code>tests/test_mini_boundary.py</code> rejects imports from
-the old <code>cade</code> namespace. Do not add dependencies on the separate Cade project.</p>
+<p>Cade owns the provider and process layers in <code>cade.ai</code> and
+<code>cade.execution_env</code>. Do not add dependencies on the earlier Cade project.</p>
 <p>Public interfaces include the session schema, config fields, CLI flags, tool
 names, and docs manifest. Change them with tests and documentation in the same
 commit.</p>
 <h2>Commits and releases</h2>
 <p>Review the diff and run checks before committing. Do not push or publish without
-maintainer approval. Confirm that the Git remote points to the Mini repository,
-not the separate Cade repository, before pushing.</p>
+maintainer approval. Confirm that the Git remote points to this repository, not
+the earlier Cade project, before pushing.</p>
 <p>The CI workflow checks code, tests, docs, startup, and distribution builds.
 Version tags (<code>vX.Y.Z</code>) must match <code>pyproject.toml</code> and belong to <code>main</code>. The
 release workflow publishes checked distribution artifacts after approval in the
@@ -3482,15 +3480,15 @@ workspaces, pytest files, and run evidence inside this repository under
 <h2>Required checks</h2>
 <p>After code changes, run:</p>
 <pre><code class="language-bash">mkdir -p e2e-results
-uv run --locked ruff check src/cade_mini/ tests/
-uv run --locked ruff format --check src/cade_mini/ tests/
-uv run --locked pyright src/cade_mini/
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
 uv run --locked pytest -q tests --basetemp=e2e-results/pytest
 </code></pre>
 <p>After import, package, or entry-point changes, also check:</p>
-<pre><code class="language-bash">uv run --locked cade-mini --help
-uv run --locked python -m cade_mini --help
-uv run --locked cade-mini login --help
+<pre><code class="language-bash">uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
 uv build --no-sources
 </code></pre>
 <p>For distribution changes, inspect the wheel and install it in a clean virtual
@@ -3521,8 +3519,8 @@ run and remaining risks explicitly. Provider completion text alone is not proof
 that a workflow succeeded.</p>
 
 </section>
-<section class="page" id="page-review-standards" data-title="Cade Mini review standards">
-<h1>Cade Mini review standards</h1>
+<section class="page" id="page-review-standards" data-title="Cade review standards">
+<h1>Cade review standards</h1>
 <p>This document defines how coding agents should review this repository. It is separate from implementation standards: <code>AGENTS.md</code> and code standards guide how to write code; this file guides how to judge code.</p>
 <h2>Review Goal</h2>
 <p>Review code for correctness, maintainability, Pythonic design, clean boundaries, and long-term elegance.</p>
@@ -3579,7 +3577,7 @@ that a workflow succeeded.</p>
 </ul>
 <p>Use direct language. If something exists only for compatibility, test convenience, or accidental complexity, say so.</p>
 <p>Prefer this format:</p>
-<pre><code class="language-text">[medium] src/cade_mini/example.py::ExampleRunner
+<pre><code class="language-text">[medium] src/cade/example.py::ExampleRunner
 
 Problem:
 ...
@@ -3607,8 +3605,11 @@ Recommended direction:
 </section>
 <section class="page" id="page-parity" data-title="Parity">
 <h1>Parity</h1>
-<p>Cade Mini was accepted against Cade on two real repository workflows and a
-session resume. The full report is <a href="#page-parity-acceptance">Cade Mini parity</a>.</p>
+<p>Before this project was renamed from Cade Mini to Cade, it was accepted against
+the earlier Cade project on two real repository workflows and a session resume.
+This page keeps the labels from that run: &quot;Mini&quot; means this project at the time,
+and &quot;Cade&quot; means the earlier project. The full report is
+<a href="#page-parity-acceptance">the historical parity acceptance</a>.</p>
 <h2>Workflows</h2>
 <p>Two clean Git repositories started from the same baseline and the same
 <code>AGENTS.md</code> instruction: &quot;Run pytest after changes. Keep changes minimal.&quot;</p>
@@ -3632,7 +3633,7 @@ the corrected <code>+</code> operator.</li>
 <h2>Evidence</h2>
 <ul>
 <li>Mini ran with <code>--mode build --yes</code>; Cade ran with <code>--mode build --approval auto-review</code>.</li>
-<li>Both used DeepSeek <code>deepseek-chat</code> at the time of the run. Cade Mini now
+<li>Both used DeepSeek <code>deepseek-chat</code> at the time of the run. Cade now
 supports only the Responses protocol.</li>
 <li>Mini used five steps per workflow; Cade used four. Mini issued an extra <code>glob</code>
 inspection, which did not change the result.</li>
@@ -3653,7 +3654,7 @@ resumed Codex session read it back.</li>
 <p>The parity report records the concrete fixtures and observed results. Re-run a
 workflow by creating a clean fixture, running both agents with the same provider
 and settings, and comparing the diff and test result rather than the prose
-answer. Cade Mini supports only the Responses protocol.</p>
+answer. Cade supports only the Responses protocol.</p>
 
 </section>
 <section class="page" id="page-readme" data-title="Postmortems">
@@ -3700,7 +3701,7 @@ of visible user messages. A regression test builds a session with a prior
 summary, a retained turn, and a new task, then asserts the new cut points at the
 new task and the summary request contains the prior summary.</p>
 <h2>Verification</h2>
-<p><code>test_mini_compaction.py::test_iterative_compaction_includes_prior_summary</code>
+<p><code>test_compaction.py::test_iterative_compaction_includes_prior_summary</code>
 passes. The projected roles are <code>system, summary, user</code>.</p>
 <h2>Follow-up</h2>
 <p>Any future cut logic must derive entry IDs from the same visible sequence it uses
@@ -3736,7 +3737,7 @@ result, the protected set was the entire candidate set.</p>
 <p>Every replacement points to the history tool, so the evidence remains
 retrievable. A regression test covers a single huge result.</p>
 <h2>Verification</h2>
-<p><code>test_mini_request.py::test_build_prunes_a_single_huge_tool_result</code> passes and
+<p><code>test_request.py::test_build_prunes_a_single_huge_tool_result</code> passes and
 the resulting request is under budget.</p>
 <h2>Follow-up</h2>
 <p>Keep the history tool available whenever pruning can remove the newest result.
@@ -3745,25 +3746,25 @@ See <a href="#page-projection-request">Projection and request</a>.</p>
 </section>
 <section class="page" id="page-readme" data-title="Persistence">
 <h1>Persistence</h1>
-<p>Cade Mini stores conversation history in a session log. Other stores have
+<p>Cade stores conversation history in a session log. Other stores have
 separate responsibilities.</p>
 <h2>Current structure</h2>
 <ul>
 <li>Session logs use one closed schema without a format-version field. See
 <a href="#page-session-schema">Session log schema</a>.</li>
 <li>Each entry is one JSON object followed by a newline.</li>
-<li>Sessions live under <code>.cade-mini/sessions</code>.</li>
+<li>Sessions live under <code>.cade/sessions</code>.</li>
 <li>Compaction, windows, navigation, and recovery are entries, not history rewrites.</li>
-<li>File images live under <code>.cade-mini/snapshots</code>; recovery actions and pending
-transactions live under <code>.cade-mini/recovery</code>.</li>
+<li>File images live under <code>.cade/snapshots</code>; recovery actions and pending
+transactions live under <code>.cade/recovery</code>.</li>
 <li>Goals, NOTE, memory, and config remain separate artifacts.</li>
 </ul>
 <p>Development changes can break persisted structures. Readers and writers support
 only the current structure. There are no compatibility readers or migrations.
 See <a href="#page-change-policy">Change policy</a>.</p>
 <h2>Verification</h2>
-<p><code>test_mini_log.py</code>, <code>test_mini_session_history.py</code>, <code>test_mini_projection.py</code>, and
-<code>test_mini_recovery.py</code> verify validation, projection, copies, and interrupted
+<p><code>test_log.py</code>, <code>test_session_history.py</code>, <code>test_projection.py</code>, and
+<code>test_recovery.py</code> verify validation, projection, copies, and interrupted
 recovery. Invalid input must fail before changing durable state.</p>
 <p>See the <a href="#page-persistence-catalog">Persistence catalog</a> for ownership and
 locations.</p>
@@ -3771,7 +3772,7 @@ locations.</p>
 </section>
 <section class="page" id="page-change-policy" data-title="Change policy">
 <h1>Change policy</h1>
-<p>Cade Mini is under active development. Persisted data has one current, closed
+<p>Cade is under active development. Persisted data has one current, closed
 structure with no format-version fields. Breaking changes are allowed. Do not
 add compatibility readers, migration commands, or special handling for earlier
 formats.</p>
@@ -3793,13 +3794,23 @@ catalogs and documentation must match the implementation. See
 </section>
 <section class="page" id="page-readme" data-title="Upgrade guide">
 <h1>Upgrade guide</h1>
-<p>Cade Mini is under active development. Breaking changes are allowed. Persisted
+<p>Cade is under active development. Breaking changes are allowed. Persisted
 records have one current structure, with no compatibility or migration layer.
 See <a href="#page-change-policy">Change policy</a>.</p>
+<h2>Rename from Cade Mini</h2>
+<p>The distribution, Python package, command, configuration file, and state
+directories are now <code>cade</code>. The tool does not read the old paths. To keep
+existing data, move it before the first run:</p>
+<pre><code class="language-bash">mv ~/.cade-mini ~/.cade
+mv .cade-mini .cade
+mv cade-mini.json cade.json
+</code></pre>
+<p>Repeat the project moves in each workspace that used the old name. Sessions,
+snapshots, goals, skills, and credentials keep working after the move.</p>
 <h2>Sign in with ChatGPT</h2>
-<p>Use <code>chatgpt</code> for ChatGPT plan usage and <code>cade-mini login</code> for Sign in with
+<p>Use <code>chatgpt</code> for ChatGPT plan usage and <code>cade login</code> for Sign in with
 ChatGPT. For API-key authentication, use <code>openai</code> or <code>deepseek</code>. Credentials live
-under <code>~/.cade-mini/</code>. See <a href="#page-cli">CLI authentication</a>.</p>
+under <code>~/.cade/</code>. See <a href="#page-cli">CLI authentication</a>.</p>
 <h2>Session and workspace recovery</h2>
 <p><code>/tree</code> preserves conversation branches. <code>/undo</code> and <code>/redo</code> reverse or reapply
 one action. <code>/rewind</code> selects a checkpoint and restoration scope; idle double
@@ -5722,10 +5733,10 @@ theme.addEventListener('click', () => {
   const root = document.documentElement;
   const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
   root.dataset.theme = next;
-  try { localStorage.setItem('cade-mini-theme', next); } catch (e) {}
+  try { localStorage.setItem('cade-theme', next); } catch (e) {}
 });
 try {
-  const saved = localStorage.getItem('cade-mini-theme');
+  const saved = localStorage.getItem('cade-theme');
   if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved;
 } catch (e) {}
 document.querySelectorAll('pre').forEach((pre) => {

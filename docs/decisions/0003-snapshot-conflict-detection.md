@@ -29,5 +29,5 @@ Undo remains per-file, not a transaction across an entire shell command. Unknown
 shell effects remain outside coverage. The lock coordinates Cade snapshot clients,
 not editors or other external writers; stop those writers before undo.
 
-`test_mini_snapshots.py` covers conflicts, corruption, incomplete/legacy records,
+`test_snapshots.py` covers conflicts, corruption, incomplete/legacy records,
 reopen, permissions, and repeated undo. CLI tests cover host integration.

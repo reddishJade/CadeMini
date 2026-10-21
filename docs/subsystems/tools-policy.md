@@ -42,9 +42,9 @@ Rejections and failures return their reasons to the model as tool errors.
 
 ## Tests
 
-- `test_mini_policy.py`: mode constraints, precedence, and write scope.
-- `test_mini_grants.py`: exact grants and scope isolation.
-- `test_mini_review.py`: strict responses and model-visible denial reasons.
-- `test_mini_subagents.py`: child permission ceilings.
-- `test_mini_sandbox.py`: real OS file/network isolation, worker integration,
+- `test_policy.py`: mode constraints, precedence, and write scope.
+- `test_grants.py`: exact grants and scope isolation.
+- `test_review.py`: strict responses and model-visible denial reasons.
+- `test_subagents.py`: child permission ceilings.
+- `test_sandbox.py`: real OS file/network isolation, worker integration,
   cancellation, Windows bypass, and unavailable backends.

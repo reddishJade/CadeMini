@@ -1,11 +1,11 @@
-# How Cade Mini works
+# How Cade works
 
-Cade Mini coordinates one model request at a time, executes the requested tools,
+Cade coordinates one model request at a time, executes the requested tools,
 and records every durable fact in a session log.
 
 ## One run
 
-A submitted task is appended as a `user` fact. Cade Mini projects the active
+A submitted task is appended as a `user` fact. Cade projects the active
 branch, builds a request for the current budget, and sends it to the provider.
 The provider streams text and tool calls. The loop records the assistant
 message, executes each tool call, and records a tool result. If the model needs
@@ -28,7 +28,7 @@ original messages.
 
 ## Sessions
 
-Sessions are JSONL files under `.cade-mini/sessions`. Entries have IDs and parent
+Sessions are JSONL files under `.cade/sessions`. Entries have IDs and parent
 IDs, so a session can form a tree; the active branch ends at the latest entry.
 Resuming opens the same file and appends new facts.
 

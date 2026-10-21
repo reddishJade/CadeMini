@@ -1,6 +1,6 @@
-# Cade Mini
+# Cade
 
-Cade Mini is a standalone coding agent. It keeps one rule at the center of the
+Cade is a standalone coding agent. It keeps one rule at the center of the
 design:
 
 > The session log is the source of truth. The model-visible history is a
@@ -14,7 +14,7 @@ process restarts without inventing history.
 
 - [Quickstart](quickstart.md) installs and runs the first task.
 - [CLI](cli.md) lists one-shot, TUI, session, and recovery commands.
-- [Configuration](configuration.md) documents `cade-mini.json`.
+- [Configuration](configuration.md) documents `cade.json`.
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
 - [Sessions and context](sessions-context.md) covers resume, compaction,
@@ -30,7 +30,7 @@ process restarts without inventing history.
 
 ## Design
 
-- [How Cade Mini works](design/how-it-works.md) is the short end-to-end model.
+- [How Cade works](design/how-it-works.md) is the short end-to-end model.
 - [Code map](design/code-map.md) explains package boundaries and entry points.
 - [Relationship to Cade](design/cade-comparison.md) explains independent ownership.
 - [Capability seams](design/capability-seams.md) lists the replaceable
@@ -74,7 +74,7 @@ The [session schema](reference/session-schema.md) defines the persistence
 contract. Historical research and acceptance records describe the project before
 it became independent:
 
-- [Cade Mini design](history/design-proposal.md)
+- [Cade design](history/design-proposal.md)
 - [Session log schema](reference/session-schema.md)
 - [Harvest notes](history/harvest-audit.md)
 - [Parity acceptance](history/parity-acceptance.md)
@@ -85,10 +85,10 @@ The docs are Markdown-first. A small tool validates links and anchors, builds a
 single-page site, and generates an `llms.txt` catalog for agents:
 
 ```bash
-python -m cade_mini.docs check
-python -m cade_mini.docs build
-python -m cade_mini.docs llms --write
-python -m cade_mini.docs catalogs --write
+python -m cade.docs check
+python -m cade.docs build
+python -m cade.docs llms --write
+python -m cade.docs catalogs --write
 ```
 
 The generated site is [docs/index.html](index.html); the generated

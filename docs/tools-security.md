@@ -23,7 +23,7 @@ protected files. Workspace writes have snapshots; external writes do not.
   unclassified shell commands.
 - `plan` supports exploration and discussion, not implementation. Project
   changes, memory changes, goal changes, and MCP calls are denied. File tools
-  can write under `<workspace>/.cade-mini-plans/` only after approval for a
+  can write under `<workspace>/.cade-plans/` only after approval for a
   user-requested plan. Implementation requires the user to switch modes.
 
 Subagents inherit the parent's limits. A child mode can only narrow them.
@@ -33,7 +33,7 @@ grants, `--yes`, or Reviewer approval.
 
 ## Rules and grants
 
-Rules in `cade-mini.json` match a tool, normalized path subtree, or command
+Rules in `cade.json` match a tool, normalized path subtree, or command
 prefix. All matching rules participate: `deny` wins over `ask`, which wins over
 `allow`. An explicit allow overrides a default ask, not an effective deny.
 Remove or change a deny rule to revoke it; an approval answer cannot do that.
@@ -99,7 +99,7 @@ sandbox network access; approving network access does not grant external file
 writes. Windows and `danger-full-access` do not provide OS-level network
 restriction. The provider connection runs outside the tool sandbox.
 
-On Linux/macOS, the CLI hides existing user and project `.cade-mini` directories
+On Linux/macOS, the CLI hides existing user and project `.cade` directories
 from sandboxed commands and protects existing Git hooks and Git configuration
 from writes. The home directory is not writable by default. Private temp and
 common tool caches are redirected to a session directory, cleaned on exit.

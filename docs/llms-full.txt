@@ -1,14 +1,14 @@
-# Cade Mini
+# Cade
 
 > A small, durable coding agent built on one append-only session log.
 
-# Cade Mini
+# Cade
 
 <!-- source: README.md -->
 
-# Cade Mini
+# Cade
 
-Cade Mini is a standalone coding agent. It keeps one rule at the center of the
+Cade is a standalone coding agent. It keeps one rule at the center of the
 design:
 
 > The session log is the source of truth. The model-visible history is a
@@ -22,7 +22,7 @@ process restarts without inventing history.
 
 - [Quickstart](quickstart.md) installs and runs the first task.
 - [CLI](cli.md) lists one-shot, TUI, session, and recovery commands.
-- [Configuration](configuration.md) documents `cade-mini.json`.
+- [Configuration](configuration.md) documents `cade.json`.
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
 - [Sessions and context](sessions-context.md) covers resume, compaction,
@@ -38,7 +38,7 @@ process restarts without inventing history.
 
 ## Design
 
-- [How Cade Mini works](design/how-it-works.md) is the short end-to-end model.
+- [How Cade works](design/how-it-works.md) is the short end-to-end model.
 - [Code map](design/code-map.md) explains package boundaries and entry points.
 - [Relationship to Cade](design/cade-comparison.md) explains independent ownership.
 - [Capability seams](design/capability-seams.md) lists the replaceable
@@ -82,7 +82,7 @@ The [session schema](reference/session-schema.md) defines the persistence
 contract. Historical research and acceptance records describe the project before
 it became independent:
 
-- [Cade Mini design](history/design-proposal.md)
+- [Cade design](history/design-proposal.md)
 - [Session log schema](reference/session-schema.md)
 - [Harvest notes](history/harvest-audit.md)
 - [Parity acceptance](history/parity-acceptance.md)
@@ -93,10 +93,10 @@ The docs are Markdown-first. A small tool validates links and anchors, builds a
 single-page site, and generates an `llms.txt` catalog for agents:
 
 ```bash
-python -m cade_mini.docs check
-python -m cade_mini.docs build
-python -m cade_mini.docs llms --write
-python -m cade_mini.docs catalogs --write
+python -m cade.docs check
+python -m cade.docs build
+python -m cade.docs llms --write
+python -m cade.docs catalogs --write
 ```
 
 The generated site is [docs/index.html](index.html); the generated
@@ -109,8 +109,8 @@ config, event, and module pages under `design/`.
 
 # Quickstart
 
-Cade Mini requires Python 3.12 or newer. The repository uses `uv` for
-development and for the `cade-mini` entry point.
+Cade requires Python 3.12 or newer. The repository uses `uv` for
+development and for the `cade` entry point.
 
 ## Install and authenticate
 
@@ -120,15 +120,15 @@ From the repository root:
 uv sync --locked
 ```
 
-Cade Mini owns its credential store at `~/.cade-mini/auth.json`. Log in with
+Cade owns its credential store at `~/.cade/auth.json`. Log in with
 Sign in with ChatGPT (SIWC) in a browser:
 
 ```bash
-uv run --locked cade-mini login
+uv run --locked cade login
 ```
 
-The browser flow registers Cade Mini on first use and reuses that registration
-on later sign-ins. It stores a stable host ID at `~/.cade-mini/host.json`. SIWC
+The browser flow registers Cade on first use and reuses that registration
+on later sign-ins. It stores a stable host ID at `~/.cade/host.json`. SIWC
 has no device-code flow. On a headless host, complete the login locally, copy
 `auth.json`, and let the remote host create its own host ID on the next login.
 Or use an API key.
@@ -136,38 +136,39 @@ Or use an API key.
 For an OpenAI API key, use a hidden key prompt or set the environment variable:
 
 ```bash
-uv run --locked cade-mini login --provider openai
+uv run --locked cade login --provider openai
 export OPENAI_API_KEY=...
-uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project."
+uv run --locked cade --provider openai --model gpt-5.5 "Review this project."
 ```
 
 DeepSeek uses the same Responses protocol with its own API key:
 
 ```bash
-uv run --locked cade-mini login --provider deepseek
+uv run --locked cade login --provider deepseek
 export DEEPSEEK_API_KEY=...
-uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review this project."
+uv run --locked cade --provider deepseek --model deepseek-flash "Review this project."
 ```
 
 The default provider is `chatgpt`. Set `provider` and `model` in
-`cade-mini.json` to choose other startup defaults. Cade Mini supports only the
+`cade.json` to choose other startup defaults. Cade supports only the
 Responses protocol: `chatgpt` for ChatGPT plan usage, `openai` for an OpenAI
-API key, and `deepseek` for a DeepSeek API key. Mini does not read Cade's
-credentials, skills, or settings.
+API key, and `deepseek` for a DeepSeek API key. State from the earlier Cade
+project is not compatible; use clean `~/.cade/` and workspace `.cade/`
+directories.
 
 ## Run one task
 
 ```bash
-uv run --locked cade-mini "Read README.md and explain the entry point in three bullets."
+uv run --locked cade "Read README.md and explain the entry point in three bullets."
 ```
 
 The same command can be written explicitly:
 
 ```bash
-uv run --locked cade-mini exec "Read README.md and explain the entry point."
+uv run --locked cade exec "Read README.md and explain the entry point."
 ```
 
-Cade Mini runs in the current directory by default. Use `--project-root` to
+Cade runs in the current directory by default. Use `--project-root` to
 point at another workspace.
 
 ## Choose a mode
@@ -179,8 +180,8 @@ point at another workspace.
   commands are allowed.
 
 ```bash
-uv run --locked cade-mini --mode plan "Propose a fix for the failing test."
-uv run --locked cade-mini --mode build "Fix the bug and run the test."
+uv run --locked cade --mode plan "Propose a fix for the failing test."
+uv run --locked cade --mode build "Fix the bug and run the test."
 ```
 
 For non-interactive automation, `--yes` approves asks, and `--read-only` denies
@@ -189,12 +190,12 @@ repositories; see [Configuration](configuration.md).
 
 ## Continue work
 
-Sessions live under `.cade-mini/sessions` by default.
+Sessions live under `.cade/sessions` by default.
 
 ```bash
-uv run --locked cade-mini --list-sessions
-uv run --locked cade-mini --continue "What did you change?"
-uv run --locked cade-mini --resume SESSION_ID "Continue the task."
+uv run --locked cade --list-sessions
+uv run --locked cade --continue "What did you change?"
+uv run --locked cade --resume SESSION_ID "Continue the task."
 ```
 
 Omitting the task starts the full-screen TUI. See [CLI](cli.md) for interactive
@@ -204,8 +205,8 @@ commands and [Hosts](hosts.md) for key bindings.
 
 ```bash
 uv sync --locked --extra docs
-uv run --locked python -m cade_mini.docs check
-uv run --locked python -m cade_mini.docs build
+uv run --locked python -m cade.docs check
+uv run --locked python -m cade.docs build
 ```
 
 Open `docs/index.html`. The docs source is under `docs/`.
@@ -216,30 +217,30 @@ Open `docs/index.html`. The docs source is under `docs/`.
 
 # CLI
 
-The `cade-mini` entry point runs one task, starts an interactive terminal host,
+The `cade` entry point runs one task, starts an interactive terminal host,
 or manages sessions.
 
 ```bash
-cade-mini [TASK] [options]
-cade-mini exec TASK [options]
+cade [TASK] [options]
+cade exec TASK [options]
 ```
 
-`exec` is an explicit alias for a one-shot task. Without a task, `cade-mini`
+`exec` is an explicit alias for a one-shot task. Without a task, `cade`
 starts the TUI in an interactive terminal.
 
 ## Login
 
 ```bash
-cade-mini login
-cade-mini login --provider openai
-cade-mini login --provider deepseek
+cade login
+cade login --provider openai
+cade login --provider deepseek
 ```
 
 `--provider` defaults to `chatgpt`, which uses Sign in with ChatGPT (SIWC)
 in a browser. `openai` and `deepseek` use `api_key` with a hidden input prompt.
-Credentials are stored in `~/.cade-mini/auth.json`; the stable SIWC host ID is
-stored in `~/.cade-mini/host.json`. Login does not change project provider or
-model settings. Cade Mini supports only the Responses protocol. ChatGPT login
+Credentials are stored in `~/.cade/auth.json`; the stable SIWC host ID is
+stored in `~/.cade/host.json`. Login does not change project provider or
+model settings. Cade supports only the Responses protocol. ChatGPT login
 and OpenAI API keys expose the registered OpenAI chat model pool through separate
 authentication routes. A refreshable OAuth token still makes models selectable;
 the provider refreshes it when needed.
@@ -249,7 +250,7 @@ the provider refreshes it when needed.
 - `--project-root PATH` sets the workspace. The default is the current
   directory.
 - `--config PATH` selects a config file. The default is
-  `<project-root>/cade-mini.json`.
+  `<project-root>/cade.json`.
 - `--provider NAME`, `--model NAME`, and `--effort EFFORT` override provider
   defaults.
 - `--mode plan|build|ask` selects the work mode. Default is `build`.
@@ -348,7 +349,7 @@ conversation undo command.
   checks still apply.
 
 ```text
-Review @src/cade_mini/core/loop.py and use $review-only
+Review @src/cade/core/loop.py and use $review-only
 !git status
 ```
 
@@ -381,11 +382,11 @@ tool. See [Steering and queueing](design/steering-queue.md).
 ## Examples
 
 ```bash
-cade-mini --list-sessions
-cade-mini --continue "Summarize the current state."
-cade-mini --undo
-cade-mini --mode plan "Find the smallest fix for the failing test."
-cade-mini --mode build --yes "Fix the test and run pytest."
+cade --list-sessions
+cade --continue "Summarize the current state."
+cade --undo
+cade --mode plan "Find the smallest fix for the failing test."
+cade --mode build --yes "Fix the test and run pytest."
 ```
 
 # Configuration
@@ -394,7 +395,7 @@ cade-mini --mode build --yes "Fix the test and run pytest."
 
 # Configuration
 
-Cade Mini reads `<project-root>/cade-mini.json` by default. Use `--config PATH`
+Cade reads `<project-root>/cade.json` by default. Use `--config PATH`
 to select another file. Command-line options override the file; the file
 overrides built-in defaults.
 
@@ -410,7 +411,7 @@ silently ignored.
   "reasoning_effort": "high",
   "context_window": 128000,
   "max_steps": 30,
-  "sessions_dir": ".cade-mini/sessions",
+  "sessions_dir": ".cade/sessions",
   "mode": "build",
   "sandbox": "workspace-write",
   "network": true,
@@ -438,7 +439,7 @@ silently ignored.
 - `reasoning_effort`: provider reasoning effort. The CLI flag is `--effort`.
 - `context_window`: model context window in tokens. The default comes from the
   registered model metadata. Unregistered models require this field or
-  `--context-window`; Cade Mini rejects them otherwise.
+  `--context-window`; Cade rejects them otherwise.
 - `max_steps`: maximum model steps in one run.
 - `sessions_dir`: session directory. Relative paths resolve against the project
   root.
@@ -527,7 +528,7 @@ are denied in plan mode and read-only mode, and can be allowed by a rule.
 
 # Architecture
 
-Cade Mini is a standalone coding agent in `src/cade_mini/`. It uses a pipeline
+Cade is a standalone coding agent in `src/cade/`. It uses a pipeline
 with four stages. Each stage has one owner and one direction of data flow.
 
 ```text
@@ -614,11 +615,10 @@ fallback are decisions expressed as new log facts.
   `app/instructions.py`, `app/note.py`: startup and request context.
 - `hosts/cli.py`, `docs.py`: hosts and documentation.
 
-Mini owns `cade_mini.ai` and `cade_mini.execution_env` as lower layers for
+Cade owns `cade.ai` and `cade.execution_env` as lower layers for
 provider protocols and local process execution. It does not depend on the
-separate Cade project. `test_mini_boundary.py` rejects old Cade imports and
-application dependencies in these lower layers. There are no top-level
-re-exports; import the owning submodule directly.
+earlier Cade project. There are no top-level re-exports; import the owning
+submodule directly.
 
 ## Recovery
 
@@ -648,10 +648,11 @@ transport with the same Responses stream format and its own endpoint.
 The CLI confines shell and file workers on Linux/macOS; Windows runs directly.
 See [Tools and security](tools-security.md) for boundaries and trusted extensions.
 
-Credentials and user skills use `~/.cade-mini/`. The SIWC host ID lives in
-`~/.cade-mini/host.json`. Sessions, snapshots, goals,
-and project skills use `<workspace>/.cade-mini/`. Project settings live in
-`cade-mini.json`. Mini does not discover old Cade state.
+Credentials and user skills use `~/.cade/`. The SIWC host ID lives in
+`~/.cade/host.json`. Sessions, snapshots, goals,
+and project skills use `<workspace>/.cade/`. Project settings live in
+`cade.json`. The earlier Cade project's state formats are not compatible with
+this project; start from clean `~/.cade/` and workspace `.cade/` directories.
 
 See the [code map](design/code-map.md) and
 [persistence catalog](design/persistence-catalog.md) for implementation locations
@@ -660,7 +661,7 @@ and durable state ownership.
 ## Why the split
 
 The split prevents a common failure: the request builder starts hiding
-messages, then the history rewrite becomes the only copy of what happened. Mini
+messages, then the history rewrite becomes the only copy of what happened. Cade
 keeps the original facts and lets the projection and admission be replaced
 without losing history.
 
@@ -670,20 +671,20 @@ without losing history.
 
 # Sessions and context
 
-A session is an append-only JSONL file under `.cade-mini/sessions` by default.
+A session is an append-only JSONL file under `.cade/sessions` by default.
 The file name is `session-<id>.jsonl`. The session title is derived from the
 first user message; no extra event type is needed.
 
 ## Resume
 
 ```bash
-cade-mini --list-sessions
-cade-mini --continue "Continue where we stopped."
-cade-mini --resume SESSION_ID "Explain the current state."
+cade --list-sessions
+cade --continue "Continue where we stopped."
+cade --resume SESSION_ID "Explain the current state."
 ```
 
 `--continue` and `--resume` open the latest or a specific session. Existing
-sessions keep their original system fact; a new `cade-mini.json` does not rewrite
+sessions keep their original system fact; a new `cade.json` does not rewrite
 history. If a resumed session has no system entry, the current prompt is added.
 
 ## Tree, fork, and clone
@@ -789,18 +790,18 @@ Items 2-6 are request-only context. They are recorded in the request audit but
 never become conversation facts. See [Architecture](architecture.md) and the
 [design](history/design-proposal.md).
 
-# How Cade Mini works
+# How Cade works
 
 <!-- source: design/how-it-works.md -->
 
-# How Cade Mini works
+# How Cade works
 
-Cade Mini coordinates one model request at a time, executes the requested tools,
+Cade coordinates one model request at a time, executes the requested tools,
 and records every durable fact in a session log.
 
 ## One run
 
-A submitted task is appended as a `user` fact. Cade Mini projects the active
+A submitted task is appended as a `user` fact. Cade projects the active
 branch, builds a request for the current budget, and sends it to the provider.
 The provider streams text and tool calls. The loop records the assistant
 message, executes each tool call, and records a tool result. If the model needs
@@ -823,7 +824,7 @@ original messages.
 
 ## Sessions
 
-Sessions are JSONL files under `.cade-mini/sessions`. Entries have IDs and parent
+Sessions are JSONL files under `.cade/sessions`. Entries have IDs and parent
 IDs, so a session can form a tree; the active branch ends at the latest entry.
 Resuming opens the same file and appends new facts.
 
@@ -855,14 +856,14 @@ See [Architecture](../architecture.md) for the invariant and
 
 # Code map
 
-Cade Mini is an independent project. The `cade-mini` distribution installs the
-`cade_mini` package and the `cade-mini` command. It does not install or depend
-on Cade.
+Cade is an independent project. The `cade` distribution installs the
+`cade` package and the `cade` command. It does not install or depend
+on the earlier Cade project.
 
 ## Package layout
 
 ```text
-src/cade_mini/
+src/cade/
   ai/             provider adapters, events, auth protocols, models
   execution_env/  local subprocess execution and output capture
   core/           log, projection, request, loop, compaction, window
@@ -876,24 +877,25 @@ src/cade_mini/
 tests/            regression and integration tests
 ```
 
-Provider and execution modules originated in Cade and are now owned and
-maintained here. Mini includes only the process execution code it uses, not
-Cade's filesystem or Linux sandbox implementation. Mini's own process wrapper
-uses installed bubblewrap on Linux and Seatbelt on macOS; Windows runs directly.
+Provider and execution modules originated in the earlier Cade project and are
+now owned and maintained here. Cade includes only the process execution code it
+uses, not the earlier project's filesystem or Linux sandbox implementation. Its
+own process wrapper uses installed bubblewrap on Linux and Seatbelt on macOS;
+Windows runs directly.
 
 ## Entry points
 
 ```bash
-uv run --locked cade-mini
-uv run --locked cade-mini exec "Fix the failing test."
-uv run --locked python -m cade_mini
-uv run --locked cade-mini login
+uv run --locked cade
+uv run --locked cade exec "Fix the failing test."
+uv run --locked python -m cade
+uv run --locked cade login
 ```
 
-The console script and Python module call `cade_mini.hosts.cli:main`. Login
-is handled by `cade_mini.hosts.auth`. Credentials and user skills live under
-`~/.cade-mini/`. Project sessions and other state live under `.cade-mini/`.
-No old Cade directories or commands are used.
+The console script and Python module call `cade.hosts.cli:main`. Login
+is handled by `cade.hosts.auth`. Credentials and user skills live under
+`~/.cade/`. Project sessions and other state live under `.cade/`.
+State from the earlier Cade project is not compatible.
 
 ## Import direction
 
@@ -903,31 +905,32 @@ No old Cade directories or commands are used.
 - `app` owns startup settings, credential persistence, and request context.
 - `hosts` assemble these components and own user interaction.
 
-`tests/test_mini_boundary.py` rejects imports from the old `cade` namespace
-and application imports in the lower layers. The package root has no public
-re-exports; import the owning submodule directly.
+The package root has no public re-exports; import the owning submodule
+directly.
 
 See [Architecture](../architecture.md),
-[How Cade Mini works](how-it-works.md), and
+[How Cade works](how-it-works.md), and
 [Capability seams](capability-seams.md) for runtime contracts.
 
-# Relationship to Cade
+# Relationship to the earlier Cade project
 
 <!-- source: design/cade-comparison.md -->
 
-# Relationship to Cade
+# Relationship to the earlier Cade project
 
-Cade and Cade Mini are separate projects. This repository develops, tests, and
-releases only Cade Mini. It does not provide compatibility with Cade's Python
-package, commands, settings, credentials, or session formats.
+This repository was previously named Cade Mini. It is separate from the earlier
+Cade implementation. It develops, tests, and releases only this Cade
+implementation and does not provide compatibility with the earlier project's
+Python package, commands, settings, credentials, or session formats.
 
-Mini originated as a log-first implementation alongside Cade. Its provider
-adapters and process execution code were brought into the `cade_mini` package
-when it became independent. They are no longer shared runtime dependencies.
+This project originated as a log-first implementation alongside the earlier
+Cade. Its provider adapters and process execution code were brought into the
+`cade` package when it became independent. They are no longer shared runtime
+dependencies.
 
-## Mini's product boundary
+## Product boundary
 
-Mini provides a terminal TUI and one-shot execution. Its core separates
+Cade provides a terminal TUI and one-shot execution. Its core separates
 append-only session facts, deterministic projection, request admission, and the
 run loop.
 
@@ -948,7 +951,7 @@ before separation. It is not a promise of future feature parity. See the
 
 # Capability seams
 
-Cade Mini keeps a small number of explicit contracts. A seam is a place where an
+Cade keeps a small number of explicit contracts. A seam is a place where an
 implementation can be replaced without changing the session schema or the loop.
 
 | Seam | Contract | Implementations | Main consumers |
@@ -968,7 +971,7 @@ implementation can be replaced without changing the session schema or the loop.
 
 The loop needs a streaming event source: text deltas, tool calls, a final
 message, usage, and failures. A provider owns wire conversion and replay state.
-Cade Mini does not depend on provider-specific message types above this seam.
+Cade does not depend on provider-specific message types above this seam.
 
 ## Tool
 
@@ -1004,9 +1007,8 @@ changing either.
 
 ## Tests as contracts
 
-Each seam has a focused test module. `test_mini_boundary.py` enforces the import
-firewall, so a seam cannot quietly become a dependency on the Cade product
-layers.
+Each seam has a focused test module so a seam cannot quietly become a hidden
+dependency.
 
 # Event model
 
@@ -1147,10 +1149,10 @@ from the branch, so pruning does not destroy evidence.
 
 ## Tests
 
-- `test_mini_loop.py` covers approval, errors, timeouts, cancellation, retries,
+- `test_loop.py` covers approval, errors, timeouts, cancellation, retries,
   and window fallback.
-- `test_mini_hooks.py` covers allow, deny, and after-hook execution.
-- `test_mini_policy.py` covers modes, rules, grants, and boundaries.
+- `test_hooks.py` covers allow, deny, and after-hook execution.
+- `test_policy.py` covers modes, rules, grants, and boundaries.
 
 See [Tools and security](../tools-security.md) for user-facing behavior.
 
@@ -1158,7 +1160,7 @@ See [Tools and security](../tools-security.md) for user-facing behavior.
 
 <!-- source: design/config-catalog.md -->
 
-<!-- Generated by `python -m cade_mini.docs catalogs --write`. Do not edit by hand. -->
+<!-- Generated by `python -m cade.docs catalogs --write`. Do not edit by hand. -->
 
 # Configuration catalog
 
@@ -1217,7 +1219,7 @@ Top-level fields. Nested types follow the table.
 
 <!-- source: design/event-catalog.md -->
 
-<!-- Generated by `python -m cade_mini.docs catalogs --write`. Do not edit by hand. -->
+<!-- Generated by `python -m cade.docs catalogs --write`. Do not edit by hand. -->
 
 # Event catalog
 
@@ -1243,11 +1245,11 @@ Session entry types from `EventType`.
 
 <!-- source: design/module-graph.md -->
 
-<!-- Generated by `python -m cade_mini.docs catalogs --write`. Do not edit by hand. -->
+<!-- Generated by `python -m cade.docs catalogs --write`. Do not edit by hand. -->
 
 # Module graph
 
-Absolute imports inside `src/cade_mini/`.
+Absolute imports inside `src/cade/`.
 
 ```mermaid
 flowchart LR
@@ -1471,7 +1473,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `history` | `query`, `entry_id`, `call_id`, `limit` | None | Allow |
 | `skill` | `name` | None; loads a skill body | Allow |
 | `memory` | `text` | Appends to `MEMORY.md` | Allow; denied read-only |
-| `goal` | `action`, `objective` | Updates `.cade-mini/goal.json` | Allow |
+| `goal` | `action`, `objective` | Updates `.cade/goal.json` | Allow |
 | `subagent` | `prompt`, `description` | Creates a child session | Allow; inherits parent limits |
 | `delegate` | `prompt` or `tasks`, `mode`, `description` | Creates one or more child sessions | Allow |
 | `mcp__*` | Server-defined | Remote side effects | Ask; denied plan and read-only |
@@ -1502,7 +1504,7 @@ navigation aid; when it disagrees with the tool schema, the schema wins.
 
 # MCP reference servers
 
-Cade Mini implements stdio `initialize`, `tools/list`, and `tools/call` with a
+Cade implements stdio `initialize`, `tools/list`, and `tools/call` with a
 persistent connection per server. That is enough for the reference servers that
 expose tools.
 
@@ -1542,7 +1544,7 @@ example `--repository <path>`; pass the exact arguments the server expects.
 
 ## Capability boundary
 
-The reference servers above are tool servers. Cade Mini does not implement MCP
+The reference servers above are tool servers. Cade does not implement MCP
 resources, prompts, sampling, or server-initiated requests. A server that relies
 on those features will start but expose only its tools.
 
@@ -1562,11 +1564,11 @@ plan mode and with `--read-only`, and can be allowed by a rule:
 ## Verify
 
 ```bash
-cade-mini --mode build "Use the time MCP tool to get the current time in Asia/Singapore."
+cade --mode build "Use the time MCP tool to get the current time in Asia/Singapore."
 ```
 
 The log records a `tool_result` with the server's text content. A server process
-is closed when Cade Mini exits.
+is closed when Cade exits.
 
 ## Related
 
@@ -1660,23 +1662,23 @@ steering fact.
 
 # Persistence catalog
 
-Cade Mini separates durable history from host state. The session log is the
+Cade separates durable history from host state. The session log is the
 authority for what the model saw and what happened; the other stores have
 narrower jobs.
 
 | Artifact | Default location | Owner | Lifetime | Schema |
 | --- | --- | --- | --- | --- |
-| Session log | `.cade-mini/sessions/session-*.jsonl` | `SessionLog` | Project | Current closed structure |
-| Snapshots | `.cade-mini/snapshots/` | `SnapshotStore` | Project | Local index |
-| Recovery | `.cade-mini/recovery/` | Recovery coordinator | Workspace | Closed records; action journal and pending plan |
-| Goal | `.cade-mini/goal.json` | `GoalStore` | Project | One object |
+| Session log | `.cade/sessions/session-*.jsonl` | `SessionLog` | Project | Current closed structure |
+| Snapshots | `.cade/snapshots/` | `SnapshotStore` | Project | Local index |
+| Recovery | `.cade/recovery/` | Recovery coordinator | Workspace | Closed records; action journal and pending plan |
+| Goal | `.cade/goal.json` | `GoalStore` | Project | One object |
 | Working note | `NOTE.md` | Project | Project | Markdown |
 | Memory | `MEMORY.md` | `MemoryTool` | Project | Markdown |
 | Instructions | `AGENTS.md`, `CLAUDE.md`, overrides | Project | Project | Markdown |
-| Skills | `~/.cade-mini/skills`, `.cade-mini/skills` | Discovery | User or project | `SKILL.md` |
-| Config | `cade-mini.json` | `MiniConfig` | Project | Pydantic, strict |
-| Credentials | `~/.cade-mini/auth.json` | `JsonCredentialStore` | User | Provider credentials |
-| SIWC host ID | `~/.cade-mini/host.json` | `load_or_create_host_id` | User | Stable agent host identifier |
+| Skills | `~/.cade/skills`, `.cade/skills` | Discovery | User or project | `SKILL.md` |
+| Config | `cade.json` | `CadeConfig` | Project | Pydantic, strict |
+| Credentials | `~/.cade/auth.json` | `JsonCredentialStore` | User | Provider credentials |
+| SIWC host ID | `~/.cade/host.json` | `load_or_create_host_id` | User | Stable agent host identifier |
 | Docs site | `docs/index.html` | Docs tool | Repository | Generated |
 | LLM catalogs | `docs/llms*.txt` | Docs tool | Repository | Generated |
 
@@ -1801,7 +1803,7 @@ tool loads the body.
 
 ## MCP
 
-Model Context Protocol. Cade Mini runs stdio MCP servers and exposes their tools
+Model Context Protocol. Cade runs stdio MCP servers and exposes their tools
 as `mcp__<server>__<tool>`.
 
 ## subagent
@@ -1815,7 +1817,7 @@ A pre-change copy of a file, used by the one-shot `--undo` option.
 
 ## goal
 
-A durable objective in `.cade-mini/goal.json`, separate from the session
+A durable objective in `.cade/goal.json`, separate from the session
 schema.
 
 # Testing
@@ -1832,31 +1834,30 @@ a change, then the full suite before a release.
 ```bash
 mkdir -p e2e-results
 uv run --locked pytest -q tests --basetemp=e2e-results/pytest
-uv run --locked pytest -q tests/test_mini_loop.py --basetemp=e2e-results/pytest
-uv run --locked ruff check src/cade_mini/ tests/
-uv run --locked ruff format --check src/cade_mini/ tests/
-uv run --locked pyright src/cade_mini/
-uv run --locked python -m cade_mini.docs check
+uv run --locked pytest -q tests/test_loop.py --basetemp=e2e-results/pytest
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
+uv run --locked python -m cade.docs check
 ```
 
 ## Coverage map
 
 | Area | Tests |
 | --- | --- |
-| Sessions | `test_mini_log.py` |
-| Projection and pairing | `test_mini_projection.py` |
-| Budget, pruning, wire format | `test_mini_request.py` |
-| Loop, approvals, retries, windows | `test_mini_loop.py` |
-| Provider and auth | `test_mini_provider.py`, `test_mini_auth.py`, `test_mini_siwc_auth.py`, `test_responses_siwc_contract.py` |
-| Workspace tools | `test_mini_tools.py` |
-| Compaction and windows | `test_mini_compaction.py`, `test_mini_window.py` |
-| CLI and config | `test_mini_cli.py`, `test_mini_config.py` |
-| Instructions, skills, memory, NOTE | `test_mini_instructions.py`, `test_mini_skills.py`, `test_mini_memory.py`, `test_mini_note.py` |
-| Safety and modes | `test_mini_policy.py`, `test_mini_shell.py`, `test_mini_grants.py` |
-| Extensions | `test_mini_hooks.py`, `test_mini_mcp.py`, `test_mini_subagents.py` |
-| Recovery | `test_mini_snapshots.py`, `test_mini_goal.py` |
-| Docs | `test_mini_docs.py` |
-| Import firewall | `test_mini_boundary.py` |
+| Sessions | `test_log.py` |
+| Projection and pairing | `test_projection.py` |
+| Budget, pruning, wire format | `test_request.py` |
+| Loop, approvals, retries, windows | `test_loop.py` |
+| Provider and auth | `test_provider.py`, `test_auth.py`, `test_siwc_auth.py`, `test_responses_siwc_contract.py` |
+| Workspace tools | `test_tools.py` |
+| Compaction and windows | `test_compaction.py`, `test_window.py` |
+| CLI and config | `test_cli.py`, `test_config.py` |
+| Instructions, skills, memory, NOTE | `test_instructions.py`, `test_skills.py`, `test_memory.py`, `test_note.py` |
+| Safety and modes | `test_policy.py`, `test_shell.py`, `test_grants.py` |
+| Extensions | `test_hooks.py`, `test_mcp.py`, `test_subagents.py` |
+| Recovery | `test_snapshots.py`, `test_goal.py` |
+| Docs | `test_docs.py` |
 
 ## Real-provider checks
 
@@ -1867,21 +1868,22 @@ result in the change that adds a new acceptance.
 
 ## Docs checks
 
-`test_mini_docs.py` and `python -m cade_mini.docs check` validate the manifest,
+`test_docs.py` and `python -m cade.docs check` validate the manifest,
 links, anchors, and generated catalogs. The docs job runs in CI.
 
 ## Standalone distribution
 
 Build the wheel and source archive with `uv build --no-sources`. Install the
-wheel in a clean virtual environment and check both `cade-mini --help` and
-`python -m cade_mini --help` outside the source tree. No Cade package or command
-should be present. See the [validation guidelines](../testing.md).
+wheel in a clean virtual environment and check both `cade --help` and
+`python -m cade --help` outside the source tree. The installed environment must
+contain only this distribution's package and command. See the
+[validation guidelines](../testing.md).
 
-# Cade Mini session schema
+# Cade session schema
 
 <!-- source: reference/session-schema.md -->
 
-# Cade Mini session schema
+# Cade session schema
 
 > This is the current persistent structure and projection contract.
 > Records have no format-version field.
@@ -2052,7 +2054,7 @@ hosts can render it differently.
 
 ## Storage
 
-- Directory: `.cade-mini/sessions/` by default.
+- Directory: `.cade/sessions/` by default.
 - File: `session-<id>.jsonl`.
 - New interactive sessions defer file creation until the first user or assistant
   message. Setup events stay in memory and are flushed with that message.
@@ -2194,10 +2196,10 @@ historical timestamps do not make a newly created session appear old.
 
 ## Tests
 
-`test_mini_log.py` covers create, append, resume, tail repair, and listing.
-`test_mini_session_history.py` covers navigation, old-format recovery, inactive
-forks, and independent copies. `test_mini_projection.py` covers malformed paths.
-`test_mini_history_e2e.py` verifies the public commands through real TUI input.
+`test_log.py` covers create, append, resume, tail repair, and listing.
+`test_session_history.py` covers navigation, old-format recovery, inactive
+forks, and independent copies. `test_projection.py` covers malformed paths.
+`test_history_e2e.py` verifies the public commands through real TUI input.
 
 # Projection and request
 
@@ -2243,8 +2245,8 @@ non-authentication options, and budget. Session files can contain sensitive inpu
 
 ## Tests
 
-`test_mini_projection.py`, `test_mini_request.py`, and
-`test_mini_compaction.py` cover cuts, strict admission, and wire-format contracts.
+`test_projection.py`, `test_request.py`, and
+`test_compaction.py` cover cuts, strict admission, and wire-format contracts.
 
 # Loop
 
@@ -2297,7 +2299,7 @@ presentation; facts are durable. A host can drop events without losing history.
 
 ## Tests
 
-`test_mini_loop.py` covers completion, tool use, approvals, retries, timeouts,
+`test_loop.py` covers completion, tool use, approvals, retries, timeouts,
 cancellation, context errors, and window fallback.
 
 # Tools and policy
@@ -2348,11 +2350,11 @@ Rejections and failures return their reasons to the model as tool errors.
 
 ## Tests
 
-- `test_mini_policy.py`: mode constraints, precedence, and write scope.
-- `test_mini_grants.py`: exact grants and scope isolation.
-- `test_mini_review.py`: strict responses and model-visible denial reasons.
-- `test_mini_subagents.py`: child permission ceilings.
-- `test_mini_sandbox.py`: real OS file/network isolation, worker integration,
+- `test_policy.py`: mode constraints, precedence, and write scope.
+- `test_grants.py`: exact grants and scope isolation.
+- `test_review.py`: strict responses and model-visible denial reasons.
+- `test_subagents.py`: child permission ceilings.
+- `test_sandbox.py`: real OS file/network isolation, worker integration,
   cancellation, Windows bypass, and unavailable backends.
 
 # Context and compaction
@@ -2410,7 +2412,7 @@ transition or fails with `context_error`. See
 
 ## Tests
 
-`test_mini_compaction.py`, `test_mini_window.py`, `test_mini_history.py`, and
+`test_compaction.py`, `test_window.py`, `test_history.py`, and
 the request tests cover cuts, summaries, fallback, and retrieval.
 
 # Extensions
@@ -2463,7 +2465,7 @@ state, not session facts.
 
 ## Goals
 
-`GoalStore` persists one objective in `.cade-mini/goal.json`. The `goal` tool and
+`GoalStore` persists one objective in `.cade/goal.json`. The `goal` tool and
 `/goal` command manage it. An active goal is request context.
 
 ## Hosts
@@ -2479,8 +2481,8 @@ Subagents are sequential and share the parent approval context.
 
 ## Tests
 
-`test_mini_skills.py`, `test_mini_memory.py`, `test_mini_hooks.py`,
-`test_mini_mcp.py`, `test_mini_subagents.py`, `test_mini_snapshots.py`, and `test_mini_goal.py`.
+`test_skills.py`, `test_memory.py`, `test_hooks.py`,
+`test_mcp.py`, `test_subagents.py`, `test_snapshots.py`, and `test_goal.py`.
 
 # Tools and security
 
@@ -2511,7 +2513,7 @@ protected files. Workspace writes have snapshots; external writes do not.
   unclassified shell commands.
 - `plan` supports exploration and discussion, not implementation. Project
   changes, memory changes, goal changes, and MCP calls are denied. File tools
-  can write under `<workspace>/.cade-mini-plans/` only after approval for a
+  can write under `<workspace>/.cade-plans/` only after approval for a
   user-requested plan. Implementation requires the user to switch modes.
 
 Subagents inherit the parent's limits. A child mode can only narrow them.
@@ -2521,7 +2523,7 @@ grants, `--yes`, or Reviewer approval.
 
 ## Rules and grants
 
-Rules in `cade-mini.json` match a tool, normalized path subtree, or command
+Rules in `cade.json` match a tool, normalized path subtree, or command
 prefix. All matching rules participate: `deny` wins over `ask`, which wins over
 `allow`. An explicit allow overrides a default ask, not an effective deny.
 Remove or change a deny rule to revoke it; an approval answer cannot do that.
@@ -2587,7 +2589,7 @@ sandbox network access; approving network access does not grant external file
 writes. Windows and `danger-full-access` do not provide OS-level network
 restriction. The provider connection runs outside the tool sandbox.
 
-On Linux/macOS, the CLI hides existing user and project `.cade-mini` directories
+On Linux/macOS, the CLI hides existing user and project `.cade` directories
 from sandboxed commands and protects existing Git hooks and Git configuration
 from writes. The home directory is not writable by default. Private temp and
 common tool caches are redirected to a session directory, cleaned on exit.
@@ -2608,8 +2610,8 @@ See [decision 0009](decisions/0009-execution-permissions.md) for the contract.
 
 ## File snapshots
 
-Cade Mini records a snapshot before a file tool changes a file. Snapshots live
-under `.cade-mini/snapshots` with a JSONL index and one directory per snapshot.
+Cade records a snapshot before a file tool changes a file. Snapshots live
+under `.cade/snapshots` with a JSONL index and one directory per snapshot.
 
 Covered changes:
 
@@ -2630,7 +2632,7 @@ Not covered:
 ## Undo
 
 ```bash
-cade-mini --undo
+cade --undo
 ```
 
 This legacy CLI operation restores one file snapshot without contacting a
@@ -2675,7 +2677,7 @@ code checkpoint incomplete rather than pretending that recovery is available.
 Unselected files and the user's Git index remain untouched. Directory trees,
 untracked shell/hook changes, and external side effects are not restored.
 
-Cooperating operations share `.cade-mini/recovery/workspace.lock`. The action
+Cooperating operations share `.cade/recovery/workspace.lock`. The action
 journal and checkpoint links use closed records under that directory. A
 `pending.json` plan stores both images before restoration begins. Files use
 atomic per-file replacement; a multi-file restore is not a filesystem-wide
@@ -2695,11 +2697,11 @@ rewind with conversation history.
 
 ## Goals
 
-A goal is one durable objective stored in `.cade-mini/goal.json`. It has an
+A goal is one durable objective stored in `.cade/goal.json`. It has an
 objective, a status (`active` or `done`), and an update time.
 
 ```bash
-cade-mini --goal "Add a regression test for the parser" "Start the task."
+cade --goal "Add a regression test for the parser" "Start the task."
 ```
 
 In the TUI:
@@ -2724,10 +2726,10 @@ for facts that outlive the objective.
 
 ## Skills
 
-Cade Mini discovers `SKILL.md` files in two roots:
+Cade discovers `SKILL.md` files in two roots:
 
-1. `~/.cade-mini/skills/<name>/SKILL.md` for user skills.
-2. `<project>/.cade-mini/skills/<name>/SKILL.md` for project skills.
+1. `~/.cade/skills/<name>/SKILL.md` for user skills.
+2. `<project>/.cade/skills/<name>/SKILL.md` for project skills.
 
 Later roots override earlier roots with the same skill name. A skill file can
 start with YAML frontmatter:
@@ -2789,7 +2791,7 @@ conversation messages. See [Sessions and context](sessions-context.md).
 
 ## Hooks
 
-Hooks run shell commands around tools. They are configured in `cade-mini.json`:
+Hooks run shell commands around tools. They are configured in `cade.json`:
 
 ```json
 {
@@ -2817,7 +2819,7 @@ Hooks are trusted configuration. A hook that hangs is killed after its timeout.
 
 ## MCP
 
-MCP servers use stdio. Cade Mini starts one persistent process per server and
+MCP servers use stdio. Cade starts one persistent process per server and
 discovers its tools at startup:
 
 ```json
@@ -2913,20 +2915,20 @@ repository's tests.
 1. Reproduce the failure:
 
    ```bash
-   cade-mini --mode plan "Read the failing test and explain the failure."
+   cade --mode plan "Read the failing test and explain the failure."
    ```
 
 2. Fix it:
 
    ```bash
-   cade-mini --mode build --yes "Fix the failing test with the smallest change, then run pytest."
+   cade --mode build --yes "Fix the failing test with the smallest change, then run pytest."
    ```
 
 3. Inspect the diff and the snapshot:
 
    ```bash
    git diff
-   cade-mini --undo  # only if the change is wrong
+   cade --undo  # only if the change is wrong
    ```
 
 ## Verify
@@ -2962,13 +2964,13 @@ diff reviewable.
 1. Ask for a failing test or write it yourself:
 
    ```bash
-   cade-mini --mode build --yes "Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails."
+   cade --mode build --yes "Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails."
    ```
 
 2. Implement the smallest change:
 
    ```bash
-   cade-mini --mode build --yes "Implement mul() and run the new test."
+   cade --mode build --yes "Implement mul() and run the new test."
    ```
 
 3. Review:
@@ -2987,7 +2989,7 @@ diff reviewable.
 
 ## Undo
 
-If the change is wrong, use `cade-mini --undo` before starting another attempt.
+If the change is wrong, use `cade --undo` before starting another attempt.
 This restores one recorded file change at a time; it does not rewind the
 conversation.
 
@@ -3007,7 +3009,7 @@ Use `plan` and `--read-only` when the task is to inspect, not change.
 ## Procedure
 
 ```bash
-cade-mini --mode plan --read-only "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
+cade --mode plan --read-only "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
 ```
 
 Plan mode hides write and edit tools and denies mutating shell commands.
@@ -3045,7 +3047,7 @@ goal, and the history tool.
 1. Set a goal:
 
    ```bash
-   cade-mini --goal "Migrate the request builder to the new budget model" "Start by mapping the current admission rules."
+   cade --goal "Migrate the request builder to the new budget model" "Start by mapping the current admission rules."
    ```
 
 2. Keep a working note. Ask the model to update `NOTE.md` after each milestone:
@@ -3057,7 +3059,7 @@ goal, and the history tool.
 3. Continue the same session:
 
    ```bash
-   cade-mini --continue "Resume from NOTE.md and run the next step."
+   cade --continue "Resume from NOTE.md and run the next step."
    ```
 
 4. Compact when the session grows:
@@ -3090,12 +3092,12 @@ evidence.
 
 # Connect a custom MCP server
 
-MCP servers use stdio. Cade Mini keeps one process per server and exposes each
+MCP servers use stdio. Cade keeps one process per server and exposes each
 tool as `mcp__<server>__<tool>`.
 
 ## Configure
 
-Add the server to `cade-mini.json`:
+Add the server to `cade.json`:
 
 ```json
 {
@@ -3130,10 +3132,10 @@ Plan mode and `--read-only` deny MCP tools even with a rule.
 
 ## Verify
 
-1. Start Cade Mini; it prints a startup error if the server cannot start.
+1. Start Cade; it prints a startup error if the server cannot start.
 2. Ask the model to list or call a discovered tool.
 3. Check the tool result and the `mcp__` prefix in the log.
-4. Stop Cade Mini; the server process closes at exit.
+4. Stop Cade; the server process closes at exit.
 
 ## Limits
 
@@ -3147,7 +3149,7 @@ that hangs is killed after the configured timeout.
 
 # Hosts
 
-Cade Mini has one terminal host with two modes: an interactive TUI and one-shot
+Cade has one terminal host with two modes: an interactive TUI and one-shot
 execution. Both use the same session log, request builder, tools, policy, and
 core loop. The TUI uses `InteractionService` for commands and session control.
 
@@ -3156,7 +3158,7 @@ core loop. The TUI uses `InteractionService` for commands and session control.
 Without a task, the CLI starts the TUI in an interactive terminal:
 
 ```bash
-cade-mini
+cade
 ```
 
 The TUI keeps the conversation in a scrollable transcript, shows streaming
@@ -3186,8 +3188,8 @@ non-interactive process, provide a task instead.
 With a task, the CLI runs once and exits:
 
 ```bash
-cade-mini "Fix the failing test."
-cade-mini exec "Fix the failing test."
+cade "Fix the failing test."
+cade exec "Fix the failing test."
 ```
 
 One-shot mode supports `--json` for a JSONL event stream. Use `--read-only` or
@@ -3199,7 +3201,7 @@ explicit rules rather than a blanket `--yes` in automation and CI.
 
 # Development
 
-Cade Mini is maintained independently of Cade. Work from this repository root.
+Cade is maintained independently of Cade. Work from this repository root.
 
 ## Setup
 
@@ -3216,20 +3218,20 @@ uv sync --locked --extra dev --extra docs
 mkdir -p e2e-results
 ```
 
-Code lives in `src/cade_mini/`, tests in `tests/`, and documentation in `docs/`.
+Code lives in `src/cade/`, tests in `tests/`, and documentation in `docs/`.
 See [Architecture](architecture.md) for module boundaries.
 
 ## Checks
 
 ```bash
-uv run --locked ruff check src/cade_mini/ tests/
-uv run --locked ruff format --check src/cade_mini/ tests/
-uv run --locked pyright src/cade_mini/
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
 uv run --locked pytest -q tests --basetemp=e2e-results/pytest
-uv run --locked cade-mini --help
-uv run --locked python -m cade_mini --help
-uv run --locked cade-mini login --help
-uv run --locked python -m cade_mini.docs check
+uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
+uv run --locked python -m cade.docs check
 uv build --no-sources
 ```
 
@@ -3244,10 +3246,10 @@ navigation order and published pages. [docs/README.md](README.md) is the manual
 entry point. [docs/AGENTS.md](AGENTS.md) defines documentation rules.
 
 ```bash
-uv run --locked python -m cade_mini.docs catalogs --write
-uv run --locked python -m cade_mini.docs llms --write
-uv run --locked python -m cade_mini.docs build
-uv run --locked python -m cade_mini.docs check
+uv run --locked python -m cade.docs catalogs --write
+uv run --locked python -m cade.docs llms --write
+uv run --locked python -m cade.docs build
+uv run --locked python -m cade.docs check
 ```
 
 `check` validates the manifest, page files, relative links, anchors, and generated
@@ -3272,9 +3274,8 @@ research under `docs/history/`.
 
 ## Boundaries
 
-Mini owns the provider and process layers in `cade_mini.ai` and
-`cade_mini.execution_env`. `tests/test_mini_boundary.py` rejects imports from
-the old `cade` namespace. Do not add dependencies on the separate Cade project.
+Cade owns the provider and process layers in `cade.ai` and
+`cade.execution_env`. Do not add dependencies on the earlier Cade project.
 
 Public interfaces include the session schema, config fields, CLI flags, tool
 names, and docs manifest. Change them with tests and documentation in the same
@@ -3283,8 +3284,8 @@ commit.
 ## Commits and releases
 
 Review the diff and run checks before committing. Do not push or publish without
-maintainer approval. Confirm that the Git remote points to the Mini repository,
-not the separate Cade repository, before pushing.
+maintainer approval. Confirm that the Git remote points to this repository, not
+the earlier Cade project, before pushing.
 
 The CI workflow checks code, tests, docs, startup, and distribution builds.
 Version tags (`vX.Y.Z`) must match `pyproject.toml` and belong to `main`. The
@@ -3307,18 +3308,18 @@ After code changes, run:
 
 ```bash
 mkdir -p e2e-results
-uv run --locked ruff check src/cade_mini/ tests/
-uv run --locked ruff format --check src/cade_mini/ tests/
-uv run --locked pyright src/cade_mini/
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
 uv run --locked pytest -q tests --basetemp=e2e-results/pytest
 ```
 
 After import, package, or entry-point changes, also check:
 
 ```bash
-uv run --locked cade-mini --help
-uv run --locked python -m cade_mini --help
-uv run --locked cade-mini login --help
+uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
 uv build --no-sources
 ```
 
@@ -3352,11 +3353,11 @@ permissions, environment prerequisites, or external services. Report checks not
 run and remaining risks explicitly. Provider completion text alone is not proof
 that a workflow succeeded.
 
-# Cade Mini review standards
+# Cade review standards
 
 <!-- source: review-standards.md -->
 
-# Cade Mini review standards
+# Cade review standards
 
 This document defines how coding agents should review this repository. It is separate from implementation standards: `AGENTS.md` and code standards guide how to write code; this file guides how to judge code.
 
@@ -3438,7 +3439,7 @@ Use direct language. If something exists only for compatibility, test convenienc
 Prefer this format:
 
 ```text
-[medium] src/cade_mini/example.py::ExampleRunner
+[medium] src/cade/example.py::ExampleRunner
 
 Problem:
 ...
@@ -3482,8 +3483,11 @@ If a finding depends on an assumption, state the assumption.
 
 # Parity
 
-Cade Mini was accepted against Cade on two real repository workflows and a
-session resume. The full report is [Cade Mini parity](history/parity-acceptance.md).
+Before this project was renamed from Cade Mini to Cade, it was accepted against
+the earlier Cade project on two real repository workflows and a session resume.
+This page keeps the labels from that run: "Mini" means this project at the time,
+and "Cade" means the earlier project. The full report is
+[the historical parity acceptance](history/parity-acceptance.md).
 
 ## Workflows
 
@@ -3511,7 +3515,7 @@ Resume:
 
 - Mini ran with `--mode build --yes`; Cade ran with `--mode build --approval
   auto-review`.
-- Both used DeepSeek `deepseek-chat` at the time of the run. Cade Mini now
+- Both used DeepSeek `deepseek-chat` at the time of the run. Cade now
   supports only the Responses protocol.
 - Mini used five steps per workflow; Cade used four. Mini issued an extra `glob`
   inspection, which did not change the result.
@@ -3532,7 +3536,7 @@ Resume:
 The parity report records the concrete fixtures and observed results. Re-run a
 workflow by creating a clean fixture, running both agents with the same provider
 and settings, and comparing the diff and test result rather than the prose
-answer. Cade Mini supports only the Responses protocol.
+answer. Cade supports only the Responses protocol.
 
 # Postmortems
 
@@ -3597,7 +3601,7 @@ new task and the summary request contains the prior summary.
 
 ## Verification
 
-`test_mini_compaction.py::test_iterative_compaction_includes_prior_summary`
+`test_compaction.py::test_iterative_compaction_includes_prior_summary`
 passes. The projected roles are `system, summary, user`.
 
 ## Follow-up
@@ -3647,7 +3651,7 @@ retrievable. A regression test covers a single huge result.
 
 ## Verification
 
-`test_mini_request.py::test_build_prunes_a_single_huge_tool_result` passes and
+`test_request.py::test_build_prunes_a_single_huge_tool_result` passes and
 the resulting request is under budget.
 
 ## Follow-up
@@ -3661,7 +3665,7 @@ See [Projection and request](../subsystems/projection-request.md).
 
 # Persistence
 
-Cade Mini stores conversation history in a session log. Other stores have
+Cade stores conversation history in a session log. Other stores have
 separate responsibilities.
 
 ## Current structure
@@ -3669,10 +3673,10 @@ separate responsibilities.
 - Session logs use one closed schema without a format-version field. See
   [Session log schema](../reference/session-schema.md).
 - Each entry is one JSON object followed by a newline.
-- Sessions live under `.cade-mini/sessions`.
+- Sessions live under `.cade/sessions`.
 - Compaction, windows, navigation, and recovery are entries, not history rewrites.
-- File images live under `.cade-mini/snapshots`; recovery actions and pending
-  transactions live under `.cade-mini/recovery`.
+- File images live under `.cade/snapshots`; recovery actions and pending
+  transactions live under `.cade/recovery`.
 - Goals, NOTE, memory, and config remain separate artifacts.
 
 Development changes can break persisted structures. Readers and writers support
@@ -3681,8 +3685,8 @@ See [Change policy](change-policy.md).
 
 ## Verification
 
-`test_mini_log.py`, `test_mini_session_history.py`, `test_mini_projection.py`, and
-`test_mini_recovery.py` verify validation, projection, copies, and interrupted
+`test_log.py`, `test_session_history.py`, `test_projection.py`, and
+`test_recovery.py` verify validation, projection, copies, and interrupted
 recovery. Invalid input must fail before changing durable state.
 
 See the [Persistence catalog](../design/persistence-catalog.md) for ownership and
@@ -3694,7 +3698,7 @@ locations.
 
 # Change policy
 
-Cade Mini is under active development. Persisted data has one current, closed
+Cade is under active development. Persisted data has one current, closed
 structure with no format-version fields. Breaking changes are allowed. Do not
 add compatibility readers, migration commands, or special handling for earlier
 formats.
@@ -3720,15 +3724,30 @@ catalogs and documentation must match the implementation. See
 
 # Upgrade guide
 
-Cade Mini is under active development. Breaking changes are allowed. Persisted
+Cade is under active development. Breaking changes are allowed. Persisted
 records have one current structure, with no compatibility or migration layer.
 See [Change policy](../persistence/change-policy.md).
 
+## Rename from Cade Mini
+
+The distribution, Python package, command, configuration file, and state
+directories are now `cade`. The tool does not read the old paths. To keep
+existing data, move it before the first run:
+
+```bash
+mv ~/.cade-mini ~/.cade
+mv .cade-mini .cade
+mv cade-mini.json cade.json
+```
+
+Repeat the project moves in each workspace that used the old name. Sessions,
+snapshots, goals, skills, and credentials keep working after the move.
+
 ## Sign in with ChatGPT
 
-Use `chatgpt` for ChatGPT plan usage and `cade-mini login` for Sign in with
+Use `chatgpt` for ChatGPT plan usage and `cade login` for Sign in with
 ChatGPT. For API-key authentication, use `openai` or `deepseek`. Credentials live
-under `~/.cade-mini/`. See [CLI authentication](../cli.md#login).
+under `~/.cade/`. See [CLI authentication](../cli.md#login).
 
 ## Session and workspace recovery
 

@@ -31,7 +31,7 @@ wheels = [
 ]
 
 [[package]]
-name = "cade-mini"
+name = "cade"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

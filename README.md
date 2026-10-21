@@ -1,8 +1,8 @@
-# Cade Mini
+# Cade
 
-Cade Mini is a standalone Python coding agent with a durable, append-only
+Cade is a standalone Python coding agent with a durable, append-only
 session log. It runs one-shot tasks or an inline terminal UI. It does not
-require Cade.
+require the earlier Cade project.
 
 ## Install and start
 
@@ -10,46 +10,47 @@ You need Python 3.12+ and [uv](https://docs.astral.sh/uv/). From this checkout:
 
 ```bash
 uv sync --locked
-uv run --locked cade-mini login
-uv run --locked cade-mini "Read README.md and explain how this project runs."
+uv run --locked cade login
+uv run --locked cade "Read README.md and explain how this project runs."
 ```
 
 Login uses Sign in with ChatGPT by default. For an OpenAI API key:
 
 ```bash
-uv run --locked cade-mini login --provider openai
-uv run --locked cade-mini --provider openai --model gpt-5.5 "Review this project."
+uv run --locked cade login --provider openai
+uv run --locked cade --provider openai --model gpt-5.5 "Review this project."
 ```
 
 For DeepSeek:
 
 ```bash
-uv run --locked cade-mini login --provider deepseek
-uv run --locked cade-mini --provider deepseek --model deepseek-flash "Review this project."
+uv run --locked cade login --provider deepseek
+uv run --locked cade --provider deepseek --model deepseek-flash "Review this project."
 ```
 
-Cade Mini supports only the Responses protocol. API keys are also read from
+Cade supports only the Responses protocol. API keys are also read from
 `OPENAI_API_KEY` and `DEEPSEEK_API_KEY`. Credentials live in
-`~/.cade-mini/auth.json`; Cade credentials and settings are not read. See the
+`~/.cade/auth.json`; it does not support the earlier Cade project's state
+formats. See the
 [quickstart](docs/quickstart.md) for browser login and setup.
 
 To install the command outside the checkout:
 
 ```bash
 uv tool install .
-cade-mini --help
+cade --help
 ```
 
 ## Use
 
 ```bash
-cade-mini
-cade-mini exec "Review recent changes"
-cade-mini --continue "Continue work"
-cade-mini --mode build "Fix the bug"
+cade
+cade exec "Review recent changes"
+cade --continue "Continue work"
+cade --mode build "Fix the bug"
 ```
 
-Without a task, `cade-mini` starts the inline terminal UI. The TUI accepts
+Without a task, `cade` starts the inline terminal UI. The TUI accepts
 commands, file and skill references, and shell shortcuts.
 
 Build mode is the default: normal edits, tests, and builds run automatically.
@@ -57,10 +58,10 @@ Use `--mode ask` for approval before changes or `--mode plan` for planning.
 Linux requires bubblewrap; macOS uses Seatbelt. Windows runs without an OS
 sandbox. Network access is enabled by default. See
 [Tools and security](docs/tools-security.md) for scopes, approvals, and limits.
-Sessions and snapshots live in the project's `.cade-mini/` directory.
-Project settings live in `cade-mini.json`.
+Sessions and snapshots live in the project's `.cade/` directory.
+Project settings live in `cade.json`.
 
-Mini includes workspace tools, history retrieval, context compaction, skills,
+Cade includes workspace tools, history retrieval, context compaction, skills,
 memory, hooks, MCP tools, subagents, file snapshots, and goals. The TUI supports
 stepwise undo/redo, scoped rewind, and selected-file revert. Recovery covers
 tracked file mutations, not arbitrary shell or external side effects.
@@ -75,15 +76,15 @@ tracked file mutations, not arbitrary shell or external side effects.
 ```bash
 uv sync --locked --extra dev --extra docs
 mkdir -p e2e-results
-uv run --locked ruff check src/cade_mini/ tests/
-uv run --locked ruff format --check src/cade_mini/ tests/
-uv run --locked pyright src/cade_mini/
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
 uv run --locked pytest -q tests --basetemp=e2e-results/pytest
 ```
 
-Production code lives in `src/cade_mini/`; regression tests live in `tests/`.
-The package owns its provider adapters and process execution code. There is no
-`cade` command, `cade` Python package, or compatibility layer.
+Production code lives in `src/cade/`; regression tests live in `tests/`.
+The package owns its provider adapters and process execution code. It does not
+depend on the earlier Cade project or provide a compatibility layer for it.
 
 ## License
 

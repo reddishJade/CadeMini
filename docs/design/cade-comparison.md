@@ -1,16 +1,18 @@
-# Relationship to Cade
+# Relationship to the earlier Cade project
 
-Cade and Cade Mini are separate projects. This repository develops, tests, and
-releases only Cade Mini. It does not provide compatibility with Cade's Python
-package, commands, settings, credentials, or session formats.
+This repository was previously named Cade Mini. It is separate from the earlier
+Cade implementation. It develops, tests, and releases only this Cade
+implementation and does not provide compatibility with the earlier project's
+Python package, commands, settings, credentials, or session formats.
 
-Mini originated as a log-first implementation alongside Cade. Its provider
-adapters and process execution code were brought into the `cade_mini` package
-when it became independent. They are no longer shared runtime dependencies.
+This project originated as a log-first implementation alongside the earlier
+Cade. Its provider adapters and process execution code were brought into the
+`cade` package when it became independent. They are no longer shared runtime
+dependencies.
 
-## Mini's product boundary
+## Product boundary
 
-Mini provides a terminal TUI and one-shot execution. Its core separates
+Cade provides a terminal TUI and one-shot execution. Its core separates
 append-only session facts, deterministic projection, request admission, and the
 run loop.
 
