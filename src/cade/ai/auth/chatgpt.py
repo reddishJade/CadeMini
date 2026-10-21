@@ -39,6 +39,8 @@ PLAN_SCOPE = "chatgpt.tokens.use.direct"
 CALLBACK_PATH = "/auth/callback"
 DEFAULT_CALLBACK_PORT = 1455
 CALLBACK_HOST = "127.0.0.1"
+# 容忍本机与授权服务器的时钟偏差；过期时间同样顺延该窗口。
+ID_TOKEN_LEEWAY_SECONDS = 5
 
 _JWK_CLIENT: PyJWKClient | None = None
 
@@ -407,6 +409,7 @@ def validate_id_token(
             algorithms=["RS256"],
             audience=client_id,
             issuer=ISSUER,
+            leeway=ID_TOKEN_LEEWAY_SECONDS,
             options={"require": ["exp", "iat", "sub"]},
         )
     except jwt.PyJWTError as exc:
