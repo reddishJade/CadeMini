@@ -56,7 +56,7 @@ For HTTP transport and credential configuration, see [Configuration](configurati
 
 MCP extensions, sampling, elicitation, resource subscriptions, and automatic
 OAuth login are not enabled. Image, audio, and resource content blocks are
-preserved as JSON in Mini's text tool-result contract rather than sent as native
+preserved as JSON in Cade's text tool-result contract rather than sent as native
 multimodal provider messages. Tool output exceeding the runtime limit is marked
 as truncated; exact structured metadata remains in the log.
 Schemas must be self-contained: local `$ref` values work, but schema validation

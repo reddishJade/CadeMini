@@ -28,7 +28,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
 - [Sessions and context](sessions-context.md) covers resume, compaction,
-  pruning, and history retrieval.
+  window resets, and history retrieval.
 - [Tools and security](tools-security.md) covers modes, rules, grants, and shell
   analysis.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
@@ -37,7 +37,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
 - [Subagents](subagents.md) covers child sessions and delegation.
 - [Hosts](hosts.md) covers the terminal TUI and one-shot execution.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
-- [Parity](parity.md) links the acceptance against Cade.
+- [Parity](parity.md) links the historical acceptance against the earlier Cade project.
 
 ## Design
 
@@ -189,7 +189,7 @@ uv run --locked cade --mode build "Fix the bug and run the test."
 ```
 
 For non-interactive automation, `--yes` approves asks, and `--read-only` denies
-writes and shell commands. Prefer rule-based allows over `--yes` for shared
+mutations while allowing classified read-only shell commands. Prefer rule-based allows over `--yes` for shared
 repositories; see [Configuration](configuration.md).
 
 ## Continue work
@@ -202,7 +202,7 @@ uv run --locked cade --continue "What did you change?"
 uv run --locked cade --resume SESSION_ID "Continue the task."
 ```
 
-Omitting the task starts the full-screen TUI. See [CLI](cli.md) for interactive
+Omitting the task starts the inline TUI. See [CLI](cli.md) for interactive
 commands and [Hosts](hosts.md) for key bindings.
 
 ## Build the docs
@@ -320,23 +320,31 @@ modes, configuration, and permissions.
 - `/compact [INSTRUCTIONS]` summarizes older turns and applies optional guidance.
 - `/model [PROVIDER/MODEL]` switches an exact authenticated model or searches the
   model picker for a partial name.
+- `/effort [LEVEL]` chooses a model reasoning effort or opens its picker.
 - `/thinking [LEVEL]` selects reasoning effort. Use `Ctrl+T` to fold reasoning
   output without changing effort.
+- `/rollover [--force]` starts a new context window; `/new-context` is an alias.
 - `/new-context [--force]` starts a new context window using `NOTE.md` as the
   handoff. Write that file first, or use `--force` to reset without it.
 - `/mode [MODE]` shows or switches the execution mode.
-- `/permissions [clear]` shows or clears session grants.
+- `/permissions [list|clear]` lists or clears session grants; without arguments it opens a picker.
 - `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
+- `/context-window [SIZE|default]` shows or changes the current context window.
 - `/context` prints the session ID, provider, budget, and event count.
+- `/btw QUESTION` asks an independent side question.
 - `/steer TEXT` queues guidance for the next model step.
-- `/queue TEXT` queues a task to run after the current one.
+- `/queue [followup|steer|interrupt|TEXT]` chooses how busy `Enter` behaves, or queues TEXT for the next turn.
 - `/stop` interrupts a pending model request, including the wait for its first
   output. Tools stop at their cancellation checks.
 - `/help` prints the command list.
+- `/auth [status|login|logout]` displays authentication status or routes to login/logout.
 - `/login` selects an authentication method and provider. `/logout` removes a
   selected stored credential, not environment variables.
 - `/connect` selects a provider and opens its model picker after authentication.
 - `/skill [NAME]` activates a skill for the next task.
+- `/tool [list]` shows available tools and their descriptions.
+- `/config [KEY[=VALUE]]` browses settings or updates a project setting.
+- `/memory` shows the workspace memory file path.
 - `/exit` or `/quit` exits.
 
 The TUI does not register `/rename` or `/mcp`. Recovery changes tracked files,
@@ -2971,7 +2979,7 @@ For HTTP transport and credential configuration, see [Configuration](configurati
 
 MCP extensions, sampling, elicitation, resource subscriptions, and automatic
 OAuth login are not enabled. Image, audio, and resource content blocks are
-preserved as JSON in Mini's text tool-result contract rather than sent as native
+preserved as JSON in Cade's text tool-result contract rather than sent as native
 multimodal provider messages. Tool output exceeding the runtime limit is marked
 as truncated; exact structured metadata remains in the log.
 Schemas must be self-contained: local `$ref` values work, but schema validation
@@ -3301,15 +3309,17 @@ The TUI keeps the conversation in a scrollable transcript, shows streaming
 assistant text and tool progress, and handles approvals and questions without
 leaving the application. Common keys:
 
-- `Enter` submits the message or queues it while a task is running.
+- `Enter` submits a message; while running, it queues, steers, or interrupts according to the busy-input mode.
 - `Alt+Enter` steers the running task at the next model step.
 - `Shift+Tab` cycles `ask`, `build`, and `plan`.
 - `Esc` interrupts the running task, including a model request that has not
   produced output yet. Undelivered queued input returns to the editor.
-- When idle with empty input, double `Esc` opens the fork input selector.
-  Same-session tree navigation is not registered in this release.
+- When idle with empty input, double `Esc` opens the `/rewind` checkpoint selector.
+  Use `/tree` to navigate branches in the same session, or `/fork` to copy history into a new session.
 - `Ctrl+C` clears input without interrupting the task; press it again within
   500 ms to exit.
+- `Ctrl+D` twice exits when idle with empty input.
+- `Ctrl+O` toggles tool details; `Ctrl+T` toggles reasoning output.
 - `Ctrl+Q` exits.
 
 The TUI opens native selectors for models, modes, reasoning effort,

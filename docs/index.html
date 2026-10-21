@@ -131,7 +131,7 @@ process restarts without inventing history.</p>
 <li><a href="#page-architecture">Architecture</a> explains the log, projection, request, and run
 pipeline.</li>
 <li><a href="#page-sessions-context">Sessions and context</a> covers resume, compaction,
-pruning, and history retrieval.</li>
+window resets, and history retrieval.</li>
 <li><a href="#page-tools-security">Tools and security</a> covers modes, rules, grants, and shell
 analysis.</li>
 <li><a href="#page-snapshots-goals">Snapshots and goals</a> covers undo and durable objectives.</li>
@@ -140,7 +140,7 @@ analysis.</li>
 <li><a href="#page-subagents">Subagents</a> covers child sessions and delegation.</li>
 <li><a href="#page-hosts">Hosts</a> covers the terminal TUI and one-shot execution.</li>
 <li><a href="#page-development">Development</a> covers checks, tests, and the docs pipeline.</li>
-<li><a href="#page-parity">Parity</a> links the acceptance against Cade.</li>
+<li><a href="#page-parity">Parity</a> links the historical acceptance against the earlier Cade project.</li>
 </ul>
 <h2>Design</h2>
 <ul>
@@ -255,7 +255,7 @@ commands are allowed.</li>
 uv run --locked cade --mode build &quot;Fix the bug and run the test.&quot;
 </code></pre>
 <p>For non-interactive automation, <code>--yes</code> approves asks, and <code>--read-only</code> denies
-writes and shell commands. Prefer rule-based allows over <code>--yes</code> for shared
+mutations while allowing classified read-only shell commands. Prefer rule-based allows over <code>--yes</code> for shared
 repositories; see <a href="#page-configuration">Configuration</a>.</p>
 <h2>Continue work</h2>
 <p>Sessions live under <code>.cade/sessions</code> by default.</p>
@@ -263,7 +263,7 @@ repositories; see <a href="#page-configuration">Configuration</a>.</p>
 uv run --locked cade --continue &quot;What did you change?&quot;
 uv run --locked cade --resume SESSION_ID &quot;Continue the task.&quot;
 </code></pre>
-<p>Omitting the task starts the full-screen TUI. See <a href="#page-cli">CLI</a> for interactive
+<p>Omitting the task starts the inline TUI. See <a href="#page-cli">CLI</a> for interactive
 commands and <a href="#page-hosts">Hosts</a> for key bindings.</p>
 <h2>Build the docs</h2>
 <pre><code class="language-bash">uv sync --locked --extra docs
@@ -364,23 +364,31 @@ includes the latest action. Conflicting later edits block restoration.</li>
 <li><code>/compact [INSTRUCTIONS]</code> summarizes older turns and applies optional guidance.</li>
 <li><code>/model [PROVIDER/MODEL]</code> switches an exact authenticated model or searches the
 model picker for a partial name.</li>
+<li><code>/effort [LEVEL]</code> chooses a model reasoning effort or opens its picker.</li>
 <li><code>/thinking [LEVEL]</code> selects reasoning effort. Use <code>Ctrl+T</code> to fold reasoning
 output without changing effort.</li>
+<li><code>/rollover [--force]</code> starts a new context window; <code>/new-context</code> is an alias.</li>
 <li><code>/new-context [--force]</code> starts a new context window using <code>NOTE.md</code> as the
 handoff. Write that file first, or use <code>--force</code> to reset without it.</li>
 <li><code>/mode [MODE]</code> shows or switches the execution mode.</li>
-<li><code>/permissions [clear]</code> shows or clears session grants.</li>
+<li><code>/permissions [list|clear]</code> lists or clears session grants; without arguments it opens a picker.</li>
 <li><code>/goal [TEXT|done|clear]</code> shows, sets, completes, or clears the goal.</li>
+<li><code>/context-window [SIZE|default]</code> shows or changes the current context window.</li>
 <li><code>/context</code> prints the session ID, provider, budget, and event count.</li>
+<li><code>/btw QUESTION</code> asks an independent side question.</li>
 <li><code>/steer TEXT</code> queues guidance for the next model step.</li>
-<li><code>/queue TEXT</code> queues a task to run after the current one.</li>
+<li><code>/queue [followup|steer|interrupt|TEXT]</code> chooses how busy <code>Enter</code> behaves, or queues TEXT for the next turn.</li>
 <li><code>/stop</code> interrupts a pending model request, including the wait for its first
 output. Tools stop at their cancellation checks.</li>
 <li><code>/help</code> prints the command list.</li>
+<li><code>/auth [status|login|logout]</code> displays authentication status or routes to login/logout.</li>
 <li><code>/login</code> selects an authentication method and provider. <code>/logout</code> removes a
 selected stored credential, not environment variables.</li>
 <li><code>/connect</code> selects a provider and opens its model picker after authentication.</li>
 <li><code>/skill [NAME]</code> activates a skill for the next task.</li>
+<li><code>/tool [list]</code> shows available tools and their descriptions.</li>
+<li><code>/config [KEY[=VALUE]]</code> browses settings or updates a project setting.</li>
+<li><code>/memory</code> shows the workspace memory file path.</li>
 <li><code>/exit</code> or <code>/quit</code> exits.</li>
 </ul>
 <p>The TUI does not register <code>/rename</code> or <code>/mcp</code>. Recovery changes tracked files,
@@ -3250,7 +3258,7 @@ data, not instructions or authorization.</p>
 <h2>Limits</h2>
 <p>MCP extensions, sampling, elicitation, resource subscriptions, and automatic
 OAuth login are not enabled. Image, audio, and resource content blocks are
-preserved as JSON in Mini's text tool-result contract rather than sent as native
+preserved as JSON in Cade's text tool-result contract rather than sent as native
 multimodal provider messages. Tool output exceeding the runtime limit is marked
 as truncated; exact structured metadata remains in the log.
 Schemas must be self-contained: local <code>$ref</code> values work, but schema validation
@@ -3505,15 +3513,17 @@ session control.</p>
 assistant text and tool progress, and handles approvals and questions without
 leaving the application. Common keys:</p>
 <ul>
-<li><code>Enter</code> submits the message or queues it while a task is running.</li>
+<li><code>Enter</code> submits a message; while running, it queues, steers, or interrupts according to the busy-input mode.</li>
 <li><code>Alt+Enter</code> steers the running task at the next model step.</li>
 <li><code>Shift+Tab</code> cycles <code>ask</code>, <code>build</code>, and <code>plan</code>.</li>
 <li><code>Esc</code> interrupts the running task, including a model request that has not
 produced output yet. Undelivered queued input returns to the editor.</li>
-<li>When idle with empty input, double <code>Esc</code> opens the fork input selector.
-Same-session tree navigation is not registered in this release.</li>
+<li>When idle with empty input, double <code>Esc</code> opens the <code>/rewind</code> checkpoint selector.
+Use <code>/tree</code> to navigate branches in the same session, or <code>/fork</code> to copy history into a new session.</li>
 <li><code>Ctrl+C</code> clears input without interrupting the task; press it again within
 500 ms to exit.</li>
+<li><code>Ctrl+D</code> twice exits when idle with empty input.</li>
+<li><code>Ctrl+O</code> toggles tool details; <code>Ctrl+T</code> toggles reasoning output.</li>
 <li><code>Ctrl+Q</code> exits.</li>
 </ul>
 <p>The TUI opens native selectors for models, modes, reasoning effort,

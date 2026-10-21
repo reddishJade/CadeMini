@@ -77,7 +77,7 @@ uv run --locked cade --mode build "Fix the bug and run the test."
 ```
 
 For non-interactive automation, `--yes` approves asks, and `--read-only` denies
-writes and shell commands. Prefer rule-based allows over `--yes` for shared
+mutations while allowing classified read-only shell commands. Prefer rule-based allows over `--yes` for shared
 repositories; see [Configuration](configuration.md).
 
 ## Continue work
@@ -90,7 +90,7 @@ uv run --locked cade --continue "What did you change?"
 uv run --locked cade --resume SESSION_ID "Continue the task."
 ```
 
-Omitting the task starts the full-screen TUI. See [CLI](cli.md) for interactive
+Omitting the task starts the inline TUI. See [CLI](cli.md) for interactive
 commands and [Hosts](hosts.md) for key bindings.
 
 ## Build the docs
