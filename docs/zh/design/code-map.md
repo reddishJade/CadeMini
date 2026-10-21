@@ -18,11 +18,12 @@ src/cade/
     window.py               显式上下文窗口重置
   coding/
     tools/                  读写、编辑、搜索、shell、历史和提问工具
-    context/                提示词、指令、技能、笔记和记忆
+    context/                提示词、指令、笔记和记忆
     security/               工作区策略、规则、授权、审批和复核
     workspace/              快照和协调恢复
     subagents.py            编程子会话和委派工具
-    mcp.py, mcp_config.py    MCP 工具和连接配置
+    mcp/, mcp_config.py      MCP 连接、工具、结果和配置
+    skills/                 技能发现、加载、资源和上下文恢复
     goal.py                 工作区目标状态和工具
   app/                      装配、活动会话、配置、认证和命令
   hosts/                    CLI 和 TUI 展示

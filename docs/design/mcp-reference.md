@@ -1,10 +1,9 @@
 # MCP reference servers
 
-Cade implements stdio `initialize`, `tools/list`, and `tools/call` with a
-persistent connection per server. That is enough for the reference servers that
-expose tools.
+Cade uses the official MCP SDK for stdio and Streamable HTTP. See
+[MCP](../mcp.md) for supported revisions and capabilities.
 
-## Verified servers
+## Previously verified servers
 
 | Server | Command | Verified |
 | --- | --- | --- |
@@ -40,9 +39,10 @@ example `--repository <path>`; pass the exact arguments the server expects.
 
 ## Capability boundary
 
-The reference servers above are tool servers. Cade does not implement MCP
-resources, prompts, sampling, or server-initiated requests. A server that relies
-on those features will start but expose only its tools.
+The current integration suite verifies local SDK servers over stdio and HTTP,
+including resources, prompts, cancellation, and credentials. The external
+servers above were verified with the previous client and have not been rerun
+for this SDK migration. Sampling and elicitation are not enabled.
 
 ## Policy
 
@@ -69,5 +69,5 @@ is closed when Cade exits.
 ## Related
 
 - [Configuration](../configuration.md)
-- [MCP and subagents](../mcp-subagents.md)
+- [MCP](../mcp.md)
 - [Custom MCP server](../cookbook/custom-mcp.md)

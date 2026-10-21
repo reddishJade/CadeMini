@@ -2,13 +2,14 @@
 
 ## Skills
 
-Cade discovers `SKILL.md` files in two roots:
+Cade discovers user skills in `~/.cade/skills/` and `~/.agents/skills/`.
+Set `trust_project_skills` to `true` to include the matching directories under
+this project. Project skills are disabled by default. An explicit `skills_dir`
+is trusted and has the highest priority, followed by project and user roots;
+`.cade/skills` precedes `.agents/skills` within each scope. Duplicate names
+produce a warning and keep the first definition.
 
-1. `~/.cade/skills/<name>/SKILL.md` for user skills.
-2. `<project>/.cade/skills/<name>/SKILL.md` for project skills.
-
-Later roots override earlier roots with the same skill name. A skill file can
-start with YAML frontmatter:
+Each skill directory must contain `SKILL.md` with YAML frontmatter:
 
 ```markdown
 ---
@@ -19,18 +20,38 @@ description: Validate release metadata before tagging.
 Run the release checklist...
 ```
 
-`name` defaults to the parent directory. `description` defaults to the first
-non-empty body line. Invalid names and empty bodies are skipped.
+The loader validates required fields, naming rules, directory-name agreement,
+length limits, and metadata types. Invalid definitions are skipped with a
+diagnostic. Discovery reads frontmatter only; activation reads the body and
+indexes `references/`, `scripts/`, and `assets/`.
 
-The request gets a compact `<available-skills>` catalog with names and
-descriptions. The model loads a body on demand with the `skill` tool:
+The request carries a compact catalog. The model loads instructions with:
 
 ```json
 {"name": "release-check"}
 ```
 
-Skill bodies are facts in the tool result, not request-only context. Loading the
-same skill twice is harmless but adds another tool result.
+The result includes the absolute skill root and resource paths. Read a reference
+without loading every resource:
+
+```json
+{"name": "release-check", "reference": "checklist.md"}
+```
+
+Reference names are relative to `references/`; hidden files, symbolic links,
+binary references, and paths outside the skill root are rejected. References
+are limited to 50 KiB. Scripts run through the ordinary `bash` tool and its
+permission policy. Trusted skill directories are readable but protected from
+writes in native sandboxes; other private `.cade/` state stays hidden.
+
+Use `$release-check` or `/skill release-check` for explicit activation.
+`disable-model-invocation: true` hides a skill from automatic selection while
+keeping explicit activation available. `compatibility` is disclosed when loaded;
+`allowed-tools` is advisory and never grants permissions.
+
+Bodies are tool-result facts. Previously activated instructions missing after
+compaction or a window reset are restored from the active branch into request
+context. A model can reload a skill when it needs its exact instructions.
 
 ## Memory
 

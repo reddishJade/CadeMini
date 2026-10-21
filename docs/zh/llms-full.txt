@@ -24,7 +24,8 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 - [工具与安全](tools-security.md)：模式、规则、授权和 shell 分析。
 - [快照与目标](snapshots-goals.md)：撤销和持久目标。
 - [技能与记忆](skills-memory.md)：`SKILL.md` 和 `MEMORY.md`。
-- [MCP 和子代理](mcp-subagents.md)：扩展机制。
+- [MCP](mcp.md)：外部工具、资源和提示词。
+- [子代理](subagents.md)：子会话和任务委派。
 - [宿主](hosts.md)：终端 TUI 和一次性执行。
 - [开发](development.md)：检查、测试和文档流水线。
 - [对齐验收](parity.md)：与 Cade 的验收对照。
@@ -386,7 +387,7 @@ Cade 默认读取 `<project-root>/cade.json`。用 `--config PATH` 选择其他�
 
 ## MCP 服务器
 
-MCP 服务器使用 stdio，每个服务器保持一条长连接。
+MCP 服务器支持 stdio 和 Streamable HTTP，每个服务器保持一条连接。
 
 ```json
 {
@@ -403,6 +404,24 @@ MCP 服务器使用 stdio，每个服务器保持一条长连接。
 ```
 
 发现的工具以 `mcp__<server>__<tool>` 命名。它们默认需要确认，在计划模式和只读模式下被拒绝，也可以由规则放行。
+
+`env` 用于普通进程设置；`env_from` 将指定宿主环境变量传给 stdio 服务器。默认只继承 SDK 的基础进程环境，不会自动复制其余宿主凭据。HTTP 请求头通过 `headers_from` 从环境变量读取：
+
+```json
+{
+  "mcp_servers": {
+    "remote": {
+      "transport": "streamable-http",
+      "url": "https://mcp.example.com/mcp",
+      "headers_from": {"Authorization": "EXAMPLE_MCP_AUTH"}
+    }
+  }
+}
+```
+
+在 Cade 外设置 `EXAMPLE_MCP_AUTH`，值为完整的授权请求头。凭据应存放在环境变量或外部密钥管理器中，不要写入项目配置、URL、命令参数或技能文件。Cade 不保存凭据缓存，显式传入的凭据值会从 MCP 结果和诊断中脱敏。MCP 服务进程运行在工作区工具沙箱之外，只配置可信服务。
+
+设置 `trust_project_skills: true` 后才会发现项目技能。`skills_dir` 可指定额外的可信目录，支持相对项目根目录的路径或绝对路径。详见[技能与记忆](skills-memory.md)。
 
 # 架构
 
@@ -639,11 +658,12 @@ src/cade/
     window.py               显式上下文窗口重置
   coding/
     tools/                  读写、编辑、搜索、shell、历史和提问工具
-    context/                提示词、指令、技能、笔记和记忆
+    context/                提示词、指令、笔记和记忆
     security/               工作区策略、规则、授权、审批和复核
     workspace/              快照和协调恢复
     subagents.py            编程子会话和委派工具
-    mcp.py, mcp_config.py    MCP 工具和连接配置
+    mcp/, mcp_config.py      MCP 连接、工具、结果和配置
+    skills/                 技能发现、加载、资源和上下文恢复
     goal.py                 工作区目标状态和工具
   app/                      装配、活动会话、配置、认证和命令
   hosts/                    CLI 和 TUI 展示
@@ -888,14 +908,21 @@ Top-level fields. Nested types follow the table.
 | `network` | `boolean` | `true` |
 | `rules` | `list[RuleConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
+| `trust_project_skills` | `boolean` | `false` |
+| `skills_dir` | `string \| null` | `null` |
 
 ## McpServerConfig
 
 | Field | Type | Default |
 | --- | --- | --- |
-| `command` | `string` | `required` |
+| `transport` | `stdio \| streamable-http` | `"stdio"` |
+| `command` | `string \| null` | `null` |
 | `args` | `list[string]` | `required` |
 | `env` | `dict[str, string] \| null` | `null` |
+| `env_from` | `dict[str, string]` | `required` |
+| `url` | `string \| null` | `null` |
+| `headers_from` | `dict[str, string]` | `required` |
+| `protocol` | `auto \| legacy` | `"auto"` |
 | `cwd` | `string \| null` | `null` |
 | `timeout_ms` | `integer` | `30000` |
 
@@ -970,13 +997,13 @@ flowchart LR
   app_bootstrap --> coding_context_memory
   app_bootstrap --> coding_context_note
   app_bootstrap --> coding_context_prompts
-  app_bootstrap --> coding_context_skills
   app_bootstrap --> coding_goal
-  app_bootstrap --> coding_mcp
+  app_bootstrap --> coding_mcp_tools
   app_bootstrap --> coding_security_approval
   app_bootstrap --> coding_security_grants
   app_bootstrap --> coding_security_policy
   app_bootstrap --> coding_security_review
+  app_bootstrap --> coding_skills_tools
   app_bootstrap --> coding_subagents
   app_bootstrap --> coding_tools_registry
   app_bootstrap --> coding_workspace_recovery_coordinator
@@ -987,6 +1014,7 @@ flowchart LR
   app_bootstrap --> harness_provider
   app_bootstrap --> harness_request
   app_bootstrap --> harness_session_log
+  app_bootstrap --> harness_tools
   app_bootstrap --> harness_window
   app_config --> coding_mcp_config
   app_config --> coding_security_rules
@@ -1006,10 +1034,13 @@ flowchart LR
   app_session --> app_context_report
   app_session --> app_provider
   app_session --> app_settings
-  app_session --> coding_context_skills
   app_session --> coding_goal
+  app_session --> coding_mcp_tools
   app_session --> coding_security_policy
   app_session --> coding_security_review
+  app_session --> coding_skills_context
+  app_session --> coding_skills_models
+  app_session --> coding_skills_tools
   app_session --> coding_subagents
   app_session --> coding_tools_base
   app_session --> coding_tools_history
@@ -1041,17 +1072,19 @@ flowchart LR
   coding_context_memory --> harness_cancellation
   coding_context_memory --> harness_session_types
   coding_context_memory --> harness_tools
-  coding_context_skills --> coding_tools_base
-  coding_context_skills --> harness_session_types
-  coding_context_skills --> harness_tools
   coding_goal --> coding_tools_base
   coding_goal --> harness_cancellation
   coding_goal --> harness_session_types
   coding_goal --> harness_tools
-  coding_mcp --> coding_mcp_config
-  coding_mcp --> harness_cancellation
-  coding_mcp --> harness_session_types
-  coding_mcp --> harness_tools
+  coding_mcp_client --> coding_mcp_config
+  coding_mcp_client --> harness_async_worker
+  coding_mcp_results --> harness_tools
+  coding_mcp_tools --> coding_mcp_client
+  coding_mcp_tools --> coding_mcp_results
+  coding_mcp_tools --> coding_mcp_config
+  coding_mcp_tools --> harness_cancellation
+  coding_mcp_tools --> harness_session_types
+  coding_mcp_tools --> harness_tools
   coding_security_approval --> coding_security_grants
   coding_security_approval --> coding_security_sensitive
   coding_security_approval --> harness_permissions
@@ -1071,6 +1104,21 @@ flowchart LR
   coding_security_review --> harness_request
   coding_security_review --> harness_session_types
   coding_security_shell --> coding_security_sensitive
+  coding_skills_context --> coding_skills_registry
+  coding_skills_context --> coding_skills_tools
+  coding_skills_context --> harness_session_types
+  coding_skills_discovery --> coding_skills_models
+  coding_skills_registry --> coding_skills_discovery
+  coding_skills_registry --> coding_skills_models
+  coding_skills_registry --> coding_skills_parsing
+  coding_skills_rendering --> coding_skills_models
+  coding_skills_tools --> coding_skills_discovery
+  coding_skills_tools --> coding_skills_models
+  coding_skills_tools --> coding_skills_registry
+  coding_skills_tools --> coding_skills_rendering
+  coding_skills_tools --> coding_tools_base
+  coding_skills_tools --> harness_session_types
+  coding_skills_tools --> harness_tools
   coding_subagents --> coding_security_policy
   coding_subagents --> coding_tools_base
   coding_subagents --> coding_tools_history
@@ -1261,7 +1309,7 @@ flowchart LR
 
 # MCP 参考服务器
 
-Cade 实现 stdio 的 `initialize`、`tools/list` 和 `tools/call`，每个服务器保持一条长连接。这对暴露工具的参考服务器已经够用。
+Cade 使用官方 SDK 支持 stdio 和 Streamable HTTP。支持的版本与能力见 [MCP](../mcp.md)。下面的外部参考服务器在本次 SDK 迁移前已验证，迁移后尚未重新运行。
 
 ## 已验证的服务器
 
@@ -1298,7 +1346,7 @@ Cade 实现 stdio 的 `initialize`、`tools/list` 和 `tools/call`，每个服�
 
 ## 能力边界
 
-上面的参考服务器都是工具服务器。Cade 不实现 MCP resources、prompts、sampling 或服务器发起的请求。依赖这些功能的服务器可以启动，但只暴露工具。
+本地 SDK 集成测试覆盖工具、资源、提示词、取消和凭据处理。当前未启用采样、信息征询和可选扩展。
 
 ## 策略
 
@@ -1323,7 +1371,7 @@ cade --mode build "Use the time MCP tool to get the current time in Asia/Singapo
 ## 相关页面
 
 - [配置](../configuration.md)
-- [MCP 和子代理](../mcp-subagents.md)
+- [MCP](../mcp.md)
 - [自定义 MCP 服务器](../cookbook/custom-mcp.md)
 
 # 引导与排队
@@ -1968,7 +2016,7 @@ Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端�
 
 ## 技能
 
-发现过程读取用户级和项目级根目录中的 `SKILL.md`。请求携带技能目录；`skill` 工具把正文加载成工具结果。正文是事实，不是请求专属上下文。
+发现过程只读取用户级和受信任项目目录中的技能元数据。请求携带技能目录；`skill` 工具按需加载正文和引用文件，并返回资源根目录。已加载说明在压缩或换窗后缺失时，会从活动分支恢复到请求上下文。配置与调用方式见[技能和记忆](../skills-memory.md)。
 
 ## 记忆
 
@@ -1976,7 +2024,7 @@ Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端�
 
 ## MCP
 
-每个配置的 stdio 服务器保持一个常驻进程。发现过程读取 `tools/list`；调用通过串行队列使用 `tools/call`。工具带 `mcp__` 前缀，默认需要确认，在计划模式和只读模式下被拒绝。无法启动的服务器会报告并跳过。
+每个配置的 stdio 或 HTTP 服务器保持一条连接。发现过程读取 `tools/list`；调用通过串行队列使用 `tools/call`。工具带 `mcp__` 前缀，默认需要确认，在计划模式和只读模式下被拒绝。官方 SDK 负责协议协商；宿主处理动态工具目录、Schema 校验、取消和凭据隔离。协议版本和可选能力限制见 [MCP](../mcp.md)。
 
 ## 子代理
 
@@ -1996,7 +2044,7 @@ Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端�
 
 ## 限制
 
-扩展刻意保持小。MCP 是 stdio 客户端，不实现完整的 capabilities 协商。子代理顺序运行，共享父级审批上下文。
+MCP 的协议版本与可选能力边界见 [MCP](../mcp.md)。子会话权限和顺序执行方式见[子代理](../subagents.md)。
 
 ## 测试
 
@@ -2147,12 +2195,11 @@ cade --goal "Add a regression test for the parser" "Start the task."
 
 ## 技能
 
-Cade 从两个根目录发现 `SKILL.md`：
+Cade 从 `~/.cade/skills/` 和 `~/.agents/skills/` 发现用户级技能。将 `trust_project_skills` 设为 `true` 后，还会扫描项目内的对应目录。项目技能默认关闭。
 
-1. `~/.cade/skills/<name>/SKILL.md` 是用户级技能。
-2. `<project>/.cade/skills/<name>/SKILL.md` 是项目技能。
+显式配置的 `skills_dir` 可信且优先级最高，其后是项目级和用户级目录。同一范围内，`.cade/skills` 优先于 `.agents/skills`。同名技能保留优先级较高的定义，并记录警告。
 
-后一个根目录会覆盖同名的前一个。技能文件可以以 YAML frontmatter 开头：
+每个技能目录必须包含带 YAML frontmatter 的 `SKILL.md`：
 
 ```markdown
 ---
@@ -2163,7 +2210,7 @@ description: Validate release metadata before tagging.
 Run the release checklist...
 ```
 
-`name` 默认取父目录名。`description` 默认取正文第一行非空内容。非法名称和空正文会被跳过。
+加载器校验必填字段、名称规则、目录名是否一致、长度和元数据类型。无效定义会被跳过，并记录诊断。发现阶段只读取 frontmatter；激活时才读取正文并扫描 `references/`、`scripts/` 和 `assets/`。
 
 请求会收到一份紧凑的 `<available-skills>` 目录，包含名称和描述。模型按需用 `skill` 工具加载正文：
 
@@ -2171,7 +2218,17 @@ Run the release checklist...
 {"name": "release-check"}
 ```
 
-技能正文是工具结果中的事实，不属于请求专属上下文。重复加载同一技能没有副作用，但会多出一条工具结果。
+结果包含技能根目录的绝对路径和资源清单。按需读取引用文件：
+
+```json
+{"name": "release-check", "reference": "checklist.md"}
+```
+
+引用名相对于 `references/`。隐藏文件、符号链接、二进制引用和逃出技能根目录的路径会被拒绝。引用内容上限为 50 KiB，截断时会标明。脚本通过普通 `bash` 工具执行，沿用其权限策略。原生沙箱允许读取可信技能目录，但禁止写入；其余私有 `.cade/` 状态仍保持隐藏。
+
+用户也可以用 `$release-check` 或 `/skill release-check` 显式激活技能。`disable-model-invocation: true` 会从自动选择目录中隐藏技能，但保留显式激活入口。加载时会披露 `compatibility`；`allowed-tools` 仅作提示，不授予权限。
+
+技能正文是工具结果中的事实。压缩或换窗后，若已激活的说明不再可见，应用会从活动分支恢复到请求上下文。模型也可以重新加载技能，获取完整说明。
 
 ## 记忆
 
@@ -2196,15 +2253,15 @@ Run the release checklist...
 
 指令、技能目录、`NOTE.md`、`MEMORY.md` 和活动目标都只属于请求上下文。它们出现在每次请求审计里，但不会变成对话消息。见[会话与上下文](sessions-context.md)。
 
-# MCP 和子代理
+# MCP
 
-<!-- source: mcp-subagents.md -->
+<!-- source: mcp.md -->
 
-# MCP 和子代理
+# MCP
 
-## MCP
+## 连接与工具
 
-MCP 服务器使用 stdio。Cade 为每个服务器启动一个常驻进程，并在启动时发现工具：
+Cade 使用官方 Python MCP SDK，支持 stdio 和 Streamable HTTP。启动时发现工具，并为每个服务器保持一条连接：
 
 ```json
 {
@@ -2226,9 +2283,29 @@ MCP 服务器使用 stdio。Cade 为每个服务器启动一个常驻进程，�
 - `read_only` 拒绝 MCP 调用。
 - `build` 和 `ask` 默认询问；规则可以放行特定工具。
 
-启动失败的服务器会在启动时报告并跳过。进程退出时关闭连接。
+启动失败的服务器会报告并跳过，后续请求可以重新连接。执行结果未知的调用不会自动重试。取消或超时会关闭连接，并等待 SDK 完成清理；这不保证回滚服务器已接受的动作。应用会话退出时也会关闭连接。
 
-## 子代理
+默认的 `protocol: "auto"` 先探测 `2026-07-28` 无状态协议，再回退到旧版初始化握手。`protocol: "legacy"` 强制使用握手。当前 SDK 支持 `2024-11-05`、`2025-03-26`、`2025-06-18`、`2025-11-25` 和 `2026-07-28`。协商版本随工具结果记录；未知版本由 SDK 拒绝。
+
+工具发现会读取所有分页。旧版列表变化通知会在下次模型请求前刷新当前工具目录；无状态连接在每次模型请求前刷新目录。名称冲突或过长的工具会被排除并记录诊断。输入参数和结构化输出按 JSON Schema 校验，进度与结果元数据写入会话日志。
+
+服务器声明资源或提示词能力时，会在同一服务器前缀下提供 `resources_list`、`resources_read`、`prompts_list` 和 `prompts_get`。这些操作也经过权限检查。列表保留 `nextCursor`，将其作为 `cursor` 传回即可读取下一页。返回的资源和提示词是不可信数据，不是指令或授权。
+
+HTTP 和凭据配置见[配置](configuration.md#mcp-服务器)。
+
+## 限制
+
+当前未启用 MCP 可选扩展、采样、信息征询、资源订阅或自动 OAuth 登录。图片、音频和资源块以 JSON 保留在 Mini 的文本工具结果中，不会转换成提供方原生多模态消息。超过运行时上限的正文会标记截断，完整结构化元数据仍保留在日志中。
+
+Schema 必须自包含：支持本地 `$ref`，校验过程不会请求外部 URL。
+
+# 子代理
+
+<!-- source: subagents.md -->
+
+# 子代理
+
+## 子会话
 
 `subagent` 工具在独立会话中运行一个子任务，返回最终答案和子会话 ID：
 
@@ -2256,7 +2333,7 @@ MCP 服务器使用 stdio。Cade 为每个服务器启动一个常驻进程，�
 
 ## 限制
 
-MCP 是一个小型 stdio 客户端，不实现完整的 capabilities 协商。子代理顺序运行，共享父级审批上下文，不并行执行。
+子代理顺序运行，共享父级审批上下文，不并行执行。
 
 # 操作指南
 
@@ -2451,7 +2528,7 @@ cade --mode plan --read-only "Review the request builder for evidence loss. Cite
 
 # 连接自定义 MCP 服务器
 
-MCP 服务器使用 stdio。Cade 为每个服务器保持一个进程，并把每个工具暴露为 `mcp__<server>__<tool>`。
+MCP 服务器支持 stdio 和 Streamable HTTP。Cade 为每个服务器保持一条连接，并把工具暴露为 `mcp__<server>__<tool>`。
 
 ## 配置
 
@@ -2495,7 +2572,7 @@ MCP 工具默认询问。无人值守运行时，为特定工具添加规则：
 
 ## 限制
 
-客户端实现 `initialize`、`tools/list` 和 `tools/call`，不实现 resources、prompts、sampling 或服务器发起的请求。挂起的服务器会在配置的超时后被杀掉。
+支持的协议版本、资源、提示词、取消行为和可选能力限制见 [MCP](../mcp.md)。活动调用超时后会关闭连接，并等待 SDK 完成清理。
 
 # 宿主
 
@@ -2552,7 +2629,7 @@ Cade 独立维护，不依赖早期 Cade。所有工作都在本仓库根目录�
 
 ```bash
 uv sync --locked --extra dev --extra docs
-mkdir -p e2e-results
+mkdir -p tmp test-results
 ```
 
 代码在 `src/cade/`，测试在 `tests/`，文档在 `docs/`。模块边界见[架构](architecture.md)。
@@ -2563,7 +2640,7 @@ mkdir -p e2e-results
 uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 uv run --locked cade --help
 uv run --locked python -m cade --help
 uv run --locked cade login --help
@@ -2571,7 +2648,7 @@ uv run --locked python -m cade.docs check
 uv build --no-sources
 ```
 
-按[验证指南](testing.md)选择聚焦的检查。临时工作区和运行证据放在 `e2e-results/` 下。不要提交凭据或原始 provider 跟踪记录。
+按[验证指南](testing.md)选择聚焦的检查。普通临时工作区放在 `tmp/`，回归报告放在 `test-results/`，端到端测试结果放在 `e2e-results/`。缓存使用各工具的专用目录。不要提交凭据或原始提供方跟踪记录。
 
 ## 文档
 
@@ -2619,24 +2696,38 @@ Cade 有 `ai`、`harness`、`coding`、`app` 和 `hosts` 五个运行时包。�
 
 CI 工作流检查代码、测试、文档、启动和发行构建。版本标签（`vX.Y.Z`）必须与 `pyproject.toml` 一致，并且属于 `main`。发布工作流在 GitHub `release` 环境批准后发布已检查的发行产物。已发布的标签永远不要移动。
 
+## uv 缓存权限
+
+如果 uv 无法访问全局缓存中的 `.lock` 文件，在仓库根目录的 PowerShell 中设置：
+
+```powershell
+$env:UV_CACHE_DIR = "$PWD\.uv-cache"
+```
+
+设置仅影响当前终端。单次命令也可以使用 `uv --cache-dir ./.uv-cache run --locked ...`，无需修改全局目录权限。
+
+## 依赖管理
+
+使用 `uv add PACKAGE` 添加运行时依赖，使用 `uv add --dev PACKAGE` 添加开发工具，使用 `uv remove PACKAGE` 删除依赖。让 uv 生成版本要求并更新 `uv.lock`，不要凭感觉编写版本范围或手动修改依赖版本。只有明确的兼容性要求才能作为额外版本约束的依据，并须记录原因。
+
 # 验证指南
 
 <!-- source: testing.md -->
 
 # 验证指南
 
-按正在修改的行为和风险选择检查。临时工作区、pytest 文件和运行证据都放在本仓库的 `e2e-results/` 下。不要把关账号凭据复制到测试证据里。
+按正在修改的行为和风险选择检查。普通测试工作区和临时文件放在 `tmp/`，回归报告放在 `test-results/`，端到端测试结果放在 `e2e-results/`。缓存使用各工具的专用目录，如 `.uv-cache/` 和 `.pytest_cache/`。不要把账号凭据复制到测试证据里。
 
 ## 必需检查
 
 代码修改后运行：
 
 ```bash
-mkdir -p e2e-results
+mkdir -p tmp test-results
 uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 ```
 
 导入、包或入口变化后，还要检查：

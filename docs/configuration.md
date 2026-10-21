@@ -86,7 +86,7 @@ permissions instead of being unconditionally denied. See
 
 ## MCP servers
 
-MCP servers use stdio and keep one persistent connection per server.
+MCP servers use stdio or Streamable HTTP and keep one connection per server.
 
 ```json
 {
@@ -104,3 +104,32 @@ MCP servers use stdio and keep one persistent connection per server.
 
 Discovered tools are exposed as `mcp__<server>__<tool>`. They ask by default,
 are denied in plan mode and read-only mode, and can be allowed by a rule.
+
+Use `env` for ordinary process settings and `env_from` to pass named host
+environment variables to a stdio server. Only the SDK's basic process environment
+is inherited; other host credentials are not copied automatically. For HTTP,
+use `headers_from` to load request headers from host environment variables:
+
+```json
+{
+  "mcp_servers": {
+    "remote": {
+      "transport": "streamable-http",
+      "url": "https://mcp.example.com/mcp",
+      "headers_from": {"Authorization": "EXAMPLE_MCP_AUTH"},
+      "timeout_ms": 30000
+    }
+  }
+}
+```
+
+Set `EXAMPLE_MCP_AUTH` outside Cade to the complete authorization header value.
+Store credentials in your environment or external secret manager, not project
+configuration, URLs, command arguments, or skill files. Cade does not persist a
+credential cache; explicitly passed credential values are redacted from MCP
+results and diagnostics. MCP server processes are trusted extensions outside
+the workspace tool sandbox, so configure only servers you trust.
+
+Set `trust_project_skills: true` to discover project skills. `skills_dir` selects
+an additional trusted directory relative to the project root or by absolute
+path. See [Skills and memory](skills-memory.md).

@@ -25,7 +25,8 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
   analysis.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
 - [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
-- [MCP and subagents](mcp-subagents.md) covers extensions.
+- [MCP](mcp.md) covers external tools, resources, and prompts.
+- [Subagents](subagents.md) covers child sessions and delegation.
 - [Hosts](hosts.md) covers the terminal TUI and one-shot execution.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.

@@ -4,9 +4,11 @@ Extensions add behavior through narrow seams. None changes the session schema.
 
 ## Skills
 
-Discovery reads `SKILL.md` from user and project roots. The request carries a
-catalog; the `skill` tool loads a body into a tool result. A body is a fact, not
-request-only context.
+Discovery reads skill metadata from user and trusted project roots. The request
+carries a catalog; the `skill` tool loads a body or reference on demand and
+returns resource paths. Activated instructions missing after compaction or a
+window reset are restored from the active branch into request context. See
+[Skills and memory](../skills-memory.md) for configuration and activation.
 
 ## Memory
 
@@ -15,7 +17,7 @@ write other paths. The file is capped to protect the request budget.
 
 ## MCP
 
-Each configured stdio server keeps one persistent process. Discovery reads
+Each configured stdio or HTTP server keeps one connection. Discovery reads
 `tools/list`; calls use `tools/call` over a serialized queue. Tools are prefixed
 `mcp__`, ask by default, and are denied in plan and read-only modes. A server
 that cannot start is reported and skipped.
@@ -48,11 +50,11 @@ policy as every other entry path.
 
 ## Limits
 
-Extensions are deliberately small. MCP is a stdio client, not a full capability
-negotiation implementation. Subagents are sequential and share the parent
-approval context.
+MCP capability and protocol boundaries are documented in
+[MCP](../mcp.md). See [Subagents](../subagents.md) for child-session permissions
+and sequential execution.
 
 ## Tests
 
-`test_skills.py`, `test_memory.py`, `test_mcp.py`, `test_subagents.py`,
+`test_skills.py`, `test_memory.py`, `test_mcp.py`, `test_mcp_integration.py`, `test_subagents.py`,
 `test_snapshots.py`, and `test_goal.py`.

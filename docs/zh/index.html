@@ -83,7 +83,8 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 </div>
 <div class="nav-group"><p>扩展</p>
 <a href="#page-skills-memory">技能与记忆</a>
-<a href="#page-mcp-subagents">MCP 和子代理</a>
+<a href="#page-mcp">MCP</a>
+<a href="#page-subagents">子代理</a>
 </div>
 <div class="nav-group"><p>操作指南</p>
 <a href="#page-readme">操作指南</a>
@@ -116,7 +117,8 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <li><a href="#page-tools-security">工具与安全</a>：模式、规则、授权和 shell 分析。</li>
 <li><a href="#page-snapshots-goals">快照与目标</a>：撤销和持久目标。</li>
 <li><a href="#page-skills-memory">技能与记忆</a>：<code>SKILL.md</code> 和 <code>MEMORY.md</code>。</li>
-<li><a href="#page-mcp-subagents">MCP 和子代理</a>：扩展机制。</li>
+<li><a href="#page-mcp">MCP</a>：外部工具、资源和提示词。</li>
+<li><a href="#page-subagents">子代理</a>：子会话和任务委派。</li>
 <li><a href="#page-hosts">宿主</a>：终端 TUI 和一次性执行。</li>
 <li><a href="#page-development">开发</a>：检查、测试和文档流水线。</li>
 <li><a href="#page-parity">对齐验收</a>：与 Cade 的验收对照。</li>
@@ -393,7 +395,7 @@ cade --mode build --yes &quot;Fix the test and run pytest.&quot;
 </code></pre>
 <p>这个例子里 <code>git status</code> 仍会被拒绝，因为更宽的 deny 也匹配。要放行，就删除或收窄那条 deny。计划模式约束、受保护路径和 <code>read_only</code> 优先于授权和规则。工作区外的写入会申请额外权限，不会被无条件拒绝。作用范围和审批行为见<a href="#page-tools-security">工具与安全</a>。</p>
 <h2>MCP 服务器</h2>
-<p>MCP 服务器使用 stdio，每个服务器保持一条长连接。</p>
+<p>MCP 服务器支持 stdio 和 Streamable HTTP，每个服务器保持一条连接。</p>
 <pre><code class="language-json">{
   &quot;mcp_servers&quot;: {
     &quot;files&quot;: {
@@ -407,6 +409,19 @@ cade --mode build --yes &quot;Fix the test and run pytest.&quot;
 }
 </code></pre>
 <p>发现的工具以 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code> 命名。它们默认需要确认，在计划模式和只读模式下被拒绝，也可以由规则放行。</p>
+<p><code>env</code> 用于普通进程设置；<code>env_from</code> 将指定宿主环境变量传给 stdio 服务器。默认只继承 SDK 的基础进程环境，不会自动复制其余宿主凭据。HTTP 请求头通过 <code>headers_from</code> 从环境变量读取：</p>
+<pre><code class="language-json">{
+  &quot;mcp_servers&quot;: {
+    &quot;remote&quot;: {
+      &quot;transport&quot;: &quot;streamable-http&quot;,
+      &quot;url&quot;: &quot;https://mcp.example.com/mcp&quot;,
+      &quot;headers_from&quot;: {&quot;Authorization&quot;: &quot;EXAMPLE_MCP_AUTH&quot;}
+    }
+  }
+}
+</code></pre>
+<p>在 Cade 外设置 <code>EXAMPLE_MCP_AUTH</code>，值为完整的授权请求头。凭据应存放在环境变量或外部密钥管理器中，不要写入项目配置、URL、命令参数或技能文件。Cade 不保存凭据缓存，显式传入的凭据值会从 MCP 结果和诊断中脱敏。MCP 服务进程运行在工作区工具沙箱之外，只配置可信服务。</p>
+<p>设置 <code>trust_project_skills: true</code> 后才会发现项目技能。<code>skills_dir</code> 可指定额外的可信目录，支持相对项目根目录的路径或绝对路径。详见<a href="#page-skills-memory">技能与记忆</a>。</p>
 
 </section>
 <section class="page" id="page-architecture" data-title="架构">
@@ -581,11 +596,12 @@ cade --resume SESSION_ID &quot;Explain the current state.&quot;
     window.py               显式上下文窗口重置
   coding/
     tools/                  读写、编辑、搜索、shell、历史和提问工具
-    context/                提示词、指令、技能、笔记和记忆
+    context/                提示词、指令、笔记和记忆
     security/               工作区策略、规则、授权、审批和复核
     workspace/              快照和协调恢复
     subagents.py            编程子会话和委派工具
-    mcp.py, mcp_config.py    MCP 工具和连接配置
+    mcp/, mcp_config.py      MCP 连接、工具、结果和配置
+    skills/                 技能发现、加载、资源和上下文恢复
     goal.py                 工作区目标状态和工具
   app/                      装配、活动会话、配置、认证和命令
   hosts/                    CLI 和 TUI 展示
@@ -937,6 +953,16 @@ uv run --locked cade login
 <td><code>dict[str, McpServerConfig]</code></td>
 <td><code>required</code></td>
 </tr>
+<tr>
+<td><code>trust_project_skills</code></td>
+<td><code>boolean</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>skills_dir</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
 </tbody>
 </table>
 <h2>McpServerConfig</h2>
@@ -950,9 +976,14 @@ uv run --locked cade login
 </thead>
 <tbody>
 <tr>
+<td><code>transport</code></td>
+<td><code>stdio | streamable-http</code></td>
+<td><code>&quot;stdio&quot;</code></td>
+</tr>
+<tr>
 <td><code>command</code></td>
-<td><code>string</code></td>
-<td><code>required</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
 </tr>
 <tr>
 <td><code>args</code></td>
@@ -963,6 +994,26 @@ uv run --locked cade login
 <td><code>env</code></td>
 <td><code>dict[str, string] | null</code></td>
 <td><code>null</code></td>
+</tr>
+<tr>
+<td><code>env_from</code></td>
+<td><code>dict[str, string]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>url</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>headers_from</code></td>
+<td><code>dict[str, string]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>protocol</code></td>
+<td><code>auto | legacy</code></td>
+<td><code>&quot;auto&quot;</code></td>
 </tr>
 <tr>
 <td><code>cwd</code></td>
@@ -1121,13 +1172,13 @@ uv run --locked cade login
   app_bootstrap --&gt; coding_context_memory
   app_bootstrap --&gt; coding_context_note
   app_bootstrap --&gt; coding_context_prompts
-  app_bootstrap --&gt; coding_context_skills
   app_bootstrap --&gt; coding_goal
-  app_bootstrap --&gt; coding_mcp
+  app_bootstrap --&gt; coding_mcp_tools
   app_bootstrap --&gt; coding_security_approval
   app_bootstrap --&gt; coding_security_grants
   app_bootstrap --&gt; coding_security_policy
   app_bootstrap --&gt; coding_security_review
+  app_bootstrap --&gt; coding_skills_tools
   app_bootstrap --&gt; coding_subagents
   app_bootstrap --&gt; coding_tools_registry
   app_bootstrap --&gt; coding_workspace_recovery_coordinator
@@ -1138,6 +1189,7 @@ uv run --locked cade login
   app_bootstrap --&gt; harness_provider
   app_bootstrap --&gt; harness_request
   app_bootstrap --&gt; harness_session_log
+  app_bootstrap --&gt; harness_tools
   app_bootstrap --&gt; harness_window
   app_config --&gt; coding_mcp_config
   app_config --&gt; coding_security_rules
@@ -1157,10 +1209,13 @@ uv run --locked cade login
   app_session --&gt; app_context_report
   app_session --&gt; app_provider
   app_session --&gt; app_settings
-  app_session --&gt; coding_context_skills
   app_session --&gt; coding_goal
+  app_session --&gt; coding_mcp_tools
   app_session --&gt; coding_security_policy
   app_session --&gt; coding_security_review
+  app_session --&gt; coding_skills_context
+  app_session --&gt; coding_skills_models
+  app_session --&gt; coding_skills_tools
   app_session --&gt; coding_subagents
   app_session --&gt; coding_tools_base
   app_session --&gt; coding_tools_history
@@ -1192,17 +1247,19 @@ uv run --locked cade login
   coding_context_memory --&gt; harness_cancellation
   coding_context_memory --&gt; harness_session_types
   coding_context_memory --&gt; harness_tools
-  coding_context_skills --&gt; coding_tools_base
-  coding_context_skills --&gt; harness_session_types
-  coding_context_skills --&gt; harness_tools
   coding_goal --&gt; coding_tools_base
   coding_goal --&gt; harness_cancellation
   coding_goal --&gt; harness_session_types
   coding_goal --&gt; harness_tools
-  coding_mcp --&gt; coding_mcp_config
-  coding_mcp --&gt; harness_cancellation
-  coding_mcp --&gt; harness_session_types
-  coding_mcp --&gt; harness_tools
+  coding_mcp_client --&gt; coding_mcp_config
+  coding_mcp_client --&gt; harness_async_worker
+  coding_mcp_results --&gt; harness_tools
+  coding_mcp_tools --&gt; coding_mcp_client
+  coding_mcp_tools --&gt; coding_mcp_results
+  coding_mcp_tools --&gt; coding_mcp_config
+  coding_mcp_tools --&gt; harness_cancellation
+  coding_mcp_tools --&gt; harness_session_types
+  coding_mcp_tools --&gt; harness_tools
   coding_security_approval --&gt; coding_security_grants
   coding_security_approval --&gt; coding_security_sensitive
   coding_security_approval --&gt; harness_permissions
@@ -1222,6 +1279,21 @@ uv run --locked cade login
   coding_security_review --&gt; harness_request
   coding_security_review --&gt; harness_session_types
   coding_security_shell --&gt; coding_security_sensitive
+  coding_skills_context --&gt; coding_skills_registry
+  coding_skills_context --&gt; coding_skills_tools
+  coding_skills_context --&gt; harness_session_types
+  coding_skills_discovery --&gt; coding_skills_models
+  coding_skills_registry --&gt; coding_skills_discovery
+  coding_skills_registry --&gt; coding_skills_models
+  coding_skills_registry --&gt; coding_skills_parsing
+  coding_skills_rendering --&gt; coding_skills_models
+  coding_skills_tools --&gt; coding_skills_discovery
+  coding_skills_tools --&gt; coding_skills_models
+  coding_skills_tools --&gt; coding_skills_registry
+  coding_skills_tools --&gt; coding_skills_rendering
+  coding_skills_tools --&gt; coding_tools_base
+  coding_skills_tools --&gt; harness_session_types
+  coding_skills_tools --&gt; harness_tools
   coding_subagents --&gt; coding_security_policy
   coding_subagents --&gt; coding_tools_base
   coding_subagents --&gt; coding_tools_history
@@ -1478,7 +1550,7 @@ uv run --locked cade login
 </section>
 <section class="page" id="page-mcp-reference" data-title="MCP 参考服务器">
 <h1>MCP 参考服务器</h1>
-<p>Cade 实现 stdio 的 <code>initialize</code>、<code>tools/list</code> 和 <code>tools/call</code>，每个服务器保持一条长连接。这对暴露工具的参考服务器已经够用。</p>
+<p>Cade 使用官方 SDK 支持 stdio 和 Streamable HTTP。支持的版本与能力见 <a href="#page-mcp">MCP</a>。下面的外部参考服务器在本次 SDK 迁移前已验证，迁移后尚未重新运行。</p>
 <h2>已验证的服务器</h2>
 <table>
 <thead>
@@ -1536,7 +1608,7 @@ uv run --locked cade login
 </code></pre>
 <p>在 POSIX 系统上直接使用 <code>npx</code>。Git 服务器需要仓库参数，例如 <code>--repository &lt;path&gt;</code>；按服务器要求传入精确参数。</p>
 <h2>能力边界</h2>
-<p>上面的参考服务器都是工具服务器。Cade 不实现 MCP resources、prompts、sampling 或服务器发起的请求。依赖这些功能的服务器可以启动，但只暴露工具。</p>
+<p>本地 SDK 集成测试覆盖工具、资源、提示词、取消和凭据处理。当前未启用采样、信息征询和可选扩展。</p>
 <h2>策略</h2>
 <p>MCP 工具命名为 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>。它们默认询问，在计划模式和 <code>--read-only</code> 下被拒绝，可以由规则放行：</p>
 <pre><code class="language-json">{
@@ -1552,7 +1624,7 @@ uv run --locked cade login
 <h2>相关页面</h2>
 <ul>
 <li><a href="#page-configuration">配置</a></li>
-<li><a href="#page-mcp-subagents">MCP 和子代理</a></li>
+<li><a href="#page-mcp">MCP</a></li>
 <li><a href="#page-custom-mcp">自定义 MCP 服务器</a></li>
 </ul>
 
@@ -2281,11 +2353,11 @@ uv run --locked python -m cade.docs check
 <h1>扩展</h1>
 <p>扩展通过窄接缝增加行为，都不改变会话格式。</p>
 <h2>技能</h2>
-<p>发现过程读取用户级和项目级根目录中的 <code>SKILL.md</code>。请求携带技能目录；<code>skill</code> 工具把正文加载成工具结果。正文是事实，不是请求专属上下文。</p>
+<p>发现过程只读取用户级和受信任项目目录中的技能元数据。请求携带技能目录；<code>skill</code> 工具按需加载正文和引用文件，并返回资源根目录。已加载说明在压缩或换窗后缺失时，会从活动分支恢复到请求上下文。配置与调用方式见<a href="#page-skills-memory">技能和记忆</a>。</p>
 <h2>记忆</h2>
 <p><code>MEMORY.md</code> 属于请求上下文。<code>memory</code> 工具追加一条列表项，不能写其他路径。文件有上限，以保护请求预算。</p>
 <h2>MCP</h2>
-<p>每个配置的 stdio 服务器保持一个常驻进程。发现过程读取 <code>tools/list</code>；调用通过串行队列使用 <code>tools/call</code>。工具带 <code>mcp__</code> 前缀，默认需要确认，在计划模式和只读模式下被拒绝。无法启动的服务器会报告并跳过。</p>
+<p>每个配置的 stdio 或 HTTP 服务器保持一条连接。发现过程读取 <code>tools/list</code>；调用通过串行队列使用 <code>tools/call</code>。工具带 <code>mcp__</code> 前缀，默认需要确认，在计划模式和只读模式下被拒绝。官方 SDK 负责协议协商；宿主处理动态工具目录、Schema 校验、取消和凭据隔离。协议版本和可选能力限制见 <a href="#page-mcp">MCP</a>。</p>
 <h2>子代理</h2>
 <p><code>SubagentTool</code> 在 <code>&lt;sessions&gt;/subagents</code> 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。<code>DelegateTool</code> 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。</p>
 <h2>快照</h2>
@@ -2295,7 +2367,7 @@ uv run --locked python -m cade.docs check
 <h2>宿主</h2>
 <p>终端宿主运行一次性任务和 TUI。它与其他所有入口共用同一个循环和策略。</p>
 <h2>限制</h2>
-<p>扩展刻意保持小。MCP 是 stdio 客户端，不实现完整的 capabilities 协商。子代理顺序运行，共享父级审批上下文。</p>
+<p>MCP 的协议版本与可选能力边界见 <a href="#page-mcp">MCP</a>。子会话权限和顺序执行方式见<a href="#page-subagents">子代理</a>。</p>
 <h2>测试</h2>
 <p><code>test_skills.py</code>、<code>test_memory.py</code>、<code>test_mcp.py</code>、<code>test_subagents.py</code>、<code>test_snapshots.py</code> 和 <code>test_goal.py</code>。</p>
 
@@ -2416,12 +2488,9 @@ uv run --locked python -m cade.docs check
 <section class="page" id="page-skills-memory" data-title="技能与记忆">
 <h1>技能与记忆</h1>
 <h2>技能</h2>
-<p>Cade 从两个根目录发现 <code>SKILL.md</code>：</p>
-<ol>
-<li><code>~/.cade/skills/&lt;name&gt;/SKILL.md</code> 是用户级技能。</li>
-<li><code>&lt;project&gt;/.cade/skills/&lt;name&gt;/SKILL.md</code> 是项目技能。</li>
-</ol>
-<p>后一个根目录会覆盖同名的前一个。技能文件可以以 YAML frontmatter 开头：</p>
+<p>Cade 从 <code>~/.cade/skills/</code> 和 <code>~/.agents/skills/</code> 发现用户级技能。将 <code>trust_project_skills</code> 设为 <code>true</code> 后，还会扫描项目内的对应目录。项目技能默认关闭。</p>
+<p>显式配置的 <code>skills_dir</code> 可信且优先级最高，其后是项目级和用户级目录。同一范围内，<code>.cade/skills</code> 优先于 <code>.agents/skills</code>。同名技能保留优先级较高的定义，并记录警告。</p>
+<p>每个技能目录必须包含带 YAML frontmatter 的 <code>SKILL.md</code>：</p>
 <pre><code class="language-markdown">---
 name: release-check
 description: Validate release metadata before tagging.
@@ -2429,11 +2498,16 @@ description: Validate release metadata before tagging.
 
 Run the release checklist...
 </code></pre>
-<p><code>name</code> 默认取父目录名。<code>description</code> 默认取正文第一行非空内容。非法名称和空正文会被跳过。</p>
+<p>加载器校验必填字段、名称规则、目录名是否一致、长度和元数据类型。无效定义会被跳过，并记录诊断。发现阶段只读取 frontmatter；激活时才读取正文并扫描 <code>references/</code>、<code>scripts/</code> 和 <code>assets/</code>。</p>
 <p>请求会收到一份紧凑的 <code>&lt;available-skills&gt;</code> 目录，包含名称和描述。模型按需用 <code>skill</code> 工具加载正文：</p>
 <pre><code class="language-json">{&quot;name&quot;: &quot;release-check&quot;}
 </code></pre>
-<p>技能正文是工具结果中的事实，不属于请求专属上下文。重复加载同一技能没有副作用，但会多出一条工具结果。</p>
+<p>结果包含技能根目录的绝对路径和资源清单。按需读取引用文件：</p>
+<pre><code class="language-json">{&quot;name&quot;: &quot;release-check&quot;, &quot;reference&quot;: &quot;checklist.md&quot;}
+</code></pre>
+<p>引用名相对于 <code>references/</code>。隐藏文件、符号链接、二进制引用和逃出技能根目录的路径会被拒绝。引用内容上限为 50 KiB，截断时会标明。脚本通过普通 <code>bash</code> 工具执行，沿用其权限策略。原生沙箱允许读取可信技能目录，但禁止写入；其余私有 <code>.cade/</code> 状态仍保持隐藏。</p>
+<p>用户也可以用 <code>$release-check</code> 或 <code>/skill release-check</code> 显式激活技能。<code>disable-model-invocation: true</code> 会从自动选择目录中隐藏技能，但保留显式激活入口。加载时会披露 <code>compatibility</code>；<code>allowed-tools</code> 仅作提示，不授予权限。</p>
+<p>技能正文是工具结果中的事实。压缩或换窗后，若已激活的说明不再可见，应用会从活动分支恢复到请求上下文。模型也可以重新加载技能，获取完整说明。</p>
 <h2>记忆</h2>
 <p>项目根目录的 <code>MEMORY.md</code> 存放长期事实。每个任务都会把它作为 <code>&lt;memory source=&quot;MEMORY.md&quot;&gt;</code> 加入请求上下文，上限 32 KiB。</p>
 <p>模型用 <code>memory</code> 工具追加事实：</p>
@@ -2451,10 +2525,10 @@ Run the release checklist...
 <p>指令、技能目录、<code>NOTE.md</code>、<code>MEMORY.md</code> 和活动目标都只属于请求上下文。它们出现在每次请求审计里，但不会变成对话消息。见<a href="#page-sessions-context">会话与上下文</a>。</p>
 
 </section>
-<section class="page" id="page-mcp-subagents" data-title="MCP 和子代理">
-<h1>MCP 和子代理</h1>
-<h2>MCP</h2>
-<p>MCP 服务器使用 stdio。Cade 为每个服务器启动一个常驻进程，并在启动时发现工具：</p>
+<section class="page" id="page-mcp" data-title="MCP">
+<h1>MCP</h1>
+<h2>连接与工具</h2>
+<p>Cade 使用官方 Python MCP SDK，支持 stdio 和 Streamable HTTP。启动时发现工具，并为每个服务器保持一条连接：</p>
 <pre><code class="language-json">{
   &quot;mcp_servers&quot;: {
     &quot;files&quot;: {
@@ -2472,8 +2546,19 @@ Run the release checklist...
 <li><code>read_only</code> 拒绝 MCP 调用。</li>
 <li><code>build</code> 和 <code>ask</code> 默认询问；规则可以放行特定工具。</li>
 </ul>
-<p>启动失败的服务器会在启动时报告并跳过。进程退出时关闭连接。</p>
-<h2>子代理</h2>
+<p>启动失败的服务器会报告并跳过，后续请求可以重新连接。执行结果未知的调用不会自动重试。取消或超时会关闭连接，并等待 SDK 完成清理；这不保证回滚服务器已接受的动作。应用会话退出时也会关闭连接。</p>
+<p>默认的 <code>protocol: &quot;auto&quot;</code> 先探测 <code>2026-07-28</code> 无状态协议，再回退到旧版初始化握手。<code>protocol: &quot;legacy&quot;</code> 强制使用握手。当前 SDK 支持 <code>2024-11-05</code>、<code>2025-03-26</code>、<code>2025-06-18</code>、<code>2025-11-25</code> 和 <code>2026-07-28</code>。协商版本随工具结果记录；未知版本由 SDK 拒绝。</p>
+<p>工具发现会读取所有分页。旧版列表变化通知会在下次模型请求前刷新当前工具目录；无状态连接在每次模型请求前刷新目录。名称冲突或过长的工具会被排除并记录诊断。输入参数和结构化输出按 JSON Schema 校验，进度与结果元数据写入会话日志。</p>
+<p>服务器声明资源或提示词能力时，会在同一服务器前缀下提供 <code>resources_list</code>、<code>resources_read</code>、<code>prompts_list</code> 和 <code>prompts_get</code>。这些操作也经过权限检查。列表保留 <code>nextCursor</code>，将其作为 <code>cursor</code> 传回即可读取下一页。返回的资源和提示词是不可信数据，不是指令或授权。</p>
+<p>HTTP 和凭据配置见<a href="#page-configuration">配置</a>。</p>
+<h2>限制</h2>
+<p>当前未启用 MCP 可选扩展、采样、信息征询、资源订阅或自动 OAuth 登录。图片、音频和资源块以 JSON 保留在 Mini 的文本工具结果中，不会转换成提供方原生多模态消息。超过运行时上限的正文会标记截断，完整结构化元数据仍保留在日志中。</p>
+<p>Schema 必须自包含：支持本地 <code>$ref</code>，校验过程不会请求外部 URL。</p>
+
+</section>
+<section class="page" id="page-subagents" data-title="子代理">
+<h1>子代理</h1>
+<h2>子会话</h2>
 <p><code>subagent</code> 工具在独立会话中运行一个子任务，返回最终答案和子会话 ID：</p>
 <pre><code class="language-json">{&quot;prompt&quot;: &quot;Find the failing test and report the file and line.&quot;}
 </code></pre>
@@ -2491,7 +2576,7 @@ Run the release checklist...
 </code></pre>
 <p>任务在各自独立的子会话中顺序运行。每个结果都包含子会话 ID；父会话收到一条合并的工具结果。子级模式不能扩大父级权限：Plan 模式的父会话不能委派 Build 工作。</p>
 <h2>限制</h2>
-<p>MCP 是一个小型 stdio 客户端，不实现完整的 capabilities 协商。子代理顺序运行，共享父级审批上下文，不并行执行。</p>
+<p>子代理顺序运行，共享父级审批上下文，不并行执行。</p>
 
 </section>
 <section class="page" id="page-readme" data-title="操作指南">
@@ -2644,7 +2729,7 @@ uv run --locked pytest -q
 </section>
 <section class="page" id="page-custom-mcp" data-title="连接自定义 MCP 服务器">
 <h1>连接自定义 MCP 服务器</h1>
-<p>MCP 服务器使用 stdio。Cade 为每个服务器保持一个进程，并把每个工具暴露为 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>。</p>
+<p>MCP 服务器支持 stdio 和 Streamable HTTP。Cade 为每个服务器保持一条连接，并把工具暴露为 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>。</p>
 <h2>配置</h2>
 <p>把服务器加入 <code>cade.json</code>：</p>
 <pre><code class="language-json">{
@@ -2676,7 +2761,7 @@ uv run --locked pytest -q
 <li>停止 Cade；服务器进程在退出时关闭。</li>
 </ol>
 <h2>限制</h2>
-<p>客户端实现 <code>initialize</code>、<code>tools/list</code> 和 <code>tools/call</code>，不实现 resources、prompts、sampling 或服务器发起的请求。挂起的服务器会在配置的超时后被杀掉。</p>
+<p>支持的协议版本、资源、提示词、取消行为和可选能力限制见 <a href="#page-mcp">MCP</a>。活动调用超时后会关闭连接，并等待 SDK 完成清理。</p>
 
 </section>
 <section class="page" id="page-hosts" data-title="宿主">
@@ -2712,21 +2797,21 @@ cade exec &quot;Fix the failing test.&quot;
 <h2>环境准备</h2>
 <p>需要 Python 3.12+ 和 uv。Linux 上的工具执行还需要可用的 bubblewrap（Debian/Ubuntu 上是 <code>sudo apt-get install bubblewrap</code>），以及允许非特权用户命名空间的主机。UID 映射被拒绝属于沙箱启动错误，不是审批失败。CI 使用 Ubuntu 22.04，不关闭主机安全策略。macOS 使用系统 <code>sandbox-exec</code>。原生沙箱测试在 Linux 和 macOS 上运行；Windows 跳过这些测试，直接执行工具。</p>
 <pre><code class="language-bash">uv sync --locked --extra dev --extra docs
-mkdir -p e2e-results
+mkdir -p tmp test-results
 </code></pre>
 <p>代码在 <code>src/cade/</code>，测试在 <code>tests/</code>，文档在 <code>docs/</code>。模块边界见<a href="#page-architecture">架构</a>。</p>
 <h2>检查</h2>
 <pre><code class="language-bash">uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 uv run --locked cade --help
 uv run --locked python -m cade --help
 uv run --locked cade login --help
 uv run --locked python -m cade.docs check
 uv build --no-sources
 </code></pre>
-<p>按<a href="#page-testing">验证指南</a>选择聚焦的检查。临时工作区和运行证据放在 <code>e2e-results/</code> 下。不要提交凭据或原始 provider 跟踪记录。</p>
+<p>按<a href="#page-testing">验证指南</a>选择聚焦的检查。普通临时工作区放在 <code>tmp/</code>，回归报告放在 <code>test-results/</code>，端到端测试结果放在 <code>e2e-results/</code>。缓存使用各工具的专用目录。不要提交凭据或原始提供方跟踪记录。</p>
 <h2>文档</h2>
 <p>文档源在 <code>docs/</code>。清单是 <code>docs/docs.json</code>，定义导航顺序和发布页面。<a href="#page-readme">docs/README.md</a> 是手册入口。<a href="../AGENTS.md">docs/AGENTS.md</a> 定义文档规则。中文文档镜像在 <code>docs/zh/</code>，使用独立的 <code>docs/zh/docs.json</code>。</p>
 <pre><code class="language-bash">uv run --locked python -m cade.docs catalogs --write
@@ -2756,18 +2841,25 @@ uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.htm
 <h2>提交与发布</h2>
 <p>提交前检查 diff 并运行检查。没有维护者批准，不要推送或发布。推送前确认 Git 远端指向本仓库，而不是早期 Cade 项目。</p>
 <p>CI 工作流检查代码、测试、文档、启动和发行构建。版本标签（<code>vX.Y.Z</code>）必须与 <code>pyproject.toml</code> 一致，并且属于 <code>main</code>。发布工作流在 GitHub <code>release</code> 环境批准后发布已检查的发行产物。已发布的标签永远不要移动。</p>
+<h2>uv 缓存权限</h2>
+<p>如果 uv 无法访问全局缓存中的 <code>.lock</code> 文件，在仓库根目录的 PowerShell 中设置：</p>
+<pre><code class="language-powershell">$env:UV_CACHE_DIR = &quot;$PWD\.uv-cache&quot;
+</code></pre>
+<p>设置仅影响当前终端。单次命令也可以使用 <code>uv --cache-dir ./.uv-cache run --locked ...</code>，无需修改全局目录权限。</p>
+<h2>依赖管理</h2>
+<p>使用 <code>uv add PACKAGE</code> 添加运行时依赖，使用 <code>uv add --dev PACKAGE</code> 添加开发工具，使用 <code>uv remove PACKAGE</code> 删除依赖。让 uv 生成版本要求并更新 <code>uv.lock</code>，不要凭感觉编写版本范围或手动修改依赖版本。只有明确的兼容性要求才能作为额外版本约束的依据，并须记录原因。</p>
 
 </section>
 <section class="page" id="page-testing" data-title="验证指南">
 <h1>验证指南</h1>
-<p>按正在修改的行为和风险选择检查。临时工作区、pytest 文件和运行证据都放在本仓库的 <code>e2e-results/</code> 下。不要把关账号凭据复制到测试证据里。</p>
+<p>按正在修改的行为和风险选择检查。普通测试工作区和临时文件放在 <code>tmp/</code>，回归报告放在 <code>test-results/</code>，端到端测试结果放在 <code>e2e-results/</code>。缓存使用各工具的专用目录，如 <code>.uv-cache/</code> 和 <code>.pytest_cache/</code>。不要把账号凭据复制到测试证据里。</p>
 <h2>必需检查</h2>
 <p>代码修改后运行：</p>
-<pre><code class="language-bash">mkdir -p e2e-results
+<pre><code class="language-bash">mkdir -p tmp test-results
 uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 </code></pre>
 <p>导入、包或入口变化后，还要检查：</p>
 <pre><code class="language-bash">uv run --locked cade --help

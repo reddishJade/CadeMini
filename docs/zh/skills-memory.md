@@ -2,12 +2,11 @@
 
 ## 技能
 
-Cade 从两个根目录发现 `SKILL.md`：
+Cade 从 `~/.cade/skills/` 和 `~/.agents/skills/` 发现用户级技能。将 `trust_project_skills` 设为 `true` 后，还会扫描项目内的对应目录。项目技能默认关闭。
 
-1. `~/.cade/skills/<name>/SKILL.md` 是用户级技能。
-2. `<project>/.cade/skills/<name>/SKILL.md` 是项目技能。
+显式配置的 `skills_dir` 可信且优先级最高，其后是项目级和用户级目录。同一范围内，`.cade/skills` 优先于 `.agents/skills`。同名技能保留优先级较高的定义，并记录警告。
 
-后一个根目录会覆盖同名的前一个。技能文件可以以 YAML frontmatter 开头：
+每个技能目录必须包含带 YAML frontmatter 的 `SKILL.md`：
 
 ```markdown
 ---
@@ -18,7 +17,7 @@ description: Validate release metadata before tagging.
 Run the release checklist...
 ```
 
-`name` 默认取父目录名。`description` 默认取正文第一行非空内容。非法名称和空正文会被跳过。
+加载器校验必填字段、名称规则、目录名是否一致、长度和元数据类型。无效定义会被跳过，并记录诊断。发现阶段只读取 frontmatter；激活时才读取正文并扫描 `references/`、`scripts/` 和 `assets/`。
 
 请求会收到一份紧凑的 `<available-skills>` 目录，包含名称和描述。模型按需用 `skill` 工具加载正文：
 
@@ -26,7 +25,17 @@ Run the release checklist...
 {"name": "release-check"}
 ```
 
-技能正文是工具结果中的事实，不属于请求专属上下文。重复加载同一技能没有副作用，但会多出一条工具结果。
+结果包含技能根目录的绝对路径和资源清单。按需读取引用文件：
+
+```json
+{"name": "release-check", "reference": "checklist.md"}
+```
+
+引用名相对于 `references/`。隐藏文件、符号链接、二进制引用和逃出技能根目录的路径会被拒绝。引用内容上限为 50 KiB，截断时会标明。脚本通过普通 `bash` 工具执行，沿用其权限策略。原生沙箱允许读取可信技能目录，但禁止写入；其余私有 `.cade/` 状态仍保持隐藏。
+
+用户也可以用 `$release-check` 或 `/skill release-check` 显式激活技能。`disable-model-invocation: true` 会从自动选择目录中隐藏技能，但保留显式激活入口。加载时会披露 `compatibility`；`allowed-tools` 仅作提示，不授予权限。
+
+技能正文是工具结果中的事实。压缩或换窗后，若已激活的说明不再可见，应用会从活动分支恢复到请求上下文。模型也可以重新加载技能，获取完整说明。
 
 ## 记忆
 

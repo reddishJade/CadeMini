@@ -20,11 +20,13 @@ src/cade/
     window.py               explicit context window reset
   coding/
     tools/                  read, write, edit, search, bash, history, question
-    context/                prompts, instructions, skills, note, memory
+    context/                prompts, instructions, note, memory
     security/               workspace policy, rules, grants, approval, review
     workspace/              snapshots and coordinated recovery
     subagents.py            coding child sessions and delegation tools
-    mcp.py, mcp_config.py    MCP tools and connection configuration
+    skills/                 discovery, activation, resources, context recovery
+    mcp/                    SDK connections, tool discovery, result validation
+    mcp_config.py           MCP connection configuration
     goal.py                 workspace goal state and tool
   app/                      bootstrap, active session, config, auth, commands
   hosts/                    CLI and TUI presentation

@@ -30,13 +30,13 @@ flowchart LR
   app_bootstrap --> coding_context_memory
   app_bootstrap --> coding_context_note
   app_bootstrap --> coding_context_prompts
-  app_bootstrap --> coding_context_skills
   app_bootstrap --> coding_goal
-  app_bootstrap --> coding_mcp
+  app_bootstrap --> coding_mcp_tools
   app_bootstrap --> coding_security_approval
   app_bootstrap --> coding_security_grants
   app_bootstrap --> coding_security_policy
   app_bootstrap --> coding_security_review
+  app_bootstrap --> coding_skills_tools
   app_bootstrap --> coding_subagents
   app_bootstrap --> coding_tools_registry
   app_bootstrap --> coding_workspace_recovery_coordinator
@@ -47,6 +47,7 @@ flowchart LR
   app_bootstrap --> harness_provider
   app_bootstrap --> harness_request
   app_bootstrap --> harness_session_log
+  app_bootstrap --> harness_tools
   app_bootstrap --> harness_window
   app_config --> coding_mcp_config
   app_config --> coding_security_rules
@@ -66,10 +67,13 @@ flowchart LR
   app_session --> app_context_report
   app_session --> app_provider
   app_session --> app_settings
-  app_session --> coding_context_skills
   app_session --> coding_goal
+  app_session --> coding_mcp_tools
   app_session --> coding_security_policy
   app_session --> coding_security_review
+  app_session --> coding_skills_context
+  app_session --> coding_skills_models
+  app_session --> coding_skills_tools
   app_session --> coding_subagents
   app_session --> coding_tools_base
   app_session --> coding_tools_history
@@ -101,17 +105,19 @@ flowchart LR
   coding_context_memory --> harness_cancellation
   coding_context_memory --> harness_session_types
   coding_context_memory --> harness_tools
-  coding_context_skills --> coding_tools_base
-  coding_context_skills --> harness_session_types
-  coding_context_skills --> harness_tools
   coding_goal --> coding_tools_base
   coding_goal --> harness_cancellation
   coding_goal --> harness_session_types
   coding_goal --> harness_tools
-  coding_mcp --> coding_mcp_config
-  coding_mcp --> harness_cancellation
-  coding_mcp --> harness_session_types
-  coding_mcp --> harness_tools
+  coding_mcp_client --> coding_mcp_config
+  coding_mcp_client --> harness_async_worker
+  coding_mcp_results --> harness_tools
+  coding_mcp_tools --> coding_mcp_client
+  coding_mcp_tools --> coding_mcp_results
+  coding_mcp_tools --> coding_mcp_config
+  coding_mcp_tools --> harness_cancellation
+  coding_mcp_tools --> harness_session_types
+  coding_mcp_tools --> harness_tools
   coding_security_approval --> coding_security_grants
   coding_security_approval --> coding_security_sensitive
   coding_security_approval --> harness_permissions
@@ -131,6 +137,21 @@ flowchart LR
   coding_security_review --> harness_request
   coding_security_review --> harness_session_types
   coding_security_shell --> coding_security_sensitive
+  coding_skills_context --> coding_skills_registry
+  coding_skills_context --> coding_skills_tools
+  coding_skills_context --> harness_session_types
+  coding_skills_discovery --> coding_skills_models
+  coding_skills_registry --> coding_skills_discovery
+  coding_skills_registry --> coding_skills_models
+  coding_skills_registry --> coding_skills_parsing
+  coding_skills_rendering --> coding_skills_models
+  coding_skills_tools --> coding_skills_discovery
+  coding_skills_tools --> coding_skills_models
+  coding_skills_tools --> coding_skills_registry
+  coding_skills_tools --> coding_skills_rendering
+  coding_skills_tools --> coding_tools_base
+  coding_skills_tools --> harness_session_types
+  coding_skills_tools --> harness_tools
   coding_subagents --> coding_security_policy
   coding_subagents --> coding_tools_base
   coding_subagents --> coding_tools_history

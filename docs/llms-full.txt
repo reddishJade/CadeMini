@@ -33,7 +33,8 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
   analysis.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
 - [Skills and memory](skills-memory.md) covers `SKILL.md` and `MEMORY.md`.
-- [MCP and subagents](mcp-subagents.md) covers extensions.
+- [MCP](mcp.md) covers external tools, resources, and prompts.
+- [Subagents](subagents.md) covers child sessions and delegation.
 - [Hosts](hosts.md) covers the terminal TUI and one-shot execution.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
 - [Parity](parity.md) links the acceptance against Cade.
@@ -484,7 +485,7 @@ permissions instead of being unconditionally denied. See
 
 ## MCP servers
 
-MCP servers use stdio and keep one persistent connection per server.
+MCP servers use stdio or Streamable HTTP and keep one connection per server.
 
 ```json
 {
@@ -502,6 +503,35 @@ MCP servers use stdio and keep one persistent connection per server.
 
 Discovered tools are exposed as `mcp__<server>__<tool>`. They ask by default,
 are denied in plan mode and read-only mode, and can be allowed by a rule.
+
+Use `env` for ordinary process settings and `env_from` to pass named host
+environment variables to a stdio server. Only the SDK's basic process environment
+is inherited; other host credentials are not copied automatically. For HTTP,
+use `headers_from` to load request headers from host environment variables:
+
+```json
+{
+  "mcp_servers": {
+    "remote": {
+      "transport": "streamable-http",
+      "url": "https://mcp.example.com/mcp",
+      "headers_from": {"Authorization": "EXAMPLE_MCP_AUTH"},
+      "timeout_ms": 30000
+    }
+  }
+}
+```
+
+Set `EXAMPLE_MCP_AUTH` outside Cade to the complete authorization header value.
+Store credentials in your environment or external secret manager, not project
+configuration, URLs, command arguments, or skill files. Cade does not persist a
+credential cache; explicitly passed credential values are redacted from MCP
+results and diagnostics. MCP server processes are trusted extensions outside
+the workspace tool sandbox, so configure only servers you trust.
+
+Set `trust_project_skills: true` to discover project skills. `skills_dir` selects
+an additional trusted directory relative to the project root or by absolute
+path. See [Skills and memory](skills-memory.md).
 
 # Architecture
 
@@ -859,11 +889,13 @@ src/cade/
     window.py               explicit context window reset
   coding/
     tools/                  read, write, edit, search, bash, history, question
-    context/                prompts, instructions, skills, note, memory
+    context/                prompts, instructions, note, memory
     security/               workspace policy, rules, grants, approval, review
     workspace/              snapshots and coordinated recovery
     subagents.py            coding child sessions and delegation tools
-    mcp.py, mcp_config.py    MCP tools and connection configuration
+    skills/                 discovery, activation, resources, context recovery
+    mcp/                    SDK connections, tool discovery, result validation
+    mcp_config.py           MCP connection configuration
     goal.py                 workspace goal state and tool
   app/                      bootstrap, active session, config, auth, commands
   hosts/                    CLI and TUI presentation
@@ -1180,14 +1212,21 @@ Top-level fields. Nested types follow the table.
 | `network` | `boolean` | `true` |
 | `rules` | `list[RuleConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
+| `trust_project_skills` | `boolean` | `false` |
+| `skills_dir` | `string \| null` | `null` |
 
 ## McpServerConfig
 
 | Field | Type | Default |
 | --- | --- | --- |
-| `command` | `string` | `required` |
+| `transport` | `stdio \| streamable-http` | `"stdio"` |
+| `command` | `string \| null` | `null` |
 | `args` | `list[string]` | `required` |
 | `env` | `dict[str, string] \| null` | `null` |
+| `env_from` | `dict[str, string]` | `required` |
+| `url` | `string \| null` | `null` |
+| `headers_from` | `dict[str, string]` | `required` |
+| `protocol` | `auto \| legacy` | `"auto"` |
 | `cwd` | `string \| null` | `null` |
 | `timeout_ms` | `integer` | `30000` |
 
@@ -1262,13 +1301,13 @@ flowchart LR
   app_bootstrap --> coding_context_memory
   app_bootstrap --> coding_context_note
   app_bootstrap --> coding_context_prompts
-  app_bootstrap --> coding_context_skills
   app_bootstrap --> coding_goal
-  app_bootstrap --> coding_mcp
+  app_bootstrap --> coding_mcp_tools
   app_bootstrap --> coding_security_approval
   app_bootstrap --> coding_security_grants
   app_bootstrap --> coding_security_policy
   app_bootstrap --> coding_security_review
+  app_bootstrap --> coding_skills_tools
   app_bootstrap --> coding_subagents
   app_bootstrap --> coding_tools_registry
   app_bootstrap --> coding_workspace_recovery_coordinator
@@ -1279,6 +1318,7 @@ flowchart LR
   app_bootstrap --> harness_provider
   app_bootstrap --> harness_request
   app_bootstrap --> harness_session_log
+  app_bootstrap --> harness_tools
   app_bootstrap --> harness_window
   app_config --> coding_mcp_config
   app_config --> coding_security_rules
@@ -1298,10 +1338,13 @@ flowchart LR
   app_session --> app_context_report
   app_session --> app_provider
   app_session --> app_settings
-  app_session --> coding_context_skills
   app_session --> coding_goal
+  app_session --> coding_mcp_tools
   app_session --> coding_security_policy
   app_session --> coding_security_review
+  app_session --> coding_skills_context
+  app_session --> coding_skills_models
+  app_session --> coding_skills_tools
   app_session --> coding_subagents
   app_session --> coding_tools_base
   app_session --> coding_tools_history
@@ -1333,17 +1376,19 @@ flowchart LR
   coding_context_memory --> harness_cancellation
   coding_context_memory --> harness_session_types
   coding_context_memory --> harness_tools
-  coding_context_skills --> coding_tools_base
-  coding_context_skills --> harness_session_types
-  coding_context_skills --> harness_tools
   coding_goal --> coding_tools_base
   coding_goal --> harness_cancellation
   coding_goal --> harness_session_types
   coding_goal --> harness_tools
-  coding_mcp --> coding_mcp_config
-  coding_mcp --> harness_cancellation
-  coding_mcp --> harness_session_types
-  coding_mcp --> harness_tools
+  coding_mcp_client --> coding_mcp_config
+  coding_mcp_client --> harness_async_worker
+  coding_mcp_results --> harness_tools
+  coding_mcp_tools --> coding_mcp_client
+  coding_mcp_tools --> coding_mcp_results
+  coding_mcp_tools --> coding_mcp_config
+  coding_mcp_tools --> harness_cancellation
+  coding_mcp_tools --> harness_session_types
+  coding_mcp_tools --> harness_tools
   coding_security_approval --> coding_security_grants
   coding_security_approval --> coding_security_sensitive
   coding_security_approval --> harness_permissions
@@ -1363,6 +1408,21 @@ flowchart LR
   coding_security_review --> harness_request
   coding_security_review --> harness_session_types
   coding_security_shell --> coding_security_sensitive
+  coding_skills_context --> coding_skills_registry
+  coding_skills_context --> coding_skills_tools
+  coding_skills_context --> harness_session_types
+  coding_skills_discovery --> coding_skills_models
+  coding_skills_registry --> coding_skills_discovery
+  coding_skills_registry --> coding_skills_models
+  coding_skills_registry --> coding_skills_parsing
+  coding_skills_rendering --> coding_skills_models
+  coding_skills_tools --> coding_skills_discovery
+  coding_skills_tools --> coding_skills_models
+  coding_skills_tools --> coding_skills_registry
+  coding_skills_tools --> coding_skills_rendering
+  coding_skills_tools --> coding_tools_base
+  coding_skills_tools --> harness_session_types
+  coding_skills_tools --> harness_tools
   coding_subagents --> coding_security_policy
   coding_subagents --> coding_tools_base
   coding_subagents --> coding_tools_history
@@ -1557,11 +1617,10 @@ navigation aid; when it disagrees with the tool schema, the schema wins.
 
 # MCP reference servers
 
-Cade implements stdio `initialize`, `tools/list`, and `tools/call` with a
-persistent connection per server. That is enough for the reference servers that
-expose tools.
+Cade uses the official MCP SDK for stdio and Streamable HTTP. See
+[MCP](../mcp.md) for supported revisions and capabilities.
 
-## Verified servers
+## Previously verified servers
 
 | Server | Command | Verified |
 | --- | --- | --- |
@@ -1597,9 +1656,10 @@ example `--repository <path>`; pass the exact arguments the server expects.
 
 ## Capability boundary
 
-The reference servers above are tool servers. Cade does not implement MCP
-resources, prompts, sampling, or server-initiated requests. A server that relies
-on those features will start but expose only its tools.
+The current integration suite verifies local SDK servers over stdio and HTTP,
+including resources, prompts, cancellation, and credentials. The external
+servers above were verified with the previous client and have not been rerun
+for this SDK migration. Sampling and elicitation are not enabled.
 
 ## Policy
 
@@ -1626,7 +1686,7 @@ is closed when Cade exits.
 ## Related
 
 - [Configuration](../configuration.md)
-- [MCP and subagents](../mcp-subagents.md)
+- [MCP](../mcp.md)
 - [Custom MCP server](../cookbook/custom-mcp.md)
 
 # Steering and queueing
@@ -2474,9 +2534,11 @@ Extensions add behavior through narrow seams. None changes the session schema.
 
 ## Skills
 
-Discovery reads `SKILL.md` from user and project roots. The request carries a
-catalog; the `skill` tool loads a body into a tool result. A body is a fact, not
-request-only context.
+Discovery reads skill metadata from user and trusted project roots. The request
+carries a catalog; the `skill` tool loads a body or reference on demand and
+returns resource paths. Activated instructions missing after compaction or a
+window reset are restored from the active branch into request context. See
+[Skills and memory](../skills-memory.md) for configuration and activation.
 
 ## Memory
 
@@ -2485,7 +2547,7 @@ write other paths. The file is capped to protect the request budget.
 
 ## MCP
 
-Each configured stdio server keeps one persistent process. Discovery reads
+Each configured stdio or HTTP server keeps one connection. Discovery reads
 `tools/list`; calls use `tools/call` over a serialized queue. Tools are prefixed
 `mcp__`, ask by default, and are denied in plan and read-only modes. A server
 that cannot start is reported and skipped.
@@ -2518,13 +2580,13 @@ policy as every other entry path.
 
 ## Limits
 
-Extensions are deliberately small. MCP is a stdio client, not a full capability
-negotiation implementation. Subagents are sequential and share the parent
-approval context.
+MCP capability and protocol boundaries are documented in
+[MCP](../mcp.md). See [Subagents](../subagents.md) for child-session permissions
+and sequential execution.
 
 ## Tests
 
-`test_skills.py`, `test_memory.py`, `test_mcp.py`, `test_subagents.py`,
+`test_skills.py`, `test_memory.py`, `test_mcp.py`, `test_mcp_integration.py`, `test_subagents.py`,
 `test_snapshots.py`, and `test_goal.py`.
 
 # Tools and security
@@ -2769,13 +2831,14 @@ for facts that outlive the objective.
 
 ## Skills
 
-Cade discovers `SKILL.md` files in two roots:
+Cade discovers user skills in `~/.cade/skills/` and `~/.agents/skills/`.
+Set `trust_project_skills` to `true` to include the matching directories under
+this project. Project skills are disabled by default. An explicit `skills_dir`
+is trusted and has the highest priority, followed by project and user roots;
+`.cade/skills` precedes `.agents/skills` within each scope. Duplicate names
+produce a warning and keep the first definition.
 
-1. `~/.cade/skills/<name>/SKILL.md` for user skills.
-2. `<project>/.cade/skills/<name>/SKILL.md` for project skills.
-
-Later roots override earlier roots with the same skill name. A skill file can
-start with YAML frontmatter:
+Each skill directory must contain `SKILL.md` with YAML frontmatter:
 
 ```markdown
 ---
@@ -2786,18 +2849,38 @@ description: Validate release metadata before tagging.
 Run the release checklist...
 ```
 
-`name` defaults to the parent directory. `description` defaults to the first
-non-empty body line. Invalid names and empty bodies are skipped.
+The loader validates required fields, naming rules, directory-name agreement,
+length limits, and metadata types. Invalid definitions are skipped with a
+diagnostic. Discovery reads frontmatter only; activation reads the body and
+indexes `references/`, `scripts/`, and `assets/`.
 
-The request gets a compact `<available-skills>` catalog with names and
-descriptions. The model loads a body on demand with the `skill` tool:
+The request carries a compact catalog. The model loads instructions with:
 
 ```json
 {"name": "release-check"}
 ```
 
-Skill bodies are facts in the tool result, not request-only context. Loading the
-same skill twice is harmless but adds another tool result.
+The result includes the absolute skill root and resource paths. Read a reference
+without loading every resource:
+
+```json
+{"name": "release-check", "reference": "checklist.md"}
+```
+
+Reference names are relative to `references/`; hidden files, symbolic links,
+binary references, and paths outside the skill root are rejected. References
+are limited to 50 KiB. Scripts run through the ordinary `bash` tool and its
+permission policy. Trusted skill directories are readable but protected from
+writes in native sandboxes; other private `.cade/` state stays hidden.
+
+Use `$release-check` or `/skill release-check` for explicit activation.
+`disable-model-invocation: true` hides a skill from automatic selection while
+keeping explicit activation available. `compatibility` is disclosed when loaded;
+`allowed-tools` is advisory and never grants permissions.
+
+Bodies are tool-result facts. Previously activated instructions missing after
+compaction or a window reset are restored from the active branch into request
+context. A model can reload a skill when it needs its exact instructions.
 
 ## Memory
 
@@ -2826,16 +2909,16 @@ Instructions, skill catalog, `NOTE.md`, `MEMORY.md`, and an active goal are all
 request-only context. They appear in each request audit but never become
 conversation messages. See [Sessions and context](sessions-context.md).
 
-# MCP and subagents
+# MCP
 
-<!-- source: mcp-subagents.md -->
+<!-- source: mcp.md -->
 
-# MCP and subagents
+# MCP
 
-## MCP
+## Connection and tools
 
-MCP servers use stdio. Cade starts one persistent process per server and
-discovers its tools at startup:
+Cade uses the official Python MCP SDK with stdio and Streamable HTTP.
+It discovers tools at startup and keeps one connection per server:
 
 ```json
 {
@@ -2859,10 +2942,48 @@ Policy:
 - `read_only` denies them.
 - `build` and `ask` ask by default; a rule can allow a specific tool.
 
-A server that fails to start is reported at startup and skipped. Connections
-are closed at process exit.
+A server that fails to start is reported and skipped. A later request can
+reconnect it; calls with unknown outcomes are never automatically repeated.
+Cancelling or timing out an active call closes its transport and waits for SDK
+cleanup. Connections are also closed when the application session exits.
 
-## Subagents
+The default `protocol: "auto"` probes the 2026-07-28 stateless protocol and falls
+back to the legacy initialize handshake. `protocol: "legacy"` forces the
+handshake. The installed SDK supports the 2024-11-05, 2025-03-26, 2025-06-18,
+2025-11-25, and 2026-07-28 revisions. The negotiated version is recorded with
+tool results. Unknown versions are rejected by the SDK.
+
+Tool discovery follows pagination. Legacy list-change notifications refresh the
+live tool catalog before the next model request. Stateless connections refresh
+the listing at each model request. Ambiguous or overlong host tool names are
+excluded with diagnostics. Input arguments and structured outputs are checked
+against their JSON Schemas. Progress and result metadata enter the session log.
+
+Servers advertising resources or prompts also expose these permission-gated
+operations under the same server prefix: `resources_list`, `resources_read`,
+`prompts_list`, and `prompts_get`. List results preserve `nextCursor`; supply it
+as `cursor` to read the next page. Returned resources and prompts are untrusted
+data, not instructions or authorization.
+
+For HTTP transport and credential configuration, see [Configuration](configuration.md#mcp-servers).
+
+## Limits
+
+MCP extensions, sampling, elicitation, resource subscriptions, and automatic
+OAuth login are not enabled. Image, audio, and resource content blocks are
+preserved as JSON in Mini's text tool-result contract rather than sent as native
+multimodal provider messages. Tool output exceeding the runtime limit is marked
+as truncated; exact structured metadata remains in the log.
+Schemas must be self-contained: local `$ref` values work, but schema validation
+does not fetch external URLs.
+
+# Subagents
+
+<!-- source: subagents.md -->
+
+# Subagents
+
+## Child sessions
 
 The `subagent` tool runs one child task in its own session and returns the final
 answer with the child session ID:
@@ -2894,7 +3015,6 @@ expand parent permissions: a Plan parent cannot delegate Build work.
 
 ## Limits
 
-MCP is a small stdio client, not a full capability negotiation implementation.
 Subagents are sequential and share the parent's approval context rather than
 running in parallel.
 
@@ -3106,7 +3226,7 @@ evidence.
 
 # Connect a custom MCP server
 
-MCP servers use stdio. Cade keeps one process per server and exposes each
+MCP servers use stdio or Streamable HTTP. Cade keeps one connection per server and exposes each
 tool as `mcp__<server>__<tool>`.
 
 ## Configure
@@ -3153,9 +3273,9 @@ Plan mode and `--read-only` deny MCP tools even with a rule.
 
 ## Limits
 
-The client implements `initialize`, `tools/list`, and `tools/call`. It does not
-implement resources, prompts, sampling, or server-initiated requests. A server
-that hangs is killed after the configured timeout.
+See [MCP](../mcp.md) for supported protocol revisions,
+resources, prompts, and optional capability limits. An active call that times
+out closes its connection and waits for SDK cleanup.
 
 # Hosts
 
@@ -3231,11 +3351,33 @@ skips those tests and executes tools directly.
 
 ```bash
 uv sync --locked --extra dev --extra docs
-mkdir -p e2e-results
+mkdir -p tmp test-results
 ```
 
 Code lives in `src/cade/`, tests in `tests/`, and documentation in `docs/`.
 See [Architecture](architecture.md) for module boundaries.
+
+### Restricted uv cache access
+
+If uv cannot open its global cache `.lock` file because access is denied, use
+`.uv-cache` inside the workspace. From the repository root in PowerShell:
+
+```powershell
+$env:UV_CACHE_DIR = "$PWD\.uv-cache"
+```
+
+This setting applies to the current terminal session. Run the usual uv commands
+after setting it. For a single command, use
+`uv --cache-dir ./.uv-cache run --locked ...` instead. Keep the cache
+inside the workspace rather than changing global directory permissions.
+
+## Dependencies
+
+Use `uv add PACKAGE` to add a runtime dependency and `uv add --dev PACKAGE` for
+development tools. Let uv generate version requirements and update `uv.lock`;
+do not invent version bounds or edit dependency versions by hand. Add an extra
+constraint only when a documented compatibility requirement justifies it.
+Use `uv remove PACKAGE` to remove a dependency.
 
 ## Checks
 
@@ -3243,7 +3385,7 @@ See [Architecture](architecture.md) for module boundaries.
 uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 uv run --locked cade --help
 uv run --locked python -m cade --help
 uv run --locked cade login --help
@@ -3252,8 +3394,9 @@ uv build --no-sources
 ```
 
 Follow the [validation guidelines](testing.md) to select focused checks.
-Keep temporary workspaces and run evidence under `e2e-results/`. Never commit
-credentials or raw provider traces.
+Use `tmp/` for ordinary temporary workspaces, `test-results/` for regression
+reports, and `e2e-results/` for end-to-end test results. Keep caches in dedicated
+tool directories. Never commit credentials or raw provider traces.
 
 ## Documentation
 
@@ -3316,20 +3459,22 @@ GitHub `release` environment. Never move a published tag.
 
 # Validation guidelines
 
-Choose checks for the behavior and risk being changed. Keep all temporary
-workspaces, pytest files, and run evidence inside this repository under
-`e2e-results/`. Do not copy account credentials into test evidence.
+Choose checks for the behavior and risk being changed. Keep ordinary test
+workspaces and temporary files under `tmp/`, regression reports under
+`test-results/`, and end-to-end test results under `e2e-results/`. Keep tool
+caches in their dedicated directories, such as `.uv-cache/` and `.pytest_cache/`.
+Do not copy account credentials into test evidence.
 
 ## Required checks
 
 After code changes, run:
 
 ```bash
-mkdir -p e2e-results
+mkdir -p tmp test-results
 uv run --locked ruff check src/cade/ tests/
 uv run --locked ruff format --check src/cade/ tests/
 uv run --locked pyright src/cade/
-uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests --basetemp=tmp/pytest
 ```
 
 After import, package, or entry-point changes, also check:

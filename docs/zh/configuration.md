@@ -68,7 +68,7 @@ Cade 默认读取 `<project-root>/cade.json`。用 `--config PATH` 选择其他�
 
 ## MCP 服务器
 
-MCP 服务器使用 stdio，每个服务器保持一条长连接。
+MCP 服务器支持 stdio 和 Streamable HTTP，每个服务器保持一条连接。
 
 ```json
 {
@@ -85,3 +85,21 @@ MCP 服务器使用 stdio，每个服务器保持一条长连接。
 ```
 
 发现的工具以 `mcp__<server>__<tool>` 命名。它们默认需要确认，在计划模式和只读模式下被拒绝，也可以由规则放行。
+
+`env` 用于普通进程设置；`env_from` 将指定宿主环境变量传给 stdio 服务器。默认只继承 SDK 的基础进程环境，不会自动复制其余宿主凭据。HTTP 请求头通过 `headers_from` 从环境变量读取：
+
+```json
+{
+  "mcp_servers": {
+    "remote": {
+      "transport": "streamable-http",
+      "url": "https://mcp.example.com/mcp",
+      "headers_from": {"Authorization": "EXAMPLE_MCP_AUTH"}
+    }
+  }
+}
+```
+
+在 Cade 外设置 `EXAMPLE_MCP_AUTH`，值为完整的授权请求头。凭据应存放在环境变量或外部密钥管理器中，不要写入项目配置、URL、命令参数或技能文件。Cade 不保存凭据缓存，显式传入的凭据值会从 MCP 结果和诊断中脱敏。MCP 服务进程运行在工作区工具沙箱之外，只配置可信服务。
+
+设置 `trust_project_skills: true` 后才会发现项目技能。`skills_dir` 可指定额外的可信目录，支持相对项目根目录的路径或绝对路径。详见[技能与记忆](skills-memory.md)。

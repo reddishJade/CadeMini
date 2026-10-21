@@ -1,6 +1,6 @@
 # 连接自定义 MCP 服务器
 
-MCP 服务器使用 stdio。Cade 为每个服务器保持一个进程，并把每个工具暴露为 `mcp__<server>__<tool>`。
+MCP 服务器支持 stdio 和 Streamable HTTP。Cade 为每个服务器保持一条连接，并把工具暴露为 `mcp__<server>__<tool>`。
 
 ## 配置
 
@@ -44,4 +44,4 @@ MCP 工具默认询问。无人值守运行时，为特定工具添加规则：
 
 ## 限制
 
-客户端实现 `initialize`、`tools/list` 和 `tools/call`，不实现 resources、prompts、sampling 或服务器发起的请求。挂起的服务器会在配置的超时后被杀掉。
+支持的协议版本、资源、提示词、取消行为和可选能力限制见 [MCP](../mcp.md)。活动调用超时后会关闭连接，并等待 SDK 完成清理。

@@ -62,7 +62,8 @@ Sessions and snapshots live in the project's `.cade/` directory.
 Project settings live in `cade.json`.
 
 Cade includes workspace tools, history retrieval, context compaction, skills,
-memory, hooks, MCP tools, subagents, file snapshots, and goals. The TUI supports
+memory, hooks, MCP tools, resources and prompts over stdio or HTTP, subagents,
+file snapshots, and goals. The TUI supports
 stepwise undo/redo, scoped rewind, and selected-file revert. Recovery covers
 tracked file mutations, not arbitrary shell or external side effects.
 

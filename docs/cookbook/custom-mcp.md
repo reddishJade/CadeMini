@@ -1,6 +1,6 @@
 # Connect a custom MCP server
 
-MCP servers use stdio. Cade keeps one process per server and exposes each
+MCP servers use stdio or Streamable HTTP. Cade keeps one connection per server and exposes each
 tool as `mcp__<server>__<tool>`.
 
 ## Configure
@@ -47,6 +47,6 @@ Plan mode and `--read-only` deny MCP tools even with a rule.
 
 ## Limits
 
-The client implements `initialize`, `tools/list`, and `tools/call`. It does not
-implement resources, prompts, sampling, or server-initiated requests. A server
-that hangs is killed after the configured timeout.
+See [MCP](../mcp.md) for supported protocol revisions,
+resources, prompts, and optional capability limits. An active call that times
+out closes its connection and waits for SDK cleanup.

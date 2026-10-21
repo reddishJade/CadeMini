@@ -1,36 +1,6 @@
-# MCP and subagents
+# Subagents
 
-## MCP
-
-MCP servers use stdio. Cade starts one persistent process per server and
-discovers its tools at startup:
-
-```json
-{
-  "mcp_servers": {
-    "files": {
-      "command": "python",
-      "args": ["mcp_server.py"],
-      "timeout_ms": 30000
-    }
-  }
-}
-```
-
-Tools are named `mcp__<server>__<tool>`. Their input schema comes from the
-server's `tools/list` response. Calls run sequentially over the connection and
-preserve server state.
-
-Policy:
-
-- `plan` mode hides MCP tools and denies them.
-- `read_only` denies them.
-- `build` and `ask` ask by default; a rule can allow a specific tool.
-
-A server that fails to start is reported at startup and skipped. Connections
-are closed at process exit.
-
-## Subagents
+## Child sessions
 
 The `subagent` tool runs one child task in its own session and returns the final
 answer with the child session ID:
@@ -62,6 +32,5 @@ expand parent permissions: a Plan parent cannot delegate Build work.
 
 ## Limits
 
-MCP is a small stdio client, not a full capability negotiation implementation.
 Subagents are sequential and share the parent's approval context rather than
 running in parallel.

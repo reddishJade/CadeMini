@@ -1,6 +1,6 @@
 # MCP 参考服务器
 
-Cade 实现 stdio 的 `initialize`、`tools/list` 和 `tools/call`，每个服务器保持一条长连接。这对暴露工具的参考服务器已经够用。
+Cade 使用官方 SDK 支持 stdio 和 Streamable HTTP。支持的版本与能力见 [MCP](../mcp.md)。下面的外部参考服务器在本次 SDK 迁移前已验证，迁移后尚未重新运行。
 
 ## 已验证的服务器
 
@@ -37,7 +37,7 @@ Cade 实现 stdio 的 `initialize`、`tools/list` 和 `tools/call`，每个服�
 
 ## 能力边界
 
-上面的参考服务器都是工具服务器。Cade 不实现 MCP resources、prompts、sampling 或服务器发起的请求。依赖这些功能的服务器可以启动，但只暴露工具。
+本地 SDK 集成测试覆盖工具、资源、提示词、取消和凭据处理。当前未启用采样、信息征询和可选扩展。
 
 ## 策略
 
@@ -62,5 +62,5 @@ cade --mode build "Use the time MCP tool to get the current time in Asia/Singapo
 ## 相关页面
 
 - [配置](../configuration.md)
-- [MCP 和子代理](../mcp-subagents.md)
+- [MCP](../mcp.md)
 - [自定义 MCP 服务器](../cookbook/custom-mcp.md)

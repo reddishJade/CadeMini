@@ -23,14 +23,21 @@ Top-level fields. Nested types follow the table.
 | `network` | `boolean` | `true` |
 | `rules` | `list[RuleConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
+| `trust_project_skills` | `boolean` | `false` |
+| `skills_dir` | `string \| null` | `null` |
 
 ## McpServerConfig
 
 | Field | Type | Default |
 | --- | --- | --- |
-| `command` | `string` | `required` |
+| `transport` | `stdio \| streamable-http` | `"stdio"` |
+| `command` | `string \| null` | `null` |
 | `args` | `list[string]` | `required` |
 | `env` | `dict[str, string] \| null` | `null` |
+| `env_from` | `dict[str, string]` | `required` |
+| `url` | `string \| null` | `null` |
+| `headers_from` | `dict[str, string]` | `required` |
+| `protocol` | `auto \| legacy` | `"auto"` |
 | `cwd` | `string \| null` | `null` |
 | `timeout_ms` | `integer` | `30000` |
 
