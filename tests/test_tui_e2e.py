@@ -128,6 +128,13 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
     home.mkdir()
     workspace = tmp_path / "workspace"
     workspace.mkdir()
+    artifacts = (
+        Path(__file__).resolve().parents[1] / "e2e-results" / "tui" / tmp_path.name
+    )
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (workspace / "cade.json").write_text(
+        '{"trust_project_skills": true}', encoding="utf-8"
+    )
     skill = workspace / ".cade" / "skills" / "e2e-skill" / "SKILL.md"
     skill.parent.mkdir(parents=True)
     skill.write_text(
@@ -137,7 +144,6 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
     monkeypatch.setattr(auth, "DEFAULT_AUTH_FILE", home / "auth.json")
     monkeypatch.setattr(auth, "DEFAULT_HOST_FILE", home / "host.json")
-    monkeypatch.setattr("cade.coding.context.skills._USER_DIR", home / "skills")
     for name in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY", "CHATGPT_API_KEY"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
@@ -182,10 +188,10 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
                             if worker.is_alive():
                                 errors.append(AssertionError("TUI worker did not stop"))
                         await asyncio.sleep(0)
-                        (tmp_path / "transcript.txt").write_text(
+                        (artifacts / "transcript.txt").write_text(
                             terminal.transcript, encoding="utf-8"
                         )
-                        (tmp_path / "rendered.txt").write_text(
+                        (artifacts / "rendered.txt").write_text(
                             "".join(output.fragments), encoding="utf-8"
                         )
                         if tui._application.is_running:

@@ -41,6 +41,7 @@ class PlatformSandbox:
         network: bool = True,
         protected_paths: Sequence[Path] = (),
         hidden_paths: Sequence[Path] = (),
+        readable_paths: Sequence[Path] = (),
     ) -> None:
         self.workspace = workspace.resolve()
         self.temp_dir = temp_dir.resolve()
@@ -48,6 +49,7 @@ class PlatformSandbox:
         self.network = network
         self.protected_paths = tuple(path.resolve() for path in protected_paths)
         self.hidden_paths = tuple(path.resolve() for path in hidden_paths)
+        self.readable_paths = tuple(path.resolve() for path in readable_paths)
 
     def wrap(self, argv: list[str], cwd: Path) -> SandboxedCommand:
         scope = current_scope()
@@ -106,7 +108,13 @@ class PlatformSandbox:
                 args.extend(("--ro-bind", str(path), str(path)))
         for path in self.hidden_paths:
             if path.is_dir():
-                args.extend(("--tmpfs", str(path), "--remount-ro", str(path)))
+                args.extend(("--tmpfs", str(path)))
+        for path in self.readable_paths:
+            if path.is_dir():
+                args.extend(("--ro-bind", str(path), str(path)))
+        for path in self.hidden_paths:
+            if path.is_dir():
+                args.extend(("--remount-ro", str(path)))
         args.extend(("--", *argv))
         return args
 
@@ -125,7 +133,19 @@ class PlatformSandbox:
         for path in self.protected_paths:
             forms.append(f"(deny file-write* (subpath {_sbpl(path)}))")
         for path in self.hidden_paths:
-            forms.append(f"(deny file-read* file-write* (subpath {_sbpl(path)}))")
+            forms.append(f"(deny file-write* (subpath {_sbpl(path)}))")
+            exceptions = " ".join(
+                f"(require-not (subpath {_sbpl(readable)}))"
+                for readable in self.readable_paths
+                if readable.is_relative_to(path)
+            )
+            forms.append(
+                f"(deny file-read* (require-all (subpath {_sbpl(path)}) {exceptions}))"
+                if exceptions
+                else f"(deny file-read* (subpath {_sbpl(path)}))"
+            )
+        for path in self.readable_paths:
+            forms.append(f"(deny file-write* (subpath {_sbpl(path)}))")
         if not self.network:
             forms.append("(deny network*)")
         return [executable, "-p", "\n".join(forms), "--", *argv]

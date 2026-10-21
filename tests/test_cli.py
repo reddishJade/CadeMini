@@ -673,6 +673,9 @@ def test_cli_exposes_skill_catalog_and_tool(tmp_path: Path) -> None:
         "---\nname: greeter\ndescription: Say hello\n---\nSay HELLO.",
         encoding="utf-8",
     )
+    (workspace / "cade.json").write_text(
+        '{"trust_project_skills": true}', encoding="utf-8"
+    )
     sessions = tmp_path / "sessions"
     provider = FakeProvider(
         [

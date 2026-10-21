@@ -96,3 +96,26 @@ async def test_executor_converts_tool_failures(failure: str) -> None:
         result.result.content
     )
     assert current_scope() == ExecutionScope()
+
+
+async def test_schema_references_do_not_fetch_untrusted_urls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_fetch(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("Schema validation must not access the network")
+
+    monkeypatch.setattr("urllib.request.urlopen", unexpected_fetch)
+
+    class ReferencingTool(ScopeTool):
+        parameters: ClassVar[dict[str, Any]] = {
+            "$ref": "https://example.invalid/schema"
+        }
+
+    tool = ReferencingTool()
+    result = await execute_tool(
+        ToolCallBlock(id="reference", name="scope", args={}),
+        {"scope": tool},
+    )
+    assert result.result.is_error
+    assert "schema" in result.result.content
+    assert tool.scopes == []

@@ -199,6 +199,40 @@ def test_native_hidden_state_and_protected_files(
     assert marker.read_text() == "private"
 
 
+def test_native_skill_scripts_are_readable_without_exposing_state(
+    native_sandbox: PlatformSandbox,
+) -> None:
+    root = native_sandbox.workspace / ".cade"
+    skill = root / "skills" / "check"
+    skill.mkdir(parents=True)
+    script = skill / "check.py"
+    script.write_text("print('SCRIPT_OK')", encoding="utf-8")
+    secret = root / "credentials.json"
+    secret.write_text("PRIVATE", encoding="utf-8")
+    sandbox = PlatformSandbox(
+        native_sandbox.workspace,
+        native_sandbox.temp_dir,
+        hidden_paths=(root,),
+        readable_paths=(skill,),
+    )
+    result = SubprocessShell(sandbox).run(
+        [sys.executable, "-I", str(script)],
+        cwd=sandbox.workspace,
+        env=sandbox.environment(),
+    )
+    assert result.returncode == 0, result.output
+    assert "SCRIPT_OK" in result.output
+    hidden = _python(
+        sandbox, f"from pathlib import Path; print(Path({str(secret)!r}).read_text())"
+    )
+    assert hidden.returncode != 0
+    changed = _python(
+        sandbox,
+        f"from pathlib import Path; Path({str(script)!r}).write_text('changed')",
+    )
+    assert changed.returncode != 0
+
+
 async def test_native_file_worker_uses_same_boundary_and_exact_approval(
     native_sandbox: PlatformSandbox, tmp_path: Path
 ) -> None:

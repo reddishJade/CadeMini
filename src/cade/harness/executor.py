@@ -7,6 +7,11 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+import jsonschema
+from jsonschema.validators import validator_for
+from referencing import Registry
+from referencing.exceptions import Unresolvable
+
 from cade.harness.cancellation import CancellationToken
 from cade.harness.events import LoopEvent, ToolStartEvent
 from cade.harness.execution.scope import execution_scope
@@ -67,6 +72,15 @@ async def execute_tool(
     if tool is None:
         return ToolExecution(
             ToolResult(f"Unknown tool: {call.name}", is_error=True), authorization
+        )
+    try:
+        validator = validator_for(tool.parameters)
+        validator.check_schema(tool.parameters)
+        validator(tool.parameters, registry=Registry()).validate(call.args)
+    except (jsonschema.SchemaError, jsonschema.ValidationError, Unresolvable) as exc:
+        return ToolExecution(
+            ToolResult(f"Tool argument schema error: {exc}", is_error=True),
+            authorization,
         )
     if on_event is not None:
         on_event(ToolStartEvent(call.id, call.name, call.args))

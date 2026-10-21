@@ -16,17 +16,17 @@ from cade.coding.context.instructions import load_project_instructions
 from cade.coding.context.memory import MemoryTool, load_memory
 from cade.coding.context.note import load_working_note
 from cade.coding.context.prompts import render_system_prompt
-from cade.coding.context.skills import (
-    LoadSkillTool,
-    discover_skills,
-    render_skill_catalog,
-)
 from cade.coding.goal import GoalStore, GoalTool
-from cade.coding.mcp import discover_mcp_tools
+from cade.coding.mcp.tools import McpRegistry
 from cade.coding.security.approval import SessionApprover
 from cade.coding.security.grants import GrantStore
 from cade.coding.security.policy import WorkspacePolicy
 from cade.coding.security.review import AutoReviewer
+from cade.coding.skills.tools import (
+    LoadSkillTool,
+    discover_skills,
+    render_skill_catalog,
+)
 from cade.coding.subagents import DelegateTool, SubagentRunner, SubagentTool
 from cade.coding.tools.registry import build_tools
 from cade.coding.workspace.recovery.coordinator import WorkspaceRecovery
@@ -37,6 +37,7 @@ from cade.harness.permissions import Approver
 from cade.harness.provider import Provider
 from cade.harness.request import Budget
 from cade.harness.session.log import SessionLog, list_sessions
+from cade.harness.tools import Tool
 from cade.harness.window import reset_window
 
 WINDOW_HANDOFF = (
@@ -134,9 +135,15 @@ def create_session(
     budget = Budget(context_window=context_window)
     max_steps = config.max_steps or 50
     sessions_dir = resolve_sessions_dir(workspace, config)
-    skills = discover_skills(workspace)
-    skill_catalog = render_skill_catalog(skills)
-    mcp_tools, warnings = asyncio.run(discover_mcp_tools(config.mcp_servers, workspace))
+    skill_registry = discover_skills(
+        workspace,
+        trust_project_skills=config.trust_project_skills,
+        skills_dir=Path(config.skills_dir) if config.skills_dir else None,
+    )
+    skill_catalog = render_skill_catalog(skill_registry)
+    mcp = McpRegistry(config.mcp_servers, workspace)
+    resources.callback(mcp.close)
+    mcp_tools = asyncio.run(mcp.refresh())
     snapshots = SnapshotStore(workspace)
     goals = GoalStore(workspace)
     if goal:
@@ -151,10 +158,13 @@ def create_session(
         network=config.network,
         protected_paths=(workspace / ".git" / "hooks", workspace / ".git" / "config"),
         hidden_paths=(workspace / ".cade", Path.home() / ".cade"),
+        readable_paths=tuple(
+            skill.file_path.parent for skill in skill_registry.definitions()
+        ),
     )
     tools = (
         *build_tools(workspace, snapshots=snapshots, sandbox=sandbox),
-        LoadSkillTool(workspace, skills),
+        LoadSkillTool(workspace, skill_registry),
         MemoryTool(workspace),
         GoalTool(workspace),
         *mcp_tools,
@@ -201,6 +211,14 @@ def create_session(
     recovery = WorkspaceRecovery(
         snapshots, system_prompt=system_prompt, read_only=policy.read_only
     )
+
+    async def refresh_base_tools() -> Sequence[Tool]:
+        remote = await mcp.refresh()
+        return (
+            *(tool for tool in tools if not tool.name.startswith("mcp__")),
+            *remote,
+        )
+
     runner = SubagentRunner(
         workspace=workspace,
         provider=selected,
@@ -213,6 +231,7 @@ def create_session(
         context=context,
         max_steps=min(max_steps, 20),
         lifecycle=recovery,
+        refresh_tools=refresh_base_tools,
     )
     log = open_log(
         sessions_dir,
@@ -230,7 +249,8 @@ def create_session(
         provider=selected,
         provider_config=provider_config,
         tools=(*tools, SubagentTool(runner=runner), DelegateTool(runner=runner)),
-        skills=skills,
+        skills=skill_registry.definitions(),
+        mcp=mcp,
         workspace=workspace,
         snapshots=snapshots,
         goals=goals,
@@ -246,4 +266,4 @@ def create_session(
         recovery=recovery,
     )
     session.auto_approve = auto_approve
-    return BootstrappedSession(session, approver, tuple(warnings))
+    return BootstrappedSession(session, approver, mcp.errors)

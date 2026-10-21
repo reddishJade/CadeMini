@@ -21,10 +21,13 @@ from cade.app.commands import COMMANDS, command_help
 from cade.app.context_report import format_context_usage
 from cade.app.provider import ProviderConfig, build_provider
 from cade.app.settings import AuthenticationService, SettingsService
-from cade.coding.context.skills import Skill
 from cade.coding.goal import GoalStore
+from cade.coding.mcp.tools import McpRegistry
 from cade.coding.security.policy import WorkspacePolicy, filter_tools
 from cade.coding.security.review import AutoReviewer
+from cade.coding.skills.context import restore_skill_context
+from cade.coding.skills.models import SkillDef
+from cade.coding.skills.tools import LoadSkillTool
 from cade.coding.subagents import DelegateTool, SubagentTool
 from cade.coding.tools.base import resolve_workspace_path
 from cade.coding.tools.history import HistoryTool
@@ -114,7 +117,7 @@ class ApplicationSession:
         provider: Provider,
         provider_config: ProviderConfig,
         tools: Sequence[Tool],
-        skills: Sequence[Skill],
+        skills: Sequence[SkillDef],
         workspace: Path,
         snapshots: SnapshotStore,
         goals: GoalStore,
@@ -128,6 +131,7 @@ class ApplicationSession:
         config_path: Path | None = None,
         context_window_explicit: bool = False,
         recovery: WorkspaceRecovery | None = None,
+        mcp: McpRegistry | None = None,
     ) -> None:
         self.log, self.sessions_dir, self.system_prompt = (
             log,
@@ -136,6 +140,7 @@ class ApplicationSession:
         )
         self.provider, self.provider_config = provider, provider_config
         self.base_tools, self.skills = tuple(tools), tuple(skills)
+        self.mcp = mcp
         self.workspace, self.snapshots, self.goals = workspace, snapshots, goals
         self.recovery = recovery or WorkspaceRecovery(
             snapshots, system_prompt=system_prompt, read_only=policy.read_only
@@ -162,7 +167,12 @@ class ApplicationSession:
     @property
     def tools(self) -> tuple[Tool, ...]:
         regular: tuple[Tool, ...] = (
-            *self.base_tools,
+            *(
+                tool
+                for tool in self.base_tools
+                if self.mcp is None or not tool.name.startswith("mcp__")
+            ),
+            *(self.mcp.tools if self.mcp is not None else ()),
             HistoryTool(self.workspace, self.log),
         )
         return (*regular, self.question_tool) if self.question_tool else regular
@@ -415,7 +425,10 @@ class ApplicationSession:
             skill = next((s for s in self.skills if s.name == name), None)
             if skill is None:
                 raise ValueError(f"Unknown skill: {name}")
-            additions.append(f'<skill name="{name}">\n{skill.body}\n</skill>')
+            loader = next(
+                tool for tool in self.base_tools if isinstance(tool, LoadSkillTool)
+            )
+            additions.append(loader.run({"name": name}).content)
         message = re.sub(r"(?<!\S)\$[A-Za-z0-9_.-]+", "", message)
         for path_text in re.findall(r"(?<!\S)@(\S+)", message):
             path = resolve_workspace_path(self.workspace, path_text)
@@ -458,6 +471,24 @@ class ApplicationSession:
             core_approve if approve is not None else self.automatic_approver
         )
         try:
+
+            async def refresh_tools() -> Sequence[Tool]:
+                if self.mcp is not None:
+                    await self.mcp.refresh()
+                return filter_tools(self.tools, self.policy.mode)
+
+            def request_context() -> Sequence[str]:
+                parts = list(self.context())
+                for tool in self.base_tools:
+                    if isinstance(tool, LoadSkillTool):
+                        entries = self.log.branch()
+                        parts.extend(
+                            restore_skill_context(
+                                tool.registry, entries, project(entries)
+                            )
+                        )
+                return parts
+
             result = await run(
                 self.log,
                 text,
@@ -474,6 +505,8 @@ class ApplicationSession:
                 steering=lambda: self.steering.popleft() if self.steering else None,
                 cancel=self.cancel,
                 on_event=on_event,
+                refresh_tools=refresh_tools,
+                context_source=request_context,
             )
             self.last_usage = result.usage or {}
             return result

@@ -38,6 +38,8 @@ class CadeConfig(BaseModel):
     network: bool = True
     rules: list[RuleConfig] = Field(default_factory=list)
     mcp_servers: dict[str, McpServerConfig] = Field(default_factory=dict)
+    trust_project_skills: bool = False
+    skills_dir: str | None = None
 
     @classmethod
     def load(

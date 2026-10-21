@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +37,7 @@ class SubagentRunner:
         context: Callable[[], Sequence[str]] | None = None,
         max_steps: int = 20,
         lifecycle: TurnLifecycle | None = None,
+        refresh_tools: Callable[[], Awaitable[Sequence[Tool]]] | None = None,
     ) -> None:
         self.workspace = workspace.resolve()
         self.provider = provider
@@ -51,6 +52,7 @@ class SubagentRunner:
         self.context = context or (lambda: ())
         self.max_steps = max_steps
         self.lifecycle = lifecycle
+        self.refresh_tools = refresh_tools
 
     async def run_task(
         self,
@@ -73,6 +75,16 @@ class SubagentRunner:
         child_context = tuple(self.context())
         if isinstance(policy, WorkspacePolicy):
             child_context = (*child_context, policy.describe())
+
+        async def refresh_child_tools() -> Sequence[Tool]:
+            base = await self.refresh_tools() if self.refresh_tools else self.tools
+            refreshed = (*base, HistoryTool(self.workspace, child))
+            return (
+                filter_tools(refreshed, policy.mode)
+                if isinstance(policy, WorkspacePolicy)
+                else refreshed
+            )
+
         result = await run(
             child,
             prompt,
@@ -85,6 +97,7 @@ class SubagentRunner:
             max_steps=self.max_steps,
             cancel=signal,
             lifecycle=self.lifecycle,
+            refresh_tools=refresh_child_tools,
         )
         summary = result.answer.strip() or "(no answer)"
         header = f"{child.session_id} {result.termination} in {result.steps} steps"

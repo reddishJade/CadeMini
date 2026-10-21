@@ -87,6 +87,8 @@ async def run(
     window: Callable[[SessionLog], bool] | None = None,
     steering: Callable[[], str | None] | None = None,
     lifecycle: TurnLifecycle | None = None,
+    refresh_tools: Callable[[], Awaitable[Sequence[Tool]]] | None = None,
+    context_source: Callable[[], Sequence[str]] | None = None,
 ) -> RunResult:
     """追加用户输入并驱动模型/工具循环，直到完成或终止。
 
@@ -109,9 +111,11 @@ async def run(
 
     _recover_tool_calls(log)
     user = log.append("user", {"text": text, "source": "user"})
+    lifecycle_context: tuple[str, ...] = ()
     if lifecycle is not None:
         lifecycle.started(log, user)
-        context = (*context, *lifecycle.request_context(log))
+        lifecycle_context = tuple(lifecycle.request_context(log))
+        context = (*context, *lifecycle_context)
     total_usage = {"input": 0, "output": 0}
     has_usage = False
     last_answer = ""
@@ -139,6 +143,19 @@ async def run(
                         {"text": message.strip(), "source": "runtime"},
                     )
 
+        if refresh_tools is not None:
+            tools = await refresh_tools()
+            tools_by_name = index_tools(tools)
+            definitions = tuple(
+                ToolDefinition(
+                    name=tool.name,
+                    description=tool.description,
+                    parameters=tool.parameters,
+                )
+                for tool in tools
+            )
+        if context_source is not None:
+            context = (*context_source(), *lifecycle_context)
         entries = log.branch()
         conversation = project(entries)
         full_tokens = estimate(conversation, tools=definitions, context=context)
@@ -154,6 +171,8 @@ async def run(
                     has_usage = True
             if compacted:
                 conversation = project(updated_entries)
+                if context_source is not None:
+                    context = (*context_source(), *lifecycle_context)
         request = build(
             conversation,
             tools=definitions,
@@ -163,6 +182,8 @@ async def run(
         )
         if request.report.over_budget and window is not None and window(log):
             conversation = project(log.branch())
+            if context_source is not None:
+                context = (*context_source(), *lifecycle_context)
             request = build(
                 conversation,
                 tools=definitions,
@@ -288,6 +309,7 @@ async def run(
                 result_tool.content,
                 result_tool.is_error,
                 authorization=execution.authorization,
+                metadata=result_tool.metadata,
             )
             _emit(
                 on_event,
@@ -553,6 +575,7 @@ def _append_tool_result(
     is_error: bool,
     *,
     authorization: PermissionCheck | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     data: dict[str, JsonValue] = {
         "call_id": call.id,
@@ -570,6 +593,10 @@ def _append_tool_result(
                 ],
             }
         }
+    if metadata is not None:
+        artifact = data.setdefault("artifact", {})
+        if isinstance(artifact, dict):
+            artifact["tool_metadata"] = cast(JsonValue, metadata)
     log.append("tool_result", data)
 
 

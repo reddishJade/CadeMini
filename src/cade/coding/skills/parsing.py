@@ -1,0 +1,230 @@
+"""从同一文件分界解析技能字段与 Markdown 正文。"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+logger = logging.getLogger(__name__)
+
+_SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_SKILL_NAME_MAX_CHARS = 64
+_SKILL_DESCRIPTION_MAX_CHARS = 1024
+_SKILL_COMPATIBILITY_MAX_CHARS = 500
+_COLON_REPAIR_FIELDS = frozenset(
+    {"description", "license", "compatibility", "allowed-tools"}
+)
+
+
+def parse_skill(
+    text: str,
+    *,
+    skill_directory_name: str | None = None,
+    source: Path | None = None,
+) -> tuple[dict[str, Any], str] | None:
+    """一次解析规范化的 frontmatter 与正文；无效定义返回 None。
+
+    关闭分界必须位于行首，缩进的 YAML scalar 内容不参与分界。
+    关闭分界后的 Markdown 仅去除首尾空白，不再识别 YAML 标记。
+    """
+    lines = text.splitlines()
+    closing_line = None
+    if lines and lines[0].strip() == "---":
+        for index, line in enumerate(lines[1:], 1):
+            if line.rstrip() == "---":
+                closing_line = index
+                break
+    if closing_line is None:
+        logger.warning(
+            "Missing or unclosed YAML frontmatter in %s; skipping",
+            source or "skill",
+        )
+        return None
+    parsed = _load_frontmatter_yaml("\n".join(lines[1:closing_line]), source)
+    if parsed is None:
+        return None
+    frontmatter = _normalize_frontmatter(
+        parsed,
+        skill_directory_name=skill_directory_name,
+        source=source,
+    )
+    if frontmatter is None:
+        return None
+    return frontmatter, "\n".join(lines[closing_line + 1 :]).strip()
+
+
+def _load_frontmatter_yaml(
+    yaml_text: str,
+    source: Path | None,
+) -> dict[str, object] | None:
+    """解析 YAML，并对常见未引用冒号值执行一次窄范围修复。"""
+    try:
+        parsed = yaml.safe_load(yaml_text)
+    except yaml.YAMLError:
+        repaired = _repair_unquoted_colon_values(yaml_text)
+        if repaired == yaml_text:
+            logger.warning(
+                "Invalid YAML frontmatter in %s; skipping", source or "skill"
+            )
+            return None
+        try:
+            parsed = yaml.safe_load(repaired)
+        except yaml.YAMLError:
+            logger.warning(
+                "Invalid YAML frontmatter in %s; skipping", source or "skill"
+            )
+            return None
+        logger.warning(
+            "Recovered invalid YAML frontmatter with quoted scalar values in %s",
+            source or "skill",
+        )
+
+    if not isinstance(parsed, dict):
+        logger.warning("Frontmatter is not a dict in %s; skipping", source or "skill")
+        return None
+    return {str(key): value for key, value in parsed.items()}
+
+
+def _repair_unquoted_colon_values(yaml_text: str) -> str:
+    """修复规范字符串字段中未引用的 `: `，其余 YAML 保持不变。"""
+    repaired_lines: list[str] = []
+    for line in yaml_text.splitlines():
+        prefix, separator, value = line.partition(":")
+        field_name = prefix.strip()
+        stripped_value = value.strip()
+        if (
+            separator
+            and field_name in _COLON_REPAIR_FIELDS
+            and ": " in stripped_value
+            and not stripped_value.startswith(("'", '"', "|", ">"))
+        ):
+            indentation = prefix[: len(prefix) - len(prefix.lstrip())]
+            repaired_lines.append(
+                f"{indentation}{field_name}: "
+                f"{json.dumps(stripped_value, ensure_ascii=False)}"
+            )
+            continue
+        repaired_lines.append(line)
+    return "\n".join(repaired_lines)
+
+
+def _normalize_frontmatter(
+    parsed: Mapping[str, object],
+    *,
+    skill_directory_name: str | None,
+    source: Path | None,
+) -> dict[str, Any] | None:
+    """规范化规范字段，并对 cosmetic 问题记录警告。"""
+    source_label = str(source or "skill")
+    name = parsed.get("name")
+    description = parsed.get("description")
+
+    raw_disable = parsed.get("disable-model-invocation", False)
+    if not isinstance(raw_disable, bool):
+        logger.warning(
+            "Skill frontmatter 'disable-model-invocation' must be a boolean in %s; "
+            "skipping",
+            source_label,
+        )
+        return None
+
+    if not isinstance(name, str) or not name.strip():
+        logger.warning("Skill name is required in %s; skipping", source_label)
+        return None
+    name = name.strip()
+    if (
+        len(name) > _SKILL_NAME_MAX_CHARS
+        or not _SKILL_NAME_PATTERN.fullmatch(name)
+        or (skill_directory_name is not None and name != skill_directory_name)
+    ):
+        logger.warning("Invalid skill name or directory mismatch in %s", source_label)
+        return None
+    if not isinstance(description, str) or not description.strip():
+        logger.warning(
+            "Skill frontmatter 'description' must be a non-empty string in %s; "
+            "skipping",
+            source_label,
+        )
+        return None
+    description = description.strip()
+    if len(description) > _SKILL_DESCRIPTION_MAX_CHARS:
+        logger.warning(
+            "Skill description exceeds %d characters in %s; skipping",
+            _SKILL_DESCRIPTION_MAX_CHARS,
+            source_label,
+        )
+        return None
+    if raw_disable:
+        logger.info(
+            "Skill %r in %s has model invocation disabled",
+            name,
+            source_label,
+        )
+
+    compatibility = _optional_string(parsed, "compatibility", source_label)
+    if (
+        compatibility is not None
+        and len(compatibility) > _SKILL_COMPATIBILITY_MAX_CHARS
+    ):
+        logger.warning(
+            "Skill compatibility exceeds %d characters in %s; skipping",
+            _SKILL_COMPATIBILITY_MAX_CHARS,
+            source_label,
+        )
+        return None
+    allowed_tools = _optional_string(parsed, "allowed-tools", source_label)
+
+    for field in ("license", "compatibility", "allowed-tools"):
+        if field in parsed and not isinstance(parsed[field], str):
+            logger.warning("Skill %s must be a string in %s", field, source_label)
+            return None
+    if "compatibility" in parsed and compatibility is None:
+        return None
+    extra = parsed.get("metadata", {})
+    if not isinstance(extra, dict) or any(
+        not isinstance(key, str) or not isinstance(value, str)
+        for key, value in extra.items()
+    ):
+        logger.warning("Skill metadata must map strings to strings in %s", source_label)
+        return None
+    return {
+        "name": name,
+        "description": description,
+        "disable_model_invocation": raw_disable,
+        "compatibility": compatibility,
+        "allowed-tools": allowed_tools,
+    }
+
+
+def frontmatter_optional_string(
+    frontmatter: Mapping[str, object],
+    field_name: str,
+) -> str | None:
+    """读取已规范化 frontmatter 中的可选字符串。"""
+    value = frontmatter.get(field_name)
+    return value if isinstance(value, str) else None
+
+
+def _optional_string(
+    parsed: Mapping[str, object],
+    field_name: str,
+    source_label: str,
+) -> str | None:
+    """保留可选字符串字段；无效值记录警告后忽略。"""
+    value = parsed.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        logger.warning(
+            "Skill frontmatter %r must be a non-empty string in %s; ignoring",
+            field_name,
+            source_label,
+        )
+        return None
+    return value.strip()

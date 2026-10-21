@@ -19,6 +19,9 @@ dependencies = [
     "prompt-toolkit>=3.0.0",
     "rich>=13.0.0",
     "questionary>=2.0.0",
+    "mcp>=2.3.0",
+    "jsonschema>=4.26.0",
+    "referencing>=0.37.0",
 ]
 
 [project.optional-dependencies]
