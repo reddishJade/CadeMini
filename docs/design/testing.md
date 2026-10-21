@@ -42,7 +42,7 @@ result in the change that adds a new acceptance.
 
 ## Docs checks
 
-`test_docs.py` and `python -m cade.docs check` validate the manifest,
+`test_docs.py` and `uv run --locked python -m cade.docs check` validate the manifest,
 links, anchors, and generated catalogs. The docs job runs in CI.
 
 ## Standalone distribution

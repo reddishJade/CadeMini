@@ -1,0 +1,67 @@
+# Cade 中文文档
+
+> 基于单一追加式会话日志的持久编码代理。
+
+## 概览
+- [Cade](README.md)
+
+## 开始使用
+- [快速上手](quickstart.md)
+- [CLI](cli.md)
+- [配置](configuration.md)
+
+## 核心概念
+- [架构](architecture.md)
+- [会话与上下文](sessions-context.md)
+- [Cade 如何工作](design/how-it-works.md)
+
+## 设计
+- [代码地图](design/code-map.md)
+- [与早期 Cade 项目的关系](design/cade-comparison.md)
+- [能力接缝](design/capability-seams.md)
+- [事件模型](design/event-model.md)
+- [工具执行](design/tool-execution.md)
+- [Configuration catalog](design/config-catalog.md)
+- [Event catalog](design/event-catalog.md)
+- [Module graph](design/module-graph.md)
+- [工具目录](design/tool-catalog.md)
+- [MCP 参考服务器](design/mcp-reference.md)
+- [引导与排队](design/steering-queue.md)
+- [持久化目录](design/persistence-catalog.md)
+- [术语表](design/glossary.md)
+- [测试](design/testing.md)
+
+## 参考
+- [Cade 会话格式](reference/session-schema.md)
+
+## 子系统
+- [子系统](subsystems/README.md)
+- [日志](subsystems/log.md)
+- [投影与请求](subsystems/projection-request.md)
+- [循环](subsystems/loop.md)
+- [工具与策略](subsystems/tools-policy.md)
+- [上下文与压缩](subsystems/context-compaction.md)
+- [扩展](subsystems/extensions.md)
+
+## 安全
+- [工具与安全](tools-security.md)
+- [快照与目标](snapshots-goals.md)
+
+## 扩展
+- [技能与记忆](skills-memory.md)
+- [钩子、MCP 和子代理](hooks-mcp-subagents.md)
+
+## 操作指南
+- [操作指南](cookbook/README.md)
+- [修一个 bug](cookbook/fix-a-bug.md)
+- [添加功能](cookbook/add-a-feature.md)
+- [只读评审](cookbook/review-only.md)
+- [运行长会话](cookbook/long-session.md)
+- [连接自定义 MCP 服务器](cookbook/custom-mcp.md)
+
+## 运维
+- [宿主](hosts.md)
+- [开发](development.md)
+- [验证指南](testing.md)
+- [Cade 评审标准](review-standards.md)
+- [对齐验收](parity.md)

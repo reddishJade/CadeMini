@@ -18,15 +18,22 @@ def _manifest(pages: list[str]) -> dict[str, object]:
     }
 
 
-def _write_docs(root: Path, pages: dict[str, str]) -> None:
+def _write_docs(
+    root: Path,
+    pages: dict[str, str],
+    exclude: list[str] | None = None,
+) -> None:
     root.mkdir(parents=True, exist_ok=True)
     catalog_pages = [
         "design/config-catalog.md",
         "design/event-catalog.md",
         "design/module-graph.md",
     ]
+    manifest = _manifest([*pages, *catalog_pages])
+    if exclude:
+        manifest["exclude"] = exclude
     (root / "docs.json").write_text(
-        json.dumps(_manifest([*pages, *catalog_pages])),
+        json.dumps(manifest),
         encoding="utf-8",
     )
     for relative, text in pages.items():
@@ -171,6 +178,36 @@ def test_build_resolves_nested_and_external_doc_links(tmp_path: Path) -> None:
     assert 'href="#page-guide"' in text
     assert 'href="#page-readme"' in text
     assert 'href="../schema.md#schema"' in text
+
+
+def test_check_covers_nested_manifest(tmp_path: Path) -> None:
+    _write_docs(tmp_path, {"README.md": "# Test\n"}, exclude=["zh/**"])
+    _write_docs(
+        tmp_path / "zh",
+        {"README.md": "# 中文\n\n[missing](missing.md)\n"},
+    )
+
+    issues = docs.check(tmp_path)
+
+    assert any(
+        issue.startswith("zh/README.md") and "missing link target" in issue
+        for issue in issues
+    )
+
+
+def test_build_renders_alternate_language_link(tmp_path: Path) -> None:
+    pytest.importorskip("markdown_it")
+    _write_docs(tmp_path, {"README.md": "# Test\n"})
+    manifest = json.loads((tmp_path / "docs.json").read_text(encoding="utf-8"))
+    manifest["lang"] = "zh-CN"
+    manifest["alternate"] = {"label": "English", "href": "../index.html"}
+    (tmp_path / "docs.json").write_text(json.dumps(manifest), encoding="utf-8")
+    out = tmp_path / "zh" / "index.html"
+
+    text = docs.build(tmp_path, out).read_text(encoding="utf-8")
+
+    assert '<html lang="zh-CN">' in text
+    assert '<a class="lang" href="../index.html">English</a>' in text
 
 
 def test_cli_check_and_llms(tmp_path: Path) -> None:

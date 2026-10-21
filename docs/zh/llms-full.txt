@@ -1,0 +1,2825 @@
+# Cade 中文文档
+
+> 基于单一追加式会话日志的持久编码代理。
+
+# Cade
+
+<!-- source: README.md -->
+
+# Cade
+
+Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
+
+> 会话日志是唯一事实来源。模型可见的历史是确定性的投影。请求构造只产生当前请求。
+
+这样得到的代理体积小，能在压缩、上下文窗口切换和进程重启后继续工作，不会编造历史。
+
+## 从这里开始
+
+- [快速上手](quickstart.md)：安装并跑通第一个任务。
+- [CLI](cli.md)：一次性任务、TUI、会话和恢复命令。
+- [配置](configuration.md)：`cade.json` 的字段。
+- [架构](architecture.md)：日志、投影、请求和执行流水线。
+- [会话与上下文](sessions-context.md)：恢复、压缩、裁剪和历史检索。
+- [工具与安全](tools-security.md)：模式、规则、授权和 shell 分析。
+- [快照与目标](snapshots-goals.md)：撤销和持久目标。
+- [技能与记忆](skills-memory.md)：`SKILL.md` 和 `MEMORY.md`。
+- [钩子、MCP 和子代理](hooks-mcp-subagents.md)：扩展机制。
+- [宿主](hosts.md)：终端 TUI 和一次性执行。
+- [开发](development.md)：检查、测试和文档流水线。
+- [对齐验收](parity.md)：与 Cade 的验收对照。
+
+## 设计
+
+- [Cade 如何工作](design/how-it-works.md)：端到端模型的简版。
+- [代码地图](design/code-map.md)：包边界和入口。
+- [与 Cade 的关系](design/cade-comparison.md)：独立维护的边界。
+- [能力接缝](design/capability-seams.md)：可替换的契约。
+- [事件模型](design/event-model.md)：事实与审计记录的区分。
+- [工具执行](design/tool-execution.md)：从策略到钩子的流水线。
+- [配置目录](design/config-catalog.md)和[事件目录](design/event-catalog.md)：生成的参考页。
+- [工具目录](design/tool-catalog.md)：内置工具清单。
+- [MCP 参考服务器](design/mcp-reference.md)：支持的服务器模式。
+- [引导与排队](design/steering-queue.md)：TUI 中的并发输入。
+- [模块图](design/module-graph.md)：由导入关系生成。
+- [持久化目录](design/persistence-catalog.md)：所有产物的位置。
+- [术语表](design/glossary.md)：统一用词。
+- [测试](design/testing.md)：测试与层次对应关系。
+
+生成的参考页保留英文标题和字段名，因为内容直接来自代码标识符。
+
+## 子系统
+
+[子系统](subsystems/README.md)是日志、投影与请求、执行循环、工具与策略、上下文与压缩、扩展的实现参考。
+
+## 操作指南
+
+[操作指南](cookbook/README.md)包含修 bug、加功能、只读评审、长会话和自定义 MCP 服务器的步骤。
+
+## 历史记录
+
+以下页面保留英文，记录项目过去的状态：
+
+- [事故复盘](../postmortem/README.md)：事故和修复。
+- [持久化](../persistence/README.md)：当前格式和变更策略。
+- [升级指南](../upgrade/README.md)：破坏性变更。
+- [决策记录](../decisions/README.md)：长期设计选择。
+
+## 设计与参考
+
+[会话格式](reference/session-schema.md)定义持久化契约。历史研究和验收记录描述项目独立之前的状态：
+
+- [Cade 设计](../history/design-proposal.md)
+- [会话日志格式](reference/session-schema.md)
+- [Harvest 记录](../history/harvest-audit.md)
+- [对齐验收](../history/parity-acceptance.md)
+
+## 构建文档
+
+文档以 Markdown 为准。一个小工具校验链接和锚点，生成单页站点，并为代理生成 `llms.txt` 目录：
+
+```bash
+uv run --locked python -m cade.docs check
+uv run --locked --extra docs python -m cade.docs build
+uv run --locked python -m cade.docs llms --write
+uv run --locked python -m cade.docs catalogs --write
+```
+
+英文站点是 [docs/index.html](../index.html)。本目录的中文站点是 [index.html](index.html)，构建命令：
+
+```bash
+uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html
+```
+
+生成的目录是 `docs/llms.txt`、`docs/llms-full.txt`，以及 `design/` 下的配置、事件和模块图页面。
+
+# 快速上手
+
+<!-- source: quickstart.md -->
+
+# 快速上手
+
+Cade 需要 Python 3.12 或更新版本。仓库用 `uv` 做开发，并提供 `cade` 入口。
+
+## 安装并登录
+
+在仓库根目录执行：
+
+```bash
+uv sync --locked
+```
+
+Cade 自己管理凭据，位置是 `~/.cade/auth.json`。用浏览器里的 Sign in with ChatGPT（SIWC）登录：
+
+```bash
+uv run --locked cade login
+```
+
+浏览器流程会在首次使用时注册 Cade，后续登录复用这份注册信息。稳定的宿主 ID 保存在 `~/.cade/host.json`。SIWC 没有设备码流程。在无图形界面的主机上，先在本地完成登录，复制 `auth.json`，让远端主机在下次登录时创建自己的宿主 ID。也可以改用 API key。
+
+使用 OpenAI API key 时，用隐藏输入提示，或设置环境变量：
+
+```bash
+uv run --locked cade login --provider openai
+export OPENAI_API_KEY=...
+uv run --locked cade --provider openai --model gpt-5.5 "Review this project."
+```
+
+DeepSeek 使用同样的 Responses 协议，但用自己的 API key：
+
+```bash
+uv run --locked cade login --provider deepseek
+export DEEPSEEK_API_KEY=...
+uv run --locked cade --provider deepseek --model deepseek-flash "Review this project."
+```
+
+默认 provider 是 `chatgpt`。在 `cade.json` 里设置 `provider` 和 `model`，可以改启动默认值。Cade 只支持 Responses 协议：`chatgpt` 用于 ChatGPT 套餐，`openai` 用于 OpenAI API key，`deepseek` 用于 DeepSeek API key。旧 Cade 项目的状态不兼容；请使用干净的 `~/.cade/` 和工作区 `.cade/` 目录。
+
+## 运行一个任务
+
+```bash
+uv run --locked cade "Read README.md and explain the entry point in three bullets."
+```
+
+也可以显式写出命令：
+
+```bash
+uv run --locked cade exec "Read README.md and explain the entry point."
+```
+
+Cade 默认在当前目录运行。用 `--project-root` 指向其他工作区。
+
+## 选择模式
+
+- `build` 是默认模式。普通编辑、测试、构建和 shell 流水线自动运行；检测到风险时询问。
+- `ask` 允许已归类的只读操作，在修改或未归类的 shell 命令之前询问。
+- `plan` 隐藏写入和编辑工具，拒绝修改。只读 shell 命令允许执行。
+
+```bash
+uv run --locked cade --mode plan "Propose a fix for the failing test."
+uv run --locked cade --mode build "Fix the bug and run the test."
+```
+
+非交互自动化可用 `--yes` 批准确认，用 `--read-only` 拒绝写入和 shell 命令。在共享仓库里优先使用规则授权，而不是 `--yes`；见[配置](configuration.md)。
+
+## 继续之前的工作
+
+会话默认保存在 `.cade/sessions`。
+
+```bash
+uv run --locked cade --list-sessions
+uv run --locked cade --continue "What did you change?"
+uv run --locked cade --resume SESSION_ID "Continue the task."
+```
+
+不提供任务时启动全屏 TUI。交互命令见 [CLI](cli.md)，按键绑定见[宿主](hosts.md)。
+
+## 构建文档
+
+```bash
+uv sync --locked --extra docs
+uv run --locked python -m cade.docs check
+uv run --locked python -m cade.docs build
+```
+
+打开 `docs/index.html`。文档源文件在 `docs/` 下。中文文档在 `docs/zh/` 下，构建命令是 `uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html`。
+
+# CLI
+
+<!-- source: cli.md -->
+
+# CLI
+
+`cade` 入口可以运行单个任务、启动交互式终端宿主，或管理会话。
+
+```bash
+cade [TASK] [options]
+cade exec TASK [options]
+```
+
+`exec` 是一次性任务的显式别名。不提供任务时，`cade` 在交互式终端里启动 TUI。
+
+## 登录
+
+```bash
+cade login
+cade login --provider openai
+cade login --provider deepseek
+```
+
+`--provider` 默认是 `chatgpt`，使用浏览器里的 Sign in with ChatGPT（SIWC）。`openai` 和 `deepseek` 使用 `api_key`，通过隐藏输入提示填写。凭据保存在 `~/.cade/auth.json`，稳定的 SIWC 宿主 ID 保存在 `~/.cade/host.json`。登录不会修改项目的 provider 或模型设置。Cade 只支持 Responses 协议。ChatGPT 登录和 OpenAI API key 是两条独立的认证路径，都暴露已注册的 OpenAI 聊天模型池。可刷新的 OAuth token 仍然让模型可选；provider 在需要时刷新它。
+
+## 一次性任务选项
+
+- `--project-root PATH`：设置工作区。默认是当前目录。
+- `--config PATH`：选择配置文件。默认是 `<project-root>/cade.json`。
+- `--provider NAME`、`--model NAME` 和 `--effort EFFORT`：覆盖 provider 默认值。
+- `--mode plan|build|ask`：选择工作模式。默认是 `build`。
+- `--sandbox read-only|workspace-write|danger-full-access`：选择文件系统范围。默认是 `workspace-write`；Windows 跳过操作系统隔离。
+- `--network` / `--no-network`：控制沙箱网络。默认允许。
+- `--read-only` / `--no-read-only`：控制是否拒绝修改。只读 shell 命令仍然可用。
+- `--yes`：批准确认。只在可信的非交互环境里使用。
+- `--auto-review` / `--no-auto-review`：让模型复核 ask 级别的调用。
+- `--max-steps N`：限制模型步骤数。
+- `--context-window N`：覆盖模型上下文窗口。内置注册表之外的模型必须提供。
+- `--json`：为一次性任务输出 JSONL 事件。
+- `--steer TEXT`：在一次性任务的下一个模型步骤注入指导；可以重复。
+
+## 会话
+
+- `--list-sessions`：打印 ID、更新时间和标题后退出。
+- `--continue`：恢复项目里最新的会话。
+- `--resume`：恢复最新会话；`--resume ID` 恢复指定会话。
+- `--sessions-dir PATH`：修改会话目录。相对路径按项目根目录解析。
+- `--undo`：恢复最新的文件快照后退出，不联系 provider。
+
+`--continue` 和 `--resume` 不能同时使用。会话列表和自动续接会跳过没有非空用户消息的对话。新的交互式会话在收到第一条用户或助手消息之前，只把初始化记录留在内存里；只打开 TUI 或只运行 `/new` 不会创建会话文件。已有文件不会被自动删除。
+
+## 目标
+
+- `--goal TEXT`：运行前设置工作区目标。
+
+## 交互命令
+
+TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原生选择器。
+
+- `/new`：新建会话。`/clear` 是别名，会保留已保存的对话。
+- `/continue`：打开与 `/sessions` 相同的已保存对话选择器。
+- `/resume`：打开已保存对话选择器；`/resume ID` 恢复该会话。
+- `/sessions`：打开与 `/resume` 相同的选择器。
+- `/tree [ENTRY]`：在同一个会话内浏览完整历史树。选中一条用户输入会把它放回编辑器；选中其他条目则从该点继续。位置在重启后保留，旧分支仍然存在。
+- `/fork [N|ENTRY]`：把某条用户输入之前的历史复制到新会话，并把该输入放进编辑器。可以选择非活动分支；`N=1` 选中最近记录的输入。工作区文件不变。
+- `/clone`：只把活动路径复制到新会话，并清空编辑器。
+- `/undo`：撤销一轮用户输入或一次显式恢复操作。`/redo` 重新应用一次已撤销的操作，不联系模型，也不重跑工具。
+- `/rewind`：在活动路径上选择一条用户输入，然后选择恢复对话、代码或两者。`/rewind ENTRY conversation|code|both` 直接指定范围，再打开确认预览。
+- `/revert`：选择一段轮次和一个或全部已跟踪文件，不裁剪对话。`/revert START [END] -- PATH ...` 选择多个文件；含空格的路径要加引号，并使用正斜杠。END 包含在内；省略时包含最新操作。后续编辑如果冲突，会阻止恢复。
+- `/compact [INSTRUCTIONS]`：总结较早的轮次，并应用可选指导。
+- `/model [PROVIDER/MODEL]`：切换到已认证的精确模型，或在模型选择器里按部分名称搜索。
+- `/thinking [LEVEL]`：选择推理强度。用 `Ctrl+T` 折叠推理输出，不改变强度。
+- `/new-context [--force]`：用 `NOTE.md` 作为交接，开启新的上下文窗口。先写好该文件，或用 `--force` 在没有它的情况下重置。
+- `/mode [MODE]`：显示或切换执行模式。
+- `/permissions [clear]`：显示或清除会话授权。
+- `/goal [TEXT|done|clear]`：显示、设置、完成或清除目标。
+- `/context`：打印会话 ID、provider、预算和事件数。
+- `/steer TEXT`：为下一个模型步骤排队指导。
+- `/queue TEXT`：把任务排到当前任务之后执行。
+- `/stop`：中断等待中的模型请求，包括等待首个输出的阶段。工具会在自己的取消检查点停止。
+- `/help`：打印命令列表。
+- `/login`：选择认证方式和 provider。`/logout` 只删除选中的已保存凭据，不删除环境变量。
+- `/connect`：选择 provider，认证后打开它的模型选择器。
+- `/skill [NAME]`：为下一个任务激活技能。
+- `/exit` 或 `/quit`：退出。
+
+TUI 不注册 `/rename` 和 `/mcp`。恢复操作只改已跟踪文件，不处理任意 shell 副作用、外部服务或用户的 Git 索引。参见[恢复范围和冲突](snapshots-goals.md#检查点恢复)。`--undo` 仍是一次性任务的文件快照操作，不是对话撤销命令。
+
+## 交互输入
+
+- `@path`：把工作区文件附加到任务。
+- `$skill`：把技能正文加载到任务。
+- `!command`：不联系模型，直接运行 shell 命令。权限检查仍然生效。
+
+```text
+Review @src/cade/core/loop.py and use $review-only
+!git status
+```
+
+任务执行期间，TUI 会继续读取输入：
+
+- `/steer TEXT`：在下一个模型步骤追加指导。
+- `/queue TEXT`：在当前任务结束后运行 TEXT。
+- `/stop` 或 `Esc`：中断任务，不等待下一次模型输出。未送达的排队输入会和当前草稿一起回到编辑器。
+- `Ctrl+C`：清空编辑器，不中断任务。500 ms 内再按一次退出。
+- 其他文本：作为后续任务排队。
+
+空闲且输入为空时，500 ms 内按两次 `Esc` 打开 `/rewind`。树导航、fork 和 clone 不会恢复工作区文件。在选择器或表单里，`Esc` 改为关闭当前交互。用 `Ctrl+C` 清空输入与用 `Esc` 取消任务是两回事。
+
+指导在步骤之间生效，不会进入 provider 数据流或正在运行的工具。参见[引导与排队](design/steering-queue.md)。
+
+## 退出码
+
+- `0`：运行完成。
+- `1`：运行未完成，或 `--undo` 没有可用的快照。
+- `2`：参数、配置或启动错误。
+- `130`：登录被取消。
+
+## 示例
+
+```bash
+cade --list-sessions
+cade --continue "Summarize the current state."
+cade --undo
+cade --mode plan "Find the smallest fix for the failing test."
+cade --mode build --yes "Fix the test and run pytest."
+```
+
+# 配置
+
+<!-- source: configuration.md -->
+
+# 配置
+
+Cade 默认读取 `<project-root>/cade.json`。用 `--config PATH` 选择其他文件。命令行选项覆盖文件，文件覆盖内置默认值。
+
+配置是严格的：未知键和非法值会被拒绝，不会静默忽略。
+
+## 示例
+
+```json
+{
+  "provider": "chatgpt",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "high",
+  "context_window": 128000,
+  "max_steps": 30,
+  "sessions_dir": ".cade/sessions",
+  "mode": "build",
+  "sandbox": "workspace-write",
+  "network": true,
+  "read_only": false,
+  "instructions": true,
+  "note": true,
+  "memory": true,
+  "auto_review": false,
+  "prompt_modules": ["identity", "tool_discipline", "working_note", "environment"],
+  "rules": [
+    {
+      "tool": "bash",
+      "command_prefix": "git status",
+      "decision": "allow"
+    }
+  ]
+}
+```
+
+## 字段
+
+- `provider`、`model`：provider 名称和模型标识。`chatgpt` 用于 ChatGPT 套餐（Sign in with ChatGPT），`openai` 用于 OpenAI API key，`deepseek` 用于 DeepSeek API key。CLI 参数会覆盖这两个字段。
+- `reasoning_effort`：provider 的推理强度。CLI 参数是 `--effort`。
+- `context_window`：模型的上下文窗口，单位是 token。默认值来自已注册的模型元数据。未注册的模型必须提供这个字段或 `--context-window`，否则 Cade 会拒绝启动。
+- `max_steps`：单次运行中最多执行多少模型步骤。
+- `sessions_dir`：会话目录。相对路径按项目根目录解析。
+- `mode`：`plan`、`build` 或 `ask`。默认是 `build`；旧的 `act` 值请改成 `ask`。
+- `sandbox`：`read-only`、`workspace-write`（默认）或 `danger-full-access`。Windows 会跳过操作系统隔离，与这里的设置无关。
+- `network`：允许工具访问网络。默认是 true。设为 false 时，只有 Linux 和 macOS 的隔离能强制生效。
+- `read_only`：拒绝修改，只允许已归类的只读 shell 命令。
+- `instructions`：把 `AGENTS.md` 或 `CLAUDE.md` 加载到请求上下文。
+- `note`：加载 `NOTE.md` 工作状态。
+- `memory`：加载 `MEMORY.md` 中的长期事实。
+- `auto_review`：让模型复核 ask 级别的工具调用。默认是 false。
+- `prompt_modules`：系统提示模块。可用名称是 `identity`、`tool_discipline`、`working_note` 和 `environment`。
+
+## 规则
+
+规则匹配工具名或 `*`，可选匹配归一化后的路径子树或命令前缀。所有命中的规则都参与决策：`deny` 优先于 `ask`，`ask` 优先于 `allow`。顺序不影响结果。`allow` 覆盖模式默认值，但不能覆盖生效的显式 `deny`。
+
+```json
+{
+  "rules": [
+    {"tool": "bash", "command_prefix": "git", "decision": "deny"},
+    {"tool": "bash", "command_prefix": "git status", "decision": "allow"},
+    {"tool": "write", "path_prefix": "docs/", "decision": "allow"}
+  ]
+}
+```
+
+这个例子里 `git status` 仍会被拒绝，因为更宽的 deny 也匹配。要放行，就删除或收窄那条 deny。计划模式约束、受保护路径和 `read_only` 优先于授权和规则。工作区外的写入会申请额外权限，不会被无条件拒绝。作用范围和审批行为见[工具与安全](tools-security.md)。
+
+## 钩子
+
+钩子在工具调用前后执行 shell 命令。`before_tool` 钩子返回非零值时，调用被拒绝。
+
+```json
+{
+  "hooks": [
+    {
+      "event": "before_tool",
+      "command": "python tools/check_tool.py",
+      "matcher": "bash",
+      "timeout_ms": 10000
+    }
+  ]
+}
+```
+
+`event` 是 `before_tool` 或 `after_tool`。`matcher` 是工具名、以 `*` 结尾的前缀，或省略表示所有工具。钩子通过环境变量收到 `CADE_HOOK_EVENT`、`CADE_TOOL_NAME`、`CADE_TOOL_ARGS` 和 `CADE_TOOL_RESULT`。
+
+## MCP 服务器
+
+MCP 服务器使用 stdio，每个服务器保持一条长连接。
+
+```json
+{
+  "mcp_servers": {
+    "files": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "cwd": ".",
+      "timeout_ms": 30000,
+      "env": {"LOG_LEVEL": "warn"}
+    }
+  }
+}
+```
+
+发现的工具以 `mcp__<server>__<tool>` 命名。它们默认需要确认，在计划模式和只读模式下被拒绝，也可以由规则放行。
+
+# 架构
+
+<!-- source: architecture.md -->
+
+# 架构
+
+Cade 是 `src/cade/` 下的独立编码代理。它使用四段流水线，每段只有一个所有者，数据只朝一个方向流动。
+
+```text
+会话日志 -> 对话投影 -> 请求 -> 运行
+```
+
+## 会话日志
+
+`SessionLog` 是追加式 JSONL 文件。每条记录包含 ID、时间戳、类型、父 ID 和数据。活动分支结束于最新记录。`/tree` 追加一条导航事件，用父 ID 指明续接点；其他分支仍留在同一个文件里。执行循环只沿活动路径工作。
+
+日志保存事实：
+
+- `system`、`user`、`assistant` 和 `tool_result` 是模型可见的事实。
+- `compaction` 记录摘要和 `first_kept_id`。
+- `window` 记录新的上下文起点和可选的交接。
+- `request`、`run`、`attempt`、`branch`、`checkpoint` 和 `restore` 是审计事实。它们永远不会变成对话消息。branch 事件还会保留选中的输入，供重启后编辑。
+
+格式是封闭的。见[会话日志格式](reference/session-schema.md)。
+
+## 投影
+
+`project(entries)` 是纯函数。它读取分支，产生确定性的对话投影：
+
+1. 取最新的 system 消息。
+2. 应用最新的 window 起点。
+3. 应用最新的 compaction 摘要。
+4. 保留未被裁掉的 user、assistant 和 tool-result 消息。
+5. 配对工具调用和结果；日志在调用中途结束时，在尾部插入一条合成的“已中断”结果。
+
+投影不写日志。重放相同记录总是得到相同对话。
+
+## 请求
+
+`build(conversation, tools, budget, context)` 把消息纳入当前模型窗口。它：
+
+- 拼接只属于请求的上下文，例如指令、技能目录、NOTE、记忆和目标；
+- 保留每条投影消息和工具结果；
+- 用输入预算检查完整请求；
+- 把结果转换成 provider 的线上格式；
+- 返回带 `BuildReport` 的 `Request`。
+
+准入不修改对话，也不写事实。只有 compaction 和 window 事件会改变可见历史。超出预算的请求会被拒绝，不会静默截断。
+
+## 运行
+
+在追加新的 user 事实之前，`run()` 会为未完成的工具调用保存“已中断”结果。它不会重跑结果未知的工具。随后它调用 provider，追加 assistant 和 tool-result 事实，并执行工具。它是回合内唯一写日志的阶段。压缩和窗口回退都是决策，最终以新的日志事实表示。
+
+## 包地图
+
+- `core/types.py`：日志、消息、块和错误类型。
+- `core/events.py`：严格的事件载荷校验。
+- `core/log.py`：追加、加锁、尾部修复、导航、会话列表、fork/clone。
+- `core/history.py`：用于历史选择的整棵树纯投影。
+- `app/recovery.py`：回合检查点、后进先出操作和协调恢复。
+- `extensions/recovery.py`：操作日志和待处理事务记录。
+- `core/projection.py`：确定性的对话投影。
+- `core/request.py`：预算、准入、线上格式转换。
+- `core/loop.py`：provider 流、工具执行、重试和事实写入。
+- `core/compaction.py` 和 `core/window.py`：上下文缩减决策。
+- `tools/workspace.py`、`tools/history.py`：工作区工具和证据检索。
+- `safety/policy.py`、`safety/shell.py`、`safety/grants.py`、`safety/approval.py`、`safety/review.py`：权限和审批。
+- `extensions/skills.py`、`extensions/memory.py`、`extensions/hooks.py`、`extensions/mcp.py`、`extensions/subagents.py`、`extensions/snapshots.py`、`extensions/goal.py`：附加功能和持久宿主状态。
+- `app/config.py`、`app/provider.py`、`app/auth.py`、`app/prompts.py`、`app/instructions.py`、`app/note.py`：启动和请求上下文。
+- `hosts/cli.py`、`docs.py`：宿主和文档。
+
+Cade 把 `cade.ai` 和 `cade.execution_env` 作为下层模块，分别负责 provider 协议和本地进程执行。它不依赖早期的 Cade 项目。没有顶层再导出，直接导入所属子模块。
+
+## 恢复
+
+宿主把 `TurnLifecycle` 注入核心循环。它在 user 事实之前创建根回合检查点，在该事实之后建立关联，并在执行结束后关闭检查点。工具工作线程和同步子代理继承捕获所有权。核心不导入工作区存储。恢复除了会话运行锁，还用工作区锁串行化协作写入者。
+
+原生快照存储保留前后两份文件镜像。追加式工作区操作日志驱动逐步撤销和重做；会话日志仍是对话血统的权威来源。持久化的待处理计划协调文件与对话提交。中断后恢复可以幂等续作，遇到未知的外部编辑就停止。见[快照与目标](snapshots-goals.md)。
+
+## 下层模块与状态
+
+`ai/` 负责 provider 协议、流式适配器、模型元数据和 OAuth。`execution_env/` 负责本地进程执行和输出捕获。这两层都不导入应用或宿主模块。AI 层只支持 Responses 协议，记录在[决策 0007](../decisions/0007-responses-only-provider.md)；套餐用量使用 Sign in with ChatGPT，记录在[决策 0008](../decisions/0008-siwc-login.md)。DeepSeek 使用独立传输，但流格式同样是 Responses，端点由自己提供。`execution_env/sandbox.py` 负责 bubblewrap 和 Seatbelt 的进程包装。`core/permissions.py` 承载结构化审批结果和每次调用的范围。CLI 在 Linux 和 macOS 上隔离 shell 与文件工作进程；Windows 直接运行。边界和可信扩展见[工具与安全](tools-security.md)。
+
+凭据和用户级技能放在 `~/.cade/`。SIWC 宿主 ID 在 `~/.cade/host.json`。会话、快照、目标和项目技能放在 `<workspace>/.cade/`。项目设置放在 `cade.json`。早期 Cade 项目的状态格式与本项目不兼容；请从干净的 `~/.cade/` 和工作区 `.cade/` 目录开始。
+
+实现位置和持久状态归属见[代码地图](design/code-map.md)和[持久化目录](design/persistence-catalog.md)。
+
+## 为什么这样拆分
+
+这种拆分避免一个常见故障：请求构造器开始隐藏消息，随后历史改写成了唯一的事件副本。Cade 保留原始事实，让投影和准入可以被替换，而不丢失历史。
+
+# 会话与上下文
+
+<!-- source: sessions-context.md -->
+
+# 会话与上下文
+
+会话默认是 `.cade/sessions` 下的追加式 JSONL 文件，文件名是 `session-<id>.jsonl`。标题取自第一条用户消息，不需要额外的事件类型。
+
+## 恢复会话
+
+```bash
+cade --list-sessions
+cade --continue "Continue where we stopped."
+cade --resume SESSION_ID "Explain the current state."
+```
+
+`--continue` 和 `--resume` 打开最新会话或指定会话。已有会话保留原来的 system 事实；新的 `cade.json` 不会改写历史。如果恢复的会话没有 system 记录，就补上当前提示。
+
+## 树、fork 和 clone
+
+| 命令 | 结果 |
+| --- | --- |
+| `/tree [ENTRY]` | 在同一个会话内切换位置，保留所有分支 |
+| `/fork [N\|ENTRY]` | 把选中用户输入之前的历史复制到新会话 |
+| `/clone` | 把当前活动路径完整复制到新会话 |
+
+`/tree` 显示完整历史树。选中一条用户输入会把文本放回编辑器，并从它的父节点继续。选中其他条目则在该条目之后继续，编辑器为空。导航位置和待处理的输入在重启后保留。下一次模型请求只包含选中的路径。空闲且输入为空时，连按两次 Esc 会打开独立的 `/rewind` 检查点选择器。
+
+`/fork` 可以选择活动分支和非活动分支里的用户输入。`/fork N` 选中第 N 条最近记录的输入；`/fork ENTRY` 直接选中条目。精确条目 ID 优先于数字轮次选择器。选中的输入会回到新会话的编辑器。`/clone` 清空编辑器，只复制活动路径，不复制其他分支。副本获得新的条目 ID，保留时间戳，并重映射 compaction/window 引用。导航和检查点控制不会复制。副本不继承源会话的工作区撤销栈。
+
+这三种操作都不改工作区文件。fork 和 clone 不改源会话。它们不实现对话或文件撤销，也不会为被放弃的分支生成自动摘要。没有活动任务时，运行历史才会变化。
+
+持久字段见[会话格式](reference/session-schema.md)，文件恢复边界见[恢复](snapshots-goals.md#检查点恢复)。
+
+## 检查点恢复
+
+`/undo` 和 `/redo` 撤销或重应用一个操作。一轮根用户输入算一个操作，包括同步子代理的编辑。显式 rewind 和 revert 也是单个可逆操作。新操作会丢弃当前的重做链；原有对话分支仍然保留。在操作链之外导航会阻止过期的撤销/重做，用 `/rewind` 选择想要的位置。
+
+`/rewind` 恢复到选中活动路径用户输入之前的位置，并询问恢复对话、已跟踪代码或两者。`/revert` 只选择一段轮次和文件子集里的代码变更。只恢复代码会保留对话消息，并追加一条有审计记录的请求上下文通知。它不回退 provider 设置、权限、凭据或其他宿主状态。
+
+没有自有检查点的旧轮次或复制轮次只能恢复对话。文件覆盖范围、冲突和中断事务见[快照与目标](snapshots-goals.md#检查点恢复)。
+
+## 压缩
+
+完整对话超出输入预算时，`Compactor` 会：
+
+1. 在可见的用户边界选择切点。
+2. 把较早的消息发给 provider 生成摘要。
+3. 追加一条 `compaction` 事实，包含摘要和 `first_kept_id`。
+4. 把对话重新投影为最新 system、摘要和保留的尾部。
+
+压缩是迭代的：之前的摘要会序列化为 `PRIOR SUMMARY`，可以再次总结。原始 user、assistant 和 tool-result 事实仍留在日志里。
+
+## 请求准入
+
+请求构造保留整个投影，包括工具输出。只有记录在案的 compaction 和 window 事件会缩减可见历史。如果这些步骤之后请求仍超出预算，循环返回 `context_error`，不发给 provider。用 `history` 工具检索当前上下文之外的证据。
+
+## 上下文窗口
+
+`window` 事实在某个用户条目处开启新上下文，可以附带交接。TUI 可以用 `/new-context` 显式开启。如果压缩仍无法把请求带入预算，循环可以追加自动 window，附带指向 `NOTE.md` 和 history 工具的固定交接。
+
+## History 工具
+
+`history` 接受以下参数之一：
+
+- `query`：在分支上做不区分大小写的搜索，返回条目 ID 和片段。
+- `entry_id`：某条日志记录的完整内容。
+- `call_id`：某次调用的完整工具结果。
+
+完整内容有上限。搜索结果也有上限，并指回条目 ID。
+
+## 请求上下文顺序
+
+每个任务的请求依次包含：
+
+1. system 消息。
+2. 来自 `AGENTS.md`、`CLAUDE.md` 或其变体的项目指令。
+3. 技能目录。
+4. `NOTE.md` 工作状态。
+5. `MEMORY.md` 长期事实。
+6. 活动目标。
+
+第 2 到 6 项只属于请求上下文。它们记入请求审计，但不会变成对话事实。参见[架构](architecture.md)和[设计](../history/design-proposal.md)。
+
+# Cade 如何工作
+
+<!-- source: design/how-it-works.md -->
+
+# Cade 如何工作
+
+Cade 一次协调一个模型请求，执行请求中指定的工具，并把每条持久事实写进会话日志。
+
+## 一次运行
+
+提交的任务作为 `user` 事实追加到日志。Cade 投影活动分支，按当前预算构造请求，发给 provider。provider 流式返回文本和工具调用。循环记录 assistant 消息，执行每个工具调用，并记录工具结果。模型需要继续请求时，循环进入下一步；否则运行结束。
+
+一个步骤是一次请求，加上这次响应引发的工具。一次运行可以包含多个步骤。循环在以下情况停止：任务完成、达到步骤上限、上下文耗尽、取消或 provider 出错。
+
+## 上下文
+
+投影提供对话历史。只属于请求的上下文提供项目指令、技能目录、`NOTE.md`、`MEMORY.md` 和活动目标。工具结果放不下时会被裁剪；history 工具仍能读取原始事实。
+
+压缩追加一条摘要事实，保留最近的尾部。window 把上下文起点前移，可以附带交接。这两种操作都不改写原始消息。
+
+## 会话
+
+会话是 `.cade/sessions` 下的 JSONL 文件。记录带 ID 和父 ID，因此会话可以形成树；活动分支结束于最新记录。恢复会话就是打开同一个文件，继续追加新事实。
+
+## 接口
+
+终端宿主运行单个任务或 TUI。这些接口调用同一个循环，并与其他所有入口共用策略、工具和会话存储。
+
+## 扩展
+
+技能按需补充指令。记忆补充长期事实。钩子在工具前后运行 shell 命令。MCP 增加远程工具。子代理运行独立的子会话。每个扩展都是循环之上的窄适配器，不改变会话格式。
+
+## 信任与权限
+
+每次工具调用都要经过策略。模式、静态规则、会话授权、shell 分类和审批共同决定调用是否执行。Linux 和 macOS 上的 shell 与文件工具还会使用操作系统隔离；Windows 直接运行。作用范围和限制见[工具与安全](../tools-security.md)。
+
+不变式见[架构](../architecture.md)，契约见[能力接缝](capability-seams.md)。
+
+# 代码地图
+
+<!-- source: design/code-map.md -->
+
+# 代码地图
+
+Cade 是独立项目。`cade` 发行包安装 `cade` 包和 `cade` 命令，不安装也不依赖早期的 Cade 项目。
+
+## 包结构
+
+```text
+src/cade/
+  ai/             provider 适配器、事件、认证协议、模型
+  execution_env/  本地子进程执行和输出捕获
+  core/           日志、投影、请求、循环、压缩、窗口
+  tools/          工作区操作和历史检索
+  safety/         策略、shell 分析、授权、审批、复核
+  extensions/     技能、记忆、钩子、mcp、子代理、快照、目标
+  app/            配置、provider 组装、凭据、请求上下文
+  hosts/          cli、auth
+  docs.py
+  __main__.py
+tests/            回归和集成测试
+```
+
+provider 和执行模块源自早期的 Cade 项目，现在由本项目拥有和维护。Cade 只包含自己使用的进程执行代码，不包含早期项目的文件系统或 Linux 沙箱实现。自己的进程包装器在 Linux 上使用已安装的 bubblewrap，在 macOS 上使用 Seatbelt；Windows 直接运行。
+
+## 入口
+
+```bash
+uv run --locked cade
+uv run --locked cade exec "Fix the failing test."
+uv run --locked python -m cade
+uv run --locked cade login
+```
+
+控制台脚本和 Python 模块都调用 `cade.hosts.cli:main`。登录由 `cade.hosts.auth` 处理。凭据和用户级技能放在 `~/.cade/`。项目会话和其他状态放在 `.cade/`。早期 Cade 项目的状态不兼容。
+
+## 导入方向
+
+- `ai` 和 `execution_env` 不导入应用或宿主模块。
+- `core` 导入核心类型和 AI 协议。
+- `tools`、`safety` 和 `extensions` 把操作和策略接到核心。
+- `app` 负责启动设置、凭据持久化和请求上下文。
+- `hosts` 组装这些组件，并负责用户交互。
+
+包根目录没有公开再导出；直接导入所属子模块。
+
+运行时契约见[架构](../architecture.md)、[Cade 如何工作](how-it-works.md)和[能力接缝](capability-seams.md)。
+
+# 与早期 Cade 项目的关系
+
+<!-- source: design/cade-comparison.md -->
+
+# 与早期 Cade 项目的关系
+
+本仓库以前叫 Cade Mini，与早期的 Cade 实现相互独立。这里只开发、测试和发布本项目，不提供对早期项目 Python 包、命令、设置、凭据或会话格式的兼容。
+
+项目最初作为日志优先的实现，与早期 Cade 并行存在。独立之后，provider 适配器和进程执行代码并入 `cade` 包，不再是共享的运行时依赖。
+
+## 产品边界
+
+Cade 提供终端 TUI 和一次性执行。核心把追加式会话事实、确定性投影、请求准入和运行循环分开。
+
+有意保留的限制包括：
+
+- 没有插件运行时、RPC 或 SDK。
+- 没有产物存储或并行工具调度器。
+- 没有永久审批授权；长期规则写在项目配置里。
+- 没有 Windows 操作系统沙箱；Linux 使用 bubblewrap，macOS 使用 Seatbelt。
+
+[历史对齐验收](../parity.md)记录的是拆分之前测试过的工作流，不是对未来功能对齐的承诺。当前包和所有权边界见[代码地图](code-map.md)。
+
+# 能力接缝
+
+<!-- source: design/capability-seams.md -->
+
+# 能力接缝
+
+Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换时不改会话格式，也不改循环。
+
+| 接缝 | 契约 | 实现 | 主要使用方 |
+| --- | --- | --- | --- |
+| Provider | `loop.Provider` 流式事件 | OpenAI Responses、ChatGPT 套餐（SIWC）、DeepSeek Responses | 循环、压缩、自动复核 |
+| Tool | `loop.Tool` 的名称、描述、参数、execute | 工作区工具、history、skill、memory、goal、subagent、MCP | 循环 |
+| Policy | `permissions.Policy.check` 返回决策、原因和范围 | `WorkspacePolicy` | 循环、CLI shell |
+| Approval | `ApprovalRequest` 到 `ApprovalResult`，可选异步 | `SessionApprover`、`AutoReviewer` | 授权 |
+| 执行范围 | `ExecutionScope` 和 `PlatformSandbox.wrap` | bubblewrap、Seatbelt、Windows 直接运行 | 工作区工具 |
+| 钩子 | `loop.Hooks.before/after` | `HookRunner` | 循环 |
+| 压缩 | `Compactor(log, budget)` | LLM 摘要压缩器 | 循环 |
+| 会话存储 | `SessionLog` 的追加、分支、打开 | 文件支持的 JSONL 日志 | 其上所有层 |
+| 恢复 | `SnapshotStore` 的捕获和撤销 | 文件快照存储 | 工具、CLI |
+| 宿主 | 循环之上的任务运行器 | CLI | 用户 |
+
+## Provider
+
+循环需要一个流式事件源：文本增量、工具调用、最终消息、用量和失败。provider 负责线上格式转换和重放状态。在这个接缝之上，Cade 不依赖 provider 专有的消息类型。
+
+## 工具
+
+工具声明 JSON schema 和异步 `execute`。工具结果是内容、错误标志和可选元数据。工具不写会话日志；循环记录它们的结果。
+
+## 策略与审批
+
+策略返回决策，不执行操作。只有 `ask` 才会咨询审批。拒绝会变成工具错误事实，模型可以据此恢复。把两者分开，宿主就能选择 TTY 提示、模型复核或非交互拒绝。
+
+## 钩子
+
+钩子观察工具调用，可以否决，但不改变策略结果。`before_tool` 失败等于拒绝；`after_tool` 失败被忽略。钩子是可信配置，不是沙箱代码。
+
+## 存储
+
+`SessionLog` 是持久历史。`SnapshotStore`、`GoalStore` 以及记忆和 NOTE 文件是宿主状态，不是会话事实。把它们当作独立存储，可以在保持格式封闭的同时支持恢复和长期状态。
+
+## 宿主
+
+宿主负责展示、输入和事件循环边界。它不拥有代理循环或格式。CLI 渲染事件并运行任务，两者都不改。
+
+## 测试即契约
+
+每个接缝都有专门的测试模块，避免它悄悄变成隐藏依赖。
+
+# 事件模型
+
+<!-- source: design/event-model.md -->
+
+# 事件模型
+
+会话是条目树，不是消息数组。条目类型分为两组。
+
+## 模型可见事实
+
+这些条目会投影进对话：
+
+| 类型 | 含义 |
+| --- | --- |
+| `system` | 基础系统提示；最新的生效 |
+| `user` | 用户任务或引导输入 |
+| `assistant` | 一次模型响应产生的文本和工具调用 |
+| `tool_result` | 与工具调用配对的结果 |
+| `compaction` | 摘要加 `first_kept_id`；遮蔽较早的条目 |
+| `window` | 新的上下文起点，可附带交接 |
+
+`compaction` 和 `window` 也携带自己的投影：一条摘要消息。原始条目仍可由 history 工具读取。
+
+## 审计事实
+
+这些条目不会投影：
+
+| 类型 | 含义 |
+| --- | --- |
+| `meta` | 会话创建元数据 |
+| `request` | provider、模型、上下文、摘要哈希、估算 token、被丢弃的证据 |
+| `attempt` | 一次 provider 尝试，包括失败和重试 |
+| `run` | 终止原因、步骤数、用量、错误 |
+
+审计事实让请求可以复现，同时不把诊断信息变成对话。因此失败的运行不会伪造 assistant 消息。
+
+## 流程
+
+```mermaid
+flowchart LR
+  log[Session log] --> project[Projection]
+  project --> conversation[Conversation]
+  conversation --> request[Request build]
+  request --> provider[Provider stream]
+  provider --> facts[Assistant and tool-result facts]
+  facts --> log
+  request --> audit[request fact]
+  provider --> attempts[attempt facts]
+  facts --> run[run fact]
+```
+
+循环在第一次请求之前追加 user 事实。每个步骤追加一条 assistant 事实和零条或多条 tool-result 事实。一次运行恰好追加一条 `run` 事实。
+
+## 顺序与配对
+
+工具结果跟在其 assistant 工具调用之后。投影拒绝孤立结果或重复结果。如果分支在工具调用之后结束且没有结果，投影会在尾部插入一条合成的“已中断”结果，让请求保持协议有效。
+
+## 压缩与窗口
+
+压缩在用户边界切分。摘要消息出现在保留上下文的最前面。window 丢弃较早的条目，可以插入交接。只有最新的切点生效。优先使用压缩；摘要仍放不下时，window 是回退方案。
+
+## 格式权威
+
+封闭格式定义在[会话日志格式](../reference/session-schema.md)。生成的[事件目录](event-catalog.md)列出代码中的当前事件类型。
+
+# 工具执行
+
+<!-- source: design/tool-execution.md -->
+
+# 工具执行
+
+每次工具调用都走同一条流水线。策略和审批决定调用能否执行；钩子可以阻止；循环负责执行和记录。
+
+```mermaid
+flowchart LR
+  call[Tool call] --> policy[Policy decision]
+  policy -->|deny| denied[Denied tool result]
+  policy -->|ask| approval[Approval]
+  approval -->|deny| denied
+  approval -->|allow| before[before_tool hooks]
+  policy -->|allow| before
+  before -->|deny| hookdenied[Hook-denied result]
+  before -->|allow| execute[Execute tool]
+  execute --> after[after_tool hooks]
+  execute --> result[Tool result]
+  result --> log[Append fact]
+  denied --> log
+  hookdenied --> log
+```
+
+## 顺序
+
+1. 模型返回带 ID 和参数的工具调用。
+2. 策略检查工具名、路径、模式、规则、授权和 shell 分类。
+3. `ask` 决策由宿主解决：TTY 提示、`--yes`、自动复核或拒绝。
+4. 运行 `before_tool` 钩子。非零退出会拒绝调用。
+5. 工具在批准的本次调用范围内执行，带超时和取消令牌。Linux 和 macOS 的工作区工具使用操作系统隔离。
+6. 结果被截断，作为 `tool_result` 事实追加并渲染。它的 `artifact.authorization` 记录决策、原因和范围，但不把这些元数据加入模型对话记录。
+7. 运行 `after_tool` 钩子，其输出被忽略。
+
+## 拒绝与错误
+
+被拒绝的调用不是异常。它会变成错误工具结果，模型可以据此调整。未知工具、格式错误的参数、超时和抛出的异常也会变成错误结果。取消时，运行终止之前会为所有剩余调用追加“已中断”结果。
+
+## 钩子
+
+钩子收到工具名和 JSON 参数；`after_tool` 还收到结果。它们以工作区为当前目录运行。钩子超时意味着拒绝，或作为观察者被静默忽略，绝不会无限等待。
+
+## 证据保留
+
+工具结果是事实。请求准入可以用指向 `call_id` 的引用替换旧正文。history 工具从分支读取精确结果，因此裁剪不会毁掉证据。
+
+## 测试
+
+- `test_loop.py` 覆盖审批、错误、超时、取消、重试和窗口回退。
+- `test_hooks.py` 覆盖 allow、deny 和 after 钩子执行。
+- `test_policy.py` 覆盖模式、规则、授权和边界。
+
+面向用户的行为见[工具与安全](../tools-security.md)。
+
+# Configuration catalog
+
+<!-- source: design/config-catalog.md -->
+
+<!-- Generated by `uv run --locked python -m cade.docs catalogs --write`. Do not edit by hand. -->
+
+# Configuration catalog
+
+Top-level fields. Nested types follow the table.
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `provider` | `string \| null` | `null` |
+| `model` | `string \| null` | `null` |
+| `reasoning_effort` | `string \| null` | `null` |
+| `context_window` | `integer \| null` | `null` |
+| `max_steps` | `integer \| null` | `null` |
+| `sessions_dir` | `string \| null` | `null` |
+| `read_only` | `boolean` | `false` |
+| `instructions` | `boolean` | `true` |
+| `note` | `boolean` | `true` |
+| `memory` | `boolean` | `true` |
+| `auto_review` | `boolean` | `false` |
+| `prompt_modules` | `list[string] \| null` | `null` |
+| `mode` | `plan \| build \| ask` | `"build"` |
+| `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
+| `network` | `boolean` | `true` |
+| `rules` | `list[RuleConfig]` | `required` |
+| `hooks` | `list[HookConfig]` | `required` |
+| `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
+
+## HookConfig
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `event` | `before_tool \| after_tool` | `required` |
+| `command` | `string` | `required` |
+| `matcher` | `string \| null` | `null` |
+| `timeout_ms` | `integer` | `10000` |
+
+## McpServerConfig
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `command` | `string` | `required` |
+| `args` | `list[string]` | `required` |
+| `env` | `dict[str, string] \| null` | `null` |
+| `cwd` | `string \| null` | `null` |
+| `timeout_ms` | `integer` | `30000` |
+
+## RuleConfig
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `tool` | `string` | `required` |
+| `decision` | `allow \| deny \| ask` | `required` |
+| `path_prefix` | `string \| null` | `null` |
+| `command_prefix` | `string \| null` | `null` |
+
+# Event catalog
+
+<!-- source: design/event-catalog.md -->
+
+<!-- Generated by `uv run --locked python -m cade.docs catalogs --write`. Do not edit by hand. -->
+
+# Event catalog
+
+Session entry types from `EventType`.
+
+| Event | Projects | Purpose |
+| --- | --- | --- |
+| `meta` | No | Session creation |
+| `system` | Yes | Base system prompt; latest wins |
+| `user` | Yes | Task or steering input |
+| `assistant` | Yes | Model text and tool calls |
+| `tool_result` | Yes | Tool output paired by call ID |
+| `compaction` | Yes | Summary and first kept entry |
+| `window` | Yes | Context start and optional handoff |
+| `request` | No | Provider request audit |
+| `run` | No | Run termination, steps, and usage |
+| `attempt` | No | Provider attempt, retry, or failure |
+| `branch` | No | Unclassified |
+| `checkpoint` | No | Unclassified |
+| `restore` | No | Unclassified |
+
+# Module graph
+
+<!-- source: design/module-graph.md -->
+
+<!-- Generated by `uv run --locked python -m cade.docs catalogs --write`. Do not edit by hand. -->
+
+# Module graph
+
+Absolute imports inside `src/cade/`.
+
+```mermaid
+flowchart LR
+  ai_events --> ai_types
+  ai_models --> ai_types
+  ai_providers__codec --> ai_types
+  ai_providers_base --> ai_events
+  ai_providers_base --> ai_types
+  ai_providers_base --> ai_usage
+  ai_providers_registry --> ai_providers_base
+  ai_providers_registry --> ai_resolver
+  ai_providers_registry --> ai_types
+  ai_providers_responses --> ai_cache
+  ai_providers_responses --> ai_events
+  ai_providers_responses --> ai_types
+  ai_providers_responses --> ai_usage
+  ai_resolver --> ai_models
+  ai_usage --> ai_cache
+  ai_usage --> ai_models
+  app_auth --> ai_auth
+  app_provider --> ai_models
+  app_provider --> ai_providers_base
+  app_provider --> ai_providers_registry
+  app_provider --> ai_resolver
+  app_provider --> app_auth
+  app_recovery --> core_log
+  app_recovery --> core_types
+  app_recovery --> extensions_recovery
+  app_recovery --> extensions_snapshots
+  core_compaction --> ai_events
+  core_compaction --> core_log
+  core_compaction --> core_loop
+  core_compaction --> core_projection
+  core_compaction --> core_request
+  core_compaction --> core_types
+  core_events --> ai_types
+  core_events --> core_types
+  core_history --> core_types
+  core_log --> core_events
+  core_log --> core_types
+  core_loop --> ai_events
+  core_loop --> ai_types
+  core_loop --> core_log
+  core_loop --> core_permissions
+  core_loop --> core_projection
+  core_loop --> core_request
+  core_loop --> core_types
+  core_loop --> execution_env_sandbox
+  core_permissions --> core_types
+  core_permissions --> execution_env_sandbox
+  core_projection --> core_types
+  core_request --> ai_types
+  core_request --> core_types
+  core_window --> core_log
+  extensions_goal --> core_loop
+  extensions_goal --> core_types
+  extensions_goal --> tools_workspace
+  extensions_hooks --> app_config
+  extensions_hooks --> core_types
+  extensions_mcp --> app_config
+  extensions_mcp --> core_loop
+  extensions_mcp --> core_types
+  extensions_memory --> core_loop
+  extensions_memory --> core_types
+  extensions_memory --> tools_workspace
+  extensions_recovery --> extensions_snapshots
+  extensions_skills --> core_loop
+  extensions_skills --> core_types
+  extensions_skills --> tools_workspace
+  extensions_subagents --> core_log
+  extensions_subagents --> core_loop
+  extensions_subagents --> core_permissions
+  extensions_subagents --> core_request
+  extensions_subagents --> core_types
+  extensions_subagents --> safety_policy
+  extensions_subagents --> tools_history
+  extensions_subagents --> tools_workspace
+  hosts_auth --> ai_auth
+  hosts_auth --> app_auth
+  hosts_cli --> app_config
+  hosts_cli --> app_instructions
+  hosts_cli --> app_note
+  hosts_cli --> app_prompts
+  hosts_cli --> app_provider
+  hosts_cli --> app_recovery
+  hosts_cli --> core_compaction
+  hosts_cli --> core_log
+  hosts_cli --> core_loop
+  hosts_cli --> core_permissions
+  hosts_cli --> core_request
+  hosts_cli --> core_types
+  hosts_cli --> core_window
+  hosts_cli --> execution_env_sandbox
+  hosts_cli --> extensions_goal
+  hosts_cli --> extensions_hooks
+  hosts_cli --> extensions_mcp
+  hosts_cli --> extensions_memory
+  hosts_cli --> extensions_skills
+  hosts_cli --> extensions_snapshots
+  hosts_cli --> extensions_subagents
+  hosts_cli --> safety_approval
+  hosts_cli --> safety_grants
+  hosts_cli --> safety_policy
+  hosts_cli --> safety_review
+  hosts_cli --> tools_history
+  hosts_cli --> tools_workspace
+  hosts_context_report --> ai_types
+  hosts_context_report --> core_projection
+  hosts_context_report --> core_request
+  hosts_context_report --> core_types
+  hosts_context_report --> safety_policy
+  hosts_interaction --> ai_events
+  hosts_interaction --> ai_models
+  hosts_interaction --> app_provider
+  hosts_interaction --> app_recovery
+  hosts_interaction --> core_compaction
+  hosts_interaction --> core_history
+  hosts_interaction --> core_log
+  hosts_interaction --> core_loop
+  hosts_interaction --> core_permissions
+  hosts_interaction --> core_projection
+  hosts_interaction --> core_request
+  hosts_interaction --> core_types
+  hosts_interaction --> core_window
+  hosts_interaction --> extensions_goal
+  hosts_interaction --> extensions_hooks
+  hosts_interaction --> extensions_recovery
+  hosts_interaction --> extensions_skills
+  hosts_interaction --> extensions_snapshots
+  hosts_interaction --> extensions_subagents
+  hosts_interaction --> hosts_command_catalog
+  hosts_interaction --> hosts_context_report
+  hosts_interaction --> hosts_interaction_question
+  hosts_interaction --> hosts_interaction_settings
+  hosts_interaction --> safety_policy
+  hosts_interaction --> safety_review
+  hosts_interaction --> tools_history
+  hosts_interaction --> tools_workspace
+  hosts_interaction_question --> core_loop
+  hosts_interaction_question --> core_types
+  hosts_interaction_settings --> ai_auth
+  hosts_interaction_settings --> ai_models
+  hosts_interaction_settings --> ai_providers_registry
+  hosts_interaction_settings --> app_auth
+  hosts_interaction_settings --> app_config
+  hosts_interaction_settings --> app_provider
+  hosts_tui_app --> hosts_interaction
+  hosts_tui_bridge --> ai_models
+  hosts_tui_bridge --> core_log
+  hosts_tui_bridge --> core_loop
+  hosts_tui_bridge --> core_types
+  hosts_tui_bridge --> hosts_interaction
+  hosts_tui_bridge --> safety_sensitive
+  hosts_tui_command_handlers --> hosts_command_catalog
+  hosts_tui_config_registry --> ai_models
+  hosts_tui_config_registry --> app_config
+  hosts_tui_config_registry --> hosts_interaction_settings
+  hosts_tui_context_stats --> core_projection
+  hosts_tui_context_stats --> core_request
+  hosts_tui_interaction_compat --> core_types
+  hosts_tui_interaction_compat --> tools_workspace
+  hosts_tui_login_flow --> ai_auth
+  hosts_tui_settings --> ai_models
+  hosts_tui_setup_wizard --> ai_models
+  hosts_tui_setup_wizard --> ai_providers_registry
+  hosts_tui_setup_wizard --> ai_resolver
+  hosts_tui_setup_wizard --> hosts_interaction_settings
+  safety_approval --> core_permissions
+  safety_approval --> safety_grants
+  safety_approval --> safety_sensitive
+  safety_grants --> core_types
+  safety_policy --> app_config
+  safety_policy --> core_loop
+  safety_policy --> core_permissions
+  safety_policy --> core_types
+  safety_policy --> execution_env_paths
+  safety_policy --> execution_env_sandbox
+  safety_policy --> safety_grants
+  safety_policy --> safety_sensitive
+  safety_policy --> safety_shell
+  safety_review --> ai_events
+  safety_review --> core_loop
+  safety_review --> core_permissions
+  safety_review --> core_request
+  safety_review --> core_types
+  safety_shell --> safety_sensitive
+  tools__worker --> core_loop
+  tools__worker --> execution_env_sandbox
+  tools__worker --> tools_workspace
+  tools_history --> core_log
+  tools_history --> core_loop
+  tools_history --> core_types
+  tools_history --> tools_workspace
+  tools_workspace --> core_loop
+  tools_workspace --> core_types
+  tools_workspace --> execution_env
+  tools_workspace --> execution_env_paths
+  tools_workspace --> execution_env_sandbox
+  tools_workspace --> execution_env_subprocess
+  tools_workspace --> extensions_snapshots
+  tools_workspace --> safety_shell
+```
+
+# 工具目录
+
+<!-- source: design/tool-catalog.md -->
+
+# 工具目录
+
+内置工具面。MCP 工具在启动时发现，命名为 `mcp__<server>__<tool>`；参数由服务器提供。
+
+| 工具 | 参数 | 副作用 | 默认策略 |
+| --- | --- | --- | --- |
+| `read` | `path`、`offset`、`limit` | 无 | 允许，受保护路径除外 |
+| `write` | `path`、`content` | 创建或替换文件；先做快照 | ask 模式下询问，build 模式下允许 |
+| `edit` | `path`、`old`、`new` | 替换一处内容；先做快照 | ask 模式下询问，build 模式下允许 |
+| `glob` | `pattern`、`path` | 无 | 允许 |
+| `grep` | `pattern`、`path`、`include` | 无 | 允许 |
+| `bash` | `command`、`workdir`、`timeout_ms`、`additional_write_paths` | 任意进程；对常见修改做快照 | build 模式下允许普通开发；检测到风险时询问 |
+| `history` | `query`、`entry_id`、`call_id`、`limit` | 无 | 允许 |
+| `skill` | `name` | 无；加载技能正文 | 允许 |
+| `memory` | `text` | 追加到 `MEMORY.md` | 允许；只读模式拒绝 |
+| `goal` | `action`、`objective` | 更新 `.cade/goal.json` | 允许 |
+| `subagent` | `prompt`、`description` | 创建子会话 | 允许；继承父级限制 |
+| `delegate` | `prompt` 或 `tasks`、`mode`、`description` | 创建一个或多个子会话 | 允许 |
+| `mcp__*` | 由服务器定义 | 远程副作用 | 询问；计划模式和只读模式拒绝 |
+
+## 如何阅读这张表
+
+- “副作用”指工具可能改变什么，不是每次都会改变。
+- 工作区的 `write` 和 `edit` 在无法取得快照时按失败关闭。外部写入需要权限，并且没有工作区快照。
+- `bash` 的只读分类是保守的；未知命令在 ask 模式下询问，在计划模式下拒绝。build 模式允许普通开发命令。
+- MCP 工具是动态的。规则可以放行特定工具；默认是询问。
+
+## 参数
+
+权威 JSON schema 内建于每个工具。这张表只用于导航；与工具 schema 不一致时，以 schema 为准。
+
+## 相关页面
+
+- [工具与安全](../tools-security.md)
+- [工具执行](tool-execution.md)
+- [配置目录](config-catalog.md)
+
+# MCP 参考服务器
+
+<!-- source: design/mcp-reference.md -->
+
+# MCP 参考服务器
+
+Cade 实现 stdio 的 `initialize`、`tools/list` 和 `tools/call`，每个服务器保持一条长连接。这对暴露工具的参考服务器已经够用。
+
+## 已验证的服务器
+
+| 服务器 | 命令 | 验证内容 |
+| --- | --- | --- |
+| Filesystem | `npx -y @modelcontextprotocol/server-filesystem <dir>` | 发现工具和 `read_text_file` |
+| Memory | `npx -y @modelcontextprotocol/server-memory` | 发现实体相关工具 |
+| Sequential Thinking | `npx -y @modelcontextprotocol/server-sequential-thinking` | 发现 `sequentialthinking` |
+| Time | `uvx mcp-server-time` | 发现工具和 `get_current_time` |
+| Fetch | `uvx mcp-server-fetch` | 服务器启动并列出工具 |
+
+在 Windows 上，通过 `cmd /c` 运行 npm 服务器：
+
+```json
+{
+  "mcp_servers": {
+    "time": {
+      "command": "uvx",
+      "args": ["mcp-server-time"]
+    },
+    "fs": {
+      "command": "cmd",
+      "args": [
+        "/c", "npx", "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:/path/to/workspace"
+      ]
+    }
+  }
+}
+```
+
+在 POSIX 系统上直接使用 `npx`。Git 服务器需要仓库参数，例如 `--repository <path>`；按服务器要求传入精确参数。
+
+## 能力边界
+
+上面的参考服务器都是工具服务器。Cade 不实现 MCP resources、prompts、sampling 或服务器发起的请求。依赖这些功能的服务器可以启动，但只暴露工具。
+
+## 策略
+
+MCP 工具命名为 `mcp__<server>__<tool>`。它们默认询问，在计划模式和 `--read-only` 下被拒绝，可以由规则放行：
+
+```json
+{
+  "rules": [
+    {"tool": "mcp__time__get_current_time", "decision": "allow"}
+  ]
+}
+```
+
+## 验证
+
+```bash
+cade --mode build "Use the time MCP tool to get the current time in Asia/Singapore."
+```
+
+日志会记录一条 `tool_result`，内容来自服务器返回的文本。Cade 退出时关闭服务器进程。
+
+## 相关页面
+
+- [配置](../configuration.md)
+- [钩子、MCP 和子代理](../hooks-mcp-subagents.md)
+- [自定义 MCP 服务器](../cookbook/custom-mcp.md)
+
+# 引导与排队
+
+<!-- source: design/steering-queue.md -->
+
+# 引导与排队
+
+任务运行时，TUI 继续接受输入。UI 线程渲染事件、处理按键；bridge 在带独立 `asyncio` 事件循环的工作线程里运行任务。
+
+## 当前设计
+
+```text
+prompt_toolkit UI 线程
+  |  Enter / Alt+Enter / 斜杠命令
+  v
+InteractionService
+  |  steering、pending、cancel
+  v
+工作线程  --  asyncio.run(run_task)
+  |
+  v
+结构化事件队列  -->  UI 线程
+```
+
+- `InteractionService.run_task` 调用与一次性模式相同的 `run` 循环。
+- `service.steering` 保存下一个模型步骤的指导。
+- `service.pending` 保存下一轮的后续任务。
+- `service.cancel` 立即唤醒等待中的 provider 流，即使它还没有输出。工具在安全点检查同一个取消令牌。
+- bridge 把循环事件转换成结构化事件，排队交给 UI 线程。provider 流从不阻塞按键处理。
+
+## 运行中的命令
+
+| 输入 | 效果 |
+| --- | --- |
+| `Enter` | 使用当前的忙时输入模式：排队、引导或替换 |
+| `Alt+Enter` | 在下一个模型步骤追加指导 |
+| `/steer TEXT` | 在下一个模型步骤追加指导 |
+| `/queue TEXT` | 把 TEXT 排为后续任务 |
+| `/queue followup` | 让 `Enter` 排队后续任务 |
+| `/queue steer` | 让 `Enter` 追加指导 |
+| `/queue interrupt` | 让 `Enter` 停止任务并立即运行该消息 |
+| `/stop` 或 `Esc` | 中断工作，把未送达的排队输入放回编辑器 |
+| `Ctrl+C` | 清空编辑器，不取消工作；500 ms 内再按一次退出 |
+| `/exit` 或 `/quit` | 退出 TUI |
+
+当前任务进入终止状态时，后续任务自动运行。队列按先进先出，排队的任务留在同一个会话。显式按 Esc 或用 `/stop` 取消时，未送达的输入会回到编辑器，不会立刻开始另一次运行。
+
+`/steer` 不是向正在运行的 provider 请求注入提示。循环在每个步骤之前检查引导队列，追加一条带 `source: runtime` 的 `user` 事实，再从投影构造下一次请求。这样会话日志仍是唯一事实来源。
+
+## 会话命令
+
+`/new`、`/resume`、`/fork`、`/clone`、`/compact` 和 `/new-context` 会改变会话状态。在没有活动任务时运行它们。运行期间，普通文本改为排队。
+
+## 限制
+
+- 文件工作进程会先完成当前操作，再响应取消。Shell 工作进程会向子进程发信号。两者都不回滚文件修改；需要恢复时用快照。
+- 引导在步骤之间生效，不会进入 provider 数据流或正在运行的工具。
+- 一次性任务的 `--steer` 参数在第一步之前预置指导，不能替代运行期间的 `/steer`。
+
+## 测试
+
+`test_mid_run_steer_reaches_the_next_provider_request` 会阻塞一个工具，直到宿主送达指导，然后检查下一次 provider 请求包含引导事实。
+
+# 持久化目录
+
+<!-- source: design/persistence-catalog.md -->
+
+# 持久化目录
+
+Cade 把持久历史和宿主状态分开。会话日志是模型看到什么、发生过什么的权威来源；其他存储职责更窄。
+
+| 产物 | 默认位置 | 所有者 | 生命周期 | 格式 |
+| --- | --- | --- | --- | --- |
+| 会话日志 | `.cade/sessions/session-*.jsonl` | `SessionLog` | 项目 | 当前封闭结构 |
+| 快照 | `.cade/snapshots/` | `SnapshotStore` | 项目 | 本地索引 |
+| 恢复 | `.cade/recovery/` | 恢复协调器 | 工作区 | 封闭记录；操作日志和待处理计划 |
+| 目标 | `.cade/goal.json` | `GoalStore` | 项目 | 单个对象 |
+| 工作笔记 | `NOTE.md` | 项目 | 项目 | Markdown |
+| 记忆 | `MEMORY.md` | `MemoryTool` | 项目 | Markdown |
+| 指令 | `AGENTS.md`、`CLAUDE.md`、覆盖文件 | 项目 | 项目 | Markdown |
+| 技能 | `~/.cade/skills`、`.cade/skills` | 发现逻辑 | 用户或项目 | `SKILL.md` |
+| 配置 | `cade.json` | `CadeConfig` | 项目 | Pydantic，严格校验 |
+| 凭据 | `~/.cade/auth.json` | `JsonCredentialStore` | 用户 | provider 凭据 |
+| SIWC 宿主 ID | `~/.cade/host.json` | `load_or_create_host_id` | 用户 | 稳定的代理宿主标识 |
+| 文档站点 | `docs/index.html` | 文档工具 | 仓库 | 生成 |
+| LLM 目录 | `docs/llms*.txt` | 文档工具 | 仓库 | 生成 |
+
+## 会话日志
+
+日志是追加式的。它把模型可见事实和审计事实存放在同一棵树里。重建对话和当前历史位置只需要这一个产物。压缩、窗口和分支导航都是日志记录，不是改写。
+
+## 快照
+
+快照是文件变更的撤销日志，覆盖 `write`、`edit` 和常见的单命令 shell 修改。它使用原子替换的 JSONL 索引、不可变的前后记录和按内容寻址的原始内容块。冲突和旧版行为见[快照与目标](../snapshots-goals.md)。快照不属于会话分支。
+
+## 目标与笔记
+
+目标是一个带 active 或 done 状态的对象。`NOTE.md` 是工作状态，会进入每次请求，并在压缩时被总结。`MEMORY.md` 是长期项目知识。这些文件刻意保持朴素：可以手工编辑，也可以用普通工具查看。
+
+## 生成的产物
+
+文档站点、`llms.txt` 和 `llms-full.txt` 由 Markdown 和 `docs.json` 生成。它们会检查是否最新；不要手工编辑 HTML。
+
+## 不持久化的内容
+
+- 请求专属上下文记录在请求审计里，不作为消息。
+- 授权只在进程内有效；长期策略属于配置规则。
+- 审批提示和 TUI 状态属于宿主状态。
+- provider 重放载荷保存在产生它的 assistant 事实里。
+
+字段级细节见[会话日志格式](../reference/session-schema.md)，格式变更见[变更策略](../../persistence/change-policy.md)。
+
+# 术语表
+
+<!-- source: design/glossary.md -->
+
+# 术语表
+
+每个概念只用一个规范术语。链接指向负责说明它的页面。
+
+## 会话日志（session log）
+
+记录事实的追加式 JSONL 文件，是活动分支的事实来源。见[日志](../subsystems/log.md)。
+
+## 分支（branch）
+
+条目树中的一条路径。活动分支结束于最新记录，供投影使用。
+
+## 投影（projection）
+
+由分支生成的确定性对话。它应用最新的 system、compaction 和 window 切点，然后配对工具调用和结果。见[投影与请求](../subsystems/projection-request.md)。
+
+## 请求（request）
+
+一次模型调用中，对话经过准入后的 provider 就绪形式。它包含工具、预算和请求专属上下文。请求不是事实，永远不会被投影。
+
+## 运行（run）
+
+循环针对一个任务的一次调用。一次运行包含一个或多个步骤，以 `run` 事实结束。
+
+## 步骤（step）
+
+一次模型请求，加上这次响应引发的工具调用。
+
+## 工具结果（tool result）
+
+一次工具调用的记录输出，按调用 ID 配对。它属于事实。
+
+## 压缩（compaction）
+
+追加摘要和 `first_kept_id` 的事实。它在后续投影中遮蔽较早的消息，但不删除它们。
+
+## 窗口（window）
+
+把上下文起点前移的事实，可附带交接。压缩放不下时用作回退。
+
+## 历史（history）
+
+在压缩或裁剪之后，按条目 ID 或调用 ID 检索精确证据的工具。
+
+## 模式（mode）
+
+`plan`、`build` 或 `ask`。模式选择工具和 shell 命令的默认策略。
+
+## 规则（rule）
+
+配置中的静态策略条目。规则可以匹配工具、路径前缀和命令前缀，返回 allow、deny 或 ask。
+
+## 授权（grant）
+
+回答 `a` 时创建的进程内审批。它匹配相同的工具和路径或命令。
+
+## 钩子（hook）
+
+围绕工具调用配置的 shell 命令（`before_tool` 或 `after_tool`）。
+
+## 技能（skill）
+
+按需加载的 `SKILL.md` 正文。请求携带技能目录；`skill` 工具加载正文。
+
+## MCP
+
+Model Context Protocol。Cade 运行 stdio MCP 服务器，并把它们的工具暴露为 `mcp__<server>__<tool>`。
+
+## 子代理（subagent）
+
+拥有独立会话和受限工具集的子运行。它不能再生子代理。
+
+## 快照（snapshot）
+
+文件修改前的副本，供一次性任务的 `--undo` 使用。
+
+## 目标（goal）
+
+`.cade/goal.json` 中的持久目标，与会话格式分离。
+
+# 测试
+
+<!-- source: design/testing.md -->
+
+# 测试
+
+测试按所保护的层次分组。修改后先跑覆盖该改动的最小分组，发布前再跑完整套件。
+
+## 命令
+
+```bash
+mkdir -p e2e-results
+uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests/test_loop.py --basetemp=e2e-results/pytest
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
+uv run --locked python -m cade.docs check
+```
+
+## 覆盖地图
+
+| 领域 | 测试 |
+| --- | --- |
+| 会话 | `test_log.py` |
+| 投影与配对 | `test_projection.py` |
+| 预算、裁剪、线上格式 | `test_request.py` |
+| 循环、审批、重试、窗口 | `test_loop.py` |
+| Provider 与认证 | `test_provider.py`、`test_auth.py`、`test_siwc_auth.py`、`test_responses_siwc_contract.py` |
+| 工作区工具 | `test_tools.py` |
+| 压缩与窗口 | `test_compaction.py`、`test_window.py` |
+| CLI 与配置 | `test_cli.py`、`test_config.py` |
+| 指令、技能、记忆、NOTE | `test_instructions.py`、`test_skills.py`、`test_memory.py`、`test_note.py` |
+| 安全与模式 | `test_policy.py`、`test_shell.py`、`test_grants.py` |
+| 扩展 | `test_hooks.py`、`test_mcp.py`、`test_subagents.py` |
+| 恢复 | `test_snapshots.py`、`test_goal.py` |
+| 文档 | `test_docs.py` |
+
+## 真实 provider 检查
+
+验收运行使用 OpenAI Responses，可以走 API key 或 ChatGPT 套餐，不属于默认测试套件。它们覆盖工具使用、恢复、压缩、技能、build 模式和读写。新增验收时，在对应改动里记录命令和观察到的结果。
+
+## 文档检查
+
+`test_docs.py` 和 `uv run --locked python -m cade.docs check` 校验清单、链接、锚点和生成的目录。CI 会运行文档任务。
+
+## 独立发行
+
+用 `uv build --no-sources` 构建 wheel 和源码归档。在干净的虚拟环境里安装 wheel，并在源码树之外检查 `cade --help` 和 `python -m cade --help`。安装后的环境只能包含本发行包的模块和命令。见[验证指南](../testing.md)。
+
+# Cade 会话格式
+
+<!-- source: reference/session-schema.md -->
+
+# Cade 会话格式
+
+> 这是当前的持久结构和投影契约。记录没有格式版本字段。
+
+## 信封
+
+`session-<id>.jsonl` 每行一个 JSON 对象：
+
+```json
+{"id":"e2","parent":"e1","ts":"2026-10-18T03:00:00+00:00","type":"user","data":{"text":"Fix the test","source":"user"}}
+```
+
+| 字段 | 类型 | 契约 |
+| --- | --- | --- |
+| `id` | string | 文件内唯一；12 个小写十六进制字符 |
+| `parent` | string 或 null | 通常是前一个头部；导航时是选中的续接点；根记录为 null |
+| `ts` | string | ISO 8601 UTC 时间戳 |
+| `type` | string | 下方事件类型之一 |
+| `data` | object | 类型专属载荷 |
+
+头部是最后一条物理记录。普通记录指向前一个头部。`branch` 记录则指向选中的历史续接点。其他路径仍留在同一个文件里。非空父记录必须在子记录之前。
+
+未知事件类型非法，不要忽略。
+
+载荷在追加和读取时都会校验。未知字段、错误的原始类型、非法枚举和非有限数字都会被拒绝。缺失的可选字段允许存在，但默认值不会写进记录。`user.source` 默认是 `user`；assistant 的 model/provider/usage/replay 元数据以及可空的 artifact/handoff/usage/details 字段可以缺失。跨事件的调用配对和上下文切点引用由投影校验。
+
+## 事件类型
+
+### 对话事件
+
+这些事件产生模型可见的消息。
+
+| 类型 | 载荷 | 投影 |
+| --- | --- | --- |
+| `system` | `{"text": str}` | 最新一条最先输出；永不被遮蔽 |
+| `user` | `{"text": str, "source": "user"\|"runtime"}` | 在所在位置输出用户消息 |
+| `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null}` | 助手消息；空 blocks 被跳过 |
+| `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | 工具消息；与对应调用配对 |
+| `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | 先输出摘要消息，再从 `first_kept_id` 输出尾部 |
+| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null}` | 从 `start_id` 开始投影；可选交接摘要 |
+
+block 是以下之一：
+
+```json
+{"type":"text","text":"..."}
+{"type":"tool_call","id":"c1","name":"bash","args":{"command":"pytest -q"}}
+```
+
+`assistant.blocks` 是工具调用的唯一记录。不要另外添加 `tool_use` 事件。`tool_result.call_id` 与它配对。
+
+`provider_state` 是 Responses 重放用的不透明适配器数据。它保存在 assistant 事实里，并传回同一个适配器。它永远不会进入对话词汇。
+
+### 仅日志事件
+
+这些事件会被记录，但不会投影。
+
+| 类型 | 载荷 | 用途 |
+| --- | --- | --- |
+| `meta` | `{"session": str, "project": str, "created": str}` | 第一条事件；标识会话 |
+| `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | 带归一化输入的请求审计 |
+| `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | 运行结果 |
+| `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | 没有产生消息的失败模型尝试 |
+| `branch` | `{"selected_id": str}` | 导航控制；永远不是模型消息 |
+| `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | 回合所有权和完成状态审计 |
+| `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | 恢复提交和对话位置 |
+
+`request.snapshot` 包含 `messages`、`tools`、`options`、`budget` 和 `report`。`budget` 记录上下文窗口、输出预留和余量；`report` 记录准入结果。`options` 省略 API key、所有请求头、取消信号和回调。这是 provider 接口的输入，不是 HTTP 抓包。其余请求数据不做脱敏。
+
+失败的尝试不会变成 assistant 消息。运行结果不重复最终答案；答案就是最后一段 assistant 文本。
+
+## 不变式
+
+1. **一个事实一条记录。** 工具调用只出现一次，在它的 assistant 事件里。最终答案不会再次保存。
+2. **没有派生内容。** 没有替换用的消息列表，没有把渲染预览当历史，没有展示摘要。
+3. **决策也是事实。** 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。
+4. **请求上下文是审计，不是历史。** 动态上下文和请求信封放在 `request` 里；只有对话事件参与投影。
+5. **压缩切点是用户轮次。** `first_kept_id` 必须指向压缩之前的 `user` 事件。工具调用和结果不能跨越切点。
+6. **窗口起点是用户轮次。** `start_id` 必须指向窗口之前的 `user` 事件。
+7. **最新 system 事件生效。** 它最先投影，不会被压缩或窗口遮蔽。
+
+## 分支导航
+
+`branch.selected_id` 必须引用同一个文件里更早的条目。该条目是用户输入时，导航事件的父节点必须等于该输入的父节点。否则父节点必须等于选中条目的 ID。选中旧版根用户时，可能产生父节点为 null 的导航事件。
+
+导航事件成为物理头部。`branch()` 沿父链重建活动路径。兄弟事实不会被删除或复制，`project()` 忽略导航记录。活动路径上最新的导航会在重启后恢复选中的用户文本，直到后续 user 或 assistant 条目消费它。选中非用户条目时恢复空草稿。没有可变的游标附属文件。
+
+导航和路径复制会获取整个会话的运行锁。非法目标在尾部修复或追加之前失败。Fork 和 clone 把一条连通路径复制到新文件，省略导航、检查点、恢复控制，保留时间戳，并重映射条目 ID 和上下文切点。
+
+## 检查点与协调恢复
+
+宿主生命周期在 user 事实之前创建 workspace 检查点。它的 `started` 事件把保存的检查点关联到较早的用户条目和回合前祖先 `anchor_id`。`completed` 或 `incomplete` 事件在执行后关闭回合。完成描述的是已跟踪的捕获，不是模型成功。核心校验用户和祖先引用；文件镜像和恢复操作历史属于工作区恢复存储。
+
+只有当待处理计划的文件写入成功后，才追加 restore 事件。它的父节点等于 `target_id`，必须是较早的条目或 null。只恢复代码时，目标必须是紧邻的前一个物理头部，以保留对话血统。`draft_id` 为 null，或指向一个较早的用户条目，其文本会回到编辑器。新的对话消息会消费历史草稿。旧版根恢复缺少 system 事实时，待处理计划会先提供一个当前系统提示作为新的显式事实，然后才确认操作。
+
+工作区操作日志和 `pending.json` 计划使用封闭模型。稳定的操作 ID 在中断后对会话提交和操作提交去重。遇到未知的外部文件状态时，恢复停止并阻止新写入。见[检查点恢复](../snapshots-goals.md#检查点恢复)。
+
+## 投影
+
+`project(branch) -> list[Message]` 是纯函数，结果确定。
+
+1. 找到最新的 `system` 事件，最先输出。
+2. 找到最新的 `window`。存在时，从它的 `start_id` 开始，并保留非空 `handoff` 作为摘要消息。
+3. 找到窗口起点处或之后最新的 `compaction`。存在时，输出摘要，并从 `first_kept_id` 开始输出尾部。
+4. 按顺序遍历保留的条目。输出 `user`、`assistant` 和 `tool_result` 消息。跳过 `system`、`meta`、`window`、`compaction`、`request`、`run`、`attempt`、`branch`、`checkpoint` 和 `restore`。
+5. 按调用 ID 配对工具调用和结果。
+6. 末尾存在未闭合调用时，合成一条“已中断”结果。不要写入日志。把它插在包含该调用的 assistant 消息之后。
+7. 遇到孤立结果、重复结果、重复调用、错误切点或错误窗口时，用 `ProjectionError` 拒绝。
+
+摘要消息的输出顺序：system、window 交接、compaction 摘要、保留的尾部。
+
+线上格式适配器把 `SummaryMessage` 渲染成包裹在 `<compaction-summary>` 或 `<window-handoff>` 里的 user 角色消息。内部角色保持独立，宿主可以按不同方式渲染。
+
+## 存储
+
+- 目录：默认 `.cade/sessions/`。
+- 文件：`session-<id>.jsonl`。
+- 新的交互式会话把文件创建推迟到第一条 user 或 assistant 消息。初始化事件留在内存中，随该消息一起刷盘。第一次请求被取消时，user 消息仍会留在磁盘上。
+- 追加锁：`session-<id>.lock`。
+- 运行锁：`session-<id>.run.lock`；并发回合被拒绝。
+- 追加：一行，`flush`，`fsync`。
+- 追加前：截断崩溃留下的不完整尾行。
+- 读取时：忽略不完整的尾行；拒绝任何更早的非法行。
+- 拒绝重复 ID 和向前的父引用。
+- 不改写，不原地编辑。
+
+## 压缩记录
+
+```json
+{"id":"e80","parent":"e79","ts":"...","type":"compaction",
+ "data":{"summary":"## Goal\n...","first_kept_id":"e52","tokens_before":48210,
+         "model":"gpt-5.6-luna","provider":"chatgpt",
+         "usage":{"input":43000,"output":1200},"details":null}}
+```
+
+摘要是模型生成的内容，必须记录在案。`first_kept_id` 之前的原始事件仍留在日志里。后续压缩从前一次之后开始，可以把前一次摘要纳入输入。
+
+## 窗口记录
+
+```json
+{"id":"e90","parent":"e89","ts":"...","type":"window",
+ "data":{"start_id":"e88","reason":"manual","handoff":"Optional note."}}
+```
+
+窗口是硬回退，压缩是默认方案。窗口可以由 `/new-context` 显式开启，也可以在压缩不足以缩减时自动开启。
+
+## 开发中的变更
+
+当前只有一种结构，没有格式版本字段、兼容读取器或迁移层。破坏性变更要同时更新生产者、读取器、测试和文档。见[变更策略](../../persistence/change-policy.md)。
+
+# 子系统
+
+<!-- source: subsystems/README.md -->
+
+# 子系统
+
+每一页说明一个子系统的类型、行为和失败模式。[架构](../architecture.md)是地图，这些页面是参考。
+
+- [日志](log.md)：追加、加锁、分支、列表和修复。
+- [投影与请求](projection-request.md)：确定性上下文和预算准入。
+- [循环](loop.md)：provider 调用、工具、审批、重试和事实。
+- [工具与策略](tools-policy.md)：工作区工具、模式、规则、授权、shell 分类和审批。
+- [上下文与压缩](context-compaction.md)：摘要、窗口、历史和请求上下文。
+- [扩展](extensions.md)：技能、记忆、钩子、MCP、子代理、快照、目标和宿主。
+
+子系统页面描述当前行为。历史决策写在[决策记录](../../decisions/README.md)，事故写在[事故复盘](../../postmortem/README.md)。
+
+# 日志
+
+<!-- source: subsystems/log.md -->
+
+# 日志
+
+`SessionLog` 管理追加式 JSONL 文件。
+
+## 创建与打开
+
+- `SessionLog.create(directory, session_id=None)` 创建唯一文件，并写入一条 `meta` 记录。
+- `SessionLog.open(path)` 校验信封、载荷和导航引用。读取会忽略残缺的最后一行；下一次有效追加会截断该尾部。
+- 未提供会话 ID 时，从文件名推导。
+
+## 追加
+
+`append(type, data)`：
+
+1. 校验载荷，不改文件。
+2. 获取排他文件锁。
+3. 读取当前记录，校验选中的父节点和引用。
+4. 构造记录，仅在验证成功后修复残缺尾部。
+5. 追加一行 JSON，刷新并调用 `fsync`。
+6. 释放锁。
+
+`fsync` 是刻意保留的：返回的追加记录已经足够持久，可以据此恢复。写入失败会抛出 `LogError`，不会返回伪造的记录。
+
+`run_lock()` 单独保护整个回合，与单次追加的锁不同。它会立即用 `LogError` 拒绝竞争操作。`run()`、CLI 的手动上下文修改、导航和路径复制都会使用它；其他写入多个事件的存储客户端必须显式获取。
+
+## 分支
+
+`branch()` 从最后一条记录沿父 ID 回溯到根，再反转列表。`branch(entry_id)` 读取以某条历史记录结尾的路径。读取会拒绝环、缺失的父节点、重复 ID 和非法导航目标。
+
+`switch_branch(selected_id)` 在同一个文件里追加导航事件。选中用户输入时，从该输入之前继续，并通过 `navigation_draft` 暴露其文本；选中其他记录时，在该记录之后继续，草稿为空。随后的 user 或 assistant 记录会消费草稿。`history_tree()` 提供所有可见分支的纯视图，并标注深度。
+
+`copy_branch()` 在源会话的运行锁下复制一条连通路径，包括为 fork 选中的非活动路径。它重映射 ID 和上下文切点，保留时间戳，省略导航、检查点、恢复控制和兄弟节点。副本作为一个快照写入；没有对话内容时保持延迟写入。
+
+只有日志层面的检查点和恢复事件参与协调恢复。检查点关联较早的 user 记录和回合前祖先。恢复记录的父节点标识已提交目标；只恢复代码时必须保留前一个头部。文件效果和后进先出状态属于工作区协调器，不属于对话投影。
+
+## 列表与标题
+
+`list_sessions(directory)` 返回会话 ID、更新时间和标题。标题取自整个文件中的第一段用户文本，即使当前导航位置在该输入之前。损坏的文件会被跳过，单个坏会话不会破坏整个列表。更新时间和排序使用文件修改时间，因此复制的历史时间戳不会让新建会话显得很旧。
+
+## 不变式
+
+- 记录从不原地改写。
+- 同一个文件内 ID 唯一。
+- 父记录在子记录之前。
+- 文件以一个换行结尾。
+- 格式封闭；新增事件类型需要决策记录。
+
+## 测试
+
+`test_log.py` 覆盖创建、追加、恢复、尾部修复和列表。`test_session_history.py` 覆盖导航、旧格式恢复、非活动 fork 和独立复制。`test_projection.py` 覆盖格式错误的路径。`test_history_e2e.py` 通过真实 TUI 输入验证公开命令。
+
+# 投影与请求
+
+<!-- source: subsystems/projection-request.md -->
+
+# 投影与请求
+
+## 投影
+
+`project(entries)` 是纯函数。它会：
+
+1. 找到最新的 `system` 记录。
+2. 应用最新的 `window` 起点。
+3. 应用最新的 `compaction` 切点，并生成一条摘要消息。
+4. 把 user、assistant 和 tool-result 事实转换成消息。
+5. 按调用 ID 配对工具调用和结果。
+6. 分支在调用中途结束时，插入一条合成的“已中断”结果。
+
+它拒绝孤立结果、重复结果和没有指向用户条目的切点。投影不调用 provider，也不写日志。
+
+## 请求
+
+`build(conversation, tools, budget, context)`：
+
+1. 拼接基础系统提示和请求专属上下文。
+2. 估算 token。
+3. 保留所有投影消息和工具正文。
+4. 转换成 provider 消息和工具定义。
+5. 返回 `Request` 和 `BuildReport`。
+
+`BuildReport` 记录估算 token 和预算。旧的 dropped-call 和轮次计数器保持为空或零。完整请求放不下时，`require_sendable()` 抛出 `RequestTooLarge`。循环只通过记录在案的 compaction 和 window 决策缩减上下文，随后拒绝仍然溢出的请求。
+
+## 上下文顺序
+
+系统消息携带基础指令，并按顺序附加：指令、技能目录、NOTE、记忆和目标。这些输入只属于请求。请求审计记录它们的完整文本、准入的消息、工具定义、非认证选项和预算。会话文件可能包含敏感输入。
+
+## 测试
+
+`test_projection.py`、`test_request.py` 和 `test_compaction.py` 覆盖切点、严格准入和线上格式契约。
+
+# 循环
+
+<!-- source: subsystems/loop.md -->
+
+# 循环
+
+`run(log, text, ...)` 是回合内唯一写日志的阶段。
+
+## 一次运行
+
+1. 追加 `user` 事实。
+2. 对每个步骤：
+   - 投影分支。
+   - 如果完整估算超出预算，调用压缩器。
+   - 构造请求。
+   - 如果仍然超出，调用窗口回退。
+   - 追加一条 `request` 审计事实。
+   - 流式调用 provider。
+   - 追加 assistant 事实。
+   - 解析并执行每个工具调用。
+   - 追加 tool-result 事实。
+3. 追加一条 `run` 事实，包含终止原因、步骤数、用量和错误。
+
+## Provider 处理
+
+循环收集文本增量、工具调用、用量和 provider 重放状态。失败会变成 `attempt` 事实。可重试的失败默认重试一次；重试延迟可配置。终止性失败以 `provider_error` 结束运行，并且不会创建 assistant 事实。
+
+## 终止原因
+
+- `completed`：provider 结束，没有工具调用。
+- `step_limit`：达到配置的步骤数。
+- `context_error`：压缩和窗口回退之后仍没有请求能放入预算。
+- `aborted`：请求了取消。
+- `provider_error`：provider 失败。
+
+## 取消
+
+循环在步骤和工具调用之间检查取消令牌。正在运行的工具会收到令牌；剩余调用收到“已中断”结果。运行在 `run` 事实中记录原因。
+
+## 事件
+
+宿主收到文本增量、工具开始、工具结束和最终输出。事件用于展示，事实才是持久的。宿主丢弃事件不会丢失历史。
+
+## 测试
+
+`test_loop.py` 覆盖完成、工具使用、审批、重试、超时、取消、上下文错误和窗口回退。
+
+# 工具与策略
+
+<!-- source: subsystems/tools-policy.md -->
+
+# 工具与策略
+
+## 契约
+
+工具声明名称、描述、JSON schema 和异步 `execute`。循环记录内容和错误标志；工具不追加会话事实。
+
+`core.permissions.Policy.check` 返回 `PermissionCheck`，包含决策（`allow`、`deny` 或 `ask`）、原因和 `ExecutionScope`。`authorize` 只用 `ApprovalRequest` 和 `ApprovalResult` 处理 ask。循环和 CLI 的直接 shell 路径使用同一个授权函数。
+
+`WorkspacePolicy` 在显式规则、授权和模式默认值之前应用模式约束和受保护路径。匹配规则按 deny > ask > allow 生效。子代理模式不能扩大父级权限。面向用户的语义见[工具与安全](../tools-security.md)。
+
+## 执行
+
+循环只在特定工具运行期间，把授权范围放进上下文变量。该范围会跨异步任务和工作线程保留，之后重置。它从不改变默认工作区或授权。
+
+CLI 用项目根目录、私有临时目录、网络设置和受保护路径构造 `PlatformSandbox`。`SubprocessShell` 在启动进程之前包装命令。文件工具通过 `tools._worker` 使用同一个后端；快照存储仍由宿主管理。外部文件修改没有工作区快照。取消信号会传到子进程启动器，工具在返回或清理请求文件之前等待进程终止。
+
+Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端错误会变成工具错误，不会退回到无沙箱重试。钩子和 MCP 服务器进程是可信的宿主扩展，位于这个边界之外。
+
+## Reviewer
+
+`AutoReviewer` 收到授权原因、精确参数、保留的对话、祖先对话和上下文限制。它使用一次独立的无工具请求。过大的输入会被拒绝，不会静默截断。输出是严格对象，包含 `allowed: bool` 和 `reason: str`。拒绝和失败会把原因作为工具错误返回给模型。
+
+## 测试
+
+- `test_policy.py`：模式约束、优先级和写入范围。
+- `test_grants.py`：精确授权和作用域隔离。
+- `test_review.py`：严格响应和模型可见的拒绝原因。
+- `test_subagents.py`：子级权限上限。
+- `test_sandbox.py`：真实操作系统文件/网络隔离、工作进程集成、取消、Windows 绕过和后端缺失。
+
+# 上下文与压缩
+
+<!-- source: subsystems/context-compaction.md -->
+
+# 上下文与压缩
+
+## 请求上下文
+
+系统消息是基础提示加上请求专属上下文：
+
+1. 来自 `AGENTS.md`、`CLAUDE.md` 或其变体的项目指令。
+2. 技能目录的名称和描述。
+3. `NOTE.md` 工作状态。
+4. `MEMORY.md` 长期事实。
+5. 活动目标。
+
+请求审计记录这份上下文和归一化请求；它不会把文本变成对话事实。
+
+## 压缩
+
+完整投影超出输入预算时，`Compactor` 会运行。
+
+1. 在用户边界选择切点，让最近的尾部落在配置目标之内。
+2. 序列化较早的消息，包括之前的摘要。
+3. 请求 provider 生成摘要，输出长度有上限。
+4. 追加一条 `compaction` 事实，包含摘要和 `first_kept_id`。
+5. 重新投影。
+
+摘要失败或切点没有消息时，追加一条 `attempt` 事实，对话保持不变。之前的摘要以 `PRIOR SUMMARY` 加入，因此压缩可以迭代。
+
+## 窗口回退
+
+压缩仍放不下时，循环可以调用窗口钩子。CLI 从最新的用户记录开始一个窗口，附带指向 `NOTE.md` 和 history 的固定交接。请求仍然放不下时，运行以 `context_error` 终止。
+
+## 历史
+
+`history` 工具搜索分支，或读取精确记录和工具结果。它检索当前压缩或窗口边界之外的证据。完整内容有上限；搜索结果指回条目 ID。
+
+## 请求准入
+
+准入保留完整投影。溢出必须通过记录在案的上下文切换解决，否则以 `context_error` 失败。见[投影与请求](projection-request.md)。
+
+## 测试
+
+`test_compaction.py`、`test_window.py`、`test_history.py` 和请求相关测试覆盖切点、摘要、回退和检索。
+
+# 扩展
+
+<!-- source: subsystems/extensions.md -->
+
+# 扩展
+
+扩展通过窄接缝增加行为，都不改变会话格式。
+
+## 技能
+
+发现过程读取用户级和项目级根目录中的 `SKILL.md`。请求携带技能目录；`skill` 工具把正文加载成工具结果。正文是事实，不是请求专属上下文。
+
+## 记忆
+
+`MEMORY.md` 属于请求上下文。`memory` 工具追加一条列表项，不能写其他路径。文件有上限，以保护请求预算。
+
+## 钩子
+
+`HookRunner` 在工具前后执行配置的 shell 命令。`before_tool` 可以拒绝；`after_tool` 只观察。钩子可信，并且有超时限制。见[钩子、MCP 和子代理](../hooks-mcp-subagents.md)。
+
+## MCP
+
+每个配置的 stdio 服务器保持一个常驻进程。发现过程读取 `tools/list`；调用通过串行队列使用 `tools/call`。工具带 `mcp__` 前缀，默认需要确认，在计划模式和只读模式下被拒绝。无法启动的服务器会报告并跳过。
+
+## 子代理
+
+`SubagentTool` 在 `<sessions>/subagents` 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、钩子、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。`DelegateTool` 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。
+
+## 快照
+
+`SnapshotStore` 捕获 `write`、`edit` 和常见的单命令 shell 修改。一次性任务的 `--undo` 选项恢复最新快照。快照是项目状态，不是会话事实。
+
+## 目标
+
+`GoalStore` 在 `.cade/goal.json` 里持久保存一个目标。`goal` 工具和 `/goal` 命令负责管理。活动目标属于请求上下文。
+
+## 宿主
+
+终端宿主运行一次性任务和 TUI。它与其他所有入口共用同一个循环和策略。
+
+## 限制
+
+扩展刻意保持小。MCP 是 stdio 客户端，不实现完整的 capabilities 协商。钩子是 shell 命令，不是进程内回调。子代理顺序运行，共享父级审批上下文。
+
+## 测试
+
+`test_skills.py`、`test_memory.py`、`test_hooks.py`、`test_mcp.py`、`test_subagents.py`、`test_snapshots.py` 和 `test_goal.py`。
+
+# 工具与安全
+
+<!-- source: tools-security.md -->
+
+# 工具与安全
+
+## 工作区工具
+
+- `read`：读取 UTF-8 文件或列出目录。输出有上限。
+- `write`：写入 UTF-8 文本，并创建父目录。
+- `edit`：精确替换一处旧文本。
+- `glob`：列出匹配 glob 的工作区文件。
+- `grep`：用正则搜索工作区文本文件。
+- `bash`：运行 shell 命令，可选指定工作目录和 `additional_write_paths`，为本次调用申请额外权限。
+
+工作区固定为项目根目录，不是 shell 的当前目录，也不是整个主目录的别名。读取可以使用外部路径，受保护文件除外。工作区内的写入有快照；外部写入没有。
+
+## 模式
+
+- `build` 是默认模式。普通编辑、测试、构建和 shell 流水线自动运行。被判定为破坏性、提权、发布或对外发送的操作需要审批。
+- `ask` 允许已归类的只读操作，在修改或未归类的 shell 命令之前询问。
+- `plan` 支持探索和讨论，不支持实现。项目修改、记忆修改、目标修改和 MCP 调用都会被拒绝。只有在用户要求制定计划并审批后，文件工具才能写入 `<workspace>/.cade-plans/`。要实施改动，用户必须切换模式。
+
+子代理继承父级的限制。子级模式只能收窄限制。`--read-only` 和 `--sandbox read-only` 拒绝修改，同时允许已归类的只读 shell 命令。规则、授权、`--yes` 和 Reviewer 审批都不能覆盖这些限制。
+
+## 规则与授权
+
+`cade.json` 里的规则匹配工具、归一化路径子树或命令前缀。所有命中的规则都参与决策：`deny` 优先于 `ask`，`ask` 优先于 `allow`。显式 allow 覆盖默认的 ask，但不覆盖生效的 deny。要撤销 deny，必须删除或修改规则；审批回答做不到。
+
+TTY 里回答 `a` 会创建进程内的会话授权。文件授权匹配相同的工具和路径。Shell 授权还匹配工作目录和额外写入路径；MCP 授权匹配完整参数。授权可以回答 ask，但不能绕过 deny。`/permissions` 列出授权；`/permissions clear` 清除授权。
+
+显式读写 `.env*` 文件（`.env.example` 除外）以及常见的主目录凭据路径，例如 `~/.ssh`、`~/.aws` 和 `~/.config/gh`，每次使用都需要审批。检测到的 shell 访问遵循同一规则，包括从 `workdir` 解析出的相对路径。敏感审批不会创建或复用会话授权，显式 deny 规则仍然生效。只读的外部 Git 命令仍然允许；检测到外部仓库的修改时需要审批。审批不会扩大操作系统沙箱的写入范围。
+
+## 审批与 Reviewer
+
+只有 `ask` 会进入审批：
+
+- `--yes` 批准确认，不批准拒绝。
+- `--auto-review` 把待处理操作、授权理由、保留的对话、父对话和上下文限制发给一次不带工具的 Reviewer 调用。响应必须包含严格的布尔字段 `allowed` 和非空 `reason`。
+- 否则，TTY 会提示输入 `y` 批准一次、`n` 拒绝或 `a` 始终允许。
+- 没有可用的审批者时，操作被拒绝。
+
+Reviewer 的拒绝、超时、provider 失败和格式错误的响应都会变成带原因的错误工具结果。这些结果返回给执行中的模型，不会自动转成人工提示。模型必须接受拒绝，并调整做法。Reviewer 不会审查每个普通的开发操作。
+
+Shell 分类和风险检测是保守的启发式判断，不是安全边界，也不是对任意脚本的完整分析。它们无法识别程序内部隐藏的每一种破坏性操作或外部影响。
+
+## 操作系统沙箱
+
+文件系统范围独立于模式和审批：
+
+| 策略 | 范围 |
+| --- | --- |
+| `workspace-write`（默认） | 可在项目内和会话私有临时目录写入 |
+| `read-only` | 不写普通文件 |
+| `danger-full-access` | 跳过操作系统隔离；显式 deny 规则仍然生效 |
+
+Linux 使用已安装的 `bwrap`（bubblewrap）。macOS 使用系统 `sandbox-exec`（Seatbelt）。缺少后端或启动失败会返回工具错误；两个平台都不会在没有隔离的情况下静默重试。Windows 跳过操作系统隔离，保留应用层策略和审批检查，不增加额外提示。
+
+CLI 让 shell 命令和文件工具走同一套执行策略。在 Linux 和 macOS 上，文件工具在固定操作集的沙箱 Python 工作进程中执行。批准外部文件写入只为本次调用授予目标路径。Shell 的 `additional_write_paths` 必须指向已存在的文件或目录；目录授权包含其子项。修改工作目录不会扩大写入权限。审批永远不会静默授予完整主机访问权限。
+
+网络访问是独立设置，默认启用。`--no-network` 关闭沙箱网络访问；批准网络访问不会授予外部文件写入。Windows 和 `danger-full-access` 不提供操作系统级网络限制。provider 连接在工具沙箱之外运行。
+
+在 Linux 和 macOS 上，CLI 会对沙箱命令隐藏已有的用户级和项目级 `.cade` 目录，并保护已有的 Git 钩子和 Git 配置不被写入。主目录默认不可写。私有临时目录和常见工具缓存会重定向到会话目录，退出时清理。除隐藏路径外，文件系统仍然可读；这不是完整的秘密隔离。请据此限制凭据和暴露的资源。
+
+钩子、MCP 服务器进程和宿主管理的状态在工具沙箱之外运行。把它们的配置和代码当作可信内容。沙箱不是容器或虚拟机，也不能让不可信的仓库变得安全。
+
+契约见[决策 0009](../decisions/0009-execution-permissions.md)。
+
+# 快照与目标
+
+<!-- source: snapshots-goals.md -->
+
+# 快照与目标
+
+## 文件快照
+
+文件工具修改文件之前，Cade 会记录快照。快照存放在 `.cade/snapshots` 下，包含一个 JSONL 索引，每个快照一个目录。
+
+覆盖的变更：
+
+- `write` 和 `edit`。
+- 简单的字面文件 shell 修改：`rm`、文件到文件的 `mv`/`cp`、`touch`、`echo` 重定向和 `sed -i`。带引号的文件名可以含空格。目录操作数、展开和未知命令形式不会被捕获。
+- 创建文件时会记录“原本不存在”；撤销会删除该文件。
+
+不覆盖：
+
+- 复杂流水线、命令列表、未知脚本，以及不写明文件名却修改文件的命令。
+- 超过快照上限（5 MiB）的文件会被拒绝，不会静默跳过。
+- 不复制目录树；目录修改会被跳过。
+
+## 撤销
+
+```bash
+cade --undo
+```
+
+这个旧版 CLI 操作恢复一份文件快照，不联系 provider。它不回退对话，也不是 TUI `/undo` 的别名。存在并发工作区写入或待处理的协调恢复时，它会拒绝执行。执行任何恢复之前，先停止外部文件写入者。
+
+撤销会检查当前文件是否与记录的事后状态一致。冲突、损坏的载荷和结果未知的快照都会被拒绝。撤销被拒绝时，文件和索引保持不变。
+
+快照是项目状态，不是会话事实。它们不属于 JSONL 会话分支。
+
+## 检查点恢复
+
+每轮根用户输入在执行前创建检查点。已登记的文件修改会保留修改前后内容、存在性和权限。同步子代理共享父级的捕获范围。排队输入在执行开始时获得检查点；引导仍属于当前回合。
+
+- `/undo` 撤销一轮或一次显式恢复操作；`/redo` 重新应用一次。两者都不重跑工具，也不联系 provider。历史在重启后保留。
+- `/rewind` 选择活动路径上的一条用户提示，再选择对话、代码或两者，随后显示预览并确认。它恢复到该提示之前的位置。
+- `/revert` 选择一段轮次和一个或全部已跟踪文件。显式路径参数可以选择多个文件。对话保持不变。
+
+新操作会丢弃当前重做链。旧对话分支仍然保留。树导航从不恢复文件；过期的撤销/重做不能跨过已变化的对话位置。Rewind 仍可使用自有检查点，并根据实际操作计算代码变更，包括期间发生的撤销、重做和 revert。复制的会话不继承工作区操作。没有自有检查点的历史提示只支持恢复对话。
+
+恢复在修改文件之前检查所有选中的文件和内容块。目标已变化、结果未知、内容块损坏、符号链接、硬链接或受保护的元数据路径都会阻止自动代码恢复。如果后续编辑冲突，恢复较旧的区间也会失败；没有自动反向补丁合并。文件上限对两份镜像都生效。事后镜像缺失时，该回合的代码检查点会被标记为不完整，不会假装恢复可用。未选中的文件和用户的 Git 索引保持不变。目录树、未跟踪的 shell/钩子变更和外部副作用不会恢复。
+
+协作操作共用 `.cade/recovery/workspace.lock`。操作日志和检查点链接使用该目录下的封闭记录。`pending.json` 计划在恢复开始前保存两份镜像。文件按单个文件原子替换；多文件恢复不是整个文件系统层面的原子操作。中断后，恢复指定的会话即可幂等完成计划。如果出现第三个外部编辑过的状态，恢复会停止，不覆盖该编辑。解决报告的冲突后继续；不要删除待处理计划来绕过写入保护。在计划完成前，代理的新写入会一直被阻止。外部编辑器不遵守这把锁，恢复期间必须停止它们。只读模式会阻止代码恢复；仅恢复对话仍然可用。Esc 取消预览，不取消正在提交的文件恢复。正常退出 TUI 会等待恢复提交完成；进程被强制中断时使用待处理计划。
+
+只恢复代码时，模型可见的对话消息保持不变。下一次请求会收到一条有审计记录的通知，要求检查已恢复的文件，而不是相信旧工具的效果。设置、凭据、授权和外部服务不会随对话历史回退。
+
+## 目标
+
+目标是保存在 `.cade/goal.json` 里的一个持久目标，包含目标内容、状态（`active` 或 `done`）和更新时间。
+
+```bash
+cade --goal "Add a regression test for the parser" "Start the task."
+```
+
+在 TUI 中：
+
+- `/goal` 显示当前目标。
+- `/goal TEXT` 设置活动目标。
+- `/goal done` 标记完成。
+- `/goal clear` 删除目标。
+
+`goal` 工具为模型提供相同操作。活动目标会加入请求上下文，因此恢复或压缩后的会话仍然知道目标。目标是宿主状态，不改变会话格式。
+
+目标刻意保持简单。工作细节用 `NOTE.md`，比目标存活更久的事实用 `MEMORY.md`。
+
+# 技能与记忆
+
+<!-- source: skills-memory.md -->
+
+# 技能与记忆
+
+## 技能
+
+Cade 从两个根目录发现 `SKILL.md`：
+
+1. `~/.cade/skills/<name>/SKILL.md` 是用户级技能。
+2. `<project>/.cade/skills/<name>/SKILL.md` 是项目技能。
+
+后一个根目录会覆盖同名的前一个。技能文件可以以 YAML frontmatter 开头：
+
+```markdown
+---
+name: release-check
+description: Validate release metadata before tagging.
+---
+
+Run the release checklist...
+```
+
+`name` 默认取父目录名。`description` 默认取正文第一行非空内容。非法名称和空正文会被跳过。
+
+请求会收到一份紧凑的 `<available-skills>` 目录，包含名称和描述。模型按需用 `skill` 工具加载正文：
+
+```json
+{"name": "release-check"}
+```
+
+技能正文是工具结果中的事实，不属于请求专属上下文。重复加载同一技能没有副作用，但会多出一条工具结果。
+
+## 记忆
+
+项目根目录的 `MEMORY.md` 存放长期事实。每个任务都会把它作为 `<memory source="MEMORY.md">` 加入请求上下文，上限 32 KiB。
+
+模型用 `memory` 工具追加事实：
+
+```json
+{"text": "Prefer pytest and keep changes minimal."}
+```
+
+`memory` 只写 `MEMORY.md`，不能写任意路径。写入上限是 64 KiB。文件写满后，手动删除过期条目。
+
+记忆与其他状态文件的区别：
+
+- `AGENTS.md` 是项目指令，归项目所有。
+- `NOTE.md` 是短期工作状态，会随压缩一起总结。
+- `MEMORY.md` 是长期偏好或约定。
+- 会话日志记录发生过什么。
+
+## 请求上下文
+
+指令、技能目录、`NOTE.md`、`MEMORY.md` 和活动目标都只属于请求上下文。它们出现在每次请求审计里，但不会变成对话消息。见[会话与上下文](sessions-context.md)。
+
+# 钩子、MCP 和子代理
+
+<!-- source: hooks-mcp-subagents.md -->
+
+# 钩子、MCP 和子代理
+
+## 钩子
+
+钩子在工具前后运行 shell 命令，配置写在 `cade.json`：
+
+```json
+{
+  "hooks": [
+    {
+      "event": "before_tool",
+      "command": "python tools/check_tool.py",
+      "matcher": "bash",
+      "timeout_ms": 10000
+    }
+  ]
+}
+```
+
+- `before_tool` 在策略和审批之后、工具执行之前运行。非零退出会拒绝调用，并记录一条错误工具结果。
+- `after_tool` 在工具执行成功或失败后运行。它的输出被忽略。
+- `matcher` 是精确工具名、以 `*` 结尾的前缀，或省略表示所有工具。
+- 命令以工作区为工作目录运行，并收到 `CADE_HOOK_EVENT`、`CADE_TOOL_NAME`、`CADE_TOOL_ARGS` 和 `CADE_TOOL_RESULT`。
+
+钩子是可信配置。挂起的钩子会在超时后被杀掉。
+
+## MCP
+
+MCP 服务器使用 stdio。Cade 为每个服务器启动一个常驻进程，并在启动时发现工具：
+
+```json
+{
+  "mcp_servers": {
+    "files": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "timeout_ms": 30000
+    }
+  }
+}
+```
+
+工具命名为 `mcp__<server>__<tool>`。输入格式来自服务器的 `tools/list` 响应。调用在连接上顺序执行，保留服务器状态。
+
+策略：
+
+- `plan` 模式隐藏 MCP 工具并拒绝调用。
+- `read_only` 拒绝 MCP 调用。
+- `build` 和 `ask` 默认询问；规则可以放行特定工具。
+
+启动失败的服务器会在启动时报告并跳过。进程退出时关闭连接。
+
+## 子代理
+
+`subagent` 工具在独立会话中运行一个子任务，返回最终答案和子会话 ID：
+
+```json
+{"prompt": "Find the failing test and report the file and line."}
+```
+
+子会话：
+
+- 继承父级的 provider、预算、策略、审批者、钩子和请求上下文；
+- 获得基础工具，以及绑定到自己日志的 history 工具；
+- 不再获得 `subagent` 工具，因此不能递归；
+- 最多使用 20 个步骤；
+- 把自己的会话写在 `<sessions>/subagents/` 下。
+
+父会话只记录工具调用和返回的摘要。详细证据留在子会话日志里。
+
+`delegate` 用同一个运行器处理一个或多个任务：
+
+```json
+{"tasks": ["Inspect the parser", "Add a regression test"], "mode": "build"}
+```
+
+任务在各自独立的子会话中顺序运行。每个结果都包含子会话 ID；父会话收到一条合并的工具结果。子级模式不能扩大父级权限：Plan 模式的父会话不能委派 Build 工作。
+
+## 限制
+
+MCP 是一个小型 stdio 客户端，不实现完整的 capabilities 协商。钩子是 shell 命令，不是进程内回调。子代理顺序运行，共享父级审批上下文，不并行执行。
+
+# 操作指南
+
+<!-- source: cookbook/README.md -->
+
+# 操作指南
+
+每个步骤都有明确结果和验证方法。每篇指南都说明所用模式，以及需要保留的证据。
+
+- [修一个 bug](fix-a-bug.md)：复现、修补、验证、报告。
+- [添加功能](add-a-feature.md)：测试、实现、验证、检查 diff。
+- [只读评审](review-only.md)：在计划模式下调查，不做修改。
+- [运行长会话](long-session.md)：NOTE、压缩、历史和目标。
+- [连接自定义 MCP 服务器](custom-mcp.md)：配置、放行、调用、检查。
+
+命令细节见 [CLI](../cli.md)和[配置](../configuration.md)。
+
+# 修一个 bug
+
+<!-- source: cookbook/fix-a-bug.md -->
+
+# 修一个 bug
+
+修改时使用 `build` 模式。补丁尽量小，并用仓库的测试验证。
+
+## 步骤
+
+1. 复现失败：
+
+   ```bash
+   cade --mode plan "Read the failing test and explain the failure."
+   ```
+
+2. 修复：
+
+   ```bash
+   cade --mode build --yes "Fix the failing test with the smallest change, then run pytest."
+   ```
+
+3. 检查 diff 和快照：
+
+   ```bash
+   git diff
+   cade --undo  # 只在改动错误时使用
+   ```
+
+## 验证
+
+- 目标测试通过。
+- 相关的完整测试文件通过。
+- diff 只包含预期改动。
+- 助手说明了它运行过的命令。
+
+## 保留
+
+运行日志记录请求、工具调用和测试输出。快照允许在下一次运行前恢复。需要评审的改动留在提交里，不要写进文档文件。
+
+## 避免
+
+- 打算编辑时使用 `--read-only`。
+- 在共享仓库里没有规则就使用 `--yes`。
+- 一行条件就能修好测试，却做了大范围重构。
+
+# 添加功能
+
+<!-- source: cookbook/add-a-feature.md -->
+
+# 添加功能
+
+先写测试，再实现，最后验证。使用 `build` 模式，让 diff 便于评审。
+
+## 步骤
+
+1. 让模型写一个会失败的测试，或自己写：
+
+   ```bash
+   cade --mode build --yes "Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails."
+   ```
+
+2. 做最小改动：
+
+   ```bash
+   cade --mode build --yes "Implement mul() and run the new test."
+   ```
+
+3. 检查：
+
+   ```bash
+   git diff
+   uv run --locked pytest -q
+   ```
+
+## 验证
+
+- 新测试在修改前失败，修改后通过。
+- 已有测试仍然通过。
+- 实现里没有无关修改。
+- 公开行为写进了对应的指南。
+
+## 撤销
+
+如果改动错误，在开始下一次尝试之前运行 `cade --undo`。它一次恢复一份记录的文件改动，不回退对话。
+
+## 保留
+
+功能改变公开契约时，更新指南或决策记录。测试放在 `tests/`，文档放在 `docs/`。
+
+# 只读评审
+
+<!-- source: cookbook/review-only.md -->
+
+# 只读评审
+
+任务只是检查、不修改时，使用 `plan` 和 `--read-only`。
+
+## 步骤
+
+```bash
+cade --mode plan --read-only "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
+```
+
+计划模式隐藏写入和编辑工具，并拒绝修改类 shell 命令。`--read-only` 还会拒绝 memory、MCP 和任何剩余修改。
+
+## 验证
+
+- `git status` 干净。
+- 回答用相对路径和行号引用文件。
+- 关于测试的结论写明命令和结果。
+- 发现的问题区分 bug 和偏好。
+
+## 保留
+
+评审报告留在对话或评审文档里。评审跨多个会话时，才创建工作笔记。
+
+## 限制
+
+模型仍然可以读取工作区内的任何内容。评审不可信代码仍需人工判断；策略阻止的是写入，不是误导性叙述。
+
+# 运行长会话
+
+<!-- source: cookbook/long-session.md -->
+
+# 运行长会话
+
+长任务需要持久状态和恢复上下文的方法。使用 `NOTE.md`、目标和 history 工具。
+
+## 步骤
+
+1. 设置目标：
+
+   ```bash
+   cade --goal "Migrate the request builder to the new budget model" "Start by mapping the current admission rules."
+   ```
+
+2. 维护工作笔记。每个里程碑后让模型更新 `NOTE.md`：
+
+   ```text
+   Update NOTE.md with completed work, current blockers, and the next action.
+   ```
+
+3. 继续同一个会话：
+
+   ```bash
+   cade --continue "Resume from NOTE.md and run the next step."
+   ```
+
+4. 会话变大时压缩：
+
+   ```text
+   /compact
+   ```
+
+5. 找回旧细节：
+
+   ```text
+   Use history with query "budget" to find the earlier discussion.
+   ```
+
+## 验证
+
+- `NOTE.md` 写明下一步动作，而不只是历史。
+- 恢复后的运行不需要原来的终端也能继续。
+- 只有验收检查通过后，才把目标标记为完成。
+
+## 限制
+
+`NOTE.md` 属于请求上下文，压缩时会被总结。`MEMORY.md` 用于长期事实，不是任务日志。精确证据以会话日志为准。
+
+# 连接自定义 MCP 服务器
+
+<!-- source: cookbook/custom-mcp.md -->
+
+# 连接自定义 MCP 服务器
+
+MCP 服务器使用 stdio。Cade 为每个服务器保持一个进程，并把每个工具暴露为 `mcp__<server>__<tool>`。
+
+## 配置
+
+把服务器加入 `cade.json`：
+
+```json
+{
+  "mcp_servers": {
+    "files": {
+      "command": "python",
+      "args": ["tools/mcp_files.py"],
+      "timeout_ms": 30000,
+      "env": {"LOG_LEVEL": "warn"}
+    }
+  }
+}
+```
+
+`command` 和 `args` 必填；`cwd`、`env` 和 `timeout_ms` 可选。相对 `cwd` 按项目根目录解析。
+
+## 放行
+
+MCP 工具默认询问。无人值守运行时，为特定工具添加规则：
+
+```json
+{
+  "rules": [
+    {"tool": "mcp__files__read_file", "decision": "allow"}
+  ]
+}
+```
+
+计划模式和 `--read-only` 会拒绝 MCP 工具，即使有规则。
+
+## 验证
+
+1. 启动 Cade；服务器无法启动时会打印启动错误。
+2. 让模型列出或调用已发现的工具。
+3. 检查工具结果和日志中的 `mcp__` 前缀。
+4. 停止 Cade；服务器进程在退出时关闭。
+
+## 限制
+
+客户端实现 `initialize`、`tools/list` 和 `tools/call`，不实现 resources、prompts、sampling 或服务器发起的请求。挂起的服务器会在配置的超时后被杀掉。
+
+# 宿主
+
+<!-- source: hosts.md -->
+
+# 宿主
+
+Cade 只有一个终端宿主，包含两种模式：交互式 TUI 和一次性执行。两者共用同一个会话日志、请求构造器、工具、策略和核心循环。TUI 用 `InteractionService` 处理命令和会话控制。
+
+## 终端 UI
+
+不提供任务时，CLI 在交互式终端里启动 TUI：
+
+```bash
+cade
+```
+
+TUI 把对话放在可滚动记录里，显示流式 assistant 文本和工具进度，并在应用内处理审批和提问。常用按键：
+
+- `Enter`：提交消息；任务运行时改为排队。
+- `Alt+Enter`：在下一个模型步骤引导正在运行的任务。
+- `Shift+Tab`：在 `ask`、`build` 和 `plan` 之间循环。
+- `Esc`：中断正在运行的任务，包括还没有产生输出的模型请求。未送达的排队输入回到编辑器。
+- 空闲且输入为空时，连按两次 `Esc` 打开 fork 输入选择器。当前版本不注册同会话树导航。
+- `Ctrl+C`：清空输入，不中断任务；500 ms 内再按一次退出。
+- `Ctrl+Q`：退出。
+
+TUI 为模型、模式、推理强度、配置和权限打开原生选择器。按 `?` 或运行 `/help` 查看按键和命令参考。
+
+TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，请直接提供任务。
+
+## 一次性执行
+
+提供任务时，CLI 运行一次后退出：
+
+```bash
+cade "Fix the failing test."
+cade exec "Fix the failing test."
+```
+
+一次性模式支持 `--json`，输出 JSONL 事件流。在自动化和 CI 中，优先使用 `--read-only` 或显式规则，而不是不加区分地使用 `--yes`。
+
+# 开发
+
+<!-- source: development.md -->
+
+# 开发
+
+Cade 独立维护，不依赖早期 Cade。所有工作都在本仓库根目录进行。
+
+## 环境准备
+
+需要 Python 3.12+ 和 uv。Linux 上的工具执行还需要可用的 bubblewrap（Debian/Ubuntu 上是 `sudo apt-get install bubblewrap`），以及允许非特权用户命名空间的主机。UID 映射被拒绝属于沙箱启动错误，不是审批失败。CI 使用 Ubuntu 22.04，不关闭主机安全策略。macOS 使用系统 `sandbox-exec`。原生沙箱测试在 Linux 和 macOS 上运行；Windows 跳过这些测试，直接执行工具。
+
+```bash
+uv sync --locked --extra dev --extra docs
+mkdir -p e2e-results
+```
+
+代码在 `src/cade/`，测试在 `tests/`，文档在 `docs/`。模块边界见[架构](architecture.md)。
+
+## 检查
+
+```bash
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
+uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
+uv run --locked python -m cade.docs check
+uv build --no-sources
+```
+
+按[验证指南](testing.md)选择聚焦的检查。临时工作区和运行证据放在 `e2e-results/` 下。不要提交凭据或原始 provider 跟踪记录。
+
+## 文档
+
+文档源在 `docs/`。清单是 `docs/docs.json`，定义导航顺序和发布页面。[docs/README.md](README.md) 是手册入口。[docs/AGENTS.md](../AGENTS.md) 定义文档规则。中文文档镜像在 `docs/zh/`，使用独立的 `docs/zh/docs.json`。
+
+```bash
+uv run --locked python -m cade.docs catalogs --write
+uv run --locked python -m cade.docs llms --write
+uv run --locked python -m cade.docs build
+uv run --locked python -m cade.docs check
+```
+
+`check` 校验清单、页面文件、相对链接、锚点和生成的目录。它只依赖标准库，在 CI 中运行。`build` 渲染 `docs/index.html`，需要 `docs` 附加依赖。
+
+`llms --write` 更新 `docs/llms.txt` 和 `docs/llms-full.txt`。`catalogs --write` 更新 `docs/design/` 下的配置、事件和模块参考。不要手工编辑生成的文件。
+
+添加页面时：
+
+1. 在 `docs/` 下添加 Markdown 文件。
+2. 把它加入 `docs/docs.json` 的某个章节。
+3. 使用指向其他页面的相对链接。
+4. 重新生成目录和站点，然后运行文档检查。
+
+除非匹配 `exclude`，每个 Markdown 文件都必须登记在清单里。排除的是代理指令、决策记录和事故模板。会话格式参考放在 `docs/reference/`，历史研究放在 `docs/history/`。
+
+中文镜像的构建和目录生成：
+
+```bash
+uv run --locked python -m cade.docs --root docs/zh catalogs --write
+uv run --locked python -m cade.docs --root docs/zh llms --write
+uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html
+```
+
+`check` 会自动检查根目录下带独立清单的子目录，因此一次 `uv run --locked python -m cade.docs check` 会同时校验中英文文档。
+
+## 边界
+
+Cade 在 `cade.ai` 和 `cade.execution_env` 中拥有 provider 层和进程层。不要添加对早期 Cade 项目的依赖。
+
+公开接口包括会话格式、配置字段、CLI 参数、工具名和文档清单。修改它们时，测试和文档要在同一个提交里更新。
+
+## 提交与发布
+
+提交前检查 diff 并运行检查。没有维护者批准，不要推送或发布。推送前确认 Git 远端指向本仓库，而不是早期 Cade 项目。
+
+CI 工作流检查代码、测试、文档、启动和发行构建。版本标签（`vX.Y.Z`）必须与 `pyproject.toml` 一致，并且属于 `main`。发布工作流在 GitHub `release` 环境批准后发布已检查的发行产物。已发布的标签永远不要移动。
+
+# 验证指南
+
+<!-- source: testing.md -->
+
+# 验证指南
+
+按正在修改的行为和风险选择检查。临时工作区、pytest 文件和运行证据都放在本仓库的 `e2e-results/` 下。不要把关账号凭据复制到测试证据里。
+
+## 必需检查
+
+代码修改后运行：
+
+```bash
+mkdir -p e2e-results
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
+uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+```
+
+导入、包或入口变化后，还要检查：
+
+```bash
+uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
+uv build --no-sources
+```
+
+发行相关改动要检查 wheel，并在干净的虚拟环境里安装。在源码树之外检查启动，确认不再需要任何 `cade` 包、命令或依赖。
+
+## 选择行为检查
+
+- 本地计算或策略：使用聚焦的回归测试，期望值和边界情况要独立核对。
+- 已连接的组件：把真实组件放在一起测试，只在必要时控制外部边界。
+- Provider 解析：使用捕获的、有来源的协议载荷走适配器。替换整个 provider 测的是应用，不是远程协议。
+- 登录：测试宿主路由、凭据持久化和失败行为，不联系真实账号。真实 OAuth 验收需要明确批准。
+- 真实宿主或服务：只有底层检查仍留下具体工作流风险时才跑 E2E。运行前记录任务、前置条件、命令、预期可观察结果和独立验证方式。
+- 文档：检查事实、链接、命令、生成的目录和 diff。
+
+只为具体覆盖缺口添加可复用测试。测试应保护用户结果或显式契约，不保护私有实现细节。不要为了让测试通过而修改生产 API。
+
+## 报告结果
+
+说明每项检查能证明什么。把代码导致的失败与缺少权限、环境前置条件或外部服务区分开。明确报告没有运行的检查和剩余风险。provider 的完成文本本身不能证明工作流成功。
+
+# Cade 评审标准
+
+<!-- source: review-standards.md -->
+
+# Cade 评审标准
+
+本文定义编码代理如何评审本仓库。它不同于实现标准：`AGENTS.md` 和代码规范指导怎么写代码，本文指导怎么判断代码。
+
+## 评审目标
+
+从正确性、可维护性、Pythonic 设计、边界清晰和长期简洁性评审代码。
+
+不要把“测试通过”当作充分条件。测试通过只证明当前覆盖下的当前行为。评审还必须判断代码是否简单、形状是否合适、是否值得保留。
+
+宁可给出少量高质量问题，也不要堆很多细枝末节。
+
+## 评审范围
+
+检查：
+
+* 严重 bug 和边界失败；
+* 架构和模块边界问题；
+* 安全风险和不安全的默认值；
+* 不符合 Python 习惯或别扭的实现方式；
+* 不必要的抽象、兼容层、间接层或防御性代码；
+* 重复的辅助函数或概念；
+* 为测试而不是真实使用塑造的 API；
+* 过度贴合实现细节的测试；
+* 能用但不干净、不可分离或不优雅的代码。
+
+## 核心原则
+
+代码应当 Pythonic、显式、带类型、容易推理。
+
+优先直接设计，不要搭兼容脚手架。除非项目有明确要求，不要保留向后兼容。
+
+测试服务于生产代码。不要仅仅因为现有测试期待，就接受别扭的生产 API、泄漏的内部细节或扭曲的边界。
+
+干净的删除通常好过保留未使用的灵活性。
+
+少量重复好过过早抽象。只有抽象能澄清真实共享概念时才成立。
+
+避免“以防万一”的设计。没有具体调用方的灵活性通常是噪音。
+
+## 应指出什么
+
+以下情况应当指出：
+
+* 用不必要的辅助函数、类、注册表、工厂或协议隐藏简单逻辑；
+* 在一个模块或类里混合无关职责；
+* 创建当前用户并不需要的兼容路径；
+* 使用动态导入、无类型逃生口、宽泛的异常吞噬，或在类型化结构更清晰时使用松散字典；
+* 让测试依赖私有实现细节而不是可观察行为；
+* 只为让测试更容易而改动生产设计；
+* 添加解释显而易见代码的注释，而不是澄清真实约束；
+* 引入超出实际需要的依赖、配置或运行时行为；
+* 用不同名称重复同一概念；
+* 保留死代码、未使用的扩展点或臆测的分支。
+
+## 不应指出什么
+
+不要报告纯粹的个人品味。
+
+不要挑剔 Ruff 或格式化工具应当处理的排版。
+
+不要仅仅因为两段代码长得像就要求抽象。先判断它们是否表达同一个概念。
+
+除非仓库明确要求，不要强求向后兼容。
+
+不要把测试失败自动等同于生产代码有错；该改的可能是测试。
+
+## 问题格式
+
+每条问题包含：
+
+* 严重程度：critical、high、medium 或 low；
+* 文件路径和符号；
+* 问题；
+* 为什么重要；
+* 最干净的推荐方向。
+
+用直接的语言。如果某物只为兼容、测试便利或偶然复杂度存在，就直说。
+
+推荐格式：
+
+```text
+[medium] src/cade/example.py::ExampleRunner
+
+Problem:
+...
+
+Why it matters:
+...
+
+Recommended direction:
+...
+```
+
+## 严重程度指南
+
+`critical` 用于可能导致数据丢失、安全暴露、命令执行风险或核心行为完全损坏的问题。
+
+`high` 用于可能的运行时 bug、正常使用中的错误行为、不安全的架构，或阻碍后续工作的设计。
+
+`medium` 用于可维护性问题、边界不清、糟糕的抽象、脆弱的测试，或以后很可能引发 bug 的非 Pythonic 设计。
+
+`low` 用于改善清晰度、但当前没有扭曲设计的局部清理机会。
+
+不要为了强调而夸大严重程度。
+
+## 评审输出规则
+
+评审期间不要修改文件。
+
+不要产出冗长的细微风格评论列表。
+
+同一根因的相关问题合并。
+
+给出文件路径和具体例子。
+
+代码总体不错时直接说明，只报告有意义的问题。
+
+结论依赖假设时，写出假设。
+
+# 对齐验收
+
+<!-- source: parity.md -->
+
+# 对齐验收
+
+本项目从 Cade Mini 更名为 Cade 之前，曾在两个真实仓库工作流和一次会话恢复上，对照早期 Cade 项目完成验收。本页保留当时的称呼：“Mini” 指当时的本项目，“Cade” 指早期项目。完整报告见[历史对齐验收](../history/parity-acceptance.md)。
+
+## 工作流
+
+两个干净的 Git 仓库从同一基线开始，使用同一份 `AGENTS.md` 指令：“Run pytest after changes. Keep changes minimal.”
+
+Bug 修复：
+
+- 任务：修复 `calc.py` 里的 `add`，让 pytest 通过。
+- 两个代理都把 `a - b` 改成 `a + b`，运行 pytest，得到一个通过的测试，回答 `FIXED`。
+
+功能：
+
+- 任务：添加 `mul(a, b)` 和对应测试。
+- 两个代理产生相同 diff，运行 pytest，得到两个通过的测试，回答 `PASS`。
+
+恢复：
+
+- 两个代理都恢复了之前的会话，回忆起 `calc.py`，并指出修正后的 `+` 运算符。
+
+## 证据
+
+- Mini 使用 `--mode build --yes`；Cade 使用 `--mode build --approval auto-review`。
+- 当时两者都使用 DeepSeek `deepseek-chat`。Cade 现在只支持 Responses 协议。
+- Mini 每个工作流用五步；Cade 用四步。Mini 多做了一次 `glob` 检查，没有改变结果。
+- Cade 输出 JSONL 遥测和预算/审批事件；Mini 输出人类可读的工具进度，并在会话日志中追加 request/run 事实。
+
+## 差异
+
+- Mini 的快照覆盖 write/edit 和常见的单命令 shell 修改；复杂流水线不覆盖。
+- Mini 的 MCP 客户端按服务器保持长连接，但能力面比 Cade 窄。
+- 当时没有实现操作系统沙箱；Mini 依赖路径边界、模式、shell 分类和审批。
+- 早期的 Codex 在线验收通过：write 创建了 `codex.txt`，恢复后的 Codex 会话读回了它。
+
+对齐报告记录具体夹具和观察结果。重跑工作流时，创建干净的夹具，用相同的 provider 和设置运行两个代理，比较 diff 和测试结果，不要比较文字回答。Cade 只支持 Responses 协议。

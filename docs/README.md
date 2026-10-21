@@ -10,6 +10,8 @@ design:
 The result is a small agent that can survive compaction, window changes, and
 process restarts without inventing history.
 
+Chinese translations of the current guides start at [中文文档](zh/README.md).
+
 ## Start here
 
 - [Quickstart](quickstart.md) installs and runs the first task.
@@ -85,10 +87,10 @@ The docs are Markdown-first. A small tool validates links and anchors, builds a
 single-page site, and generates an `llms.txt` catalog for agents:
 
 ```bash
-python -m cade.docs check
-python -m cade.docs build
-python -m cade.docs llms --write
-python -m cade.docs catalogs --write
+uv run --locked python -m cade.docs check
+uv run --locked --extra docs python -m cade.docs build
+uv run --locked python -m cade.docs llms --write
+uv run --locked python -m cade.docs catalogs --write
 ```
 
 The generated site is [docs/index.html](index.html); the generated

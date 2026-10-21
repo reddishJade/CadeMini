@@ -6,10 +6,16 @@ from Markdown and `docs.json`; do not edit `docs/index.html` by hand.
 ## Rules
 
 - Write documentation in English. Code comments and docstrings are Chinese.
+- `docs/zh/` is the Chinese mirror of current pages. It has its own
+  `docs/zh/docs.json` and uses the same relative file names. History records
+  (`history/`, `postmortem/`, `persistence/`, `upgrade/`) stay English; Chinese
+  pages link to them with `../` or `../../` paths.
 - Keep one source of truth. Link to the design and schema instead of copying
   invariants into several pages.
 - Add every new page to a section in `docs.json`. The only exceptions are paths
-  matched by `exclude` (this file, decision records, and the postmortem template).
+  matched by `exclude` (this file, decision records, the postmortem template,
+  and `zh/`). Keep `docs/zh/docs.json` in sync when a current page is added,
+  renamed, or removed.
 - Use relative links to other docs and code. Do not use absolute filesystem
   paths.
 - Use fenced code blocks with a language. Keep commands copy-pasteable.
@@ -41,11 +47,14 @@ uv run --locked python -m cade.docs check
 uv run --locked --extra docs python -m cade.docs build
 uv run --locked python -m cade.docs llms --write
 uv run --locked python -m cade.docs catalogs --write
+uv run --locked python -m cade.docs --root docs/zh llms --write
+uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html
 ```
 
 `check` validates the manifest, page existence, relative links, anchors,
-`llms.txt`, `llms-full.txt`, and the generated catalogs. It runs in CI. Run it
-before committing docs changes.
+`llms.txt`, `llms-full.txt`, and the generated catalogs. It also checks every
+direct child directory that has its own `docs.json`, so one run covers `docs/zh/`.
+It runs in CI. Run it before committing docs changes.
 
 ## Page layout
 

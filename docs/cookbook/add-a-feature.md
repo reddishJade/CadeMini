@@ -21,7 +21,7 @@ diff reviewable.
 
    ```bash
    git diff
-   pytest -q
+   uv run --locked pytest -q
    ```
 
 ## Verify

@@ -64,9 +64,10 @@ point at another workspace.
 
 ## Choose a mode
 
-- `act` is the default. Reads run directly; writes and shell commands ask.
-- `build` allows structured writes and read-only shell commands. Mutating shell
-  commands still ask.
+- `build` is the default. Normal edits, tests, builds, and shell pipelines run
+  automatically; detected risky operations ask.
+- `ask` allows classified read-only operations and asks before changes or
+  unclassified shell commands.
 - `plan` hides write and edit tools and denies mutations. Read-only shell
   commands are allowed.
 
