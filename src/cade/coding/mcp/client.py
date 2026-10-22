@@ -164,7 +164,7 @@ class McpClient:
                     read_timeout_seconds=self.config.timeout_ms / 1000,
                     list_roots_callback=self._roots,
                     message_handler=self._notification,
-                    client_info=types.Implementation(name="cade", version="0.1.1"),
+                    client_info=types.Implementation(name="cade", version="0.1.2"),
                     cache=None,
                 ) as client:
                     self.protocol_version = client.protocol_version

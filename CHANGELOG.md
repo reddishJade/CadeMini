@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.1.2
+
+- `cade "TASK"` now starts the TUI, sends the task as its first message, and
+  keeps the session open. Use `-p TASK`, `--prompt TASK`, or `cade exec TASK`
+  for one-shot runs.
+- `cade --undo` now undoes one action through checkpoint recovery and accepts
+  `--resume SESSION_ID`.
+- Session logs and their directories use private permissions on POSIX, and an
+  existing readable log is tightened when it is opened.
+- Session log reads reuse validated entries behind file metadata checks, and
+  snapshot index records append with torn-tail recovery.
+
+## 0.1.1
+
 - Renamed the distribution, Python package, command, configuration file, and
   state directories from `cade-mini` to `cade`. The tool does not read
   `~/.cade-mini/`, project `.cade-mini/`, or `cade-mini.json`, and does not
