@@ -84,7 +84,8 @@ another subagent.
 
 ## snapshot
 
-A pre-change copy of a file, used by the one-shot `--undo` option.
+A file image retained by the workspace recovery store. Checkpoint actions refer
+to before and after images for undo and redo.
 
 ## goal
 

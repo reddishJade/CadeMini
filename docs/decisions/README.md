@@ -18,6 +18,7 @@ them.
 - [0007: The AI layer supports only the Responses protocol](0007-responses-only-provider.md)
 - [0008: Use Sign in with ChatGPT for ChatGPT plan usage](0008-siwc-login.md)
 - [0009: Separate execution modes, sandbox scope, and approval](0009-execution-permissions.md)
+- [0013: Use checkpoint recovery for CLI undo](0013-unified-cli-undo.md)
 
 ## Adding a record
 

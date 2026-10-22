@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
+from typing import TextIO
 from uuid import uuid4
 
 import filelock
@@ -68,7 +69,7 @@ class SessionLog:
     ) -> SessionLog:
         """创建会话；deferred 模式在首条对话消息到来前只保留内存记录。"""
         sessions_dir = sessions_dir.resolve()
-        sessions_dir.mkdir(parents=True, exist_ok=True)
+        sessions_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         sid = session_id or uuid4().hex[:12]
         if not _SESSION_ID.fullmatch(sid):
             raise LogError(f"invalid session id: {sid!r}")
@@ -148,7 +149,7 @@ class SessionLog:
                 _validate_entries([*entries, entry], self.path)
             if self._pending is None:
                 self._repair_tail()
-                with self.path.open("a", encoding="utf-8", newline="\n") as stream:
+                with self._open_private(os.O_APPEND) as stream:
                     stream.write(entry.model_dump_json() + "\n")
                     stream.flush()
                     os.fsync(stream.fileno())
@@ -165,7 +166,7 @@ class SessionLog:
             return
         with self._lock:
             try:
-                with self.path.open("x", encoding="utf-8", newline="\n") as stream:
+                with self._open_private(os.O_EXCL) as stream:
                     for entry in self._pending:
                         stream.write(entry.model_dump_json() + "\n")
                     stream.flush()
@@ -173,6 +174,15 @@ class SessionLog:
             except FileExistsError as exc:
                 raise LogError(f"session already exists: {self.path}") from exc
             self._pending = None
+
+    @contextmanager
+    def _open_private(self, flags: int) -> Iterator[TextIO]:
+        """以私有权限创建日志；Windows 沿用目录 ACL。"""
+        descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | flags, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            if os.name == "posix":
+                os.fchmod(stream.fileno(), 0o600)
+            yield stream
 
     def switch_branch(self, selected_id: str) -> LogEntry:
         """在原文件追加导航事实；用户消息定位到其父节点，其他记录定位到自身。"""
@@ -275,7 +285,10 @@ class SessionLog:
     def _read_entries(self) -> list[LogEntry]:
         if not self.path.exists():
             return []
-        data = self.path.read_bytes()
+        with self.path.open("rb") as stream:
+            if os.name == "posix":
+                os.fchmod(stream.fileno(), 0o600)
+            data = stream.read()
         if not data:
             return []
         lines = data.split(b"\n")

@@ -232,7 +232,7 @@ cade login --provider deepseek
 - `--continue`：恢复项目里最新的会话。
 - `--resume`：恢复最新会话；`--resume ID` 恢复指定会话。
 - `--sessions-dir PATH`：修改会话目录。相对路径按项目根目录解析。
-- `--undo`：恢复最新的文件快照后退出，不联系 provider。
+- `--undo`：撤销最新会话的一次检查点操作后退出，不联系 provider，也不启动 MCP。用 `--resume ID --undo` 指定会话。它与 TUI `/undo` 共用对话和文件恢复协议。
 
 `--continue` 和 `--resume` 不能同时使用。会话列表和自动续接会跳过没有非空用户消息的对话。新的交互式会话在收到第一条用户或助手消息之前，只把初始化记录留在内存里；只打开 TUI 或只运行 `/new` 不会创建会话文件。已有文件不会被自动删除。
 
@@ -271,7 +271,7 @@ TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原�
 - `/skill [NAME]`：为下一个任务激活技能。
 - `/exit` 或 `/quit`：退出。
 
-TUI 不注册 `/rename` 和 `/mcp`。恢复操作只改已跟踪文件，不处理任意 shell 副作用、外部服务或用户的 Git 索引。参见[恢复范围和冲突](snapshots-goals.md#检查点恢复)。`--undo` 仍是一次性任务的文件快照操作，不是对话撤销命令。
+TUI 不注册 `/rename` 和 `/mcp`。恢复操作只改已跟踪文件，不处理任意 shell 副作用、外部服务或用户的 Git 索引。参见[恢复范围和冲突](snapshots-goals.md#检查点恢复)。`--undo` 不能与任务同时使用；两个撤销入口共用同一份持久操作历史。
 
 ## 交互输入
 
@@ -299,7 +299,7 @@ Review @src/cade/harness/loop.py and use $review-only
 ## 退出码
 
 - `0`：运行完成。
-- `1`：运行未完成，或 `--undo` 没有可用的快照。
+- `1`：运行未完成，或 `--undo` 没有找到会话或可撤销操作，或恢复失败。
 - `2`：参数、配置或启动错误。
 - `130`：登录被取消。
 
@@ -519,6 +519,8 @@ Cade 有五个运行时包：
 # 会话与上下文
 
 会话默认是 `.cade/sessions` 下的追加式 JSONL 文件，文件名是 `session-<id>.jsonl`。标题取自第一条用户消息，不需要额外的事件类型。
+
+在 POSIX 系统上，新会话目录使用 `0700` 权限，日志文件使用 `0600`。打开已有日志时，会把文件权限收紧为 `0600`，保留已有目录的权限。Windows 继承目录的访问控制列表（ACL）。日志包含完整请求输入，自定义会话目录应只允许当前用户访问。
 
 ## 恢复会话
 
@@ -743,7 +745,7 @@ Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换
 | 执行范围 | `ExecutionScope` 和 `PlatformSandbox.wrap` | bubblewrap、Seatbelt、Windows 直接运行 | 工作区工具 |
 | 压缩 | `Compactor(log, budget)` | LLM 摘要压缩器 | 循环 |
 | 会话存储 | `SessionLog` 的追加、分支、打开 | 文件支持的 JSONL 日志 | 其上所有层 |
-| 恢复 | `SnapshotStore` 的捕获和撤销 | 文件快照存储 | 工具、CLI |
+| 恢复 | `WorkspaceRecovery.step` 和自有检查点 | 按内容寻址的文件快照和操作历史 | 应用、CLI、TUI |
 | 宿主 | 循环之上的任务运行器 | CLI | 用户 |
 
 ## Provider
@@ -1233,7 +1235,6 @@ flowchart LR
   hosts_cli --> app_bootstrap
   hosts_cli --> app_config
   hosts_cli --> coding_goal
-  hosts_cli --> coding_workspace_snapshots
   hosts_cli --> harness_events
   hosts_cli --> harness_provider
   hosts_cli --> harness_session_log
@@ -1558,7 +1559,7 @@ Model Context Protocol。Cade 运行 stdio MCP 服务器，并把它们的工具
 
 ## 快照（snapshot）
 
-文件修改前的副本，供一次性任务的 `--undo` 使用。
+工作区恢复存储保留的文件镜像。检查点操作引用修改前后的镜像，用于撤销和重做。
 
 ## 目标（goal）
 
@@ -2031,7 +2032,7 @@ Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端�
 
 ## 快照
 
-`SnapshotStore` 捕获 `write`、`edit` 和常见的单命令 shell 修改。一次性任务的 `--undo` 选项恢复最新快照。快照是项目状态，不是会话事实。
+`SnapshotStore` 捕获 `write`、`edit` 和常见的单命令 shell 修改。`WorkspaceRecovery` 为 CLI `--undo` 和 TUI `/undo`、`/redo` 协调检查点操作。快照是项目状态，不是会话事实。
 
 ## 目标
 
@@ -2145,9 +2146,9 @@ MCP 服务器进程和宿主管理的状态在工具沙箱之外运行。把它�
 cade --undo
 ```
 
-这个旧版 CLI 操作恢复一份文件快照，不联系 provider。它不回退对话，也不是 TUI `/undo` 的别名。存在并发工作区写入或待处理的协调恢复时，它会拒绝执行。执行任何恢复之前，先停止外部文件写入者。
+这个命令与 TUI `/undo` 共用检查点恢复协议。它撤销最新会话的一次操作，包括对话位置和已跟踪的文件变更。用 `cade --resume ID --undo` 指定会话，再在 TUI 中恢复该会话即可用 `/redo` 重做。命令不联系 provider，也不启动 MCP。参见[决策 0013](../decisions/0013-unified-cli-undo.md)。
 
-撤销会检查当前文件是否与记录的事后状态一致。冲突、损坏的载荷和结果未知的快照都会被拒绝。撤销被拒绝时，文件和索引保持不变。
+恢复会先校验所有受影响文件，再开始写入。冲突、损坏的载荷和未知结果都会阻止恢复。执行恢复之前，先停止外部文件写入者。没有自有检查点的独立文件快照不会产生可撤销操作。
 
 快照是项目状态，不是会话事实。它们不属于 JSONL 会话分支。
 
@@ -2434,7 +2435,7 @@ Schema 必须自包含：支持本地 `$ref`，校验过程不会请求外部 UR
 
 ## 撤销
 
-如果改动错误，在开始下一次尝试之前运行 `cade --undo`。它一次恢复一份记录的文件改动，不回退对话。
+如果改动错误，在开始下一次尝试之前运行 `cade --undo`。它撤销一次检查点操作，包括对话位置和已跟踪的文件变更。用 `--resume ID --undo` 指定会话。
 
 ## 保留
 

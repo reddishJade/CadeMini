@@ -18,7 +18,9 @@ Exclude API keys, headers, cancellation signals, and callbacks. The snapshot is 
 normalized provider-interface input, not a captured HTTP body. Adapter defaults,
 server behavior, and authentication must be supplied separately for replay.
 Request text, tool schemas, and user-supplied option metadata are not redacted.
-Treat session files as sensitive.
+Treat session files as sensitive. On POSIX, create logs with mode `0600` and
+new session directories with `0700`; opening an existing log tightens its mode
+without changing directory permissions. Windows inherits directory ACLs.
 
 ## Consequences
 

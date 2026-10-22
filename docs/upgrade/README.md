@@ -33,8 +33,9 @@ Esc opens its selector. `/revert` restores selected tracked file changes without
 trimming conversation.
 
 Checkpoint ownership and action history belong to their original session.
-Copied conversations do not inherit a workspace undo stack. The file-only
-`--undo` operation remains separate. See
+Copied conversations do not inherit a workspace undo stack. CLI `--undo` now
+uses the same checkpoint recovery as TUI `/undo`; its former file-only behavior
+is removed. Standalone snapshots without owned checkpoints are not undo actions. See
 [Sessions and context](../sessions-context.md) and
 [Recovery coverage](../snapshots-goals.md#checkpoint-recovery).
 

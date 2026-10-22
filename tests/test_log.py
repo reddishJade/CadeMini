@@ -53,6 +53,57 @@ def test_create_append_and_branch(tmp_path: Path) -> None:
     assert branch[-1].parent == branch[-2].id
 
 
+@pytest.mark.parametrize("deferred", [False, True])
+def test_logs_request_private_permissions_at_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, deferred: bool
+) -> None:
+    original = os.open
+    created_modes: list[int] = []
+
+    def open_file(path: str | Path, flags: int, mode: int = 0o777) -> int:
+        if str(path).endswith(".jsonl") and flags & os.O_CREAT:
+            created_modes.append(mode)
+        return original(path, flags, mode)
+
+    monkeypatch.setattr(os, "open", open_file)
+    log = SessionLog.create(_sessions(tmp_path), deferred=deferred)
+    log.append("user", {"text": "private task"})
+    assert created_modes and set(created_modes) == {0o600}
+    assert SessionLog.open(log.path).branch()[-1].data["text"] == "private task"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits")
+@pytest.mark.parametrize("deferred", [False, True])
+def test_logs_are_private_under_permissive_umask(
+    tmp_path: Path, deferred: bool
+) -> None:
+    previous = os.umask(0)
+    try:
+        log = SessionLog.create(_sessions(tmp_path), deferred=deferred)
+        log.append("user", {"text": "private task"})
+    finally:
+        os.umask(previous)
+    assert log.path.stat().st_mode & 0o777 == 0o600
+    assert log.path.parent.stat().st_mode & 0o777 == 0o700
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits")
+def test_open_tightens_old_log_without_changing_shared_directory(
+    tmp_path: Path,
+) -> None:
+    directory = _sessions(tmp_path)
+    directory.mkdir(mode=0o755)
+    directory.chmod(0o755)
+    log = SessionLog.create(directory)
+    log.append("user", {"text": "private task"})
+    original = log.path.read_bytes()
+    log.path.chmod(0o644)
+    reopened = SessionLog.open(log.path)
+    assert reopened.path.stat().st_mode & 0o777 == 0o600
+    assert directory.stat().st_mode & 0o777 == 0o755
+    assert reopened.path.read_bytes() == original
+
+
 def test_deferred_session_stays_in_memory_until_first_message(tmp_path: Path) -> None:
     log = SessionLog.create(_sessions(tmp_path), deferred=True)
     log.append("system", {"text": "sys"})

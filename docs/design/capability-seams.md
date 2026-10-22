@@ -12,7 +12,7 @@ implementation can be replaced without changing the session schema or the loop.
 | Execution scope | `ExecutionScope` and `PlatformSandbox.wrap` | bubblewrap, Seatbelt, Windows direct | Workspace tools |
 | Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
 | Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |
-| Recovery | `SnapshotStore` capture and undo | File snapshot store | Tools, CLI |
+| Recovery | `WorkspaceRecovery.step` and owned checkpoints | Content-addressed file snapshots and action history | Application, CLI, TUI |
 | Application | `ApplicationSession` created by `app.bootstrap.create_session` | Shared application service | CLI and TUI |
 | Host | Input, output, and approval adapters over the application | CLI and TUI | Users |
 

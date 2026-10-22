@@ -6,7 +6,7 @@ import re
 import shlex
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
@@ -350,7 +350,14 @@ class ApplicationSession:
         )
         return turn.id, "code", end.id if end is not None else None, paths
 
-    def select_model(self, choice: str, effort: str | None = None) -> str:
+    def select_model(
+        self,
+        choice: str,
+        effort: str | None = None,
+        *,
+        thinking: bool | None = None,
+        context_window: int | None = None,
+    ) -> str:
         provider_name = self.provider_config.provider
         model = choice.strip()
         if "/" in model:
@@ -372,39 +379,57 @@ class ApplicationSession:
         )
         if supported and reasoning_effort not in supported:
             reasoning_effort = "high" if "high" in supported else supported[0]
+        if context_window is not None and context_window < 0:
+            raise ValueError("Context window must be nonnegative; use 0 for default")
+        selected_window = (
+            self.budget.context_window if self.context_window_explicit else None
+        )
+        if context_window is not None:
+            selected_window = context_window or None
         config = ProviderConfig(
             provider=provider_name,
             model=model,
             base_url=base_url,
-            thinking=self.provider_config.thinking,
+            thinking=self.provider_config.thinking if thinking is None else thinking,
             reasoning_effort=reasoning_effort,
+            context_window=selected_window,
         )
         provider = build_provider(config)
-        self._install_provider(config, provider)
+        self._install_provider(config, provider, context_window=context_window)
         return f"Model: {provider_name}/{provider.model} · {config.reasoning_effort}"
 
-    def _install_provider(self, config: ProviderConfig, provider: Provider) -> None:
-        """同时切换主任务、压缩器和委派任务使用的模型。"""
-        window = getattr(provider, "context_window", None) or get_model_context_window(
-            provider.model
+    def _install_provider(
+        self,
+        config: ProviderConfig,
+        provider: Provider,
+        *,
+        context_window: int | None = None,
+    ) -> None:
+        """先校验窗口，再一起更新主任务、压缩器和子任务。"""
+        window = get_model_context_window(provider.model) or getattr(
+            provider, "context_window", None
         )
-        if (
+        explicit = (
             self.context_window_explicit
+            if context_window is None
+            else context_window > 0
+        )
+        budget = self.budget
+        if context_window is not None and context_window > 0:
+            budget = Budget(context_window=context_window)
+        elif not explicit and isinstance(window, int) and window > 0:
+            budget = Budget(context_window=window)
+        if (
+            explicit
             and isinstance(window, int)
             and window > 0
-            and self.budget.context_window > window
+            and budget.context_window > window
         ):
             raise ValueError(
-                f"Configured context window {self.budget.context_window:,} "
+                f"Configured context window {budget.context_window:,} "
                 f"exceeds {provider.model} maximum {window:,}"
             )
-        budget = (
-            self.budget
-            if self.context_window_explicit
-            else Budget(context_window=window)
-            if isinstance(window, int) and window > 0
-            else self.budget
-        )
+        self.context_window_explicit = explicit
         self.provider_config, self.provider, self.budget = config, provider, budget
         self.compactor = Compactor(
             provider,
@@ -781,15 +806,18 @@ class ApplicationSession:
         if command == "/context-window":
             if not arg:
                 return CommandResult((f"Window: {self.budget.context_window:,}",))
-            available = getattr(self.provider, "context_window", None)
+            available = get_model_context_window(self.provider.model) or getattr(
+                self.provider, "context_window", None
+            )
             size = (available or 200_000) if arg == "default" else _size(arg)
-            if isinstance(available, int) and available > 0 and size > available:
-                raise ValueError(f"Maximum model context: {available:,}")
-            self.budget = Budget(context_window=size)
-            self.context_window_explicit = arg != "default"
-            for tool in self.base_tools:
-                if isinstance(tool, (SubagentTool, DelegateTool)):
-                    tool.runner.budget = self.budget
+            self._install_provider(
+                replace(
+                    self.provider_config,
+                    context_window=None if arg == "default" else size,
+                ),
+                self.provider,
+                context_window=0 if arg == "default" else size,
+            )
             return CommandResult((f"Window: {size:,}",))
         if command == "/compact":
             with self.log.run_lock():

@@ -11,10 +11,9 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 
-from cade.app.bootstrap import create_session, resolve_sessions_dir
+from cade.app.bootstrap import create_session, resolve_sessions_dir, undo_session
 from cade.app.config import CadeConfig
 from cade.coding.goal import GoalStore
-from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.events import (
     LoopEvent,
     RunResult,
@@ -112,20 +111,20 @@ def _main(
     if args.list_sessions:
         _print_sessions(resolve_sessions_dir(project_root, config))
         return 0
-    if args.undo:
-        try:
-            snapshot = SnapshotStore(project_root).undo_last()
-        except (OSError, ValueError) as exc:
-            print(f"cade: {exc}", file=sys.stderr)
-            return 1
-        if snapshot is None:
-            print("cade: no snapshots to undo", file=sys.stderr)
-            return 1
-        print(f"restored {snapshot.path}")
-        return 0
     if args.continue_ and args.resume is not None:
         print("cade: --continue and --resume cannot be combined", file=sys.stderr)
         return 2
+    if args.undo:
+        if one_shot:
+            print("cade: --undo cannot be combined with a task", file=sys.stderr)
+            return 2
+        try:
+            message = undo_session(project_root, config, args.resume)
+        except (OSError, ValueError) as exc:
+            print(f"cade: {exc}", file=sys.stderr)
+            return 1
+        print(message)
+        return 1 if message == "Nothing to undo." else 0
     try:
         assembled = create_session(
             project_root,
@@ -218,7 +217,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--undo",
         action="store_true",
-        help="Restore the latest file snapshot and exit",
+        help="Undo one action in the latest or --resume ID session and exit",
     )
     parser.add_argument(
         "--instructions",

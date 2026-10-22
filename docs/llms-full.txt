@@ -279,8 +279,9 @@ the provider refreshes it when needed.
 - `--resume` resumes the latest session; `--resume ID` resumes a specific one.
 - `--sessions-dir PATH` changes the session directory. A relative path is
   resolved against the project root.
-- `--undo` restores the latest file snapshot and exits without contacting a
-  provider.
+- `--undo` reverses one checkpoint action in the latest session and exits without
+  contacting a provider or starting MCP. Use `--resume ID --undo` to select a
+  session. It uses the same conversation and file recovery as TUI `/undo`.
 
 `--continue` and `--resume` cannot be combined. Session listings and automatic
 continuation skip conversations without a nonempty user message. New interactive
@@ -342,8 +343,8 @@ modes, configuration, and permissions.
 The TUI does not register `/rename` or `/mcp`. Recovery changes tracked files,
 not arbitrary shell effects, external services, or the user's Git index.
 See [recovery coverage and conflicts](snapshots-goals.md#checkpoint-recovery).
-`--undo` remains the existing one-shot file-snapshot operation; it is not a
-conversation undo command.
+`--undo` cannot be combined with a task; both undo entry points use the same
+persistent action history.
 
 ## Interactive input
 
@@ -378,8 +379,8 @@ tool. See [Steering and queueing](design/steering-queue.md).
 ## Exit codes
 
 - `0`: the run completed.
-- `1`: the run ended without completion, or no snapshot was available for
-  `--undo`.
+- `1`: the run ended without completion, or `--undo` found no session or action
+  or could not apply recovery.
 - `2`: argument, configuration, or startup error.
 - `130`: login was cancelled.
 
@@ -688,6 +689,11 @@ without losing history.
 A session is an append-only JSONL file under `.cade/sessions` by default.
 The file name is `session-<id>.jsonl`. The session title is derived from the
 first user message; no extra event type is needed.
+
+On POSIX, new session directories use mode `0700` and log files use `0600`.
+Opening an existing log tightens that file to `0600`; existing directory
+permissions stay unchanged. Windows inherits directory ACLs. Logs contain full
+request inputs, so choose a private directory for custom session storage.
 
 ## Resume
 
@@ -1004,7 +1010,7 @@ implementation can be replaced without changing the session schema or the loop.
 | Execution scope | `ExecutionScope` and `PlatformSandbox.wrap` | bubblewrap, Seatbelt, Windows direct | Workspace tools |
 | Compaction | `Compactor(log, budget)` | LLM summary compactor | Loop |
 | Session store | `SessionLog` append, branch, open | File-backed JSONL log | Every layer above it |
-| Recovery | `SnapshotStore` capture and undo | File snapshot store | Tools, CLI |
+| Recovery | `WorkspaceRecovery.step` and owned checkpoints | Content-addressed file snapshots and action history | Application, CLI, TUI |
 | Application | `ApplicationSession` created by `app.bootstrap.create_session` | Shared application service | CLI and TUI |
 | Host | Input, output, and approval adapters over the application | CLI and TUI | Users |
 
@@ -1537,7 +1543,6 @@ flowchart LR
   hosts_cli --> app_bootstrap
   hosts_cli --> app_config
   hosts_cli --> coding_goal
-  hosts_cli --> coding_workspace_snapshots
   hosts_cli --> harness_events
   hosts_cli --> harness_provider
   hosts_cli --> harness_session_log
@@ -1921,7 +1926,8 @@ another subagent.
 
 ## snapshot
 
-A pre-change copy of a file, used by the one-shot `--undo` option.
+A file image retained by the workspace recovery store. Checkpoint actions refer
+to before and after images for undo and redo.
 
 ## goal
 
@@ -2564,8 +2570,8 @@ cannot replace human restrictions.
 ## Snapshots
 
 `SnapshotStore` captures `write`, `edit`, and common single-command shell
-mutations. The one-shot `--undo` option restores the latest snapshot. Snapshots are project
-state, not session facts.
+mutations. `WorkspaceRecovery` coordinates checkpoint actions for CLI `--undo`
+and TUI `/undo` and `/redo`. Snapshots are project state, not session facts.
 
 ## Goals
 
@@ -2739,14 +2745,16 @@ Not covered:
 cade --undo
 ```
 
-This legacy CLI operation restores one file snapshot without contacting a
-provider. It does not rewind conversation and is not an alias for TUI `/undo`.
-It refuses concurrent workspace writes or a pending coordinated recovery. Stop
-external file writers before any restoration.
+This command uses the same checkpoint recovery as TUI `/undo`. It reverses one
+action in the latest session, including its conversation position and tracked
+file changes. Use `cade --resume ID --undo` to select a session, then resume that
+session in the TUI to `/redo`. It does not contact a provider or start MCP.
+See [decision 0013](decisions/0013-unified-cli-undo.md).
 
-Undo checks that the current file matches the recorded post-change state. It
-rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
-A rejected undo leaves the file and index unchanged.
+Recovery validates all affected files before writing. Conflicts, corrupt
+payloads, and unknown outcomes block restoration. Stop external file writers
+before any restoration. Standalone file snapshots without owned checkpoints do
+not create an undo action.
 
 Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.
@@ -3123,8 +3131,8 @@ diff reviewable.
 ## Undo
 
 If the change is wrong, use `cade --undo` before starting another attempt.
-This restores one recorded file change at a time; it does not rewind the
-conversation.
+This reverses one checkpoint action, including conversation position and tracked
+file changes. Use `--resume ID --undo` to select a session.
 
 ## Keep
 
@@ -3931,8 +3939,9 @@ Esc opens its selector. `/revert` restores selected tracked file changes without
 trimming conversation.
 
 Checkpoint ownership and action history belong to their original session.
-Copied conversations do not inherit a workspace undo stack. The file-only
-`--undo` operation remains separate. See
+Copied conversations do not inherit a workspace undo stack. CLI `--undo` now
+uses the same checkpoint recovery as TUI `/undo`; its former file-only behavior
+is removed. Standalone snapshots without owned checkpoints are not undo actions. See
 [Sessions and context](../sessions-context.md) and
 [Recovery coverage](../snapshots-goals.md#checkpoint-recovery).
 

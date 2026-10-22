@@ -10,6 +10,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import AsyncIterator
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -24,8 +25,11 @@ from cade.ai.events import (
     UsageUpdate,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
+from cade.app.bootstrap import create_session
+from cade.app.config import CadeConfig
 from cade.coding.goal import GoalStore
 from cade.coding.security.policy import WorkspacePolicy
+from cade.coding.workspace.recovery.coordinator import WorkspaceRecovery
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.events import RunResult
 from cade.harness.loop import run
@@ -1015,16 +1019,117 @@ def test_cli_memory_tool_appends(tmp_path: Path) -> None:
     assert "new durable fact" in (workspace / "MEMORY.md").read_text(encoding="utf-8")
 
 
-def test_cli_undo_restores_latest_snapshot(tmp_path: Path) -> None:
+@pytest.fixture
+def recovery_log(tmp_path: Path) -> SessionLog:
+    log = SessionLog.create(tmp_path / "sessions", project_root=tmp_path)
+    log.append("system", {"text": "system prompt"})
+    snapshots = SnapshotStore(tmp_path)
+    recovery = WorkspaceRecovery(snapshots)
+    for name in ("a.txt", "b.txt"):
+        (tmp_path / name).write_text("old", encoding="utf-8")
+    with log.run_lock(), recovery.record(log):
+        user = log.append("user", {"text": "change both files"})
+        recovery.started(log, user)
+        for name in ("a.txt", "b.txt"):
+            target = tmp_path / name
+            with snapshots.change(target):
+                target.write_text("new", encoding="utf-8")
+        log.append("assistant", {"blocks": [{"type": "text", "text": "done"}]})
+    return log
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_cli_undo_shares_application_recovery(
+    tmp_path: Path,
+    recovery_log: SessionLog,
+    monkeypatch: pytest.MonkeyPatch,
+    explicit: bool,
+) -> None:
+    def unexpected_provider(config: object) -> None:
+        raise AssertionError("Undo must not build a provider")
+
+    monkeypatch.setattr("cade.app.bootstrap.build_provider", unexpected_provider)
+    arguments = [
+        "--undo",
+        "--project-root",
+        str(tmp_path),
+        "--sessions-dir",
+        "sessions",
+    ]
+    if explicit:
+        arguments.extend(["--resume", recovery_log.session_id])
+    assert main(arguments) == 0
+    for name in ("a.txt", "b.txt"):
+        assert (tmp_path / name).read_text(encoding="utf-8") == "old"
+    with ExitStack() as resources:
+        service = create_session(
+            tmp_path,
+            CadeConfig(sessions_dir="sessions"),
+            resources=resources,
+            provider=FakeProvider([]),
+            interactive=True,
+            resume=recovery_log.session_id,
+        ).session
+        result = asyncio.run(service.command("/redo"))
+        assert result.lines[0].startswith("Redo applied")
+        for name in ("a.txt", "b.txt"):
+            assert (tmp_path / name).read_text(encoding="utf-8") == "new"
+        result = asyncio.run(service.command("/undo"))
+        assert result.lines[0].startswith("Undo applied")
+    assert (tmp_path / "a.txt").read_text(encoding="utf-8") == "old"
+
+
+@pytest.mark.parametrize("restriction", [["--read-only"], ["--sandbox", "read-only"]])
+def test_cli_undo_honors_read_only(
+    tmp_path: Path, recovery_log: SessionLog, restriction: list[str]
+) -> None:
+    before = recovery_log.path.read_bytes()
+    assert (
+        main(
+            [
+                "--undo",
+                "--project-root",
+                str(tmp_path),
+                "--sessions-dir",
+                "sessions",
+                *restriction,
+            ]
+        )
+        == 1
+    )
+    assert recovery_log.path.read_bytes() == before
+    assert (tmp_path / "a.txt").read_text(encoding="utf-8") == "new"
+
+
+def test_cli_undo_does_not_fall_back_to_unowned_snapshot(tmp_path: Path) -> None:
     target = tmp_path / "a.txt"
     target.write_text("old", encoding="utf-8")
     with SnapshotStore(tmp_path).change(target):
         target.write_text("new", encoding="utf-8")
+    assert main(["--undo", "--project-root", str(tmp_path)]) == 1
+    assert target.read_text(encoding="utf-8") == "new"
 
-    code = main(["--undo", "--project-root", str(tmp_path)])
 
-    assert code == 0
-    assert target.read_text(encoding="utf-8") == "old"
+def test_cli_undo_rejects_foreign_workspace(
+    tmp_path: Path, recovery_log: SessionLog
+) -> None:
+    other = tmp_path / "other"
+    other.mkdir()
+    assert (
+        main(
+            [
+                "--undo",
+                "--project-root",
+                str(other),
+                "--sessions-dir",
+                str(recovery_log.path.parent),
+                "--resume",
+                recovery_log.session_id,
+            ]
+        )
+        == 1
+    )
+    assert (tmp_path / "a.txt").read_text(encoding="utf-8") == "new"
 
 
 def test_cli_sets_goal_in_context(tmp_path: Path) -> None:

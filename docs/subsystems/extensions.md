@@ -35,8 +35,8 @@ cannot replace human restrictions.
 ## Snapshots
 
 `SnapshotStore` captures `write`, `edit`, and common single-command shell
-mutations. The one-shot `--undo` option restores the latest snapshot. Snapshots are project
-state, not session facts.
+mutations. `WorkspaceRecovery` coordinates checkpoint actions for CLI `--undo`
+and TUI `/undo` and `/redo`. Snapshots are project state, not session facts.
 
 ## Goals
 

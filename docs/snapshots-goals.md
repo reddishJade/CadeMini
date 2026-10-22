@@ -27,14 +27,16 @@ Not covered:
 cade --undo
 ```
 
-This legacy CLI operation restores one file snapshot without contacting a
-provider. It does not rewind conversation and is not an alias for TUI `/undo`.
-It refuses concurrent workspace writes or a pending coordinated recovery. Stop
-external file writers before any restoration.
+This command uses the same checkpoint recovery as TUI `/undo`. It reverses one
+action in the latest session, including its conversation position and tracked
+file changes. Use `cade --resume ID --undo` to select a session, then resume that
+session in the TUI to `/redo`. It does not contact a provider or start MCP.
+See [decision 0013](decisions/0013-unified-cli-undo.md).
 
-Undo checks that the current file matches the recorded post-change state. It
-rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
-A rejected undo leaves the file and index unchanged.
+Recovery validates all affected files before writing. Conflicts, corrupt
+payloads, and unknown outcomes block restoration. Stop external file writers
+before any restoration. Standalone file snapshots without owned checkpoints do
+not create an undo action.
 
 Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.

@@ -20,7 +20,7 @@
 
 ## 快照
 
-`SnapshotStore` 捕获 `write`、`edit` 和常见的单命令 shell 修改。一次性任务的 `--undo` 选项恢复最新快照。快照是项目状态，不是会话事实。
+`SnapshotStore` 捕获 `write`、`edit` 和常见的单命令 shell 修改。`WorkspaceRecovery` 为 CLI `--undo` 和 TUI `/undo`、`/redo` 协调检查点操作。快照是项目状态，不是会话事实。
 
 ## 目标
 

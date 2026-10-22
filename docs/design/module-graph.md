@@ -266,7 +266,6 @@ flowchart LR
   hosts_cli --> app_bootstrap
   hosts_cli --> app_config
   hosts_cli --> coding_goal
-  hosts_cli --> coding_workspace_snapshots
   hosts_cli --> harness_events
   hosts_cli --> harness_provider
   hosts_cli --> harness_session_log

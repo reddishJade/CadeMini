@@ -11,7 +11,7 @@ Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换
 | 执行范围 | `ExecutionScope` 和 `PlatformSandbox.wrap` | bubblewrap、Seatbelt、Windows 直接运行 | 工作区工具 |
 | 压缩 | `Compactor(log, budget)` | LLM 摘要压缩器 | 循环 |
 | 会话存储 | `SessionLog` 的追加、分支、打开 | 文件支持的 JSONL 日志 | 其上所有层 |
-| 恢复 | `SnapshotStore` 的捕获和撤销 | 文件快照存储 | 工具、CLI |
+| 恢复 | `WorkspaceRecovery.step` 和自有检查点 | 按内容寻址的文件快照和操作历史 | 应用、CLI、TUI |
 | 宿主 | 循环之上的任务运行器 | CLI | 用户 |
 
 ## Provider

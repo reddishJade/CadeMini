@@ -62,6 +62,30 @@ def resolve_sessions_dir(workspace: Path, config: CadeConfig) -> Path:
     return (raw if raw.is_absolute() else workspace / raw).resolve()
 
 
+def undo_session(
+    workspace: Path, config: CadeConfig, session_id: str | None = None
+) -> str:
+    """不装配模型或扩展，使用会话恢复协议撤销一个动作。"""
+    workspace = workspace.resolve()
+    sessions_dir = resolve_sessions_dir(workspace, config)
+    if not session_id:
+        sessions = list_sessions(sessions_dir)
+        if not sessions:
+            raise ValueError("No sessions to undo")
+        path = sessions[0].path
+    else:
+        path = sessions_dir / f"session-{session_id}.jsonl"
+    log = SessionLog.open(path)
+    meta = next((entry for entry in log.entries() if entry.type == "meta"), None)
+    if meta is None or Path(str(meta.data["project"])).resolve() != workspace:
+        raise ValueError("Session belongs to another workspace")
+    recovery = WorkspaceRecovery(
+        SnapshotStore(workspace),
+        read_only=config.read_only or config.sandbox == "read-only",
+    )
+    return recovery.step(log, "undo")
+
+
 def open_log(
     sessions_dir: Path,
     resume: str | None,
@@ -72,7 +96,6 @@ def open_log(
     recovery: WorkspaceRecovery | None = None,
 ) -> SessionLog:
     """创建或恢复会话，并在补充系统提示前恢复未完成事务。"""
-    sessions_dir.mkdir(parents=True, exist_ok=True)
     sessions = list_sessions(sessions_dir) if resume == "" else []
     if resume is None or (resume == "" and not sessions):
         log = SessionLog.create(

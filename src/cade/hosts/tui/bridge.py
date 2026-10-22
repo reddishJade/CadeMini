@@ -358,60 +358,6 @@ class CadeInteractionApp:
             "model_context_window": str(get_model_context_window(model) or ""),
         }
 
-    def set_model(
-        self,
-        *,
-        model: str,
-        transport: str | None = None,
-        profile: str | None = None,
-        thinking: bool | None = None,
-        reasoning_effort: str | None = None,
-        context_window: int | None = None,
-    ) -> str:
-        del transport, profile
-        provider_name = self.service.provider_config.provider
-        model_name = model
-        if "/" in model:
-            provider_name, model_name = model.split("/", 1)
-        config_provider = provider_name
-        from cade.app.provider import ProviderConfig, build_provider
-        from cade.harness.request import Budget
-
-        previous_budget = self.service.budget
-        previous_explicit = self.service.context_window_explicit
-        if context_window is not None:
-            if context_window > 0:
-                self.service.budget = Budget(context_window=context_window)
-                self.service.context_window_explicit = True
-            else:
-                self.service.context_window_explicit = False
-        config = ProviderConfig(
-            provider=config_provider,
-            model=model_name,
-            base_url=(
-                self.service.provider_config.base_url
-                if config_provider == self.service.provider_config.provider
-                else ""
-            ),
-            thinking=thinking
-            if thinking is not None
-            else self.service.provider_config.thinking,
-            reasoning_effort=(
-                reasoning_effort
-                if reasoning_effort is not None
-                else self.service.provider_config.reasoning_effort
-            ),
-            context_window=context_window or None,
-        )
-        try:
-            selected = build_provider(config)
-            self.service._install_provider(config, selected)
-        except (OSError, RuntimeError, TypeError, ValueError):
-            self.service.budget = previous_budget
-            self.service.context_window_explicit = previous_explicit
-            raise
-        return f"{config_provider}/{selected.model}"
-
     def available_models(self) -> list[tuple[str, str]]:
         providers = self.service.settings.configured_providers(self.service.auth.store)
         return [

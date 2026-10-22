@@ -34,8 +34,8 @@ diff reviewable.
 ## Undo
 
 If the change is wrong, use `cade --undo` before starting another attempt.
-This restores one recorded file change at a time; it does not rewind the
-conversation.
+This reverses one checkpoint action, including conversation position and tracked
+file changes. Use `--resume ID --undo` to select a session.
 
 ## Keep
 

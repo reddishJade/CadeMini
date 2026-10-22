@@ -20,6 +20,9 @@ from cade.ai.events import (
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.app.bootstrap import create_session
 from cade.app.config import CadeConfig
+from cade.app.provider import ProviderConfig
+from cade.coding.security.review import AutoReviewer
+from cade.coding.subagents import DelegateTool, SubagentTool
 from cade.harness.cancellation import CancellationToken
 from cade.harness.execution.scope import ExecutionScope, current_scope
 from cade.harness.permissions import PermissionCheck
@@ -118,3 +121,100 @@ def test_direct_application_tool_uses_shared_execution_scope(tmp_path: Path) -> 
         result = asyncio.run(session.execute_tool("scope", {}, approve))
         assert result == ToolResult("scoped")
         assert current_scope() == ExecutionScope()
+
+
+def test_model_update_reaches_all_consumers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    initial = WritingProvider()
+    selected = WritingProvider()
+    selected.model = "gpt-5.5"
+    selected.context_window = 1_050_000
+    configurations: list[ProviderConfig] = []
+
+    def build(config: ProviderConfig) -> WritingProvider:
+        configurations.append(config)
+        return selected
+
+    monkeypatch.setattr("cade.app.session.build_provider", build)
+    with ExitStack() as resources:
+        service = create_session(
+            tmp_path, CadeConfig(), resources=resources, provider=initial
+        ).session
+        reviewer = AutoReviewer(initial, workspace=tmp_path)
+        service.automatic_approver = reviewer
+        service.select_model(
+            "openai/gpt-5.5", "medium", thinking=False, context_window=200_000
+        )
+        assert configurations[-1].thinking is False
+        assert configurations[-1].context_window == 200_000
+        assert service.provider is selected
+        assert service.compactor.provider is selected
+        assert reviewer.provider is selected
+        assert service.budget.context_window == 200_000
+        assert service.context_window_explicit
+        runners = {
+            tool.runner
+            for tool in service.base_tools
+            if isinstance(tool, (SubagentTool, DelegateTool))
+        }
+        assert runners
+        assert all(
+            runner.provider is selected and runner.budget == service.budget
+            for runner in runners
+        )
+        asyncio.run(service.command("/effort high"))
+        assert configurations[-1].context_window == 200_000
+        assert service.budget.context_window == 200_000
+        asyncio.run(service.command("/context-window default"))
+        assert not service.context_window_explicit
+        assert service.budget.context_window == 1_050_000
+        assert service.provider_config.context_window is None
+        assert all(runner.budget == service.budget for runner in runners)
+
+
+@pytest.mark.parametrize("failure", ["effort", "window", "provider"])
+def test_failed_model_selection_keeps_active_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    selected = WritingProvider()
+    selected.model = "gpt-5.5"
+    selected.context_window = 1_050_000
+
+    def build(config: ProviderConfig) -> WritingProvider:
+        if failure == "provider":
+            raise RuntimeError("provider setup failed")
+        return selected
+
+    monkeypatch.setattr("cade.app.session.build_provider", build)
+    with ExitStack() as resources:
+        service = create_session(
+            tmp_path, CadeConfig(), resources=resources, provider=WritingProvider()
+        ).session
+        original = (
+            service.provider_config,
+            service.provider,
+            service.budget,
+            service.context_window_explicit,
+            service.compactor,
+        )
+        with pytest.raises((ValueError, RuntimeError)):
+            service.select_model(
+                "openai/gpt-5.5",
+                "invalid" if failure == "effort" else "high",
+                thinking=False,
+                context_window=2_000_000 if failure == "window" else 200_000,
+            )
+        assert (
+            service.provider_config,
+            service.provider,
+            service.budget,
+            service.context_window_explicit,
+            service.compactor,
+        ) == original
+        assert all(
+            tool.runner.provider is service.provider
+            and tool.runner.budget == service.budget
+            for tool in service.base_tools
+            if isinstance(tool, (SubagentTool, DelegateTool))
+        )

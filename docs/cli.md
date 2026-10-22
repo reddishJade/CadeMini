@@ -58,8 +58,9 @@ the provider refreshes it when needed.
 - `--resume` resumes the latest session; `--resume ID` resumes a specific one.
 - `--sessions-dir PATH` changes the session directory. A relative path is
   resolved against the project root.
-- `--undo` restores the latest file snapshot and exits without contacting a
-  provider.
+- `--undo` reverses one checkpoint action in the latest session and exits without
+  contacting a provider or starting MCP. Use `--resume ID --undo` to select a
+  session. It uses the same conversation and file recovery as TUI `/undo`.
 
 `--continue` and `--resume` cannot be combined. Session listings and automatic
 continuation skip conversations without a nonempty user message. New interactive
@@ -121,8 +122,8 @@ modes, configuration, and permissions.
 The TUI does not register `/rename` or `/mcp`. Recovery changes tracked files,
 not arbitrary shell effects, external services, or the user's Git index.
 See [recovery coverage and conflicts](snapshots-goals.md#checkpoint-recovery).
-`--undo` remains the existing one-shot file-snapshot operation; it is not a
-conversation undo command.
+`--undo` cannot be combined with a task; both undo entry points use the same
+persistent action history.
 
 ## Interactive input
 
@@ -157,8 +158,8 @@ tool. See [Steering and queueing](design/steering-queue.md).
 ## Exit codes
 
 - `0`: the run completed.
-- `1`: the run ended without completion, or no snapshot was available for
-  `--undo`.
+- `1`: the run ended without completion, or `--undo` found no session or action
+  or could not apply recovery.
 - `2`: argument, configuration, or startup error.
 - `130`: login was cancelled.
 

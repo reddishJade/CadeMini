@@ -68,7 +68,7 @@ Model Context Protocol。Cade 运行 stdio MCP 服务器，并把它们的工具
 
 ## 快照（snapshot）
 
-文件修改前的副本，供一次性任务的 `--undo` 使用。
+工作区恢复存储保留的文件镜像。检查点操作引用修改前后的镜像，用于撤销和重做。
 
 ## 目标（goal）
 

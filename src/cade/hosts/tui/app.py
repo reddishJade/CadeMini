@@ -1373,17 +1373,8 @@ class _CadeTui:
         from cade.ai.models import parse_model_mode
         from cade.ai.resolver import ModelResolver
 
-        get_model_info = getattr(self._agent_app, "get_model_info", None)
-        set_model = getattr(self._agent_app, "set_model", None)
-        if not callable(get_model_info) or not callable(set_model):
-            self._state.log.append(
-                _LogEntry("system", "Model switching is not supported in this app.")
-            )
-            self._refresh()
-            return
-
-        raw_info = get_model_info()
-        info = cast("dict[str, str]", raw_info) if isinstance(raw_info, dict) else {}
+        get_model_info = self._agent_app.get_model_info
+        info = get_model_info()
         current_model = str(info.get("model", ""))
         current_transport = str(info.get("transport", ""))
         available = [
@@ -1477,11 +1468,10 @@ class _CadeTui:
         def switch(entry: AvailableModelEntry) -> None:
             try:
                 effort = efforts[(entry.model, entry.transport)]
-                new_model = set_model(
-                    model=f"{entry.provider}/{entry.model}",
-                    transport=entry.transport,
-                    profile="main",
-                    reasoning_effort=effort,
+                service = self._agent_app.service
+                service.select_model(
+                    f"{entry.provider}/{entry.model}",
+                    effort=effort,
                     thinking=(
                         effort != "off"
                         if effort is not None
@@ -1489,12 +1479,10 @@ class _CadeTui:
                         else None
                     ),
                 )
-                raw_updated_info = get_model_info()
-                updated_info = (
-                    cast("dict[str, str]", raw_updated_info)
-                    if isinstance(raw_updated_info, dict)
-                    else {}
+                new_model = (
+                    f"{service.provider_config.provider}/{service.provider.model}"
                 )
+                updated_info = get_model_info()
                 transport = str(updated_info.get("transport") or entry.transport)
                 suffix = f" (transport: {transport})" if transport else ""
                 if effort is not None:

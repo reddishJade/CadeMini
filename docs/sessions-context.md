@@ -4,6 +4,11 @@ A session is an append-only JSONL file under `.cade/sessions` by default.
 The file name is `session-<id>.jsonl`. The session title is derived from the
 first user message; no extra event type is needed.
 
+On POSIX, new session directories use mode `0700` and log files use `0600`.
+Opening an existing log tightens that file to `0600`; existing directory
+permissions stay unchanged. Windows inherits directory ACLs. Logs contain full
+request inputs, so choose a private directory for custom session storage.
+
 ## Resume
 
 ```bash
