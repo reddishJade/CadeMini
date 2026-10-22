@@ -1815,8 +1815,11 @@ navigation are log entries, not rewrites.
 ## Snapshots
 
 Snapshots are an undo journal for file changes. They cover `write`, `edit`, and
-common single-command shell mutations. It uses an atomically replaced
-JSONL index, immutable before/after records, and content-addressed original blobs.
+common single-command shell mutations. Capture appends one newline-terminated
+record to the JSONL index and syncs it. The index ignores an incomplete tail and
+repairs it before the next append; invalid complete records remain errors.
+The standalone snapshot undo primitive still replaces the shortened index
+atomically. Before/after records and content-addressed blobs remain immutable.
 See [Snapshots and goals](../snapshots-goals.md) for conflict and legacy behavior.
 Snapshots are not part of the session branch.
 
@@ -2263,13 +2266,20 @@ A subsystem page describes current behavior. Historical decisions belong in
 
 1. Validates the payload without modifying the file.
 2. Takes an exclusive file lock.
-3. Reads current entries and validates the selected parent and references.
-4. Builds an entry, then repairs a torn tail only after validation succeeds.
+3. Checks file identity, size, and nanosecond timestamps. Reuses validated
+   entries when unchanged; otherwise reloads and validates the complete file.
+4. Builds an entry and validates its parent and references against the verified
+   ID index, then repairs a torn tail only after validation succeeds.
 5. Appends one JSON line, flushes, and calls `fsync`.
 6. Releases the lock.
 
 `fsync` is deliberate: a returned append is durable enough to resume. A failed
-write raises `LogError` and does not return a fake entry.
+write raises an error and does not return a fake entry.
+
+The cache is private and updated only after a successful write and sync. Another
+writer, file replacement, or truncation invalidates it when file metadata changes.
+`entries()` and `branch()` return independent copies, including nested payloads.
+The cache adds no durable state and does not change request audits.
 
 `run_lock()` protects a whole turn separately from individual appends. It rejects
 competing operations immediately with `LogError`. `run()`, manual CLI context
@@ -2316,7 +2326,8 @@ historical timestamps do not make a newly created session appear old.
 
 ## Tests
 
-`test_log.py` covers create, append, resume, tail repair, and listing.
+`test_log.py` covers create, append, resume, tail repair, cache isolation,
+external changes, failed sync, and listing.
 `test_session_history.py` covers navigation, old-format recovery, inactive
 forks, and independent copies. `test_projection.py` covers malformed paths.
 `test_history_e2e.py` verifies the public commands through real TUI input.
@@ -2728,6 +2739,9 @@ See [decision 0009](decisions/0009-execution-permissions.md) for the contract.
 
 Cade records a snapshot before a file tool changes a file. Snapshots live
 under `.cade/snapshots` with a JSONL index and one directory per snapshot.
+Capture appends and syncs one index record. An incomplete final line is ignored
+and repaired before the next capture; corrupt complete records block capture.
+See [decision 0014](decisions/0014-storage-append-cost.md).
 
 Covered changes:
 

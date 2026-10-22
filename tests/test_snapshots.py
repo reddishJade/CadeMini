@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from pathlib import Path
 
@@ -54,6 +55,88 @@ def test_undo_created_file_deletes_it(tmp_path: Path) -> None:
     store.undo_last()
 
     assert not target.exists()
+
+
+def test_snapshot_writers_refresh_after_append_and_atomic_undo(tmp_path: Path) -> None:
+    target = tmp_path / "a.txt"
+    target.write_text("original", encoding="utf-8")
+    first = SnapshotStore(tmp_path)
+    second = SnapshotStore(tmp_path)
+    assert second.list() == []
+    with first.change(target):
+        target.write_text("first", encoding="utf-8")
+    assert len(second.list()) == 1
+    with second.change(target):
+        target.write_text("second", encoding="utf-8")
+    assert len(first.list()) == 2
+    second.undo_last()
+    assert len(first.list()) == 1
+    first.undo_last()
+    assert second.list() == []
+    assert target.read_text(encoding="utf-8") == "original"
+
+
+@pytest.mark.parametrize("reopen", [False, True])
+def test_snapshot_index_repairs_torn_tail_before_next_capture(
+    tmp_path: Path, reopen: bool
+) -> None:
+    target = tmp_path / "a.txt"
+    target.write_text("original", encoding="utf-8")
+    store = SnapshotStore(tmp_path)
+    with store.change(target):
+        target.write_text("first", encoding="utf-8")
+    committed = store.index.read_bytes()
+    with store.index.open("ab") as stream:
+        stream.write(b'{"id":"incomplete')
+    if reopen:
+        store = SnapshotStore(tmp_path)
+    assert len(store.list()) == 1
+    with store.change(target):
+        target.write_text("second", encoding="utf-8")
+    assert store.index.read_bytes().startswith(committed)
+    assert b"incomplete" not in store.index.read_bytes()
+    assert len(SnapshotStore(tmp_path).list()) == 2
+    store.undo_last()
+    store.undo_last()
+    assert target.read_text(encoding="utf-8") == "original"
+
+
+def test_snapshot_index_rejects_committed_corruption_before_append(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "a.txt"
+    store = SnapshotStore(tmp_path)
+    with store.change(target):
+        target.write_text("first", encoding="utf-8")
+    with store.index.open("ab") as stream:
+        stream.write(b"invalid record\n")
+    corrupted = store.index.read_bytes()
+    with pytest.raises(json.JSONDecodeError):
+        store.capture(target)
+    assert store.index.read_bytes() == corrupted
+    assert target.read_text(encoding="utf-8") == "first"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX directory durability")
+def test_each_capture_syncs_the_snapshot_root_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = SnapshotStore(tmp_path)
+    root = store.root.stat()
+    syncs: list[int] = []
+    original = os.fsync
+
+    def sync(descriptor: int) -> None:
+        metadata = os.fstat(descriptor)
+        if (metadata.st_dev, metadata.st_ino) == (root.st_dev, root.st_ino):
+            syncs.append(descriptor)
+        original(descriptor)
+
+    monkeypatch.setattr(os, "fsync", sync)
+    for _ in range(2):
+        snapshot_id = store.capture(tmp_path / "new.txt")
+        store.complete(snapshot_id)
+    assert len(syncs) == 2
 
 
 def test_write_tool_snapshots_before_change(tmp_path: Path) -> None:

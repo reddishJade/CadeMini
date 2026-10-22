@@ -4,6 +4,9 @@
 
 Cade records a snapshot before a file tool changes a file. Snapshots live
 under `.cade/snapshots` with a JSONL index and one directory per snapshot.
+Capture appends and syncs one index record. An incomplete final line is ignored
+and repaired before the next capture; corrupt complete records block capture.
+See [decision 0014](decisions/0014-storage-append-cost.md).
 
 Covered changes:
 

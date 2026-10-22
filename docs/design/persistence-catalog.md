@@ -30,8 +30,11 @@ navigation are log entries, not rewrites.
 ## Snapshots
 
 Snapshots are an undo journal for file changes. They cover `write`, `edit`, and
-common single-command shell mutations. It uses an atomically replaced
-JSONL index, immutable before/after records, and content-addressed original blobs.
+common single-command shell mutations. Capture appends one newline-terminated
+record to the JSONL index and syncs it. The index ignores an incomplete tail and
+repairs it before the next append; invalid complete records remain errors.
+The standalone snapshot undo primitive still replaces the shortened index
+atomically. Before/after records and content-addressed blobs remain immutable.
 See [Snapshots and goals](../snapshots-goals.md) for conflict and legacy behavior.
 Snapshots are not part of the session branch.
 

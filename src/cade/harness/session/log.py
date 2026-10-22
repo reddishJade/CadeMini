@@ -21,6 +21,18 @@ from cade.harness.session.types import EventType, JsonValue, LogEntry, LogError
 _SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _SESSION_FILE = re.compile(r"^session-([A-Za-z0-9][A-Za-z0-9_-]*)\.jsonl$")
 
+type _FileStamp = tuple[int, int, int, int, int]
+
+
+def _file_stamp(metadata: os.stat_result) -> _FileStamp:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
 
 @dataclass(frozen=True)
 class SessionInfo:
@@ -36,8 +48,8 @@ class SessionInfo:
 class SessionLog:
     """单 writer 的会话树日志；最后一条记录确定活动分支。
 
-    读取忽略未换行的末尾残片；追加前截断残片，并在文件锁内重新读取 head。
-    文件锁保证单次追加连续，但调用方仍需避免并发运行同一会话。
+    读取忽略未换行的末尾残片；追加前截断残片，并在锁内核对文件状态。
+    已校验的记录只在文件状态未变化时复用。调用方仍需避免并发运行同一会话。
     """
 
     def __init__(
@@ -53,6 +65,9 @@ class SessionLog:
         self._memory_lock = RLock()
         self._pending: list[LogEntry] | None = [] if deferred else None
         self._head: LogEntry | None = None
+        self._cached_entries: list[LogEntry] = []
+        self._cached_by_id: dict[str, LogEntry] = {}
+        self._cached_stamp: _FileStamp | None = None
         if not deferred:
             with self._lock:
                 entries = self._read_entries()
@@ -128,16 +143,19 @@ class SessionLog:
             self._lock if self._pending is None else nullcontext(),
         ):
             entries = self._read_entries() if self._pending is None else self._pending
+            by_id = (
+                self._cached_by_id
+                if self._pending is None
+                else {entry.id: entry for entry in entries}
+            )
             parent = entries[-1].id if entries else None
             if event_type == "branch":
-                selected = next(
-                    (e for e in entries if e.id == data["selected_id"]), None
-                )
+                selected = by_id.get(str(data["selected_id"]))
                 if selected is None:
                     raise LogError(f"session entry not found: {data['selected_id']}")
                 parent = selected.parent if selected.type == "user" else selected.id
             if event_type == "restore":
-                parent = _restore_parent(data, {e.id: e for e in entries})
+                parent = _restore_parent(data, by_id)
             entry = LogEntry(
                 id=uuid4().hex[:12],
                 parent=parent,
@@ -145,16 +163,19 @@ class SessionLog:
                 type=event_type,
                 data=data,
             )
-            if event_type == "checkpoint":
-                _validate_entries([*entries, entry], self.path)
+            _validate_entry(entry, by_id, self.path)
+            stored = entry.model_copy(deep=True)
             if self._pending is None:
                 self._repair_tail()
                 with self._open_private(os.O_APPEND) as stream:
                     stream.write(entry.model_dump_json() + "\n")
                     stream.flush()
                     os.fsync(stream.fileno())
+                self._cached_entries.append(stored)
+                self._cached_by_id[stored.id] = stored
+                self._cached_stamp = _file_stamp(self.path.stat())
             else:
-                self._pending.append(entry)
+                self._pending.append(stored)
                 if _is_conversation(entry):
                     self._flush_pending()
             self._head = entry
@@ -173,6 +194,9 @@ class SessionLog:
                     os.fsync(stream.fileno())
             except FileExistsError as exc:
                 raise LogError(f"session already exists: {self.path}") from exc
+            self._cached_entries = self._pending
+            self._cached_by_id = {entry.id: entry for entry in self._pending}
+            self._cached_stamp = _file_stamp(self.path.stat())
             self._pending = None
 
     @contextmanager
@@ -265,14 +289,14 @@ class SessionLog:
             return target
 
     def entries(self) -> list[LogEntry]:
-        """读取全部已提交条目；忽略未换行的末尾残片。"""
+        """返回已提交条目的独立副本；忽略未换行的末尾残片。"""
         with self._memory_lock:
             if self._pending is not None:
-                return list(self._pending)
+                return [entry.model_copy(deep=True) for entry in self._pending]
             with self._lock:
                 entries = self._read_entries()
                 self._head = entries[-1] if entries else None
-                return entries
+                return [entry.model_copy(deep=True) for entry in entries]
 
     def branch(self, entry_id: str | None = None) -> list[LogEntry]:
         """返回活动路径或指定历史节点到根的路径，允许访问非活动分支。"""
@@ -283,14 +307,22 @@ class SessionLog:
         return self._head.id if self._head is not None else None
 
     def _read_entries(self) -> list[LogEntry]:
-        if not self.path.exists():
-            return []
+        try:
+            metadata = self.path.stat()
+        except FileNotFoundError:
+            self._cached_entries = []
+            self._cached_by_id = {}
+            self._cached_stamp = None
+            return self._cached_entries
+        if _file_stamp(metadata) == self._cached_stamp:
+            return self._cached_entries
         with self.path.open("rb") as stream:
-            if os.name == "posix":
+            metadata = os.fstat(stream.fileno())
+            if os.name == "posix" and metadata.st_mode & 0o7777 != 0o600:
                 os.fchmod(stream.fileno(), 0o600)
+                metadata = os.fstat(stream.fileno())
+            stamp = _file_stamp(metadata)
             data = stream.read()
-        if not data:
-            return []
         lines = data.split(b"\n")
         if not data.endswith(b"\n"):
             # 未换行的末尾是崩溃残片，不属于已提交事实。
@@ -305,7 +337,10 @@ class SessionLog:
                 entries.append(entry)
             except ValueError as exc:
                 raise LogError(f"invalid session record: {self.path}:{number}") from exc
-        _validate_entries(entries, self.path)
+        by_id = _validate_entries(entries, self.path)
+        self._cached_entries = entries
+        self._cached_by_id = by_id
+        self._cached_stamp = stamp
         return entries
 
     def _repair_tail(self) -> None:
@@ -328,42 +363,44 @@ class SessionLog:
             os.fsync(stream.fileno())
 
 
-def _validate_entries(entries: list[LogEntry], path: Path) -> None:
-    """校验 ID 唯一性和 parent 只能指向更早的条目。"""
+def _validate_entry(entry: LogEntry, seen: dict[str, LogEntry], path: Path) -> None:
+    """只校验新条目；引用必须指向已校验的历史。"""
+    if entry.id in seen:
+        raise LogError(f"duplicate session entry id in {path}: {entry.id}")
+    if entry.parent is not None and entry.parent not in seen:
+        raise LogError(f"missing or forward session parent in {path}: {entry.parent}")
+    if entry.type == "branch":
+        selected = seen.get(str(entry.data["selected_id"]))
+        if selected is None:
+            raise LogError(
+                f"missing or forward navigation target in {path}: {entry.id}"
+            )
+        parent = selected.parent if selected.type == "user" else selected.id
+        if entry.parent != parent:
+            raise LogError(
+                f"navigation parent does not match selected entry: {entry.id}"
+            )
+    if entry.type == "restore" and entry.parent != _restore_parent(entry.data, seen):
+        raise LogError(f"invalid restore parent: {entry.id}")
+    if entry.type == "checkpoint":
+        user = seen.get(str(entry.data["user_id"]))
+        if user is None or user.type != "user":
+            raise LogError(f"invalid checkpoint user: {entry.id}")
+        anchor = entry.data["anchor_id"]
+        current = user.parent
+        while current is not None and current != anchor:
+            current = seen[current].parent
+        if current != anchor:
+            raise LogError(f"invalid checkpoint anchor: {entry.id}")
+
+
+def _validate_entries(entries: list[LogEntry], path: Path) -> dict[str, LogEntry]:
+    """完整读取时校验全部条目，返回后续追加使用的索引。"""
     seen: dict[str, LogEntry] = {}
     for entry in entries:
-        if entry.id in seen:
-            raise LogError(f"duplicate session entry id in {path}: {entry.id}")
-        if entry.parent is not None and entry.parent not in seen:
-            raise LogError(
-                f"missing or forward session parent in {path}: {entry.parent}"
-            )
-        if entry.type == "branch":
-            selected = seen.get(str(entry.data["selected_id"]))
-            if selected is None:
-                raise LogError(
-                    f"missing or forward navigation target in {path}: {entry.id}"
-                )
-            parent = selected.parent if selected.type == "user" else selected.id
-            if entry.parent != parent:
-                raise LogError(
-                    f"navigation parent does not match selected entry: {entry.id}"
-                )
-        if entry.type == "restore" and entry.parent != _restore_parent(
-            entry.data, seen
-        ):
-            raise LogError(f"invalid restore parent: {entry.id}")
-        if entry.type == "checkpoint":
-            user = seen.get(str(entry.data["user_id"]))
-            if user is None or user.type != "user":
-                raise LogError(f"invalid checkpoint user: {entry.id}")
-            anchor = entry.data["anchor_id"]
-            current = user.parent
-            while current is not None and current != anchor:
-                current = seen[current].parent
-            if current != anchor:
-                raise LogError(f"invalid checkpoint anchor: {entry.id}")
+        _validate_entry(entry, seen, path)
         seen[entry.id] = entry
+    return seen
 
 
 def _restore_parent(

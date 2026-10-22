@@ -76,6 +76,9 @@ class SnapshotStore:
         self.index = self.root / "index.jsonl"
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock = filelock.FileLock(str(self.root / "snapshots.lock"))
+        self._index_entries: list[dict[str, Any]] = []
+        self._index_stamp: tuple[int, int, int, int, int] | None = None
+        self._index_offset = 0
         recovery_root = self.workspace / ".cade" / "recovery"
         recovery_root.mkdir(parents=True, exist_ok=True)
         self._workspace_lock = filelock.FileLock(
@@ -108,9 +111,7 @@ class SnapshotStore:
             directory = self.root / snapshot_id
             directory.mkdir()
             _atomic_write(directory / "meta.json", manifest.model_dump_json().encode())
-            entries = self._read_index()
-            entries.append(manifest.model_dump(mode="json"))
-            self._write_index(entries)
+            self._append_index(manifest.model_dump(mode="json"))
             scope = _CAPTURE_FILE.get()
             capture_file = (
                 scope[1] if scope is not None and scope[0] == self.workspace else None
@@ -301,19 +302,53 @@ class SnapshotStore:
         )
 
     def _read_index(self) -> list[dict[str, Any]]:
-        if not self.index.exists():
-            return []
+        try:
+            metadata = self.index.stat()
+        except FileNotFoundError:
+            self._index_entries = []
+            self._index_stamp = None
+            self._index_offset = 0
+            return self._index_entries
+        if _file_stamp(metadata) == self._index_stamp:
+            return self._index_entries
+        with self.index.open("rb") as stream:
+            stamp = _file_stamp(os.fstat(stream.fileno()))
+            data = stream.read()
+        offset = data.rfind(b"\n") + 1
         entries: list[dict[str, Any]] = []
-        for line in self.index.read_text(encoding="utf-8").splitlines():
+        for line in data[:offset].splitlines():
             item = json.loads(line)
             if not isinstance(item, dict):
                 raise SnapshotConflict("Invalid snapshot index")
             entries.append(item)
+        self._index_entries = entries
+        self._index_stamp = stamp
+        self._index_offset = offset
         return entries
+
+    def _append_index(self, item: dict[str, Any]) -> None:
+        """在锁内追加一行；先移除中断写入留下的末尾残片。"""
+        self._read_index()
+        data = (json.dumps(item, ensure_ascii=False) + "\n").encode()
+        descriptor = os.open(self.index, os.O_WRONLY | os.O_CREAT, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.seek(self._index_offset)
+            stream.truncate()
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        _sync_directory(self.root)
+        self._index_entries.append(item)
+        self._index_offset += len(data)
+        self._index_stamp = _file_stamp(self.index.stat())
 
     def _write_index(self, entries: list[dict[str, Any]]) -> None:
         data = "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in entries)
-        _atomic_write(self.index, data.encode())
+        encoded = data.encode()
+        _atomic_write(self.index, encoded)
+        self._index_entries = list(entries)
+        self._index_offset = len(encoded)
+        self._index_stamp = _file_stamp(self.index.stat())
 
 
 def _snapshot(item: dict[str, Any]) -> Snapshot:
@@ -329,6 +364,26 @@ def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _file_stamp(metadata: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def _sync_directory(path: Path) -> None:
+    """POSIX 创建或替换目录项后同步目录。"""
+    if os.name != "nt":
+        directory = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+
+
 def _atomic_write(path: Path, data: bytes, *, mode: int = 0o600) -> None:
     """先同步临时文件，再原子替换目标，保留指定权限。"""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -340,11 +395,6 @@ def _atomic_write(path: Path, data: bytes, *, mode: int = 0o600) -> None:
             os.chmod(name, mode)
             os.fsync(stream.fileno())
         os.replace(name, path)
-        if os.name != "nt":
-            directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-            try:
-                os.fsync(directory)
-            finally:
-                os.close(directory)
+        _sync_directory(path.parent)
     finally:
         Path(name).unlink(missing_ok=True)

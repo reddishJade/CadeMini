@@ -19,6 +19,7 @@ them.
 - [0008: Use Sign in with ChatGPT for ChatGPT plan usage](0008-siwc-login.md)
 - [0009: Separate execution modes, sandbox scope, and approval](0009-execution-permissions.md)
 - [0013: Use checkpoint recovery for CLI undo](0013-unified-cli-undo.md)
+- [0014: Avoid rescanning and rewriting unchanged storage](0014-storage-append-cost.md)
 
 ## Adding a record
 

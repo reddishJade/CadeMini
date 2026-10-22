@@ -17,13 +17,20 @@
 
 1. Validates the payload without modifying the file.
 2. Takes an exclusive file lock.
-3. Reads current entries and validates the selected parent and references.
-4. Builds an entry, then repairs a torn tail only after validation succeeds.
+3. Checks file identity, size, and nanosecond timestamps. Reuses validated
+   entries when unchanged; otherwise reloads and validates the complete file.
+4. Builds an entry and validates its parent and references against the verified
+   ID index, then repairs a torn tail only after validation succeeds.
 5. Appends one JSON line, flushes, and calls `fsync`.
 6. Releases the lock.
 
 `fsync` is deliberate: a returned append is durable enough to resume. A failed
-write raises `LogError` and does not return a fake entry.
+write raises an error and does not return a fake entry.
+
+The cache is private and updated only after a successful write and sync. Another
+writer, file replacement, or truncation invalidates it when file metadata changes.
+`entries()` and `branch()` return independent copies, including nested payloads.
+The cache adds no durable state and does not change request audits.
 
 `run_lock()` protects a whole turn separately from individual appends. It rejects
 competing operations immediately with `LogError`. `run()`, manual CLI context
@@ -70,7 +77,8 @@ historical timestamps do not make a newly created session appear old.
 
 ## Tests
 
-`test_log.py` covers create, append, resume, tail repair, and listing.
+`test_log.py` covers create, append, resume, tail repair, cache isolation,
+external changes, failed sync, and listing.
 `test_session_history.py` covers navigation, old-format recovery, inactive
 forks, and independent copies. `test_projection.py` covers malformed paths.
 `test_history_e2e.py` verifies the public commands through real TUI input.

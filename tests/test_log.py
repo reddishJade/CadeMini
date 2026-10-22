@@ -104,6 +104,17 @@ def test_open_tightens_old_log_without_changing_shared_directory(
     assert reopened.path.read_bytes() == original
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX change timestamps")
+def test_open_private_log_does_not_change_its_metadata(tmp_path: Path) -> None:
+    log = SessionLog.create(_sessions(tmp_path))
+    log.append("user", {"text": "kept"})
+    before = log.path.stat()
+    SessionLog.open(log.path).entries()
+    after = log.path.stat()
+    assert after.st_mtime_ns == before.st_mtime_ns
+    assert after.st_ctime_ns == before.st_ctime_ns
+
+
 def test_deferred_session_stays_in_memory_until_first_message(tmp_path: Path) -> None:
     log = SessionLog.create(_sessions(tmp_path), deferred=True)
     log.append("system", {"text": "sys"})
@@ -154,6 +165,78 @@ def test_stale_writers_keep_all_entries_on_active_branch(tmp_path: Path) -> None
     assert two.parent == one.id
     assert three.parent == two.id
     assert first.branch() == first.entries()
+
+
+def test_returned_records_cannot_mutate_cached_history(tmp_path: Path) -> None:
+    log = SessionLog.create(_sessions(tmp_path))
+    data: dict[str, JsonValue] = {"blocks": [{"type": "text", "text": "original"}]}
+    returned = log.append("assistant", data)
+    persisted = json.loads(log.path.read_text(encoding="utf-8").splitlines()[-1])[
+        "data"
+    ]
+    returned.data.clear()
+    data.clear()
+    entries = log.entries()
+    entries[-1].data.clear()
+    branch = log.branch()
+    branch[-1].data.clear()
+    assert log.entries()[-1].data == persisted
+    log.append("user", {"text": "next task"})
+    assert log.entries() == SessionLog.open(log.path).entries()
+
+
+def test_replaced_file_invalidates_cache_even_with_same_size_and_time(
+    tmp_path: Path,
+) -> None:
+    log = SessionLog.create(_sessions(tmp_path))
+    log.append("user", {"text": "one"})
+    metadata = log.path.stat()
+    original = log.path.read_bytes()
+    replacement = log.path.with_suffix(".replacement")
+    replacement.write_bytes(original.replace(b'"text":"one"', b'"text":"two"'))
+    os.utime(replacement, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+    os.replace(replacement, log.path)
+    assert log.entries()[-1].data["text"] == "two"
+
+
+def test_truncated_file_does_not_reuse_cached_head(tmp_path: Path) -> None:
+    log = SessionLog.create(_sessions(tmp_path))
+    log.append("user", {"text": "discarded"})
+    first_line = log.path.read_bytes().splitlines(keepends=True)[0]
+    log.path.write_bytes(first_line)
+    appended = log.append("user", {"text": "replacement"})
+    assert appended.parent == json.loads(first_line)["id"]
+    assert len(log.entries()) == 2
+    assert log.entries() == SessionLog.open(log.path).entries()
+
+
+def test_external_corruption_is_rejected_before_cached_append(tmp_path: Path) -> None:
+    log = SessionLog.create(_sessions(tmp_path))
+    log.append("user", {"text": "kept"})
+    with log.path.open("ab") as stream:
+        stream.write(b'{"invalid":true}\n')
+    corrupted = log.path.read_bytes()
+    with pytest.raises(LogError, match="invalid session record"):
+        log.append("user", {"text": "must not append"})
+    assert log.path.read_bytes() == corrupted
+
+
+def test_failed_sync_does_not_leave_a_stale_cached_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = SessionLog.create(_sessions(tmp_path))
+
+    def fail_sync(descriptor: int) -> None:
+        raise OSError("simulated sync failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "fsync", fail_sync)
+        with pytest.raises(OSError, match="sync failure"):
+            log.append("user", {"text": "uncertain commit"})
+    committed = json.loads(log.path.read_text(encoding="utf-8").splitlines()[-1])
+    appended = log.append("user", {"text": "after failure"})
+    assert appended.parent == committed["id"]
+    assert log.entries() == SessionLog.open(log.path).entries()
 
 
 def test_process_writers_keep_one_continuous_branch(tmp_path: Path) -> None:
