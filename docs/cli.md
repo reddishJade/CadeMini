@@ -5,11 +5,14 @@ or manages sessions.
 
 ```bash
 cade [TASK] [options]
+cade -p TASK [options]
 cade exec TASK [options]
 ```
 
-`exec` is an explicit alias for a one-shot task. Without a task, `cade`
-starts the TUI in an interactive terminal.
+`cade` starts the TUI in an interactive terminal. An optional positional task
+is sent as its first message; the TUI stays open afterward. Use `-p TASK`
+(or `--prompt TASK`) or `exec TASK` to run one task and exit. The positional
+TUI prompt and `-p` cannot be combined.
 
 ## Login
 
@@ -29,6 +32,8 @@ authentication routes. A refreshable OAuth token still makes models selectable;
 the provider refreshes it when needed.
 
 ## One-shot options
+
+- `-p TASK` / `--prompt TASK` runs one task and exits, like `cade exec TASK`.
 
 - `--project-root PATH` sets the workspace. The default is the current
   directory.
@@ -167,8 +172,8 @@ tool. See [Steering and queueing](design/steering-queue.md).
 
 ```bash
 cade --list-sessions
-cade --continue "Summarize the current state."
+cade --continue -p "Summarize the current state."
 cade --undo
-cade --mode plan "Find the smallest fix for the failing test."
-cade --mode build --yes "Fix the test and run pytest."
+cade --mode plan -p "Find the smallest fix for the failing test."
+cade --mode build --yes -p "Fix the test and run pytest."
 ```

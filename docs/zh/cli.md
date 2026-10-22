@@ -4,10 +4,11 @@
 
 ```bash
 cade [TASK] [options]
+cade -p TASK [options]
 cade exec TASK [options]
 ```
 
-`exec` 是一次性任务的显式别名。不提供任务时，`cade` 在交互式终端里启动 TUI。
+`cade` 在交互式终端里启动 TUI。可选的位置参数会作为第一条消息发送，任务结束后 TUI 保持打开。用 `-p TASK`（或 `--prompt TASK`）或 `exec TASK` 运行一次后退出。TUI 的位置参数与 `-p` 不能同时使用。
 
 ## 登录
 
@@ -20,6 +21,8 @@ cade login --provider deepseek
 `--provider` 默认是 `chatgpt`，使用浏览器里的 Sign in with ChatGPT（SIWC）。`openai` 和 `deepseek` 使用 `api_key`，通过隐藏输入提示填写。凭据保存在 `~/.cade/auth.json`，稳定的 SIWC 宿主 ID 保存在 `~/.cade/host.json`。登录不会修改项目的 provider 或模型设置。Cade 只支持 Responses 协议。ChatGPT 登录和 OpenAI API key 是两条独立的认证路径，都暴露已注册的 OpenAI 聊天模型池。可刷新的 OAuth token 仍然让模型可选；provider 在需要时刷新它。
 
 ## 一次性任务选项
+
+- `-p TASK` / `--prompt TASK`：运行一次后退出，与 `cade exec TASK` 相同。
 
 - `--project-root PATH`：设置工作区。默认是当前目录。
 - `--config PATH`：选择配置文件。默认是 `<project-root>/cade.json`。
@@ -116,8 +119,8 @@ Review @src/cade/harness/loop.py and use $review-only
 
 ```bash
 cade --list-sessions
-cade --continue "Summarize the current state."
+cade --continue -p "Summarize the current state."
 cade --undo
-cade --mode plan "Find the smallest fix for the failing test."
-cade --mode build --yes "Fix the test and run pytest."
+cade --mode plan -p "Find the smallest fix for the failing test."
+cade --mode build --yes -p "Fix the test and run pytest."
 ```

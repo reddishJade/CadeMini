@@ -4,11 +4,14 @@ Cade 只有一个终端宿主，包含两种模式：交互式 TUI 和一次性�
 
 ## 终端 UI
 
-不提供任务时，CLI 在交互式终端里启动 TUI：
+没有 `-p` 或 `exec` 时，CLI 在交互式终端里启动 TUI：
 
 ```bash
 cade
+cade "Fix the failing test."
 ```
+
+位置参数会作为 TUI 的第一条消息发送一次。任务完成后，TUI 保持打开。
 
 TUI 把对话放在可滚动记录里，显示流式 assistant 文本和工具进度，并在应用内处理审批和提问。常用按键：
 
@@ -22,14 +25,14 @@ TUI 把对话放在可滚动记录里，显示流式 assistant 文本和工具�
 
 TUI 为模型、模式、推理强度、配置和权限打开原生选择器。按 `?` 或运行 `/help` 查看按键和命令参考。
 
-TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，请直接提供任务。
+TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，使用 `-p TASK` 或 `exec TASK`。
 
 ## 一次性执行
 
-提供任务时，CLI 运行一次后退出：
+提供 `-p` 或 `exec` 时，CLI 运行一次后退出：
 
 ```bash
-cade "Fix the failing test."
+cade -p "Fix the failing test."
 cade exec "Fix the failing test."
 ```
 

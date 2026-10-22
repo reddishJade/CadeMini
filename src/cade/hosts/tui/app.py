@@ -158,6 +158,7 @@ def run_tui(
     auto_continue: bool = False,
     session_id: str | None = None,
     config_path: Path | None = None,
+    initial_prompt: str | None = None,
 ) -> int:
     from .ptk_patch import suppress_windows_ptk_shutdown_noise
 
@@ -172,6 +173,7 @@ def run_tui(
             auto_continue=auto_continue,
             session_id=session_id,
             config_path=config_path,
+            initial_prompt=initial_prompt,
         ).run()
     except KeyboardInterrupt:
         return 0
@@ -195,6 +197,7 @@ class _CadeTui:
         auto_continue: bool = False,
         session_id: str | None = None,
         config_path: Path | None = None,
+        initial_prompt: str | None = None,
     ) -> None:
         self._agent_app = app
         self._project_root = project_root
@@ -493,6 +496,13 @@ class _CadeTui:
             )
         self._application.layout.focus(self._input)
         self._refresh()
+        if initial_prompt is not None:
+
+            def submit_initial_prompt() -> None:
+                self._input.text = ""
+                self._submit(initial_prompt)
+
+            self._application.pre_run_callables.append(submit_initial_prompt)
 
     def run(self) -> int:
         started_at = perf_counter()

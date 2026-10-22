@@ -50,11 +50,15 @@ def _main(
     force_exec = bool(raw and raw[0] == "exec")
     if force_exec:
         raw = raw[1:]
-    args = _parser().parse_args(raw)
+    args = _parser(exec_mode=force_exec).parse_args(raw)
     task = args.task
+    initial_prompt = None if force_exec else args.initial_prompt
     one_shot = force_exec or task is not None
     if force_exec and not task:
         print("cade: exec requires a task", file=sys.stderr)
+        return 2
+    if any(text is not None and not text.strip() for text in (task, initial_prompt)):
+        print("cade: task must not be empty", file=sys.stderr)
         return 2
     if not one_shot and args.json:
         print("cade: --json requires a one-shot task", file=sys.stderr)
@@ -67,7 +71,7 @@ def _main(
     ):
         print(
             "cade: the interactive TUI requires a terminal; "
-            "provide a task or use 'cade exec TASK'",
+            "use 'cade -p TASK' or 'cade exec TASK'",
             file=sys.stderr,
         )
         return 2
@@ -115,7 +119,7 @@ def _main(
         print("cade: --continue and --resume cannot be combined", file=sys.stderr)
         return 2
     if args.undo:
-        if one_shot:
+        if one_shot or initial_prompt is not None:
             print("cade: --undo cannot be combined with a task", file=sys.stderr)
             return 2
         try:
@@ -171,18 +175,33 @@ def _main(
         project_root,
         session_id=service.log.session_id,
         config_path=args.config,
+        initial_prompt=initial_prompt,
     )
 
 
-def _parser() -> argparse.ArgumentParser:
+def _parser(*, exec_mode: bool = False) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="cade",
+        prog="cade exec" if exec_mode else "cade",
         description="A small coding agent with a durable session log.",
         epilog="Use 'cade login --help' for authentication options.",
     )
-    parser.add_argument(
-        "task", nargs="?", help="Task to run once; omit to start the TUI"
-    )
+    if exec_mode:
+        parser.add_argument("task", nargs="?", help="Task to run once")
+    else:
+        task_group = parser.add_mutually_exclusive_group()
+        task_group.add_argument(
+            "initial_prompt",
+            nargs="?",
+            metavar="TASK",
+            help="Start the TUI and send this first message",
+        )
+        task_group.add_argument(
+            "-p",
+            "--prompt",
+            dest="task",
+            metavar="TASK",
+            help="Run a task once and exit",
+        )
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     parser.add_argument("--config", type=Path, default=None, help="Config file")
     parser.add_argument("--goal", default=None, help="Set the workspace goal")

@@ -8,11 +8,15 @@ session control.
 
 ## Terminal UI
 
-Without a task, the CLI starts the TUI in an interactive terminal:
+Without `-p` or `exec`, the CLI starts the TUI in an interactive terminal:
 
 ```bash
 cade
+cade "Fix the failing test."
 ```
+
+A positional task is sent once as the first TUI message. The TUI stays open
+after the task completes.
 
 The TUI keeps the conversation in a scrollable transcript, shows streaming
 assistant text and tool progress, and handles approvals and questions without
@@ -34,14 +38,14 @@ configuration, and permissions. Press `?` or run `/help` for the key and
 command reference.
 
 The TUI requires both stdin and stdout to be terminals. In a pipe or a
-non-interactive process, provide a task instead.
+non-interactive process, use `-p TASK` or `exec TASK`.
 
 ## One-shot
 
-With a task, the CLI runs once and exits:
+With `-p` or `exec`, the CLI runs once and exits:
 
 ```bash
-cade "Fix the failing test."
+cade -p "Fix the failing test."
 cade exec "Fix the failing test."
 ```
 

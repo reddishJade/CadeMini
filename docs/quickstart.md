@@ -29,7 +29,7 @@ For an OpenAI API key, use a hidden key prompt or set the environment variable:
 ```bash
 uv run --locked cade login --provider openai
 export OPENAI_API_KEY=...
-uv run --locked cade --provider openai --model gpt-5.5 "Review this project."
+uv run --locked cade --provider openai --model gpt-5.5 -p "Review this project."
 ```
 
 DeepSeek uses the same Responses protocol with its own API key:
@@ -37,7 +37,7 @@ DeepSeek uses the same Responses protocol with its own API key:
 ```bash
 uv run --locked cade login --provider deepseek
 export DEEPSEEK_API_KEY=...
-uv run --locked cade --provider deepseek --model deepseek-flash "Review this project."
+uv run --locked cade --provider deepseek --model deepseek-flash -p "Review this project."
 ```
 
 The default provider is `chatgpt`. Set `provider` and `model` in
@@ -50,7 +50,7 @@ directories.
 ## Run one task
 
 ```bash
-uv run --locked cade "Read README.md and explain the entry point in three bullets."
+uv run --locked cade -p "Read README.md and explain the entry point in three bullets."
 ```
 
 The same command can be written explicitly:
@@ -72,8 +72,8 @@ point at another workspace.
   commands are allowed.
 
 ```bash
-uv run --locked cade --mode plan "Propose a fix for the failing test."
-uv run --locked cade --mode build "Fix the bug and run the test."
+uv run --locked cade --mode plan -p "Propose a fix for the failing test."
+uv run --locked cade --mode build -p "Fix the bug and run the test."
 ```
 
 For non-interactive automation, `--yes` approves asks, and `--read-only` denies
@@ -86,11 +86,12 @@ Sessions live under `.cade/sessions` by default.
 
 ```bash
 uv run --locked cade --list-sessions
-uv run --locked cade --continue "What did you change?"
-uv run --locked cade --resume SESSION_ID "Continue the task."
+uv run --locked cade --continue -p "What did you change?"
+uv run --locked cade --resume SESSION_ID -p "Continue the task."
 ```
 
-Omitting the task starts the full-screen TUI. See [CLI](cli.md) for interactive
+Run `cade` to start the TUI. `cade "Review this project."` starts the TUI and
+sends the task as its first message, then stays open. See [CLI](cli.md) for interactive
 commands and [Hosts](hosts.md) for key bindings.
 
 ## Build the docs

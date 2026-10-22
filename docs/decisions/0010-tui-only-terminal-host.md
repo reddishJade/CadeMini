@@ -11,10 +11,11 @@ interactive hosts would duplicate host behavior and tests.
 
 ## Decision
 
-Without a task, `cade` starts the TUI. The TUI requires stdin and stdout to
-be terminals; otherwise the CLI exits with status 2 and asks for a task.
-One-shot execution remains available as `cade TASK` or
-`cade exec TASK`.
+Without `-p` or `exec`, `cade` starts the TUI. An optional positional task is
+sent once as its first message; the TUI stays open after completion. The TUI
+requires stdin and stdout to be terminals; otherwise the CLI exits with status 2.
+One-shot execution is available as `cade -p TASK` (`--prompt TASK`) or
+`cade exec TASK`. A positional TUI task and `-p` cannot be combined.
 
 The `--repl`, `--tui`, and `--queue` options are removed. REPL-only input,
 approval, and live-task helpers are removed with their tests. `--steer` applies

@@ -141,7 +141,7 @@ For an OpenAI API key, use a hidden key prompt or set the environment variable:
 ```bash
 uv run --locked cade login --provider openai
 export OPENAI_API_KEY=...
-uv run --locked cade --provider openai --model gpt-5.5 "Review this project."
+uv run --locked cade --provider openai --model gpt-5.5 -p "Review this project."
 ```
 
 DeepSeek uses the same Responses protocol with its own API key:
@@ -149,7 +149,7 @@ DeepSeek uses the same Responses protocol with its own API key:
 ```bash
 uv run --locked cade login --provider deepseek
 export DEEPSEEK_API_KEY=...
-uv run --locked cade --provider deepseek --model deepseek-flash "Review this project."
+uv run --locked cade --provider deepseek --model deepseek-flash -p "Review this project."
 ```
 
 The default provider is `chatgpt`. Set `provider` and `model` in
@@ -162,7 +162,7 @@ directories.
 ## Run one task
 
 ```bash
-uv run --locked cade "Read README.md and explain the entry point in three bullets."
+uv run --locked cade -p "Read README.md and explain the entry point in three bullets."
 ```
 
 The same command can be written explicitly:
@@ -184,8 +184,8 @@ point at another workspace.
   commands are allowed.
 
 ```bash
-uv run --locked cade --mode plan "Propose a fix for the failing test."
-uv run --locked cade --mode build "Fix the bug and run the test."
+uv run --locked cade --mode plan -p "Propose a fix for the failing test."
+uv run --locked cade --mode build -p "Fix the bug and run the test."
 ```
 
 For non-interactive automation, `--yes` approves asks, and `--read-only` denies
@@ -198,11 +198,12 @@ Sessions live under `.cade/sessions` by default.
 
 ```bash
 uv run --locked cade --list-sessions
-uv run --locked cade --continue "What did you change?"
-uv run --locked cade --resume SESSION_ID "Continue the task."
+uv run --locked cade --continue -p "What did you change?"
+uv run --locked cade --resume SESSION_ID -p "Continue the task."
 ```
 
-Omitting the task starts the full-screen TUI. See [CLI](cli.md) for interactive
+Run `cade` to start the TUI. `cade "Review this project."` starts the TUI and
+sends the task as its first message, then stays open. See [CLI](cli.md) for interactive
 commands and [Hosts](hosts.md) for key bindings.
 
 ## Build the docs
@@ -226,11 +227,14 @@ or manages sessions.
 
 ```bash
 cade [TASK] [options]
+cade -p TASK [options]
 cade exec TASK [options]
 ```
 
-`exec` is an explicit alias for a one-shot task. Without a task, `cade`
-starts the TUI in an interactive terminal.
+`cade` starts the TUI in an interactive terminal. An optional positional task
+is sent as its first message; the TUI stays open afterward. Use `-p TASK`
+(or `--prompt TASK`) or `exec TASK` to run one task and exit. The positional
+TUI prompt and `-p` cannot be combined.
 
 ## Login
 
@@ -250,6 +254,8 @@ authentication routes. A refreshable OAuth token still makes models selectable;
 the provider refreshes it when needed.
 
 ## One-shot options
+
+- `-p TASK` / `--prompt TASK` runs one task and exits, like `cade exec TASK`.
 
 - `--project-root PATH` sets the workspace. The default is the current
   directory.
@@ -388,10 +394,10 @@ tool. See [Steering and queueing](design/steering-queue.md).
 
 ```bash
 cade --list-sessions
-cade --continue "Summarize the current state."
+cade --continue -p "Summarize the current state."
 cade --undo
-cade --mode plan "Find the smallest fix for the failing test."
-cade --mode build --yes "Fix the test and run pytest."
+cade --mode plan -p "Find the smallest fix for the failing test."
+cade --mode build --yes -p "Fix the test and run pytest."
 ```
 
 # Configuration
@@ -1681,7 +1687,7 @@ plan mode and with `--read-only`, and can be allowed by a rule:
 ## Verify
 
 ```bash
-cade --mode build "Use the time MCP tool to get the current time in Asia/Singapore."
+cade --mode build -p "Use the time MCP tool to get the current time in Asia/Singapore."
 ```
 
 The log records a `tool_result` with the server's text content. A server process
@@ -3056,13 +3062,13 @@ repository's tests.
 1. Reproduce the failure:
 
    ```bash
-   cade --mode plan "Read the failing test and explain the failure."
+   cade --mode plan -p "Read the failing test and explain the failure."
    ```
 
 2. Fix it:
 
    ```bash
-   cade --mode build --yes "Fix the failing test with the smallest change, then run pytest."
+   cade --mode build --yes -p "Fix the failing test with the smallest change, then run pytest."
    ```
 
 3. Inspect the diff and the snapshot:
@@ -3105,13 +3111,13 @@ diff reviewable.
 1. Ask for a failing test or write it yourself:
 
    ```bash
-   cade --mode build --yes "Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails."
+   cade --mode build --yes -p "Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails."
    ```
 
 2. Implement the smallest change:
 
    ```bash
-   cade --mode build --yes "Implement mul() and run the new test."
+   cade --mode build --yes -p "Implement mul() and run the new test."
    ```
 
 3. Review:
@@ -3150,7 +3156,7 @@ Use `plan` and `--read-only` when the task is to inspect, not change.
 ## Procedure
 
 ```bash
-cade --mode plan --read-only "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
+cade --mode plan --read-only -p "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
 ```
 
 Plan mode hides write and edit tools and denies mutating shell commands.
@@ -3298,11 +3304,15 @@ session control.
 
 ## Terminal UI
 
-Without a task, the CLI starts the TUI in an interactive terminal:
+Without `-p` or `exec`, the CLI starts the TUI in an interactive terminal:
 
 ```bash
 cade
+cade "Fix the failing test."
 ```
+
+A positional task is sent once as the first TUI message. The TUI stays open
+after the task completes.
 
 The TUI keeps the conversation in a scrollable transcript, shows streaming
 assistant text and tool progress, and handles approvals and questions without
@@ -3324,14 +3334,14 @@ configuration, and permissions. Press `?` or run `/help` for the key and
 command reference.
 
 The TUI requires both stdin and stdout to be terminals. In a pipe or a
-non-interactive process, provide a task instead.
+non-interactive process, use `-p TASK` or `exec TASK`.
 
 ## One-shot
 
-With a task, the CLI runs once and exits:
+With `-p` or `exec`, the CLI runs once and exits:
 
 ```bash
-cade "Fix the failing test."
+cade -p "Fix the failing test."
 cade exec "Fix the failing test."
 ```
 

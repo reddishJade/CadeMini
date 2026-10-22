@@ -54,7 +54,7 @@ MCP 工具命名为 `mcp__<server>__<tool>`。它们默认询问，在计划模�
 ## 验证
 
 ```bash
-cade --mode build "Use the time MCP tool to get the current time in Asia/Singapore."
+cade --mode build -p "Use the time MCP tool to get the current time in Asia/Singapore."
 ```
 
 日志会记录一条 `tool_result`，内容来自服务器返回的文本。Cade 退出时关闭服务器进程。

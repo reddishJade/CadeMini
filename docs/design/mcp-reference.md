@@ -60,7 +60,7 @@ plan mode and with `--read-only`, and can be allowed by a rule:
 ## Verify
 
 ```bash
-cade --mode build "Use the time MCP tool to get the current time in Asia/Singapore."
+cade --mode build -p "Use the time MCP tool to get the current time in Asia/Singapore."
 ```
 
 The log records a `tool_result` with the server's text content. A server process

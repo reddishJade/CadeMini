@@ -5,7 +5,7 @@
 ## 步骤
 
 ```bash
-cade --mode plan --read-only "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
+cade --mode plan --read-only -p "Review the request builder for evidence loss. Cite files and lines; do not modify anything."
 ```
 
 计划模式隐藏写入和编辑工具，并拒绝修改类 shell 命令。`--read-only` 还会拒绝 memory、MCP 和任何剩余修改。

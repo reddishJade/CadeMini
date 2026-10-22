@@ -8,13 +8,13 @@ repository's tests.
 1. Reproduce the failure:
 
    ```bash
-   cade --mode plan "Read the failing test and explain the failure."
+   cade --mode plan -p "Read the failing test and explain the failure."
    ```
 
 2. Fix it:
 
    ```bash
-   cade --mode build --yes "Fix the failing test with the smallest change, then run pytest."
+   cade --mode build --yes -p "Fix the failing test with the smallest change, then run pytest."
    ```
 
 3. Inspect the diff and the snapshot:

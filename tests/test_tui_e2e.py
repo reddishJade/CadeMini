@@ -121,7 +121,13 @@ Scenario = Callable[[Terminal], Awaitable[None]]
 
 
 class Runner(Protocol):
-    def __call__(self, scenario: Scenario, *, resume: str | None = None) -> None: ...
+    def __call__(
+        self,
+        scenario: Scenario,
+        *,
+        resume: str | None = None,
+        initial_prompt: str | None = None,
+    ) -> None: ...
 
 
 @pytest.fixture
@@ -154,7 +160,12 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
     # 模型切换也只替换外部边界，不依赖维护者的真实凭据。
     monkeypatch.setattr("cade.app.session.build_provider", lambda _: provider)
 
-    def run(scenario: Scenario, *, resume: str | None = None) -> None:
+    def run(
+        scenario: Scenario,
+        *,
+        resume: str | None = None,
+        initial_prompt: str | None = None,
+    ) -> None:
         def launch(service: ApplicationSession, root: Path, **kwargs: Any) -> int:
             assert [s.name for s in service.skills] == ["e2e-skill"]
             with create_pipe_input() as pipe:
@@ -213,6 +224,7 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
         assert (
             cli.main(
                 [
+                    *([initial_prompt] if initial_prompt is not None else []),
                     "--project-root",
                     str(workspace),
                     "--provider",
@@ -228,6 +240,42 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
         )
 
     return run
+
+
+@pytest.mark.parametrize("resume", [False, True])
+def test_startup_prompt_is_sent_once_and_tui_stays_open(
+    terminal_runner: Runner, resume: bool
+) -> None:
+    previous_session: list[str] = []
+
+    async def prepare(term: Terminal) -> None:
+        await term.send("earlier message")
+        previous_session.append(term.service.log.session_id)
+
+    if resume:
+        terminal_runner(prepare)
+
+    async def scenario(term: Terminal) -> None:
+        await term.until(
+            lambda: not term.tui._state.running and "E2E answer" in term.transcript,
+            "initial prompt completed",
+        )
+        users = [e.data["text"] for e in term.service.log.branch() if e.type == "user"]
+        assert users == (["earlier message"] if resume else []) + ["首次任务"]
+        assert term.tui._application.is_running
+        term.tui._application.invalidate()
+        await term.send("follow-up message")
+        users = [e.data["text"] for e in term.service.log.branch() if e.type == "user"]
+        assert users.count("首次任务") == 1
+        assert users[-1] == "follow-up message"
+        if resume:
+            assert term.service.log.session_id == previous_session[0]
+
+    terminal_runner(
+        scenario,
+        initial_prompt="首次任务",
+        resume=previous_session[0] if resume else None,
+    )
 
 
 # 每个目录项都有独立用例；新增命令时要求明确补充可观察结果。

@@ -7,13 +7,13 @@
 1. 复现失败：
 
    ```bash
-   cade --mode plan "Read the failing test and explain the failure."
+   cade --mode plan -p "Read the failing test and explain the failure."
    ```
 
 2. 修复：
 
    ```bash
-   cade --mode build --yes "Fix the failing test with the smallest change, then run pytest."
+   cade --mode build --yes -p "Fix the failing test with the smallest change, then run pytest."
    ```
 
 3. 检查 diff 和快照：

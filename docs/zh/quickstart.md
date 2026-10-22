@@ -23,7 +23,7 @@ uv run --locked cade login
 ```bash
 uv run --locked cade login --provider openai
 export OPENAI_API_KEY=...
-uv run --locked cade --provider openai --model gpt-5.5 "Review this project."
+uv run --locked cade --provider openai --model gpt-5.5 -p "Review this project."
 ```
 
 DeepSeek 使用同样的 Responses 协议，但用自己的 API key：
@@ -31,7 +31,7 @@ DeepSeek 使用同样的 Responses 协议，但用自己的 API key：
 ```bash
 uv run --locked cade login --provider deepseek
 export DEEPSEEK_API_KEY=...
-uv run --locked cade --provider deepseek --model deepseek-flash "Review this project."
+uv run --locked cade --provider deepseek --model deepseek-flash -p "Review this project."
 ```
 
 默认 provider 是 `chatgpt`。在 `cade.json` 里设置 `provider` 和 `model`，可以改启动默认值。Cade 只支持 Responses 协议：`chatgpt` 用于 ChatGPT 套餐，`openai` 用于 OpenAI API key，`deepseek` 用于 DeepSeek API key。旧 Cade 项目的状态不兼容；请使用干净的 `~/.cade/` 和工作区 `.cade/` 目录。
@@ -39,7 +39,7 @@ uv run --locked cade --provider deepseek --model deepseek-flash "Review this pro
 ## 运行一个任务
 
 ```bash
-uv run --locked cade "Read README.md and explain the entry point in three bullets."
+uv run --locked cade -p "Read README.md and explain the entry point in three bullets."
 ```
 
 也可以显式写出命令：
@@ -57,8 +57,8 @@ Cade 默认在当前目录运行。用 `--project-root` 指向其他工作区。
 - `plan` 隐藏写入和编辑工具，拒绝修改。只读 shell 命令允许执行。
 
 ```bash
-uv run --locked cade --mode plan "Propose a fix for the failing test."
-uv run --locked cade --mode build "Fix the bug and run the test."
+uv run --locked cade --mode plan -p "Propose a fix for the failing test."
+uv run --locked cade --mode build -p "Fix the bug and run the test."
 ```
 
 非交互自动化可用 `--yes` 批准确认，用 `--read-only` 拒绝写入和 shell 命令。在共享仓库里优先使用规则授权，而不是 `--yes`；见[配置](configuration.md)。
@@ -69,11 +69,11 @@ uv run --locked cade --mode build "Fix the bug and run the test."
 
 ```bash
 uv run --locked cade --list-sessions
-uv run --locked cade --continue "What did you change?"
-uv run --locked cade --resume SESSION_ID "Continue the task."
+uv run --locked cade --continue -p "What did you change?"
+uv run --locked cade --resume SESSION_ID -p "Continue the task."
 ```
 
-不提供任务时启动全屏 TUI。交互命令见 [CLI](cli.md)，按键绑定见[宿主](hosts.md)。
+运行 `cade` 启动 TUI。`cade "Review this project."` 会启动 TUI 并发送首条消息，任务结束后保持打开。交互命令见 [CLI](cli.md)，按键绑定见[宿主](hosts.md)。
 
 ## 构建文档
 

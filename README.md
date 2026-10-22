@@ -11,21 +11,21 @@ You need Python 3.12+ and [uv](https://docs.astral.sh/uv/). From this checkout:
 ```bash
 uv sync --locked
 uv run --locked cade login
-uv run --locked cade "Read README.md and explain how this project runs."
+uv run --locked cade -p "Read README.md and explain how this project runs."
 ```
 
 Login uses Sign in with ChatGPT by default. For an OpenAI API key:
 
 ```bash
 uv run --locked cade login --provider openai
-uv run --locked cade --provider openai --model gpt-5.5 "Review this project."
+uv run --locked cade --provider openai --model gpt-5.5 -p "Review this project."
 ```
 
 For DeepSeek:
 
 ```bash
 uv run --locked cade login --provider deepseek
-uv run --locked cade --provider deepseek --model deepseek-flash "Review this project."
+uv run --locked cade --provider deepseek --model deepseek-flash -p "Review this project."
 ```
 
 Cade supports only the Responses protocol. API keys are also read from
@@ -45,13 +45,16 @@ cade --help
 
 ```bash
 cade
+cade "Review recent changes"
+cade -p "Review recent changes"
 cade exec "Review recent changes"
 cade --continue "Continue work"
 cade --mode build "Fix the bug"
 ```
 
-Without a task, `cade` starts the inline terminal UI. The TUI accepts
-commands, file and skill references, and shell shortcuts.
+`cade` starts the inline terminal UI. A positional task is sent as its first
+message, and the TUI stays open. Use `-p` or `exec` to run once and exit.
+The TUI accepts commands, file and skill references, and shell shortcuts.
 
 Build mode is the default: normal edits, tests, and builds run automatically.
 Use `--mode ask` for approval before changes or `--mode plan` for planning.

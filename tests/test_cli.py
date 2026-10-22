@@ -105,14 +105,16 @@ def _session_files(sessions: Path) -> list[Path]:
     return sorted(sessions.glob("session-*.jsonl"))
 
 
-def test_cli_exec_prints_answer_and_creates_session(
+@pytest.mark.parametrize("task_option", ["-p", "--prompt", "exec"])
+def test_cli_one_shot_prints_answer_and_creates_session(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    task_option: str,
 ) -> None:
     sessions = tmp_path / "sessions"
     code = main(
         [
-            "exec",
+            task_option,
             "hi",
             "--project-root",
             str(tmp_path),
@@ -137,10 +139,13 @@ def test_cli_exec_prints_answer_and_creates_session(
     assert types.count("run") == 1
 
 
-def test_cli_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.parametrize("task_option", ["-p", "exec"])
+def test_cli_json_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], task_option: str
+) -> None:
     code = main(
         [
-            "exec",
+            task_option,
             "hi",
             "--project-root",
             str(tmp_path),
@@ -165,7 +170,8 @@ def test_cli_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     }
 
 
-def test_cli_resume_appends_to_same_session(tmp_path: Path) -> None:
+@pytest.mark.parametrize("task_option", ["-p", "exec"])
+def test_cli_resume_appends_to_same_session(tmp_path: Path, task_option: str) -> None:
     sessions = tmp_path / "sessions"
     common = [
         "--project-root",
@@ -176,7 +182,7 @@ def test_cli_resume_appends_to_same_session(tmp_path: Path) -> None:
     ]
     assert (
         main(
-            ["exec", "first", *common],
+            [task_option, "first", *common],
             provider=FakeProvider([_text("one")]),
         )
         == 0
@@ -184,7 +190,7 @@ def test_cli_resume_appends_to_same_session(tmp_path: Path) -> None:
     session_id = _session_files(sessions)[0].stem.removeprefix("session-")
     assert (
         main(
-            ["exec", "second", *common, "--resume", session_id],
+            [task_option, "second", *common, "--resume", session_id],
             provider=FakeProvider([_text("two")]),
         )
         == 0
@@ -270,6 +276,51 @@ def test_tui_sensitive_approval_only_allows_once(
 
     monkeypatch.setattr("cade.hosts.tui.app.run_tui", show)
     assert main(["--project-root", str(tmp_path)], provider=FakeProvider([])) == 0
+
+
+def test_cli_positional_prompt_starts_tui(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cade.app.session import ApplicationSession
+
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    provider = FakeProvider([])
+
+    def launch(service: ApplicationSession, root: Path, **kwargs: Any) -> int:
+        assert kwargs["initial_prompt"] == "first message"
+        assert not service.log.path.exists()
+        assert not provider.requests
+        return 0
+
+    monkeypatch.setattr("cade.hosts.tui.app.run_tui", launch)
+    assert (
+        main(["first message", "--project-root", str(tmp_path)], provider=provider) == 0
+    )
+
+
+@pytest.mark.parametrize("arguments", [["-p"], ["first", "-p", "second"]])
+def test_cli_rejects_missing_or_conflicting_prompt(arguments: list[str]) -> None:
+    with pytest.raises(SystemExit) as error:
+        main(arguments, provider=FakeProvider([]))
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("arguments", [["-p", ""], ["exec", ""], ["   "]])
+def test_cli_rejects_empty_prompt(arguments: list[str]) -> None:
+    assert main(arguments, provider=FakeProvider([])) == 2
+
+
+def test_cli_positional_prompt_requires_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    provider = FakeProvider([])
+    assert (
+        main(["first message", "--project-root", str(tmp_path)], provider=provider) == 2
+    )
+    assert "cade -p TASK" in capsys.readouterr().err
+    assert not provider.requests
 
 
 def test_cli_interactive_requires_terminal(
