@@ -113,7 +113,7 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <li><a href="#page-cli">CLI</a>：一次性任务、TUI、会话和恢复命令。</li>
 <li><a href="#page-configuration">配置</a>：<code>cade.json</code> 的字段。</li>
 <li><a href="#page-architecture">架构</a>：日志、投影、请求和执行流水线。</li>
-<li><a href="#page-sessions-context">会话与上下文</a>：恢复、压缩、裁剪和历史检索。</li>
+<li><a href="#page-sessions-context">会话与上下文</a>：恢复、压缩、换窗和历史检索。</li>
 <li><a href="#page-tools-security">工具与安全</a>：模式、规则、授权和 shell 分析。</li>
 <li><a href="#page-snapshots-goals">快照与目标</a>：撤销和持久目标。</li>
 <li><a href="#page-skills-memory">技能与记忆</a>：<code>SKILL.md</code> 和 <code>MEMORY.md</code>。</li>
@@ -121,13 +121,13 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <li><a href="#page-subagents">子代理</a>：子会话和任务委派。</li>
 <li><a href="#page-hosts">宿主</a>：终端 TUI 和一次性执行。</li>
 <li><a href="#page-development">开发</a>：检查、测试和文档流水线。</li>
-<li><a href="#page-parity">对齐验收</a>：与 Cade 的验收对照。</li>
+<li><a href="#page-parity">对齐验收</a>：与早期 Cade 的验收对照。</li>
 </ul>
 <h2>设计</h2>
 <ul>
 <li><a href="#page-how-it-works">Cade 如何工作</a>：端到端模型的简版。</li>
 <li><a href="#page-code-map">代码地图</a>：包边界和入口。</li>
-<li><a href="#page-cade-comparison">与 Cade 的关系</a>：独立维护的边界。</li>
+<li><a href="#page-cade-comparison">与早期 Cade 的关系</a>：独立维护的边界。</li>
 <li><a href="#page-capability-seams">能力接缝</a>：可替换的契约。</li>
 <li><a href="#page-event-model">事件模型</a>：事实与审计记录的区分。</li>
 <li><a href="#page-tool-execution">工具执行</a>：从策略到结果的流水线。</li>
@@ -188,16 +188,16 @@ uv run --locked python -m cade.docs catalogs --write
 <p>使用 OpenAI API key 时，用隐藏输入提示，或设置环境变量：</p>
 <pre><code class="language-bash">uv run --locked cade login --provider openai
 export OPENAI_API_KEY=...
-uv run --locked cade --provider openai --model gpt-5.5 &quot;Review this project.&quot;
+uv run --locked cade --provider openai --model gpt-5.5 -p &quot;Review this project.&quot;
 </code></pre>
 <p>DeepSeek 使用同样的 Responses 协议，但用自己的 API key：</p>
 <pre><code class="language-bash">uv run --locked cade login --provider deepseek
 export DEEPSEEK_API_KEY=...
-uv run --locked cade --provider deepseek --model deepseek-flash &quot;Review this project.&quot;
+uv run --locked cade --provider deepseek --model deepseek-flash -p &quot;Review this project.&quot;
 </code></pre>
 <p>默认 provider 是 <code>chatgpt</code>。在 <code>cade.json</code> 里设置 <code>provider</code> 和 <code>model</code>，可以改启动默认值。Cade 只支持 Responses 协议：<code>chatgpt</code> 用于 ChatGPT 套餐，<code>openai</code> 用于 OpenAI API key，<code>deepseek</code> 用于 DeepSeek API key。旧 Cade 项目的状态不兼容；请使用干净的 <code>~/.cade/</code> 和工作区 <code>.cade/</code> 目录。</p>
 <h2>运行一个任务</h2>
-<pre><code class="language-bash">uv run --locked cade &quot;Read README.md and explain the entry point in three bullets.&quot;
+<pre><code class="language-bash">uv run --locked cade -p &quot;Read README.md and explain the entry point in three bullets.&quot;
 </code></pre>
 <p>也可以显式写出命令：</p>
 <pre><code class="language-bash">uv run --locked cade exec &quot;Read README.md and explain the entry point.&quot;
@@ -209,17 +209,17 @@ uv run --locked cade --provider deepseek --model deepseek-flash &quot;Review thi
 <li><code>ask</code> 允许已归类的只读操作，在修改或未归类的 shell 命令之前询问。</li>
 <li><code>plan</code> 隐藏写入和编辑工具，拒绝修改。只读 shell 命令允许执行。</li>
 </ul>
-<pre><code class="language-bash">uv run --locked cade --mode plan &quot;Propose a fix for the failing test.&quot;
-uv run --locked cade --mode build &quot;Fix the bug and run the test.&quot;
+<pre><code class="language-bash">uv run --locked cade --mode plan -p &quot;Propose a fix for the failing test.&quot;
+uv run --locked cade --mode build -p &quot;Fix the bug and run the test.&quot;
 </code></pre>
-<p>非交互自动化可用 <code>--yes</code> 批准确认，用 <code>--read-only</code> 拒绝写入和 shell 命令。在共享仓库里优先使用规则授权，而不是 <code>--yes</code>；见<a href="#page-configuration">配置</a>。</p>
+<p>非交互自动化可用 <code>--yes</code> 批准确认，用 <code>--read-only</code> 拒绝修改，但仍允许已归类的只读 shell 命令。在共享仓库里优先使用规则授权，而不是 <code>--yes</code>；见<a href="#page-configuration">配置</a>。</p>
 <h2>继续之前的工作</h2>
 <p>会话默认保存在 <code>.cade/sessions</code>。</p>
 <pre><code class="language-bash">uv run --locked cade --list-sessions
-uv run --locked cade --continue &quot;What did you change?&quot;
-uv run --locked cade --resume SESSION_ID &quot;Continue the task.&quot;
+uv run --locked cade --continue -p &quot;What did you change?&quot;
+uv run --locked cade --resume SESSION_ID -p &quot;Continue the task.&quot;
 </code></pre>
-<p>不提供任务时启动全屏 TUI。交互命令见 <a href="#page-cli">CLI</a>，按键绑定见<a href="#page-hosts">宿主</a>。</p>
+<p>运行 <code>cade</code> 启动行内 TUI。<code>cade &quot;Review this project.&quot;</code> 会启动 TUI 并发送首条消息，任务结束后保持打开。交互命令见 <a href="#page-cli">CLI</a>，按键绑定见<a href="#page-hosts">宿主</a>。</p>
 <h2>构建文档</h2>
 <pre><code class="language-bash">uv sync --locked --extra docs
 uv run --locked python -m cade.docs check
@@ -232,9 +232,10 @@ uv run --locked python -m cade.docs build
 <h1>CLI</h1>
 <p><code>cade</code> 入口可以运行单个任务、启动交互式终端宿主，或管理会话。</p>
 <pre><code class="language-bash">cade [TASK] [options]
+cade -p TASK [options]
 cade exec TASK [options]
 </code></pre>
-<p><code>exec</code> 是一次性任务的显式别名。不提供任务时，<code>cade</code> 在交互式终端里启动 TUI。</p>
+<p><code>cade</code> 在交互式终端里启动 TUI。可选的位置参数会作为第一条消息发送，任务结束后 TUI 保持打开。用 <code>-p TASK</code>（或 <code>--prompt TASK</code>）或 <code>exec TASK</code> 运行一次后退出。TUI 的位置参数与 <code>-p</code> 不能同时使用。</p>
 <h2>登录</h2>
 <pre><code class="language-bash">cade login
 cade login --provider openai
@@ -243,19 +244,48 @@ cade login --provider deepseek
 <p><code>--provider</code> 默认是 <code>chatgpt</code>，使用浏览器里的 Sign in with ChatGPT（SIWC）。<code>openai</code> 和 <code>deepseek</code> 使用 <code>api_key</code>，通过隐藏输入提示填写。凭据保存在 <code>~/.cade/auth.json</code>，稳定的 SIWC 宿主 ID 保存在 <code>~/.cade/host.json</code>。登录不会修改项目的 provider 或模型设置。Cade 只支持 Responses 协议。ChatGPT 登录和 OpenAI API key 是两条独立的认证路径，都暴露已注册的 OpenAI 聊天模型池。可刷新的 OAuth token 仍然让模型可选；provider 在需要时刷新它。</p>
 <h2>一次性任务选项</h2>
 <ul>
-<li><code>--project-root PATH</code>：设置工作区。默认是当前目录。</li>
-<li><code>--config PATH</code>：选择配置文件。默认是 <code>&lt;project-root&gt;/cade.json</code>。</li>
-<li><code>--provider NAME</code>、<code>--model NAME</code> 和 <code>--effort EFFORT</code>：覆盖 provider 默认值。</li>
-<li><code>--mode plan|build|ask</code>：选择工作模式。默认是 <code>build</code>。</li>
-<li><code>--sandbox read-only|workspace-write|danger-full-access</code>：选择文件系统范围。默认是 <code>workspace-write</code>；Windows 跳过操作系统隔离。</li>
-<li><code>--network</code> / <code>--no-network</code>：控制沙箱网络。默认允许。</li>
-<li><code>--read-only</code> / <code>--no-read-only</code>：控制是否拒绝修改。只读 shell 命令仍然可用。</li>
-<li><code>--yes</code>：批准确认。只在可信的非交互环境里使用。</li>
-<li><code>--auto-review</code> / <code>--no-auto-review</code>：让模型复核 ask 级别的调用。</li>
-<li><code>--max-steps N</code>：限制模型步骤数。</li>
-<li><code>--context-window N</code>：覆盖模型上下文窗口。内置注册表之外的模型必须提供。</li>
-<li><code>--json</code>：为一次性任务输出 JSONL 事件。</li>
-<li><code>--steer TEXT</code>：在一次性任务的下一个模型步骤注入指导；可以重复。</li>
+<li>
+<p><code>-p TASK</code> / <code>--prompt TASK</code>：运行一次后退出，与 <code>cade exec TASK</code> 相同。</p>
+</li>
+<li>
+<p><code>--project-root PATH</code>：设置工作区。默认是当前目录。</p>
+</li>
+<li>
+<p><code>--config PATH</code>：选择配置文件。默认是 <code>&lt;project-root&gt;/cade.json</code>。</p>
+</li>
+<li>
+<p><code>--provider NAME</code>、<code>--model NAME</code> 和 <code>--effort EFFORT</code>：覆盖 provider 默认值。</p>
+</li>
+<li>
+<p><code>--mode plan|build|ask</code>：选择工作模式。默认是 <code>build</code>。</p>
+</li>
+<li>
+<p><code>--sandbox read-only|workspace-write|danger-full-access</code>：选择文件系统范围。默认是 <code>workspace-write</code>；Windows 跳过操作系统隔离。</p>
+</li>
+<li>
+<p><code>--network</code> / <code>--no-network</code>：控制沙箱网络。默认允许。</p>
+</li>
+<li>
+<p><code>--read-only</code> / <code>--no-read-only</code>：控制是否拒绝修改。只读 shell 命令仍然可用。</p>
+</li>
+<li>
+<p><code>--yes</code>：批准确认。只在可信的非交互环境里使用。</p>
+</li>
+<li>
+<p><code>--auto-review</code> / <code>--no-auto-review</code>：让模型复核 ask 级别的调用。</p>
+</li>
+<li>
+<p><code>--max-steps N</code>：限制模型步骤数。</p>
+</li>
+<li>
+<p><code>--context-window N</code>：覆盖模型上下文窗口。内置注册表之外的模型必须提供。</p>
+</li>
+<li>
+<p><code>--json</code>：为一次性任务输出 JSONL 事件。</p>
+</li>
+<li>
+<p><code>--steer TEXT</code>：在一次性任务的下一个模型步骤注入指导；可以重复。</p>
+</li>
 </ul>
 <h2>会话</h2>
 <ul>
@@ -263,7 +293,7 @@ cade login --provider deepseek
 <li><code>--continue</code>：恢复项目里最新的会话。</li>
 <li><code>--resume</code>：恢复最新会话；<code>--resume ID</code> 恢复指定会话。</li>
 <li><code>--sessions-dir PATH</code>：修改会话目录。相对路径按项目根目录解析。</li>
-<li><code>--undo</code>：恢复最新的文件快照后退出，不联系 provider。</li>
+<li><code>--undo</code>：撤销最新会话的一次检查点操作后退出，不联系 provider，也不启动 MCP。用 <code>--resume ID --undo</code> 指定会话。它与 TUI <code>/undo</code> 共用对话和文件恢复协议。</li>
 </ul>
 <p><code>--continue</code> 和 <code>--resume</code> 不能同时使用。会话列表和自动续接会跳过没有非空用户消息的对话。新的交互式会话在收到第一条用户或助手消息之前，只把初始化记录留在内存里；只打开 TUI 或只运行 <code>/new</code> 不会创建会话文件。已有文件不会被自动删除。</p>
 <h2>目标</h2>
@@ -285,22 +315,30 @@ cade login --provider deepseek
 <li><code>/revert</code>：选择一段轮次和一个或全部已跟踪文件，不裁剪对话。<code>/revert START [END] -- PATH ...</code> 选择多个文件；含空格的路径要加引号，并使用正斜杠。END 包含在内；省略时包含最新操作。后续编辑如果冲突，会阻止恢复。</li>
 <li><code>/compact [INSTRUCTIONS]</code>：总结较早的轮次，并应用可选指导。</li>
 <li><code>/model [PROVIDER/MODEL]</code>：切换到已认证的精确模型，或在模型选择器里按部分名称搜索。</li>
+<li><code>/effort [LEVEL]</code>：选择模型推理强度，或打开选择器。</li>
 <li><code>/thinking [LEVEL]</code>：选择推理强度。用 <code>Ctrl+T</code> 折叠推理输出，不改变强度。</li>
+<li><code>/rollover [--force]</code>：开启新的上下文窗口；<code>/new-context</code> 是别名。</li>
 <li><code>/new-context [--force]</code>：用 <code>NOTE.md</code> 作为交接，开启新的上下文窗口。先写好该文件，或用 <code>--force</code> 在没有它的情况下重置。</li>
 <li><code>/mode [MODE]</code>：显示或切换执行模式。</li>
-<li><code>/permissions [clear]</code>：显示或清除会话授权。</li>
+<li><code>/permissions [list|clear]</code>：列出或清除会话授权；不带参数时打开选择器。</li>
 <li><code>/goal [TEXT|done|clear]</code>：显示、设置、完成或清除目标。</li>
+<li><code>/context-window [SIZE|default]</code>：显示或调整当前上下文窗口。</li>
 <li><code>/context</code>：打印会话 ID、provider、预算和事件数。</li>
+<li><code>/btw QUESTION</code>：提出一个独立的旁路问题。</li>
 <li><code>/steer TEXT</code>：为下一个模型步骤排队指导。</li>
-<li><code>/queue TEXT</code>：把任务排到当前任务之后执行。</li>
+<li><code>/queue [followup|steer|interrupt|TEXT]</code>：设置忙碌时 <code>Enter</code> 的行为，或将 TEXT 排到下一轮。</li>
 <li><code>/stop</code>：中断等待中的模型请求，包括等待首个输出的阶段。工具会在自己的取消检查点停止。</li>
 <li><code>/help</code>：打印命令列表。</li>
+<li><code>/auth [status|login|logout]</code>：查看认证状态，或转到登录和登出。</li>
 <li><code>/login</code>：选择认证方式和 provider。<code>/logout</code> 只删除选中的已保存凭据，不删除环境变量。</li>
 <li><code>/connect</code>：选择 provider，认证后打开它的模型选择器。</li>
 <li><code>/skill [NAME]</code>：为下一个任务激活技能。</li>
+<li><code>/tool [list]</code>：查看可用工具及说明。</li>
+<li><code>/config [KEY[=VALUE]]</code>：浏览配置，或更新项目设置。</li>
+<li><code>/memory</code>：显示工作区记忆文件的路径。</li>
 <li><code>/exit</code> 或 <code>/quit</code>：退出。</li>
 </ul>
-<p>TUI 不注册 <code>/rename</code> 和 <code>/mcp</code>。恢复操作只改已跟踪文件，不处理任意 shell 副作用、外部服务或用户的 Git 索引。参见<a href="#page-snapshots-goals">恢复范围和冲突</a>。<code>--undo</code> 仍是一次性任务的文件快照操作，不是对话撤销命令。</p>
+<p>TUI 不注册 <code>/rename</code> 和 <code>/mcp</code>。恢复操作只改已跟踪文件，不处理任意 shell 副作用、外部服务或用户的 Git 索引。参见<a href="#page-snapshots-goals">恢复范围和冲突</a>。<code>--undo</code> 不能与任务同时使用；两个撤销入口共用同一份持久操作历史。</p>
 <h2>交互输入</h2>
 <ul>
 <li><code>@path</code>：把工作区文件附加到任务。</li>
@@ -323,16 +361,16 @@ cade login --provider deepseek
 <h2>退出码</h2>
 <ul>
 <li><code>0</code>：运行完成。</li>
-<li><code>1</code>：运行未完成，或 <code>--undo</code> 没有可用的快照。</li>
+<li><code>1</code>：运行未完成，或 <code>--undo</code> 没有找到会话或可撤销操作，或恢复失败。</li>
 <li><code>2</code>：参数、配置或启动错误。</li>
 <li><code>130</code>：登录被取消。</li>
 </ul>
 <h2>示例</h2>
 <pre><code class="language-bash">cade --list-sessions
-cade --continue &quot;Summarize the current state.&quot;
+cade --continue -p &quot;Summarize the current state.&quot;
 cade --undo
-cade --mode plan &quot;Find the smallest fix for the failing test.&quot;
-cade --mode build --yes &quot;Fix the test and run pytest.&quot;
+cade --mode plan -p &quot;Find the smallest fix for the failing test.&quot;
+cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
 </code></pre>
 
 </section>
@@ -488,6 +526,7 @@ cade --mode build --yes &quot;Fix the test and run pytest.&quot;
 <section class="page" id="page-sessions-context" data-title="会话与上下文">
 <h1>会话与上下文</h1>
 <p>会话默认是 <code>.cade/sessions</code> 下的追加式 JSONL 文件，文件名是 <code>session-&lt;id&gt;.jsonl</code>。标题取自第一条用户消息，不需要额外的事件类型。</p>
+<p>在 POSIX 系统上，新会话目录使用 <code>0700</code> 权限，日志文件使用 <code>0600</code>。打开已有日志时，会把文件权限收紧为 <code>0600</code>，保留已有目录的权限。Windows 继承目录的访问控制列表（ACL）。日志包含完整请求输入，自定义会话目录应只允许当前用户访问。</p>
 <h2>恢复会话</h2>
 <pre><code class="language-bash">cade --list-sessions
 cade --continue &quot;Continue where we stopped.&quot;
@@ -705,9 +744,9 @@ uv run --locked cade login
 </tr>
 <tr>
 <td>恢复</td>
-<td><code>SnapshotStore</code> 的捕获和撤销</td>
-<td>文件快照存储</td>
-<td>工具、CLI</td>
+<td><code>WorkspaceRecovery.step</code> 和自有检查点</td>
+<td>按内容寻址的文件快照和操作历史</td>
+<td>应用、CLI、TUI</td>
 </tr>
 <tr>
 <td>宿主</td>
@@ -1408,7 +1447,6 @@ uv run --locked cade login
   hosts_cli --&gt; app_bootstrap
   hosts_cli --&gt; app_config
   hosts_cli --&gt; coding_goal
-  hosts_cli --&gt; coding_workspace_snapshots
   hosts_cli --&gt; harness_events
   hosts_cli --&gt; harness_provider
   hosts_cli --&gt; harness_session_log
@@ -1422,13 +1460,12 @@ uv run --locked cade login
   hosts_tui_bridge --&gt; harness_session_log
   hosts_tui_bridge --&gt; harness_session_types
   hosts_tui_command_handlers --&gt; app_commands
+  hosts_tui_compat --&gt; harness_events
   hosts_tui_config_registry --&gt; ai_models
   hosts_tui_config_registry --&gt; app_config
   hosts_tui_config_registry --&gt; app_settings
   hosts_tui_context_stats --&gt; harness_request
   hosts_tui_context_stats --&gt; harness_session_projection
-  hosts_tui_interaction_compat --&gt; coding_tools_base
-  hosts_tui_interaction_compat --&gt; harness_session_types
   hosts_tui_login_flow --&gt; ai_auth
   hosts_tui_settings --&gt; ai_models
   hosts_tui_setup_wizard --&gt; ai_models
@@ -1618,7 +1655,7 @@ uv run --locked cade login
 }
 </code></pre>
 <h2>验证</h2>
-<pre><code class="language-bash">cade --mode build &quot;Use the time MCP tool to get the current time in Asia/Singapore.&quot;
+<pre><code class="language-bash">cade --mode build -p &quot;Use the time MCP tool to get the current time in Asia/Singapore.&quot;
 </code></pre>
 <p>日志会记录一条 <code>tool_result</code>，内容来自服务器返回的文本。Cade 退出时关闭服务器进程。</p>
 <h2>相关页面</h2>
@@ -1826,7 +1863,7 @@ ApplicationSession
 <h2>会话日志</h2>
 <p>日志是追加式的。它把模型可见事实和审计事实存放在同一棵树里。重建对话和当前历史位置只需要这一个产物。压缩、窗口和分支导航都是日志记录，不是改写。</p>
 <h2>快照</h2>
-<p>快照是文件变更的撤销日志，覆盖 <code>write</code>、<code>edit</code> 和常见的单命令 shell 修改。它使用原子替换的 JSONL 索引、不可变的前后记录和按内容寻址的原始内容块。冲突和旧版行为见<a href="#page-snapshots-goals">快照与目标</a>。快照不属于会话分支。</p>
+<p>快照是文件变更的撤销日志，覆盖 <code>write</code>、<code>edit</code> 和常见的单命令 shell 修改。捕获操作向 JSONL 索引追加一条以换行结尾的记录，并同步文件。读取会忽略残缺尾部，下次追加前修复；完整记录损坏时仍会报错。独立的快照撤销方法仍以原子替换方式缩短索引。前后记录和按内容寻址的内容块保持不可变。冲突和旧版行为见<a href="#page-snapshots-goals">快照与目标</a>。快照不属于会话分支。</p>
 <h2>目标与笔记</h2>
 <p>目标是一个带 active 或 done 状态的对象。<code>NOTE.md</code> 是工作状态，会进入每次请求，并在压缩时被总结。<code>MEMORY.md</code> 是长期项目知识。这些文件刻意保持朴素：可以手工编辑，也可以用普通工具查看。</p>
 <h2>生成的产物</h2>
@@ -1877,7 +1914,7 @@ ApplicationSession
 <h2>子代理（subagent）</h2>
 <p>拥有独立会话和受限工具集的子运行。它不能再生子代理。</p>
 <h2>快照（snapshot）</h2>
-<p>文件修改前的副本，供一次性任务的 <code>--undo</code> 使用。</p>
+<p>工作区恢复存储保留的文件镜像。检查点操作引用修改前后的镜像，用于撤销和重做。</p>
 <h2>目标（goal）</h2>
 <p><code>.cade/goal.json</code> 中的持久目标，与会话格式分离。</p>
 
@@ -2201,12 +2238,13 @@ uv run --locked python -m cade.docs check
 <ol>
 <li>校验载荷，不改文件。</li>
 <li>获取排他文件锁。</li>
-<li>读取当前记录，校验选中的父节点和引用。</li>
-<li>构造记录，仅在验证成功后修复残缺尾部。</li>
+<li>核对文件标识、大小和纳秒时间戳。文件状态未变时复用已校验记录；变化时重新读取并校验整个文件。</li>
+<li>构造记录，用已校验的 ID 索引检查父节点和引用，仅在验证成功后修复残缺尾部。</li>
 <li>追加一行 JSON，刷新并调用 <code>fsync</code>。</li>
 <li>释放锁。</li>
 </ol>
-<p><code>fsync</code> 是刻意保留的：返回的追加记录已经足够持久，可以据此恢复。写入失败会抛出 <code>LogError</code>，不会返回伪造的记录。</p>
+<p><code>fsync</code> 是刻意保留的：返回的追加记录已经足够持久，可以据此恢复。写入失败会报错，不会返回伪造的记录。</p>
+<p>缓存只在内部使用，写入并同步成功后才更新。其他写入者、文件替换或截断导致文件元数据变化时，缓存会失效。<code>entries()</code> 和 <code>branch()</code> 返回独立副本，包括嵌套载荷。缓存不增加持久状态，也不改变请求审计。</p>
 <p><code>run_lock()</code> 单独保护整个回合，与单次追加的锁不同。它会立即用 <code>LogError</code> 拒绝竞争操作。<code>run()</code>、CLI 的手动上下文修改、导航和路径复制都会使用它；其他写入多个事件的存储客户端必须显式获取。</p>
 <h2>分支</h2>
 <p><code>branch()</code> 从最后一条记录沿父 ID 回溯到根，再反转列表。<code>branch(entry_id)</code> 读取以某条历史记录结尾的路径。读取会拒绝环、缺失的父节点、重复 ID 和非法导航目标。</p>
@@ -2224,7 +2262,7 @@ uv run --locked python -m cade.docs check
 <li>格式封闭；新增事件类型需要决策记录。</li>
 </ul>
 <h2>测试</h2>
-<p><code>test_log.py</code> 覆盖创建、追加、恢复、尾部修复和列表。<code>test_session_history.py</code> 覆盖导航、旧格式恢复、非活动 fork 和独立复制。<code>test_projection.py</code> 覆盖格式错误的路径。<code>test_history_e2e.py</code> 通过真实 TUI 输入验证公开命令。</p>
+<p><code>test_log.py</code> 覆盖创建、追加、恢复、尾部修复、缓存隔离、外部变化、同步失败和列表。<code>test_session_history.py</code> 覆盖导航、旧格式恢复、非活动 fork 和独立复制。<code>test_projection.py</code> 覆盖格式错误的路径。<code>test_history_e2e.py</code> 通过真实 TUI 输入验证公开命令。</p>
 
 </section>
 <section class="page" id="page-projection-request" data-title="投影与请求">
@@ -2361,7 +2399,7 @@ uv run --locked python -m cade.docs check
 <h2>子代理</h2>
 <p><code>SubagentTool</code> 在 <code>&lt;sessions&gt;/subagents</code> 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。<code>DelegateTool</code> 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。</p>
 <h2>快照</h2>
-<p><code>SnapshotStore</code> 捕获 <code>write</code>、<code>edit</code> 和常见的单命令 shell 修改。一次性任务的 <code>--undo</code> 选项恢复最新快照。快照是项目状态，不是会话事实。</p>
+<p><code>SnapshotStore</code> 捕获 <code>write</code>、<code>edit</code> 和常见的单命令 shell 修改。<code>WorkspaceRecovery</code> 为 CLI <code>--undo</code> 和 TUI <code>/undo</code>、<code>/redo</code> 协调检查点操作。快照是项目状态，不是会话事实。</p>
 <h2>目标</h2>
 <p><code>GoalStore</code> 在 <code>.cade/goal.json</code> 里持久保存一个目标。<code>goal</code> 工具和 <code>/goal</code> 命令负责管理。活动目标属于请求上下文。</p>
 <h2>宿主</h2>
@@ -2440,7 +2478,7 @@ uv run --locked python -m cade.docs check
 <section class="page" id="page-snapshots-goals" data-title="快照与目标">
 <h1>快照与目标</h1>
 <h2>文件快照</h2>
-<p>文件工具修改文件之前，Cade 会记录快照。快照存放在 <code>.cade/snapshots</code> 下，包含一个 JSONL 索引，每个快照一个目录。</p>
+<p>文件工具修改文件之前，Cade 会记录快照。快照存放在 <code>.cade/snapshots</code> 下，包含一个 JSONL 索引，每个快照一个目录。捕获操作追加并同步一条索引记录。残缺的最后一行会被忽略，下次捕获前修复；完整记录损坏时会阻止捕获。参见<a href="../decisions/0014-storage-append-cost.md">决策 0014</a>。</p>
 <p>覆盖的变更：</p>
 <ul>
 <li><code>write</code> 和 <code>edit</code>。</li>
@@ -2456,8 +2494,8 @@ uv run --locked python -m cade.docs check
 <h2>撤销</h2>
 <pre><code class="language-bash">cade --undo
 </code></pre>
-<p>这个旧版 CLI 操作恢复一份文件快照，不联系 provider。它不回退对话，也不是 TUI <code>/undo</code> 的别名。存在并发工作区写入或待处理的协调恢复时，它会拒绝执行。执行任何恢复之前，先停止外部文件写入者。</p>
-<p>撤销会检查当前文件是否与记录的事后状态一致。冲突、损坏的载荷和结果未知的快照都会被拒绝。撤销被拒绝时，文件和索引保持不变。</p>
+<p>这个命令与 TUI <code>/undo</code> 共用检查点恢复协议。它撤销最新会话的一次操作，包括对话位置和已跟踪的文件变更。用 <code>cade --resume ID --undo</code> 指定会话，再在 TUI 中恢复该会话即可用 <code>/redo</code> 重做。命令不联系 provider，也不启动 MCP。参见<a href="../decisions/0013-unified-cli-undo.md">决策 0013</a>。</p>
+<p>恢复会先校验所有受影响文件，再开始写入。冲突、损坏的载荷和未知结果都会阻止恢复。执行恢复之前，先停止外部文件写入者。没有自有检查点的独立文件快照不会产生可撤销操作。</p>
 <p>快照是项目状态，不是会话事实。它们不属于 JSONL 会话分支。</p>
 <h2>检查点恢复</h2>
 <p>每轮根用户输入在执行前创建检查点。已登记的文件修改会保留修改前后内容、存在性和权限。同步子代理共享父级的捕获范围。排队输入在执行开始时获得检查点；引导仍属于当前回合。</p>
@@ -2552,7 +2590,7 @@ Run the release checklist...
 <p>服务器声明资源或提示词能力时，会在同一服务器前缀下提供 <code>resources_list</code>、<code>resources_read</code>、<code>prompts_list</code> 和 <code>prompts_get</code>。这些操作也经过权限检查。列表保留 <code>nextCursor</code>，将其作为 <code>cursor</code> 传回即可读取下一页。返回的资源和提示词是不可信数据，不是指令或授权。</p>
 <p>HTTP 和凭据配置见<a href="#page-configuration">配置</a>。</p>
 <h2>限制</h2>
-<p>当前未启用 MCP 可选扩展、采样、信息征询、资源订阅或自动 OAuth 登录。图片、音频和资源块以 JSON 保留在 Mini 的文本工具结果中，不会转换成提供方原生多模态消息。超过运行时上限的正文会标记截断，完整结构化元数据仍保留在日志中。</p>
+<p>当前未启用 MCP 可选扩展、采样、信息征询、资源订阅或自动 OAuth 登录。图片、音频和资源块以 JSON 保留在 Cade 的文本工具结果中，不会转换成提供方原生多模态消息。超过运行时上限的正文会标记截断，完整结构化元数据仍保留在日志中。</p>
 <p>Schema 必须自包含：支持本地 <code>$ref</code>，校验过程不会请求外部 URL。</p>
 
 </section>
@@ -2599,12 +2637,12 @@ Run the release checklist...
 <ol>
 <li>
 <p>复现失败：</p>
-<pre><code class="language-bash">cade --mode plan &quot;Read the failing test and explain the failure.&quot;
+<pre><code class="language-bash">cade --mode plan -p &quot;Read the failing test and explain the failure.&quot;
 </code></pre>
 </li>
 <li>
 <p>修复：</p>
-<pre><code class="language-bash">cade --mode build --yes &quot;Fix the failing test with the smallest change, then run pytest.&quot;
+<pre><code class="language-bash">cade --mode build --yes -p &quot;Fix the failing test with the smallest change, then run pytest.&quot;
 </code></pre>
 </li>
 <li>
@@ -2638,12 +2676,12 @@ cade --undo  # 只在改动错误时使用
 <ol>
 <li>
 <p>让模型写一个会失败的测试，或自己写：</p>
-<pre><code class="language-bash">cade --mode build --yes &quot;Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails.&quot;
+<pre><code class="language-bash">cade --mode build --yes -p &quot;Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails.&quot;
 </code></pre>
 </li>
 <li>
 <p>做最小改动：</p>
-<pre><code class="language-bash">cade --mode build --yes &quot;Implement mul() and run the new test.&quot;
+<pre><code class="language-bash">cade --mode build --yes -p &quot;Implement mul() and run the new test.&quot;
 </code></pre>
 </li>
 <li>
@@ -2661,7 +2699,7 @@ uv run --locked pytest -q
 <li>公开行为写进了对应的指南。</li>
 </ul>
 <h2>撤销</h2>
-<p>如果改动错误，在开始下一次尝试之前运行 <code>cade --undo</code>。它一次恢复一份记录的文件改动，不回退对话。</p>
+<p>如果改动错误，在开始下一次尝试之前运行 <code>cade --undo</code>。它撤销一次检查点操作，包括对话位置和已跟踪的文件变更。用 <code>--resume ID --undo</code> 指定会话。</p>
 <h2>保留</h2>
 <p>功能改变公开契约时，更新指南或决策记录。测试放在 <code>tests/</code>，文档放在 <code>docs/</code>。</p>
 
@@ -2670,7 +2708,7 @@ uv run --locked pytest -q
 <h1>只读评审</h1>
 <p>任务只是检查、不修改时，使用 <code>plan</code> 和 <code>--read-only</code>。</p>
 <h2>步骤</h2>
-<pre><code class="language-bash">cade --mode plan --read-only &quot;Review the request builder for evidence loss. Cite files and lines; do not modify anything.&quot;
+<pre><code class="language-bash">cade --mode plan --read-only -p &quot;Review the request builder for evidence loss. Cite files and lines; do not modify anything.&quot;
 </code></pre>
 <p>计划模式隐藏写入和编辑工具，并拒绝修改类 shell 命令。<code>--read-only</code> 还会拒绝 memory、MCP 和任何剩余修改。</p>
 <h2>验证</h2>
@@ -2768,24 +2806,28 @@ uv run --locked pytest -q
 <h1>宿主</h1>
 <p>Cade 只有一个终端宿主，包含两种模式：交互式 TUI 和一次性执行。两者共用同一个会话日志、请求构造器、工具、策略和核心循环。TUI 用 <code>ApplicationSession</code> 处理命令和会话控制。</p>
 <h2>终端 UI</h2>
-<p>不提供任务时，CLI 在交互式终端里启动 TUI：</p>
+<p>没有 <code>-p</code> 或 <code>exec</code> 时，CLI 在交互式终端里启动 TUI：</p>
 <pre><code class="language-bash">cade
+cade &quot;Fix the failing test.&quot;
 </code></pre>
+<p>位置参数会作为 TUI 的第一条消息发送一次。任务完成后，TUI 保持打开。</p>
 <p>TUI 把对话放在可滚动记录里，显示流式 assistant 文本和工具进度，并在应用内处理审批和提问。常用按键：</p>
 <ul>
-<li><code>Enter</code>：提交消息；任务运行时改为排队。</li>
+<li><code>Enter</code>：提交消息；任务运行时按照当前输入模式排队、引导或中断。</li>
 <li><code>Alt+Enter</code>：在下一个模型步骤引导正在运行的任务。</li>
 <li><code>Shift+Tab</code>：在 <code>ask</code>、<code>build</code> 和 <code>plan</code> 之间循环。</li>
 <li><code>Esc</code>：中断正在运行的任务，包括还没有产生输出的模型请求。未送达的排队输入回到编辑器。</li>
-<li>空闲且输入为空时，连按两次 <code>Esc</code> 打开 fork 输入选择器。当前版本不注册同会话树导航。</li>
+<li>空闲且输入为空时，连按两次 <code>Esc</code> 打开 <code>/rewind</code> 检查点选择器。用 <code>/tree</code> 在同一会话中切换分支，用 <code>/fork</code> 将历史复制到新会话。</li>
 <li><code>Ctrl+C</code>：清空输入，不中断任务；500 ms 内再按一次退出。</li>
+<li><code>Ctrl+D</code>：空闲且输入为空时连按两次退出。</li>
+<li><code>Ctrl+O</code>：展开或折叠工具详情；<code>Ctrl+T</code>：展开或折叠推理输出。</li>
 <li><code>Ctrl+Q</code>：退出。</li>
 </ul>
 <p>TUI 为模型、模式、推理强度、配置和权限打开原生选择器。按 <code>?</code> 或运行 <code>/help</code> 查看按键和命令参考。</p>
-<p>TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，请直接提供任务。</p>
+<p>TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，使用 <code>-p TASK</code> 或 <code>exec TASK</code>。</p>
 <h2>一次性执行</h2>
-<p>提供任务时，CLI 运行一次后退出：</p>
-<pre><code class="language-bash">cade &quot;Fix the failing test.&quot;
+<p>提供 <code>-p</code> 或 <code>exec</code> 时，CLI 运行一次后退出：</p>
+<pre><code class="language-bash">cade -p &quot;Fix the failing test.&quot;
 cade exec &quot;Fix the failing test.&quot;
 </code></pre>
 <p>一次性模式支持 <code>--json</code>，输出 JSONL 事件流。在自动化和 CI 中，优先使用 <code>--read-only</code> 或显式规则，而不是不加区分地使用 <code>--yes</code>。</p>

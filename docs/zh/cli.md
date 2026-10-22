@@ -68,19 +68,27 @@ TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原�
 - `/revert`：选择一段轮次和一个或全部已跟踪文件，不裁剪对话。`/revert START [END] -- PATH ...` 选择多个文件；含空格的路径要加引号，并使用正斜杠。END 包含在内；省略时包含最新操作。后续编辑如果冲突，会阻止恢复。
 - `/compact [INSTRUCTIONS]`：总结较早的轮次，并应用可选指导。
 - `/model [PROVIDER/MODEL]`：切换到已认证的精确模型，或在模型选择器里按部分名称搜索。
+- `/effort [LEVEL]`：选择模型推理强度，或打开选择器。
 - `/thinking [LEVEL]`：选择推理强度。用 `Ctrl+T` 折叠推理输出，不改变强度。
+- `/rollover [--force]`：开启新的上下文窗口；`/new-context` 是别名。
 - `/new-context [--force]`：用 `NOTE.md` 作为交接，开启新的上下文窗口。先写好该文件，或用 `--force` 在没有它的情况下重置。
 - `/mode [MODE]`：显示或切换执行模式。
-- `/permissions [clear]`：显示或清除会话授权。
+- `/permissions [list|clear]`：列出或清除会话授权；不带参数时打开选择器。
 - `/goal [TEXT|done|clear]`：显示、设置、完成或清除目标。
+- `/context-window [SIZE|default]`：显示或调整当前上下文窗口。
 - `/context`：打印会话 ID、provider、预算和事件数。
+- `/btw QUESTION`：提出一个独立的旁路问题。
 - `/steer TEXT`：为下一个模型步骤排队指导。
-- `/queue TEXT`：把任务排到当前任务之后执行。
+- `/queue [followup|steer|interrupt|TEXT]`：设置忙碌时 `Enter` 的行为，或将 TEXT 排到下一轮。
 - `/stop`：中断等待中的模型请求，包括等待首个输出的阶段。工具会在自己的取消检查点停止。
 - `/help`：打印命令列表。
+- `/auth [status|login|logout]`：查看认证状态，或转到登录和登出。
 - `/login`：选择认证方式和 provider。`/logout` 只删除选中的已保存凭据，不删除环境变量。
 - `/connect`：选择 provider，认证后打开它的模型选择器。
 - `/skill [NAME]`：为下一个任务激活技能。
+- `/tool [list]`：查看可用工具及说明。
+- `/config [KEY[=VALUE]]`：浏览配置，或更新项目设置。
+- `/memory`：显示工作区记忆文件的路径。
 - `/exit` 或 `/quit`：退出。
 
 TUI 不注册 `/rename` 和 `/mcp`。恢复操作只改已跟踪文件，不处理任意 shell 副作用、外部服务或用户的 Git 索引。参见[恢复范围和冲突](snapshots-goals.md#检查点恢复)。`--undo` 不能与任务同时使用；两个撤销入口共用同一份持久操作历史。

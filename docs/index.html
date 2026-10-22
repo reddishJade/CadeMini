@@ -131,7 +131,7 @@ process restarts without inventing history.</p>
 <li><a href="#page-architecture">Architecture</a> explains the log, projection, request, and run
 pipeline.</li>
 <li><a href="#page-sessions-context">Sessions and context</a> covers resume, compaction,
-pruning, and history retrieval.</li>
+window resets, and history retrieval.</li>
 <li><a href="#page-tools-security">Tools and security</a> covers modes, rules, grants, and shell
 analysis.</li>
 <li><a href="#page-snapshots-goals">Snapshots and goals</a> covers undo and durable objectives.</li>
@@ -140,7 +140,7 @@ analysis.</li>
 <li><a href="#page-subagents">Subagents</a> covers child sessions and delegation.</li>
 <li><a href="#page-hosts">Hosts</a> covers the terminal TUI and one-shot execution.</li>
 <li><a href="#page-development">Development</a> covers checks, tests, and the docs pipeline.</li>
-<li><a href="#page-parity">Parity</a> links the acceptance against Cade.</li>
+<li><a href="#page-parity">Parity</a> links the historical acceptance against the earlier Cade project.</li>
 </ul>
 <h2>Design</h2>
 <ul>
@@ -221,12 +221,12 @@ Or use an API key.</p>
 <p>For an OpenAI API key, use a hidden key prompt or set the environment variable:</p>
 <pre><code class="language-bash">uv run --locked cade login --provider openai
 export OPENAI_API_KEY=...
-uv run --locked cade --provider openai --model gpt-5.5 &quot;Review this project.&quot;
+uv run --locked cade --provider openai --model gpt-5.5 -p &quot;Review this project.&quot;
 </code></pre>
 <p>DeepSeek uses the same Responses protocol with its own API key:</p>
 <pre><code class="language-bash">uv run --locked cade login --provider deepseek
 export DEEPSEEK_API_KEY=...
-uv run --locked cade --provider deepseek --model deepseek-flash &quot;Review this project.&quot;
+uv run --locked cade --provider deepseek --model deepseek-flash -p &quot;Review this project.&quot;
 </code></pre>
 <p>The default provider is <code>chatgpt</code>. Set <code>provider</code> and <code>model</code> in
 <code>cade.json</code> to choose other startup defaults. Cade supports only the
@@ -235,7 +235,7 @@ API key, and <code>deepseek</code> for a DeepSeek API key. State from the earlie
 project is not compatible; use clean <code>~/.cade/</code> and workspace <code>.cade/</code>
 directories.</p>
 <h2>Run one task</h2>
-<pre><code class="language-bash">uv run --locked cade &quot;Read README.md and explain the entry point in three bullets.&quot;
+<pre><code class="language-bash">uv run --locked cade -p &quot;Read README.md and explain the entry point in three bullets.&quot;
 </code></pre>
 <p>The same command can be written explicitly:</p>
 <pre><code class="language-bash">uv run --locked cade exec &quot;Read README.md and explain the entry point.&quot;
@@ -251,19 +251,20 @@ unclassified shell commands.</li>
 <li><code>plan</code> hides write and edit tools and denies mutations. Read-only shell
 commands are allowed.</li>
 </ul>
-<pre><code class="language-bash">uv run --locked cade --mode plan &quot;Propose a fix for the failing test.&quot;
-uv run --locked cade --mode build &quot;Fix the bug and run the test.&quot;
+<pre><code class="language-bash">uv run --locked cade --mode plan -p &quot;Propose a fix for the failing test.&quot;
+uv run --locked cade --mode build -p &quot;Fix the bug and run the test.&quot;
 </code></pre>
 <p>For non-interactive automation, <code>--yes</code> approves asks, and <code>--read-only</code> denies
-writes and shell commands. Prefer rule-based allows over <code>--yes</code> for shared
+mutations while allowing classified read-only shell commands. Prefer rule-based allows over <code>--yes</code> for shared
 repositories; see <a href="#page-configuration">Configuration</a>.</p>
 <h2>Continue work</h2>
 <p>Sessions live under <code>.cade/sessions</code> by default.</p>
 <pre><code class="language-bash">uv run --locked cade --list-sessions
-uv run --locked cade --continue &quot;What did you change?&quot;
-uv run --locked cade --resume SESSION_ID &quot;Continue the task.&quot;
+uv run --locked cade --continue -p &quot;What did you change?&quot;
+uv run --locked cade --resume SESSION_ID -p &quot;Continue the task.&quot;
 </code></pre>
-<p>Omitting the task starts the full-screen TUI. See <a href="#page-cli">CLI</a> for interactive
+<p>Run <code>cade</code> to start the inline TUI. <code>cade &quot;Review this project.&quot;</code> starts the TUI
+and sends the task as its first message, then stays open. See <a href="#page-cli">CLI</a> for interactive
 commands and <a href="#page-hosts">Hosts</a> for key bindings.</p>
 <h2>Build the docs</h2>
 <pre><code class="language-bash">uv sync --locked --extra docs
@@ -278,10 +279,13 @@ uv run --locked python -m cade.docs build
 <p>The <code>cade</code> entry point runs one task, starts an interactive terminal host,
 or manages sessions.</p>
 <pre><code class="language-bash">cade [TASK] [options]
+cade -p TASK [options]
 cade exec TASK [options]
 </code></pre>
-<p><code>exec</code> is an explicit alias for a one-shot task. Without a task, <code>cade</code>
-starts the TUI in an interactive terminal.</p>
+<p><code>cade</code> starts the TUI in an interactive terminal. An optional positional task
+is sent as its first message; the TUI stays open afterward. Use <code>-p TASK</code>
+(or <code>--prompt TASK</code>) or <code>exec TASK</code> to run one task and exit. The positional
+TUI prompt and <code>-p</code> cannot be combined.</p>
 <h2>Login</h2>
 <pre><code class="language-bash">cade login
 cade login --provider openai
@@ -297,26 +301,55 @@ authentication routes. A refreshable OAuth token still makes models selectable;
 the provider refreshes it when needed.</p>
 <h2>One-shot options</h2>
 <ul>
-<li><code>--project-root PATH</code> sets the workspace. The default is the current
-directory.</li>
-<li><code>--config PATH</code> selects a config file. The default is
-<code>&lt;project-root&gt;/cade.json</code>.</li>
-<li><code>--provider NAME</code>, <code>--model NAME</code>, and <code>--effort EFFORT</code> override provider
-defaults.</li>
-<li><code>--mode plan|build|ask</code> selects the work mode. Default is <code>build</code>.</li>
-<li><code>--sandbox read-only|workspace-write|danger-full-access</code> selects filesystem
-scope. Default is <code>workspace-write</code>; Windows skips OS confinement.</li>
-<li><code>--network</code> / <code>--no-network</code> controls sandbox networking. Default is enabled.</li>
-<li><code>--read-only</code> / <code>--no-read-only</code> controls mutation denial. Read-only shell
-commands remain available.</li>
-<li><code>--yes</code> approves asks. Use it only in trusted, non-interactive contexts.</li>
-<li><code>--auto-review</code> / <code>--no-auto-review</code> lets the model review ask-level calls.</li>
-<li><code>--max-steps N</code> bounds model steps.</li>
-<li><code>--context-window N</code> overrides the model context window. It is required for
-models that are not in the built-in registry.</li>
-<li><code>--json</code> emits JSONL events for a one-shot task.</li>
-<li><code>--steer TEXT</code> injects guidance at the next model step of a one-shot task;
-repeatable.</li>
+<li>
+<p><code>-p TASK</code> / <code>--prompt TASK</code> runs one task and exits, like <code>cade exec TASK</code>.</p>
+</li>
+<li>
+<p><code>--project-root PATH</code> sets the workspace. The default is the current
+directory.</p>
+</li>
+<li>
+<p><code>--config PATH</code> selects a config file. The default is
+<code>&lt;project-root&gt;/cade.json</code>.</p>
+</li>
+<li>
+<p><code>--provider NAME</code>, <code>--model NAME</code>, and <code>--effort EFFORT</code> override provider
+defaults.</p>
+</li>
+<li>
+<p><code>--mode plan|build|ask</code> selects the work mode. Default is <code>build</code>.</p>
+</li>
+<li>
+<p><code>--sandbox read-only|workspace-write|danger-full-access</code> selects filesystem
+scope. Default is <code>workspace-write</code>; Windows skips OS confinement.</p>
+</li>
+<li>
+<p><code>--network</code> / <code>--no-network</code> controls sandbox networking. Default is enabled.</p>
+</li>
+<li>
+<p><code>--read-only</code> / <code>--no-read-only</code> controls mutation denial. Read-only shell
+commands remain available.</p>
+</li>
+<li>
+<p><code>--yes</code> approves asks. Use it only in trusted, non-interactive contexts.</p>
+</li>
+<li>
+<p><code>--auto-review</code> / <code>--no-auto-review</code> lets the model review ask-level calls.</p>
+</li>
+<li>
+<p><code>--max-steps N</code> bounds model steps.</p>
+</li>
+<li>
+<p><code>--context-window N</code> overrides the model context window. It is required for
+models that are not in the built-in registry.</p>
+</li>
+<li>
+<p><code>--json</code> emits JSONL events for a one-shot task.</p>
+</li>
+<li>
+<p><code>--steer TEXT</code> injects guidance at the next model step of a one-shot task;
+repeatable.</p>
+</li>
 </ul>
 <h2>Sessions</h2>
 <ul>
@@ -325,8 +358,9 @@ repeatable.</li>
 <li><code>--resume</code> resumes the latest session; <code>--resume ID</code> resumes a specific one.</li>
 <li><code>--sessions-dir PATH</code> changes the session directory. A relative path is
 resolved against the project root.</li>
-<li><code>--undo</code> restores the latest file snapshot and exits without contacting a
-provider.</li>
+<li><code>--undo</code> reverses one checkpoint action in the latest session and exits without
+contacting a provider or starting MCP. Use <code>--resume ID --undo</code> to select a
+session. It uses the same conversation and file recovery as TUI <code>/undo</code>.</li>
 </ul>
 <p><code>--continue</code> and <code>--resume</code> cannot be combined. Session listings and automatic
 continuation skip conversations without a nonempty user message. New interactive
@@ -364,30 +398,38 @@ includes the latest action. Conflicting later edits block restoration.</li>
 <li><code>/compact [INSTRUCTIONS]</code> summarizes older turns and applies optional guidance.</li>
 <li><code>/model [PROVIDER/MODEL]</code> switches an exact authenticated model or searches the
 model picker for a partial name.</li>
+<li><code>/effort [LEVEL]</code> chooses a model reasoning effort or opens its picker.</li>
 <li><code>/thinking [LEVEL]</code> selects reasoning effort. Use <code>Ctrl+T</code> to fold reasoning
 output without changing effort.</li>
+<li><code>/rollover [--force]</code> starts a new context window; <code>/new-context</code> is an alias.</li>
 <li><code>/new-context [--force]</code> starts a new context window using <code>NOTE.md</code> as the
 handoff. Write that file first, or use <code>--force</code> to reset without it.</li>
 <li><code>/mode [MODE]</code> shows or switches the execution mode.</li>
-<li><code>/permissions [clear]</code> shows or clears session grants.</li>
+<li><code>/permissions [list|clear]</code> lists or clears session grants; without arguments it opens a picker.</li>
 <li><code>/goal [TEXT|done|clear]</code> shows, sets, completes, or clears the goal.</li>
+<li><code>/context-window [SIZE|default]</code> shows or changes the current context window.</li>
 <li><code>/context</code> prints the session ID, provider, budget, and event count.</li>
+<li><code>/btw QUESTION</code> asks an independent side question.</li>
 <li><code>/steer TEXT</code> queues guidance for the next model step.</li>
-<li><code>/queue TEXT</code> queues a task to run after the current one.</li>
+<li><code>/queue [followup|steer|interrupt|TEXT]</code> chooses how busy <code>Enter</code> behaves, or queues TEXT for the next turn.</li>
 <li><code>/stop</code> interrupts a pending model request, including the wait for its first
 output. Tools stop at their cancellation checks.</li>
 <li><code>/help</code> prints the command list.</li>
+<li><code>/auth [status|login|logout]</code> displays authentication status or routes to login/logout.</li>
 <li><code>/login</code> selects an authentication method and provider. <code>/logout</code> removes a
 selected stored credential, not environment variables.</li>
 <li><code>/connect</code> selects a provider and opens its model picker after authentication.</li>
 <li><code>/skill [NAME]</code> activates a skill for the next task.</li>
+<li><code>/tool [list]</code> shows available tools and their descriptions.</li>
+<li><code>/config [KEY[=VALUE]]</code> browses settings or updates a project setting.</li>
+<li><code>/memory</code> shows the workspace memory file path.</li>
 <li><code>/exit</code> or <code>/quit</code> exits.</li>
 </ul>
 <p>The TUI does not register <code>/rename</code> or <code>/mcp</code>. Recovery changes tracked files,
 not arbitrary shell effects, external services, or the user's Git index.
 See <a href="#page-snapshots-goals">recovery coverage and conflicts</a>.
-<code>--undo</code> remains the existing one-shot file-snapshot operation; it is not a
-conversation undo command.</p>
+<code>--undo</code> cannot be combined with a task; both undo entry points use the same
+persistent action history.</p>
 <h2>Interactive input</h2>
 <ul>
 <li><code>@path</code> attaches a workspace file to the task.</li>
@@ -417,17 +459,17 @@ tool. See <a href="#page-steering-queue">Steering and queueing</a>.</p>
 <h2>Exit codes</h2>
 <ul>
 <li><code>0</code>: the run completed.</li>
-<li><code>1</code>: the run ended without completion, or no snapshot was available for
-<code>--undo</code>.</li>
+<li><code>1</code>: the run ended without completion, or <code>--undo</code> found no session or action
+or could not apply recovery.</li>
 <li><code>2</code>: argument, configuration, or startup error.</li>
 <li><code>130</code>: login was cancelled.</li>
 </ul>
 <h2>Examples</h2>
 <pre><code class="language-bash">cade --list-sessions
-cade --continue &quot;Summarize the current state.&quot;
+cade --continue -p &quot;Summarize the current state.&quot;
 cade --undo
-cade --mode plan &quot;Find the smallest fix for the failing test.&quot;
-cade --mode build --yes &quot;Fix the test and run pytest.&quot;
+cade --mode plan -p &quot;Find the smallest fix for the failing test.&quot;
+cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
 </code></pre>
 
 </section>
@@ -673,6 +715,10 @@ without losing history.</p>
 <p>A session is an append-only JSONL file under <code>.cade/sessions</code> by default.
 The file name is <code>session-&lt;id&gt;.jsonl</code>. The session title is derived from the
 first user message; no extra event type is needed.</p>
+<p>On POSIX, new session directories use mode <code>0700</code> and log files use <code>0600</code>.
+Opening an existing log tightens that file to <code>0600</code>; existing directory
+permissions stay unchanged. Windows inherits directory ACLs. Logs contain full
+request inputs, so choose a private directory for custom session storage.</p>
 <h2>Resume</h2>
 <pre><code class="language-bash">cade --list-sessions
 cade --continue &quot;Continue where we stopped.&quot;
@@ -982,9 +1028,9 @@ implementation can be replaced without changing the session schema or the loop.<
 </tr>
 <tr>
 <td>Recovery</td>
-<td><code>SnapshotStore</code> capture and undo</td>
-<td>File snapshot store</td>
-<td>Tools, CLI</td>
+<td><code>WorkspaceRecovery.step</code> and owned checkpoints</td>
+<td>Content-addressed file snapshots and action history</td>
+<td>Application, CLI, TUI</td>
 </tr>
 <tr>
 <td>Application</td>
@@ -1733,7 +1779,6 @@ and window fallback.</li>
   hosts_cli --&gt; app_bootstrap
   hosts_cli --&gt; app_config
   hosts_cli --&gt; coding_goal
-  hosts_cli --&gt; coding_workspace_snapshots
   hosts_cli --&gt; harness_events
   hosts_cli --&gt; harness_provider
   hosts_cli --&gt; harness_session_log
@@ -1747,13 +1792,12 @@ and window fallback.</li>
   hosts_tui_bridge --&gt; harness_session_log
   hosts_tui_bridge --&gt; harness_session_types
   hosts_tui_command_handlers --&gt; app_commands
+  hosts_tui_compat --&gt; harness_events
   hosts_tui_config_registry --&gt; ai_models
   hosts_tui_config_registry --&gt; app_config
   hosts_tui_config_registry --&gt; app_settings
   hosts_tui_context_stats --&gt; harness_request
   hosts_tui_context_stats --&gt; harness_session_projection
-  hosts_tui_interaction_compat --&gt; coding_tools_base
-  hosts_tui_interaction_compat --&gt; harness_session_types
   hosts_tui_login_flow --&gt; ai_auth
   hosts_tui_settings --&gt; ai_models
   hosts_tui_setup_wizard --&gt; ai_models
@@ -1953,7 +1997,7 @@ plan mode and with <code>--read-only</code>, and can be allowed by a rule:</p>
 }
 </code></pre>
 <h2>Verify</h2>
-<pre><code class="language-bash">cade --mode build &quot;Use the time MCP tool to get the current time in Asia/Singapore.&quot;
+<pre><code class="language-bash">cade --mode build -p &quot;Use the time MCP tool to get the current time in Asia/Singapore.&quot;
 </code></pre>
 <p>The log records a <code>tool_result</code> with the server's text content. A server process
 is closed when Cade exits.</p>
@@ -2186,8 +2230,11 @@ conversation and active history position. Compaction, windows, and branch
 navigation are log entries, not rewrites.</p>
 <h2>Snapshots</h2>
 <p>Snapshots are an undo journal for file changes. They cover <code>write</code>, <code>edit</code>, and
-common single-command shell mutations. It uses an atomically replaced
-JSONL index, immutable before/after records, and content-addressed original blobs.
+common single-command shell mutations. Capture appends one newline-terminated
+record to the JSONL index and syncs it. The index ignores an incomplete tail and
+repairs it before the next append; invalid complete records remain errors.
+The standalone snapshot undo primitive still replaces the shortened index
+atomically. Before/after records and content-addressed blobs remain immutable.
 See <a href="#page-snapshots-goals">Snapshots and goals</a> for conflict and legacy behavior.
 Snapshots are not part of the session branch.</p>
 <h2>Goals and notes</h2>
@@ -2261,7 +2308,8 @@ as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>.</p>
 <p>A child run with its own session and a restricted tool set. It cannot spawn
 another subagent.</p>
 <h2>snapshot</h2>
-<p>A pre-change copy of a file, used by the one-shot <code>--undo</code> option.</p>
+<p>A file image retained by the workspace recovery store. Checkpoint actions refer
+to before and after images for undo and redo.</p>
 <h2>goal</h2>
 <p>A durable objective in <code>.cade/goal.json</code>, separate from the session
 schema.</p>
@@ -2669,13 +2717,19 @@ torn final line; the next valid append truncates that tail.</li>
 <ol>
 <li>Validates the payload without modifying the file.</li>
 <li>Takes an exclusive file lock.</li>
-<li>Reads current entries and validates the selected parent and references.</li>
-<li>Builds an entry, then repairs a torn tail only after validation succeeds.</li>
+<li>Checks file identity, size, and nanosecond timestamps. Reuses validated
+entries when unchanged; otherwise reloads and validates the complete file.</li>
+<li>Builds an entry and validates its parent and references against the verified
+ID index, then repairs a torn tail only after validation succeeds.</li>
 <li>Appends one JSON line, flushes, and calls <code>fsync</code>.</li>
 <li>Releases the lock.</li>
 </ol>
 <p><code>fsync</code> is deliberate: a returned append is durable enough to resume. A failed
-write raises <code>LogError</code> and does not return a fake entry.</p>
+write raises an error and does not return a fake entry.</p>
+<p>The cache is private and updated only after a successful write and sync. Another
+writer, file replacement, or truncation invalidates it when file metadata changes.
+<code>entries()</code> and <code>branch()</code> return independent copies, including nested payloads.
+The cache adds no durable state and does not change request audits.</p>
 <p><code>run_lock()</code> protects a whole turn separately from individual appends. It rejects
 competing operations immediately with <code>LogError</code>. <code>run()</code>, manual CLI context
 changes, navigation, and path copying use it; other multi-event storage clients
@@ -2712,7 +2766,8 @@ historical timestamps do not make a newly created session appear old.</p>
 <li>The schema is closed; new event types require a decision record.</li>
 </ul>
 <h2>Tests</h2>
-<p><code>test_log.py</code> covers create, append, resume, tail repair, and listing.
+<p><code>test_log.py</code> covers create, append, resume, tail repair, cache isolation,
+external changes, failed sync, and listing.
 <code>test_session_history.py</code> covers navigation, old-format recovery, inactive
 forks, and independent copies. <code>test_projection.py</code> covers malformed paths.
 <code>test_history_e2e.py</code> verifies the public commands through real TUI input.</p>
@@ -2915,8 +2970,8 @@ child mode. Reviewer requests retain ancestor conversations so a child prompt
 cannot replace human restrictions.</p>
 <h2>Snapshots</h2>
 <p><code>SnapshotStore</code> captures <code>write</code>, <code>edit</code>, and common single-command shell
-mutations. The one-shot <code>--undo</code> option restores the latest snapshot. Snapshots are project
-state, not session facts.</p>
+mutations. <code>WorkspaceRecovery</code> coordinates checkpoint actions for CLI <code>--undo</code>
+and TUI <code>/undo</code> and <code>/redo</code>. Snapshots are project state, not session facts.</p>
 <h2>Goals</h2>
 <p><code>GoalStore</code> persists one objective in <code>.cade/goal.json</code>. The <code>goal</code> tool and
 <code>/goal</code> command manage it. An active goal is request context.</p>
@@ -3051,7 +3106,10 @@ and it does not make an untrusted repository safe.</p>
 <h1>Snapshots and goals</h1>
 <h2>File snapshots</h2>
 <p>Cade records a snapshot before a file tool changes a file. Snapshots live
-under <code>.cade/snapshots</code> with a JSONL index and one directory per snapshot.</p>
+under <code>.cade/snapshots</code> with a JSONL index and one directory per snapshot.
+Capture appends and syncs one index record. An incomplete final line is ignored
+and repaired before the next capture; corrupt complete records block capture.
+See <a href="decisions/0014-storage-append-cost.md">decision 0014</a>.</p>
 <p>Covered changes:</p>
 <ul>
 <li><code>write</code> and <code>edit</code>.</li>
@@ -3071,13 +3129,15 @@ silently skipped.</li>
 <h2>Undo</h2>
 <pre><code class="language-bash">cade --undo
 </code></pre>
-<p>This legacy CLI operation restores one file snapshot without contacting a
-provider. It does not rewind conversation and is not an alias for TUI <code>/undo</code>.
-It refuses concurrent workspace writes or a pending coordinated recovery. Stop
-external file writers before any restoration.</p>
-<p>Undo checks that the current file matches the recorded post-change state. It
-rejects conflicts, corrupt payloads, and snapshots whose outcome is unknown.
-A rejected undo leaves the file and index unchanged.</p>
+<p>This command uses the same checkpoint recovery as TUI <code>/undo</code>. It reverses one
+action in the latest session, including its conversation position and tracked
+file changes. Use <code>cade --resume ID --undo</code> to select a session, then resume that
+session in the TUI to <code>/redo</code>. It does not contact a provider or start MCP.
+See <a href="decisions/0013-unified-cli-undo.md">decision 0013</a>.</p>
+<p>Recovery validates all affected files before writing. Conflicts, corrupt
+payloads, and unknown outcomes block restoration. Stop external file writers
+before any restoration. Standalone file snapshots without owned checkpoints do
+not create an undo action.</p>
 <p>Snapshots are project state, not session facts. They are not part of the
 JSONL session branch.</p>
 <h2>Checkpoint recovery</h2>
@@ -3250,7 +3310,7 @@ data, not instructions or authorization.</p>
 <h2>Limits</h2>
 <p>MCP extensions, sampling, elicitation, resource subscriptions, and automatic
 OAuth login are not enabled. Image, audio, and resource content blocks are
-preserved as JSON in Mini's text tool-result contract rather than sent as native
+preserved as JSON in Cade's text tool-result contract rather than sent as native
 multimodal provider messages. Tool output exceeding the runtime limit is marked
 as truncated; exact structured metadata remains in the log.
 Schemas must be self-contained: local <code>$ref</code> values work, but schema validation
@@ -3307,12 +3367,12 @@ repository's tests.</p>
 <ol>
 <li>
 <p>Reproduce the failure:</p>
-<pre><code class="language-bash">cade --mode plan &quot;Read the failing test and explain the failure.&quot;
+<pre><code class="language-bash">cade --mode plan -p &quot;Read the failing test and explain the failure.&quot;
 </code></pre>
 </li>
 <li>
 <p>Fix it:</p>
-<pre><code class="language-bash">cade --mode build --yes &quot;Fix the failing test with the smallest change, then run pytest.&quot;
+<pre><code class="language-bash">cade --mode build --yes -p &quot;Fix the failing test with the smallest change, then run pytest.&quot;
 </code></pre>
 </li>
 <li>
@@ -3349,12 +3409,12 @@ diff reviewable.</p>
 <ol>
 <li>
 <p>Ask for a failing test or write it yourself:</p>
-<pre><code class="language-bash">cade --mode build --yes &quot;Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails.&quot;
+<pre><code class="language-bash">cade --mode build --yes -p &quot;Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails.&quot;
 </code></pre>
 </li>
 <li>
 <p>Implement the smallest change:</p>
-<pre><code class="language-bash">cade --mode build --yes &quot;Implement mul() and run the new test.&quot;
+<pre><code class="language-bash">cade --mode build --yes -p &quot;Implement mul() and run the new test.&quot;
 </code></pre>
 </li>
 <li>
@@ -3373,8 +3433,8 @@ uv run --locked pytest -q
 </ul>
 <h2>Undo</h2>
 <p>If the change is wrong, use <code>cade --undo</code> before starting another attempt.
-This restores one recorded file change at a time; it does not rewind the
-conversation.</p>
+This reverses one checkpoint action, including conversation position and tracked
+file changes. Use <code>--resume ID --undo</code> to select a session.</p>
 <h2>Keep</h2>
 <p>Update the guide or decision record when the feature changes a public contract.
 Tests belong in <code>tests/</code>; docs belong under <code>docs/</code>.</p>
@@ -3384,7 +3444,7 @@ Tests belong in <code>tests/</code>; docs belong under <code>docs/</code>.</p>
 <h1>Review only</h1>
 <p>Use <code>plan</code> and <code>--read-only</code> when the task is to inspect, not change.</p>
 <h2>Procedure</h2>
-<pre><code class="language-bash">cade --mode plan --read-only &quot;Review the request builder for evidence loss. Cite files and lines; do not modify anything.&quot;
+<pre><code class="language-bash">cade --mode plan --read-only -p &quot;Review the request builder for evidence loss. Cite files and lines; do not modify anything.&quot;
 </code></pre>
 <p>Plan mode hides write and edit tools and denies mutating shell commands.
 <code>--read-only</code> also denies memory, MCP, and any remaining mutation.</p>
@@ -3498,32 +3558,37 @@ harness loop. Both modes use <code>app.bootstrap.create_session</code> and
 <code>ApplicationSession.run_task</code>; the TUI also uses the service for commands and
 session control.</p>
 <h2>Terminal UI</h2>
-<p>Without a task, the CLI starts the TUI in an interactive terminal:</p>
+<p>Without <code>-p</code> or <code>exec</code>, the CLI starts the TUI in an interactive terminal:</p>
 <pre><code class="language-bash">cade
+cade &quot;Fix the failing test.&quot;
 </code></pre>
+<p>A positional task is sent once as the first TUI message. The TUI stays open
+after the task completes.</p>
 <p>The TUI keeps the conversation in a scrollable transcript, shows streaming
 assistant text and tool progress, and handles approvals and questions without
 leaving the application. Common keys:</p>
 <ul>
-<li><code>Enter</code> submits the message or queues it while a task is running.</li>
+<li><code>Enter</code> submits a message; while running, it queues, steers, or interrupts according to the busy-input mode.</li>
 <li><code>Alt+Enter</code> steers the running task at the next model step.</li>
 <li><code>Shift+Tab</code> cycles <code>ask</code>, <code>build</code>, and <code>plan</code>.</li>
 <li><code>Esc</code> interrupts the running task, including a model request that has not
 produced output yet. Undelivered queued input returns to the editor.</li>
-<li>When idle with empty input, double <code>Esc</code> opens the fork input selector.
-Same-session tree navigation is not registered in this release.</li>
+<li>When idle with empty input, double <code>Esc</code> opens the <code>/rewind</code> checkpoint selector.
+Use <code>/tree</code> to navigate branches in the same session, or <code>/fork</code> to copy history into a new session.</li>
 <li><code>Ctrl+C</code> clears input without interrupting the task; press it again within
 500 ms to exit.</li>
+<li><code>Ctrl+D</code> twice exits when idle with empty input.</li>
+<li><code>Ctrl+O</code> toggles tool details; <code>Ctrl+T</code> toggles reasoning output.</li>
 <li><code>Ctrl+Q</code> exits.</li>
 </ul>
 <p>The TUI opens native selectors for models, modes, reasoning effort,
 configuration, and permissions. Press <code>?</code> or run <code>/help</code> for the key and
 command reference.</p>
 <p>The TUI requires both stdin and stdout to be terminals. In a pipe or a
-non-interactive process, provide a task instead.</p>
+non-interactive process, use <code>-p TASK</code> or <code>exec TASK</code>.</p>
 <h2>One-shot</h2>
-<p>With a task, the CLI runs once and exits:</p>
-<pre><code class="language-bash">cade &quot;Fix the failing test.&quot;
+<p>With <code>-p</code> or <code>exec</code>, the CLI runs once and exits:</p>
+<pre><code class="language-bash">cade -p &quot;Fix the failing test.&quot;
 cade exec &quot;Fix the failing test.&quot;
 </code></pre>
 <p>One-shot mode supports <code>--json</code> for a JSONL event stream. Use <code>--read-only</code> or
@@ -3976,8 +4041,9 @@ one action. <code>/rewind</code> selects a checkpoint and restoration scope; idl
 Esc opens its selector. <code>/revert</code> restores selected tracked file changes without
 trimming conversation.</p>
 <p>Checkpoint ownership and action history belong to their original session.
-Copied conversations do not inherit a workspace undo stack. The file-only
-<code>--undo</code> operation remains separate. See
+Copied conversations do not inherit a workspace undo stack. CLI <code>--undo</code> now
+uses the same checkpoint recovery as TUI <code>/undo</code>; its former file-only behavior
+is removed. Standalone snapshots without owned checkpoints are not undo actions. See
 <a href="#page-sessions-context">Sessions and context</a> and
 <a href="#page-snapshots-goals">Recovery coverage</a>.</p>
 <h2>Explicit context reduction</h2>

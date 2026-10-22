@@ -20,7 +20,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
 - [Sessions and context](sessions-context.md) covers resume, compaction,
-  pruning, and history retrieval.
+  window resets, and history retrieval.
 - [Tools and security](tools-security.md) covers modes, rules, grants, and shell
   analysis.
 - [Snapshots and goals](snapshots-goals.md) covers undo and durable objectives.
@@ -29,7 +29,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
 - [Subagents](subagents.md) covers child sessions and delegation.
 - [Hosts](hosts.md) covers the terminal TUI and one-shot execution.
 - [Development](development.md) covers checks, tests, and the docs pipeline.
-- [Parity](parity.md) links the acceptance against Cade.
+- [Parity](parity.md) links the historical acceptance against the earlier Cade project.
 
 ## Design
 

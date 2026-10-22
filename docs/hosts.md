@@ -22,15 +22,17 @@ The TUI keeps the conversation in a scrollable transcript, shows streaming
 assistant text and tool progress, and handles approvals and questions without
 leaving the application. Common keys:
 
-- `Enter` submits the message or queues it while a task is running.
+- `Enter` submits a message; while running, it queues, steers, or interrupts according to the busy-input mode.
 - `Alt+Enter` steers the running task at the next model step.
 - `Shift+Tab` cycles `ask`, `build`, and `plan`.
 - `Esc` interrupts the running task, including a model request that has not
   produced output yet. Undelivered queued input returns to the editor.
-- When idle with empty input, double `Esc` opens the fork input selector.
-  Same-session tree navigation is not registered in this release.
+- When idle with empty input, double `Esc` opens the `/rewind` checkpoint selector.
+  Use `/tree` to navigate branches in the same session, or `/fork` to copy history into a new session.
 - `Ctrl+C` clears input without interrupting the task; press it again within
   500 ms to exit.
+- `Ctrl+D` twice exits when idle with empty input.
+- `Ctrl+O` toggles tool details; `Ctrl+T` toggles reasoning output.
 - `Ctrl+Q` exits.
 
 The TUI opens native selectors for models, modes, reasoning effort,

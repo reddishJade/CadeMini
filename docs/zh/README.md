@@ -12,7 +12,7 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 - [CLI](cli.md)：一次性任务、TUI、会话和恢复命令。
 - [配置](configuration.md)：`cade.json` 的字段。
 - [架构](architecture.md)：日志、投影、请求和执行流水线。
-- [会话与上下文](sessions-context.md)：恢复、压缩、裁剪和历史检索。
+- [会话与上下文](sessions-context.md)：恢复、压缩、换窗和历史检索。
 - [工具与安全](tools-security.md)：模式、规则、授权和 shell 分析。
 - [快照与目标](snapshots-goals.md)：撤销和持久目标。
 - [技能与记忆](skills-memory.md)：`SKILL.md` 和 `MEMORY.md`。
@@ -20,13 +20,13 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 - [子代理](subagents.md)：子会话和任务委派。
 - [宿主](hosts.md)：终端 TUI 和一次性执行。
 - [开发](development.md)：检查、测试和文档流水线。
-- [对齐验收](parity.md)：与 Cade 的验收对照。
+- [对齐验收](parity.md)：与早期 Cade 的验收对照。
 
 ## 设计
 
 - [Cade 如何工作](design/how-it-works.md)：端到端模型的简版。
 - [代码地图](design/code-map.md)：包边界和入口。
-- [与 Cade 的关系](design/cade-comparison.md)：独立维护的边界。
+- [与早期 Cade 的关系](design/cade-comparison.md)：独立维护的边界。
 - [能力接缝](design/capability-seams.md)：可替换的契约。
 - [事件模型](design/event-model.md)：事实与审计记录的区分。
 - [工具执行](design/tool-execution.md)：从策略到结果的流水线。

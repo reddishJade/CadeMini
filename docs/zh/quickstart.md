@@ -61,7 +61,7 @@ uv run --locked cade --mode plan -p "Propose a fix for the failing test."
 uv run --locked cade --mode build -p "Fix the bug and run the test."
 ```
 
-非交互自动化可用 `--yes` 批准确认，用 `--read-only` 拒绝写入和 shell 命令。在共享仓库里优先使用规则授权，而不是 `--yes`；见[配置](configuration.md)。
+非交互自动化可用 `--yes` 批准确认，用 `--read-only` 拒绝修改，但仍允许已归类的只读 shell 命令。在共享仓库里优先使用规则授权，而不是 `--yes`；见[配置](configuration.md)。
 
 ## 继续之前的工作
 
@@ -73,7 +73,7 @@ uv run --locked cade --continue -p "What did you change?"
 uv run --locked cade --resume SESSION_ID -p "Continue the task."
 ```
 
-运行 `cade` 启动 TUI。`cade "Review this project."` 会启动 TUI 并发送首条消息，任务结束后保持打开。交互命令见 [CLI](cli.md)，按键绑定见[宿主](hosts.md)。
+运行 `cade` 启动行内 TUI。`cade "Review this project."` 会启动 TUI 并发送首条消息，任务结束后保持打开。交互命令见 [CLI](cli.md)，按键绑定见[宿主](hosts.md)。
 
 ## 构建文档
 

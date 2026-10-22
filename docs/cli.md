@@ -105,23 +105,31 @@ modes, configuration, and permissions.
 - `/compact [INSTRUCTIONS]` summarizes older turns and applies optional guidance.
 - `/model [PROVIDER/MODEL]` switches an exact authenticated model or searches the
   model picker for a partial name.
+- `/effort [LEVEL]` chooses a model reasoning effort or opens its picker.
 - `/thinking [LEVEL]` selects reasoning effort. Use `Ctrl+T` to fold reasoning
   output without changing effort.
+- `/rollover [--force]` starts a new context window; `/new-context` is an alias.
 - `/new-context [--force]` starts a new context window using `NOTE.md` as the
   handoff. Write that file first, or use `--force` to reset without it.
 - `/mode [MODE]` shows or switches the execution mode.
-- `/permissions [clear]` shows or clears session grants.
+- `/permissions [list|clear]` lists or clears session grants; without arguments it opens a picker.
 - `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
+- `/context-window [SIZE|default]` shows or changes the current context window.
 - `/context` prints the session ID, provider, budget, and event count.
+- `/btw QUESTION` asks an independent side question.
 - `/steer TEXT` queues guidance for the next model step.
-- `/queue TEXT` queues a task to run after the current one.
+- `/queue [followup|steer|interrupt|TEXT]` chooses how busy `Enter` behaves, or queues TEXT for the next turn.
 - `/stop` interrupts a pending model request, including the wait for its first
   output. Tools stop at their cancellation checks.
 - `/help` prints the command list.
+- `/auth [status|login|logout]` displays authentication status or routes to login/logout.
 - `/login` selects an authentication method and provider. `/logout` removes a
   selected stored credential, not environment variables.
 - `/connect` selects a provider and opens its model picker after authentication.
 - `/skill [NAME]` activates a skill for the next task.
+- `/tool [list]` shows available tools and their descriptions.
+- `/config [KEY[=VALUE]]` browses settings or updates a project setting.
+- `/memory` shows the workspace memory file path.
 - `/exit` or `/quit` exits.
 
 The TUI does not register `/rename` or `/mcp`. Recovery changes tracked files,
