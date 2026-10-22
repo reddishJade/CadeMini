@@ -158,7 +158,6 @@ class ApplicationSession:
         self.pending: deque[str] = deque()
         self.busy_mode = "followup"
         self.running = False
-        self.auto_approve = False
         self.cancel: CancellationToken | None = None
         self.last_usage: dict[str, int] = {}
         self.question_tool: QuestionTool | None = None
@@ -431,6 +430,7 @@ class ApplicationSession:
             additions.append(loader.run({"name": name}).content)
         message = re.sub(r"(?<!\S)\$[A-Za-z0-9_.-]+", "", message)
         for path_text in re.findall(r"(?<!\S)@(\S+)", message):
+            path_text = path_text.rstrip(".,;:)")
             path = resolve_workspace_path(self.workspace, path_text)
             if not path.is_file():
                 raise ValueError(f"File does not exist: {path_text}")
@@ -445,6 +445,25 @@ class ApplicationSession:
             else message
         )
 
+    def _select_approver(
+        self,
+        approve: Callable[[ToolCallBlock], Awaitable[bool]] | None,
+        approver: Approver | None = None,
+    ) -> Approver:
+        """应用配置决定审批方式，宿主只提供人工交互回调。"""
+        if approver is not None:
+            return approver
+        if self.automatic_approver is not None:
+            return self.automatic_approver
+
+        async def manual(request: ApprovalRequest) -> ApprovalResult:
+            if approve is None:
+                return ApprovalResult(False, "no approval handler")
+            allowed = await approve(request.call)
+            return ApprovalResult(allowed, "" if allowed else "denied by user")
+
+        return manual
+
     async def run_task(
         self,
         text: str,
@@ -457,19 +476,20 @@ class ApplicationSession:
             raise RuntimeError("A task is already running")
         if isinstance(self.provider, UnavailableProvider):
             raise RuntimeError(self.provider.reason)  # noqa: TRY004 - authentication state
+        text = self.expand(text)
         self.recovery.prepare_run(self.log)
         self.running = True
         self.cancel = self.cancel or CancellationToken()
 
-        async def core_approve(request: ApprovalRequest) -> ApprovalResult:
-            if approve is None:
-                return ApprovalResult(False, "no approval handler")
-            allowed = await approve(request.call)
-            return ApprovalResult(allowed, "" if allowed else "denied by user")
-
-        selected_approver = approver or (
-            core_approve if approve is not None else self.automatic_approver
-        )
+        selected_approver = self._select_approver(approve, approver)
+        runners = {
+            tool.runner
+            for tool in self.base_tools
+            if isinstance(tool, (SubagentTool, DelegateTool))
+        }
+        previous_approvers = {runner: runner.approve for runner in runners}
+        for runner in runners:
+            runner.approve = selected_approver
         try:
 
             async def refresh_tools() -> Sequence[Tool]:
@@ -502,7 +522,9 @@ class ApplicationSession:
                 max_steps=self.max_steps,
                 compact=self.compactor,
                 window=self.window,
-                steering=lambda: self.steering.popleft() if self.steering else None,
+                steering=lambda: (
+                    self.expand(self.steering.popleft()) if self.steering else None
+                ),
                 cancel=self.cancel,
                 on_event=on_event,
                 refresh_tools=refresh_tools,
@@ -511,6 +533,8 @@ class ApplicationSession:
             self.last_usage = result.usage or {}
             return result
         finally:
+            for runner, previous in previous_approvers.items():
+                runner.approve = previous
             self.cancel = None
             self.running = False
 
@@ -521,25 +545,61 @@ class ApplicationSession:
         approve: Callable[[ToolCallBlock], Awaitable[bool]],
         on_event: Callable[[LoopEvent], None] | None = None,
     ) -> ToolResult:
-        """交互式工具沿用主循环的权限、钩子和生命周期事件。"""
+        """直接工具调用共用权限、取消、会话事实和恢复检查点。"""
+        if self.running:
+            raise RuntimeError("A task is already running")
+        self.recovery.prepare_run(self.log)
         call = ToolCallBlock(id=uuid4().hex[:12], name=name, args=args)
-
-        async def approve_call(request: ApprovalRequest) -> ApprovalResult:
-            allowed = await approve(request.call)
-            return ApprovalResult(allowed, "" if allowed else "denied by user")
-
-        execution = await execute_tool(
-            call,
-            index_tools(filter_tools(self.tools, self.policy.mode)),
-            policy=self.policy,
-            approve=approve_call,
-            context=self.context(),
-            on_event=on_event,
-        )
-        result = execution.result
-        if on_event is not None:
-            on_event(ToolEndEvent(call.id, result.content, result.is_error))
-        return result
+        self.running = True
+        self.cancel = self.cancel or CancellationToken()
+        try:
+            with self.log.run_lock(), self.recovery.record(self.log):
+                text = (
+                    f"!{args.get('command', '')}"
+                    if name == "bash"
+                    else f"Run tool {name}"
+                )
+                user = self.log.append("user", {"text": text})
+                self.recovery.started(self.log, user)
+                messages = build(
+                    project(self.log.branch()),
+                    tools=(),
+                    budget=self.budget,
+                    context=self.context(),
+                ).messages
+                self.log.append(
+                    "assistant",
+                    {
+                        "blocks": [call.model_dump(mode="json")],
+                        "model": self.provider.model,
+                        "provider": self.provider_config.provider,
+                    },
+                )
+                execution = await execute_tool(
+                    call,
+                    index_tools(filter_tools(self.tools, self.policy.mode)),
+                    policy=self.policy,
+                    approve=self._select_approver(approve),
+                    context=self.context(),
+                    messages=messages,
+                    cancel=self.cancel,
+                    on_event=on_event,
+                )
+                result = execution.result
+                self.log.append(
+                    "tool_result",
+                    {
+                        "call_id": call.id,
+                        "content": result.content,
+                        "status": "error" if result.is_error else "ok",
+                    },
+                )
+                if on_event is not None:
+                    on_event(ToolEndEvent(call.id, result.content, result.is_error))
+                return result
+        finally:
+            self.cancel = None
+            self.running = False
 
     async def side_question(
         self,

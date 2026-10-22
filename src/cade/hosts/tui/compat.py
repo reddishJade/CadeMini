@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
+from cade.harness.events import ProviderRetryEvent
+
 type ToolInput = dict[str, Any]
 type ApprovalScope = Literal["once", "session", "permanent"]
 
@@ -187,6 +189,7 @@ class FinalStructuredEvent:
 
 type AgentHarnessEvent = (
     TextDeltaStructuredEvent
+    | ProviderRetryEvent
     | ReasoningDeltaStructuredEvent
     | UsageUpdateStructuredEvent
     | ResponseMetricsStructuredEvent
@@ -379,24 +382,3 @@ def command_grant_pattern(command: str) -> str:
     """为授权提示生成稳定、可读的 shell 规则。"""
     analysis = analyze_shell_command(command)
     return f"{analysis.primary_command} *" if analysis.primary_command else "*"
-
-
-class FileReference(Protocol):
-    path: str
-    status: str
-    error: str | None
-
-
-def file_reference_event(references: list[Any]) -> dict[str, Any]:
-    """构造文件引用记录。"""
-    return {
-        "type": "file_references",
-        "data": [
-            {
-                "path": reference.path,
-                "status": reference.status,
-                "error": reference.error,
-            }
-            for reference in references
-        ],
-    }

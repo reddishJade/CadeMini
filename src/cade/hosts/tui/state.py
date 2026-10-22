@@ -344,7 +344,11 @@ class _TuiState:
         self.log.append(_LogEntry("thinking", text + suffix))
 
     def handle_event(self, event: AgentHarnessEvent) -> None:
-        if event.type == "response_metrics":
+        if event.type == "provider_retry":
+            self.streaming_answer = None
+            self.thinking_core.reset()
+            self.response_metrics = None
+        elif event.type == "response_metrics":
             # 无内容的工具请求或失败重试没有消息可标注，仍保留 JSONL 指标。
             if event.data.ttft_seconds is None:
                 return

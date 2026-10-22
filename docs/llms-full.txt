@@ -1551,13 +1551,12 @@ flowchart LR
   hosts_tui_bridge --> harness_session_log
   hosts_tui_bridge --> harness_session_types
   hosts_tui_command_handlers --> app_commands
+  hosts_tui_compat --> harness_events
   hosts_tui_config_registry --> ai_models
   hosts_tui_config_registry --> app_config
   hosts_tui_config_registry --> app_settings
   hosts_tui_context_stats --> harness_request
   hosts_tui_context_stats --> harness_session_projection
-  hosts_tui_interaction_compat --> coding_tools_base
-  hosts_tui_interaction_compat --> harness_session_types
   hosts_tui_login_flow --> ai_auth
   hosts_tui_settings --> ai_models
   hosts_tui_setup_wizard --> ai_models

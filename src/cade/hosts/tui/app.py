@@ -63,7 +63,6 @@ from .compat import (
     BusyMessageMode,
     CommandContext,
     ContextSummary,
-    FinalStructuredEvent,
     HITLResult,
     InteractionState,
     SubmitStatus,
@@ -83,8 +82,6 @@ from .interaction_compat import (
     available_skill_names,
     current_effort_options,
     current_model_options,
-    expand_file_references,
-    file_reference_event,
     git_branch_name,
     parse_skill_invocation,
     run_shell_shortcut,
@@ -719,15 +716,12 @@ class _CadeTui:
         self, text: str, mode: BusyMessageMode | None = None
     ) -> None:
         """普通 Enter 使用排队策略，Alt Enter 显式引导当前任务。"""
-        expanded_text, references = expand_file_references(text, self._project_root)
         outcome = self._agent_app.agent.submit_busy_message(
-            UserMessage(content=expanded_text),
+            UserMessage(content=text),
             mode or self._interaction_state.busy_mode,
             display_text=text,
         )
         self._state.add_user(text)
-        if references:
-            self._store.append("event", file_reference_event(references))
         if outcome.status is SubmitStatus.STEER_ACCEPTED:
             self._state.log.append(
                 _LogEntry("system", "Added guidance to the current task.")
@@ -993,9 +987,6 @@ class _CadeTui:
             )
             self._refresh()
             return
-        expanded_text, references = expand_file_references(text, self._project_root)
-        if references:
-            self._store.append("event", file_reference_event(references))
         self._state.add_user(text)
         self._start_working()
         agent = getattr(self._agent_app, "agent", None)
@@ -1006,7 +997,7 @@ class _CadeTui:
         self._refresh()
         thread = threading.Thread(
             target=self._run_turn,
-            args=(expanded_text, text),
+            args=(text, text),
             daemon=True,
         )
         self._turn_thread = thread
@@ -1890,8 +1881,6 @@ class _CadeTui:
         def run() -> None:
             try:
                 output = run_shell_shortcut(text, self._agent_app)
-                self._store.append("event", {"type": "shell_shortcut", "data": text})
-                self._store.append("event", {"type": "tool_result", "data": output})
                 self._state.log.append(_LogEntry("shell", output, markdown=False))
             except (LookupError, OSError, RuntimeError, TypeError, ValueError) as exc:
                 detail = str(exc) or repr(exc)
@@ -1902,7 +1891,8 @@ class _CadeTui:
                 self._state.running = False
                 self._call_in_ui_thread(self._schedule_turn_commit)
 
-        threading.Thread(target=run, daemon=True).start()
+        self._turn_thread = threading.Thread(target=run, daemon=True)
+        self._turn_thread.start()
 
     def _restore_session_history(self) -> None:
         """恢复会话命令完成后，以 TUI 形式重新渲染当前分支。"""
@@ -1916,10 +1906,7 @@ class _CadeTui:
         self._sync_mode_from_agent()
 
     def _sync_mode_from_agent(self) -> None:
-        """让 TUI 与交互状态中的模式与 agent harness 保持一致。
-
-        新会话取配置的默认模式，恢复会话取 transcript 中持久化的模式。
-        """
+        """从应用权限策略读取模式，同时更新两处显示状态。"""
         agent = getattr(self._agent_app, "agent", None)
         mode = getattr(agent, "current_mode", None)
         if mode in {"plan", "build", "ask"}:
@@ -2203,9 +2190,6 @@ class _CadeTui:
     # ── Turn 执行 ──
 
     def _run_turn(self, text: str | None, display_text: str | None) -> None:
-        turn_log_start = len(self._state.log)
-
-        answer = ""
         try:
             self._last_stream_refresh = 0.0
             for event in self._agent_app.ask_stream(
@@ -2213,12 +2197,9 @@ class _CadeTui:
                 mode=self._interaction_state.mode,
                 display_question=display_text,
             ):
-                if isinstance(event, (FinalStructuredEvent,)):
-                    answer = event.data.answer
                 self._dispatch_agent_event(event)
         except (LookupError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._wait_for_agent_events()
-            self._save_partial_answer(turn_log_start)
             detail = str(exc) or repr(exc)
             self._state.log.append(
                 _LogEntry("error", f"[error] {type(exc).__name__}: {detail}")
@@ -2230,9 +2211,6 @@ class _CadeTui:
 
         self._wait_for_agent_events()
         self._stop_working()
-
-        if not answer:
-            self._save_partial_answer(turn_log_start)
 
         self._refresh()
 
@@ -2258,21 +2236,6 @@ class _CadeTui:
             self._call_in_ui_thread(apply)
 
         threading.Thread(target=update, daemon=True).start()
-
-    def _save_partial_answer(self, turn_log_start: int) -> None:
-        """将中断前已经流式显示的回答写入会话，供恢复和后续注入使用。"""
-        partial = "".join(
-            entry.content()
-            for entry in self._state.log[turn_log_start:]
-            if entry.role == "cade"
-        ).strip()
-        if self._state.streaming_answer is not None:
-            partial = (partial + self._state.streaming_answer.content()).strip()
-        if partial:
-            recorder = getattr(self._agent_app, "session_recorder", None)
-            if recorder is None:
-                raise RuntimeError("session recorder is not configured")
-            recorder.record_assistant(partial)
 
     def _dispatch_agent_event(self, event: AgentHarnessEvent) -> None:
         """将 agent 事件放入队列，由 UI loop 批量更新显示状态。"""

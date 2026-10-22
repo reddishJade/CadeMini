@@ -25,6 +25,13 @@ class TextDeltaEvent:
 
 
 @dataclass(frozen=True)
+class ProviderRetryEvent:
+    """丢弃失败尝试的临时输出，下一次请求重新开始显示。"""
+
+    type: Literal["provider_retry"] = "provider_retry"
+
+
+@dataclass(frozen=True)
 class ToolStartEvent:
     call_id: str
     name: str
@@ -54,7 +61,12 @@ class UsageEvent:
 
 
 type LoopEvent = (
-    TextDeltaEvent | ToolStartEvent | ToolEndEvent | ReasoningDeltaEvent | UsageEvent
+    TextDeltaEvent
+    | ProviderRetryEvent
+    | ToolStartEvent
+    | ToolEndEvent
+    | ReasoningDeltaEvent
+    | UsageEvent
 )
 
 

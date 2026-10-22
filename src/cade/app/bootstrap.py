@@ -265,5 +265,4 @@ def create_session(
         context_window_explicit=bool(config.context_window),
         recovery=recovery,
     )
-    session.auto_approve = auto_approve
     return BootstrappedSession(session, approver, mcp.errors)

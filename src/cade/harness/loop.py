@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import wraps
 from typing import Any, Concatenate, cast
 
@@ -22,6 +22,7 @@ from cade.ai.types import StreamOptions, ToolDefinition
 from cade.harness.cancellation import CancellationToken
 from cade.harness.events import (
     LoopEvent,
+    ProviderRetryEvent,
     ReasoningDeltaEvent,
     RunResult,
     Termination,
@@ -230,9 +231,15 @@ async def run(
             _append_attempt(log, provider, result.failure, result.usage)
             if retries < max_provider_retries and _retryable(result.failure):
                 retries += 1
+                _emit(on_event, ProviderRetryEvent())
                 if retry_delay_seconds > 0:
                     await asyncio.sleep(retry_delay_seconds)
                 continue
+            if result.text:
+                _append_assistant(
+                    log, provider, replace(result, calls=(), provider_state=None)
+                )
+                last_answer = result.text
             return _finish(
                 log,
                 "provider_error",
@@ -409,7 +416,7 @@ async def _consume_provider(
         ):
             if cancel is not None and cancel.cancelled:
                 return _ProviderResult(
-                    "",
+                    "".join(text_parts),
                     (),
                     usage,
                     None,

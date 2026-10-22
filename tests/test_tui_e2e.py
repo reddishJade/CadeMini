@@ -27,8 +27,10 @@ from cade.ai.types import StreamOptions, ToolDefinition
 from cade.app import auth
 from cade.app.commands import SPECS
 from cade.app.session import ApplicationSession
+from cade.harness.cancellation import CancellationToken
 from cade.harness.session.log import SessionLog
 from cade.harness.session.types import ToolCallBlock
+from cade.harness.tools import ToolResult
 from cade.hosts import cli
 from cade.hosts.tui import app as tui_module
 from cade.hosts.tui.bridge import CadeInteractionApp
@@ -794,7 +796,7 @@ def test_goal_lifecycle(terminal_runner: Runner) -> None:
 
 def test_permission_picker_grants_only_current_session(terminal_runner: Runner) -> None:
     async def scenario(term: Terminal) -> None:
-        term.service.auto_approve = False
+        term.service.automatic_approver = None
         await term.send("/mode ask")
         term.service.provider.batches = [
             [
@@ -1007,6 +1009,70 @@ def test_fork_picker_creates_independent_conversation(terminal_runner: Runner) -
             "alternate task"
         ]
         assert source.read_bytes() == original
+
+    terminal_runner(scenario)
+
+
+def test_file_reference_keeps_file_contents_as_data(terminal_runner: Runner) -> None:
+    async def scenario(term: Terminal) -> None:
+        body = "$not_a_skill @not-a-file\nunique attached content"
+        (term.service.workspace / "attached.txt").write_text(body, encoding="utf-8")
+        await term.send("inspect @attached.txt")
+        user = next(e for e in term.service.log.branch() if e.type == "user")
+        assert str(user.data["text"]).count(body) == 1
+        assert "[error]" not in term.transcript
+
+    terminal_runner(scenario)
+
+
+@pytest.mark.parametrize("action", ["escape", "exit"])
+def test_shell_shortcut_cancels_and_settles(
+    terminal_runner: Runner, action: str
+) -> None:
+    class WaitingShell:
+        def __init__(self) -> None:
+            self.name = "bash"
+            self.description = "Wait for cancellation"
+            self.parameters = {
+                "type": "object",
+                "properties": {"command": {"type": "string"}},
+                "required": ["command"],
+            }
+            self.started = False
+            self.stopped = False
+
+        async def execute(
+            self, call: ToolCallBlock, signal: CancellationToken | None = None
+        ) -> ToolResult:
+            assert signal is not None
+            self.started = True
+            await signal.wait()
+            self.stopped = True
+            return ToolResult("cancelled", is_error=True)
+
+    async def scenario(term: Terminal) -> None:
+        shell = WaitingShell()
+        term.service.base_tools = (shell,)
+        await term.send("!echo waiting", wait_idle=False)
+        await term.until(lambda: shell.started, "shell started")
+        if action == "escape":
+            await term.escape()
+            await term.until(lambda: not term.tui._state.running, "shell cancelled")
+        else:
+            await term.send("/quit", wait_idle=False)
+            await term.until(lambda: not term.tui._application.is_running, "UI exited")
+        assert shell.stopped
+        assert not term.service.running
+        worker = term.tui._turn_thread
+        assert worker is not None
+        await asyncio.to_thread(worker.join, 2)
+        assert not worker.is_alive()
+        result = next(
+            e for e in reversed(term.service.log.branch()) if e.type == "tool_result"
+        )
+        assert result.data["status"] == "error"
+        history = term.service.recovery.store.history(term.service.log.session_id)
+        assert history.head_id == term.service.log.head_id
 
     terminal_runner(scenario)
 

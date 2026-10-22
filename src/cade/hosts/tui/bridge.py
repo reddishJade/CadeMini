@@ -17,6 +17,7 @@ from cade.coding.security.sensitive import is_sensitive_reason
 from cade.harness.cancellation import CancellationToken
 from cade.harness.events import (
     LoopEvent,
+    ProviderRetryEvent,
     ReasoningDeltaEvent,
     RunResult,
     TextDeltaEvent,
@@ -25,7 +26,7 @@ from cade.harness.events import (
     UsageEvent,
 )
 from cade.harness.session.log import SessionLog, list_sessions
-from cade.harness.session.types import LogEntry, TextBlock, ToolCallBlock
+from cade.harness.session.types import LogEntry, ToolCallBlock
 
 from .compat import (
     AgentHarnessResult,
@@ -240,7 +241,10 @@ class CadeAgent:
 
     approval_policy = "on-request"
     approvals_reviewer = "user"
-    current_mode = "build"
+
+    @property
+    def current_mode(self) -> str:
+        return self._service.policy.mode
 
     def __init__(self, service: ApplicationSession) -> None:
         self._service = service
@@ -294,8 +298,6 @@ class CadeAgent:
         if check.decision == "deny":
             return False
         sensitive = is_sensitive_reason(check.reason)
-        if self._service.auto_approve:
-            return True
         callback = self.user_approval_callback
         if callback is None:
             return False
@@ -322,25 +324,6 @@ class CadeAgent:
         return True
 
 
-class _Recorder:
-    """把 TUI 的部分回答写入会话日志。"""
-
-    def __init__(self, service: ApplicationSession) -> None:
-        self._service = service
-
-    def record_assistant(self, text: str) -> None:
-        if not text.strip():
-            return
-        self._service.log.append(
-            "assistant",
-            {
-                "blocks": [TextBlock(text=text).model_dump(mode="json")],
-                "model": self._service.provider.model,
-                "provider": self._service.provider_config.provider,
-            },
-        )
-
-
 class CadeInteractionApp:
     """Cade TUI 协议在 Cade 上的实现。"""
 
@@ -348,7 +331,6 @@ class CadeInteractionApp:
         self.service = service
         self.agent = CadeAgent(service)
         self.session_store = CadeSessionStore(service)
-        self.session_recorder = _Recorder(service)
         self._pending_skill: str | None = None
 
     @property
@@ -459,11 +441,12 @@ class CadeInteractionApp:
         if pending_skill:
             text = f"${pending_skill} {text}"
             self._pending_skill = None
-        text = self.service.expand(text)
         events: Queue[Any] = Queue()
 
         def emit(event: LoopEvent) -> None:
-            if isinstance(event, TextDeltaEvent):
+            if isinstance(event, ProviderRetryEvent):
+                events.put(event)
+            elif isinstance(event, TextDeltaEvent):
                 events.put(TextDeltaStructuredEvent(event.text))
             elif isinstance(event, ReasoningDeltaEvent):
                 events.put(ReasoningDeltaStructuredEvent(event.text))
