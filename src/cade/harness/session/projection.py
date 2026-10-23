@@ -192,13 +192,21 @@ def _parse_assistant(entry: LogEntry) -> AssistantMessage | None:
 
 
 def _parse_tool_result(entry: LogEntry) -> ToolResultMessage:
+    from cade.harness.session.types import ImageAttachment
+
     status = _text(entry.data, "status")
     if status not in _TOOL_RESULT_STATUSES:
         raise ProjectionError(f"invalid tool result status: {status}")
+    artifact = entry.data.get("artifact")
+    metadata = artifact.get("tool_metadata") if isinstance(artifact, dict) else None
+    images = metadata.get("images") if isinstance(metadata, dict) else None
     return ToolResultMessage(
         call_id=_text(entry.data, "call_id"),
         content=_text(entry.data, "content"),
         is_error=status != "ok",
+        images=tuple(ImageAttachment.model_validate(image) for image in images)
+        if isinstance(images, list)
+        else (),
     )
 
 

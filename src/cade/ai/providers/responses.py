@@ -263,6 +263,18 @@ def to_responses_input(
                 if isinstance(content, list)
                 else (str(content) if content is not None else "")
             )
+            images = msg.get("images")
+            if isinstance(images, list) and images:
+                output = [
+                    {"type": "input_text", "text": output},
+                    *(
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:{image['mimeType']};base64,{image['data']}",
+                        }
+                        for image in images
+                    ),
+                ]
             items.append(
                 {
                     "type": "function_call_output",

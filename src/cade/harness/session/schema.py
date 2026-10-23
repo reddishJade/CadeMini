@@ -98,6 +98,7 @@ class _WireCall(_Payload):
 class _WireMessage(_Payload):
     role: Literal["system", "user", "assistant", "tool"]
     content: str | None = None
+    images: list[dict[str, str]] | None = None
     tool_calls: list[_WireCall] | None = None
     tool_call_id: NonEmpty | None = None
     replay: dict[str, JsonValue] | None = Field(
