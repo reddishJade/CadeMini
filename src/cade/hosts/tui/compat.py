@@ -334,6 +334,10 @@ def final_stop_reason(data: AgentHarnessResult) -> str | None:
         return "[stopped] cancelled"
     if data.stop_reason in {"error", "provider_error"}:
         return f"[stopped] {data.error or 'provider error'}"
+    if data.stop_reason == "context_error":
+        return f"[stopped] {data.error or 'context budget exceeded'}"
+    if data.stop_reason == "max_tokens":
+        return "[stopped] output token limit reached"
     return None
 
 
