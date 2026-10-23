@@ -323,7 +323,7 @@ cade login --provider deepseek
 <li><code>/permissions [list|clear]</code>：列出或清除会话授权；不带参数时打开选择器。</li>
 <li><code>/goal [TEXT|done|clear]</code>：显示、设置、完成或清除目标。</li>
 <li><code>/context-window [SIZE|default]</code>：显示或调整当前上下文窗口。</li>
-<li><code>/context</code>：打印会话 ID、provider、预算和事件数。</li>
+<li><code>/context</code>：显示按来源分类的用量和剩余输入空间，包括指令文件、技能、MCP schema 和已加载的 MCP 内容。OpenAI API key 模式使用输入计数接口；ChatGPT 套餐模式使用本地估算，因为 SIWC 未公开输入计数端点。DeepSeek 使用官方 V4 文本分词器并估算请求开销。最近一次请求的 provider 用量单独显示。</li>
 <li><code>/btw QUESTION</code>：提出一个独立的旁路问题。</li>
 <li><code>/steer TEXT</code>：为下一个模型步骤排队指导。</li>
 <li><code>/queue [followup|steer|interrupt|TEXT]</code>：设置忙碌时 <code>Enter</code> 的行为，或将 TEXT 排到下一轮。</li>
@@ -378,6 +378,7 @@ cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
 <h1>配置</h1>
 <p>Cade 默认读取 <code>&lt;project-root&gt;/cade.json</code>。用 <code>--config PATH</code> 选择其他文件。命令行选项覆盖文件，文件覆盖内置默认值。</p>
 <p>配置是严格的：未知键和非法值会被拒绝，不会静默忽略。</p>
+<p>在 TUI 中，<code>/config</code> 打开设置浏览器。每个设置项都先展示方向键菜单，默认选中当前值。数值项提供预设值，可空项提供 <strong>Use default</strong>。选择 <strong>Custom value...</strong> 后，才能在预填表单中输入自定义数值、路径或模型名。按 Enter 保存，按 Esc 返回选项。保存的默认值在下次启动时生效。</p>
 <h2>示例</h2>
 <pre><code class="language-json">{
   &quot;provider&quot;: &quot;chatgpt&quot;,
@@ -413,7 +414,8 @@ cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
 <li><code>sessions_dir</code>：会话目录。相对路径按项目根目录解析。</li>
 <li><code>mode</code>：<code>plan</code>、<code>build</code> 或 <code>ask</code>。默认是 <code>build</code>；旧的 <code>act</code> 值请改成 <code>ask</code>。</li>
 <li><code>sandbox</code>：<code>read-only</code>、<code>workspace-write</code>（默认）或 <code>danger-full-access</code>。Windows 会跳过操作系统隔离，与这里的设置无关。</li>
-<li><code>network</code>：允许工具访问网络。默认是 true。设为 false 时，只有 Linux 和 macOS 的隔离能强制生效。</li>
+<li><code>network</code>：允许工具访问网络，默认是 true。设为 false 时，所有平台都会拒绝网页工具调用。Shell 的网络隔离仍依赖 Linux 和 macOS 的沙箱。</li>
+<li>网页搜索使用 Exa，可通过 <code>EXA_API_KEY</code> 提供自己的密钥。已有 <code>cade.json</code> 需要移除 <code>websearch_provider</code> 字段。</li>
 <li><code>read_only</code>：拒绝修改，只允许已归类的只读 shell 命令。</li>
 <li><code>instructions</code>：把 <code>AGENTS.md</code> 或 <code>CLAUDE.md</code> 加载到请求上下文。</li>
 <li><code>note</code>：加载 <code>NOTE.md</code> 工作状态。</li>
@@ -709,7 +711,7 @@ uv run --locked cade login
 <tr>
 <td>Tool</td>
 <td><code>harness.tools.Tool</code> 的名称、描述、参数、execute</td>
-<td>工作区工具、history、skill、memory、goal、subagent、MCP</td>
+<td>工作区工具、history、skill、memory、goal、delegate、MCP</td>
 <td>循环</td>
 </tr>
 <tr>
@@ -1191,6 +1193,7 @@ uv run --locked cade login
   ai_models --&gt; ai_types
   ai_providers__codec --&gt; ai_types
   ai_providers_base --&gt; ai_events
+  ai_providers_base --&gt; ai_tokenization
   ai_providers_base --&gt; ai_types
   ai_providers_base --&gt; ai_usage
   ai_providers_registry --&gt; ai_providers_base
@@ -1198,6 +1201,7 @@ uv run --locked cade login
   ai_providers_registry --&gt; ai_types
   ai_providers_responses --&gt; ai_cache
   ai_providers_responses --&gt; ai_events
+  ai_providers_responses --&gt; ai_tokenization
   ai_providers_responses --&gt; ai_types
   ai_providers_responses --&gt; ai_usage
   ai_resolver --&gt; ai_models
@@ -1219,7 +1223,10 @@ uv run --locked cade login
   app_bootstrap --&gt; coding_security_review
   app_bootstrap --&gt; coding_skills_tools
   app_bootstrap --&gt; coding_subagents
+  app_bootstrap --&gt; coding_tools_question
   app_bootstrap --&gt; coding_tools_registry
+  app_bootstrap --&gt; coding_tools_webfetch
+  app_bootstrap --&gt; coding_tools_websearch
   app_bootstrap --&gt; coding_workspace_recovery_coordinator
   app_bootstrap --&gt; coding_workspace_snapshots
   app_bootstrap --&gt; harness_compaction
@@ -1232,11 +1239,16 @@ uv run --locked cade login
   app_bootstrap --&gt; harness_window
   app_config --&gt; coding_mcp_config
   app_config --&gt; coding_security_rules
+  app_context_report --&gt; ai_models
+  app_context_report --&gt; ai_providers_base
+  app_context_report --&gt; ai_tokenization
   app_context_report --&gt; ai_types
+  app_context_report --&gt; coding_mcp_tools
   app_context_report --&gt; coding_security_policy
   app_context_report --&gt; harness_request
   app_context_report --&gt; harness_session_projection
   app_context_report --&gt; harness_session_types
+  app_context_report --&gt; harness_tools
   app_provider --&gt; ai_models
   app_provider --&gt; ai_providers_base
   app_provider --&gt; ai_providers_registry
@@ -1334,7 +1346,6 @@ uv run --locked cade login
   coding_skills_tools --&gt; harness_session_types
   coding_skills_tools --&gt; harness_tools
   coding_subagents --&gt; coding_security_policy
-  coding_subagents --&gt; coding_tools_base
   coding_subagents --&gt; coding_tools_history
   coding_subagents --&gt; harness_cancellation
   coding_subagents --&gt; harness_lifecycle
@@ -1348,6 +1359,7 @@ uv run --locked cade login
   coding_tools__worker --&gt; coding_tools_registry
   coding_tools__worker --&gt; harness_execution_scope
   coding_tools__worker --&gt; harness_tools
+  coding_tools_base --&gt; coding_tools_native
   coding_tools_base --&gt; coding_workspace_snapshots
   coding_tools_base --&gt; harness_cancellation
   coding_tools_base --&gt; harness_execution_local_sandbox
@@ -1364,6 +1376,8 @@ uv run --locked cade login
   coding_tools_bash --&gt; harness_session_types
   coding_tools_bash --&gt; harness_tools
   coding_tools_edit --&gt; coding_tools_base
+  coding_tools_edit --&gt; coding_tools_edit_diff
+  coding_tools_edit --&gt; coding_tools_mutation
   coding_tools_edit --&gt; coding_workspace_snapshots
   coding_tools_edit --&gt; harness_session_types
   coding_tools_edit --&gt; harness_tools
@@ -1371,24 +1385,46 @@ uv run --locked cade login
   coding_tools_history --&gt; harness_session_log
   coding_tools_history --&gt; harness_session_types
   coding_tools_history --&gt; harness_tools
+  coding_tools_images --&gt; harness_tools
+  coding_tools_ls --&gt; coding_tools_base
+  coding_tools_ls --&gt; coding_tools_search
+  coding_tools_ls --&gt; harness_session_types
+  coding_tools_ls --&gt; harness_tools
   coding_tools_question --&gt; harness_cancellation
   coding_tools_question --&gt; harness_session_types
   coding_tools_question --&gt; harness_tools
   coding_tools_read --&gt; coding_tools_base
+  coding_tools_read --&gt; coding_tools_images
+  coding_tools_read --&gt; coding_tools_truncate
   coding_tools_read --&gt; harness_session_types
   coding_tools_read --&gt; harness_tools
   coding_tools_registry --&gt; coding_tools_base
   coding_tools_registry --&gt; coding_tools_bash
   coding_tools_registry --&gt; coding_tools_edit
+  coding_tools_registry --&gt; coding_tools_ls
   coding_tools_registry --&gt; coding_tools_read
   coding_tools_registry --&gt; coding_tools_search
   coding_tools_registry --&gt; coding_tools_write
   coding_tools_registry --&gt; coding_workspace_snapshots
   coding_tools_registry --&gt; harness_execution_local_sandbox
   coding_tools_search --&gt; coding_tools_base
+  coding_tools_search --&gt; coding_tools_native
+  coding_tools_search --&gt; coding_tools_truncate
+  coding_tools_search --&gt; harness_execution_local_subprocess
   coding_tools_search --&gt; harness_session_types
   coding_tools_search --&gt; harness_tools
+  coding_tools_webfetch --&gt; coding_tools_base
+  coding_tools_webfetch --&gt; coding_tools_html_markdown
+  coding_tools_webfetch --&gt; coding_tools_truncate
+  coding_tools_webfetch --&gt; harness_cancellation
+  coding_tools_webfetch --&gt; harness_session_types
+  coding_tools_webfetch --&gt; harness_tools
+  coding_tools_websearch --&gt; coding_tools_webfetch
+  coding_tools_websearch --&gt; harness_cancellation
+  coding_tools_websearch --&gt; harness_session_types
+  coding_tools_websearch --&gt; harness_tools
   coding_tools_write --&gt; coding_tools_base
+  coding_tools_write --&gt; coding_tools_mutation
   coding_tools_write --&gt; coding_workspace_snapshots
   coding_tools_write --&gt; harness_session_types
   coding_tools_write --&gt; harness_tools
@@ -1447,6 +1483,7 @@ uv run --locked cade login
   hosts_cli --&gt; app_bootstrap
   hosts_cli --&gt; app_config
   hosts_cli --&gt; coding_goal
+  hosts_cli --&gt; coding_tools_question
   hosts_cli --&gt; harness_events
   hosts_cli --&gt; harness_provider
   hosts_cli --&gt; harness_session_log
@@ -1466,6 +1503,7 @@ uv run --locked cade login
   hosts_tui_config_registry --&gt; app_settings
   hosts_tui_context_stats --&gt; harness_request
   hosts_tui_context_stats --&gt; harness_session_projection
+  hosts_tui_context_usage --&gt; app_context_report
   hosts_tui_login_flow --&gt; ai_auth
   hosts_tui_settings --&gt; ai_models
   hosts_tui_setup_wizard --&gt; ai_models
@@ -1502,27 +1540,51 @@ uv run --locked cade login
 </tr>
 <tr>
 <td><code>edit</code></td>
-<td><code>path</code>、<code>old</code>、<code>new</code></td>
-<td>替换一处内容；先做快照</td>
+<td><code>path</code>、<code>edits: [{oldText, newText}]</code></td>
+<td>对原始文件执行互不重叠的替换；先做快照</td>
 <td>ask 模式下询问，build 模式下允许</td>
 </tr>
 <tr>
-<td><code>glob</code></td>
-<td><code>pattern</code>、<code>path</code></td>
+<td><code>find</code></td>
+<td><code>pattern</code>、<code>path</code>、<code>limit</code></td>
 <td>无</td>
-<td>允许</td>
+<td>允许，受保护路径除外</td>
+</tr>
+<tr>
+<td><code>ls</code></td>
+<td><code>path</code>、<code>limit</code></td>
+<td>无</td>
+<td>允许，受保护路径除外</td>
 </tr>
 <tr>
 <td><code>grep</code></td>
-<td><code>pattern</code>、<code>path</code>、<code>include</code></td>
+<td><code>pattern</code>、<code>path</code>、<code>glob</code>、<code>ignoreCase</code>、<code>literal</code>、<code>context</code>、<code>limit</code></td>
 <td>无</td>
-<td>允许</td>
+<td>允许，受保护路径除外</td>
 </tr>
 <tr>
-<td><code>bash</code></td>
-<td><code>command</code>、<code>workdir</code>、<code>timeout_ms</code>、<code>additional_write_paths</code></td>
+<td><code>bash</code>、<code>powershell</code></td>
+<td><code>command</code>、<code>timeout</code>、<code>workdir</code>、<code>additional_write_paths</code></td>
 <td>任意进程；对常见修改做快照</td>
 <td>build 模式下允许普通开发；检测到风险时询问</td>
+</tr>
+<tr>
+<td><code>question</code></td>
+<td><code>questions: [{question, header, options, multiple?}]</code></td>
+<td>收集用户答案；关闭问题时结束当前轮次</td>
+<td>允许，包括计划模式</td>
+</tr>
+<tr>
+<td><code>websearch</code></td>
+<td><code>query</code></td>
+<td>通过 Exa 搜索网页</td>
+<td>网络开启时允许</td>
+</tr>
+<tr>
+<td><code>webfetch</code></td>
+<td><code>url</code>、<code>format</code>、<code>timeout</code></td>
+<td>获取文本、Markdown 或 HTML</td>
+<td>网络开启时允许</td>
 </tr>
 <tr>
 <td><code>history</code></td>
@@ -1549,12 +1611,6 @@ uv run --locked cade login
 <td>允许</td>
 </tr>
 <tr>
-<td><code>subagent</code></td>
-<td><code>prompt</code>、<code>description</code></td>
-<td>创建子会话</td>
-<td>允许；继承父级限制</td>
-</tr>
-<tr>
 <td><code>delegate</code></td>
 <td><code>prompt</code> 或 <code>tasks</code>、<code>mode</code>、<code>description</code></td>
 <td>创建一个或多个子会话</td>
@@ -1577,6 +1633,14 @@ uv run --locked cade login
 </ul>
 <h2>参数</h2>
 <p>权威 JSON schema 内建于每个工具。这张表只用于导航；与工具 schema 不一致时，以 schema 为准。</p>
+<p>工具默认值和 Cade 集成见<a href="../decisions/0015-tool-behavior-parity.md">行为契约</a>。
+<code>read</code> 返回不带行号前缀的文件内容，并支持图片附件。<code>offset</code> 和 <code>limit</code> 必须为正整数。
+编辑只支持精确匹配，每个替换都基于原始文件，命中位置必须唯一且互不重叠。列目录请用 <code>ls</code>。
+Shell 的 <code>timeout</code> 单位是秒，没有默认超时。Windows 上的 <code>bash</code> 使用 Bash；
+<code>powershell</code> 使用 PowerShell，仅支持 Windows。</p>
+<p><code>find</code> 使用 fd，<code>grep</code> 使用 ripgrep。请将这两个程序安装到 PATH。
+Cade 会报告缺少的程序，不会自动下载。
+搜索排除 <code>.cade</code>，包括其中的快照和会话日志。</p>
 <h2>相关页面</h2>
 <ul>
 <li><a href="#page-tools-security">工具与安全</a></li>
@@ -1671,7 +1735,7 @@ uv run --locked cade login
 <p>任务运行时，TUI 继续接受输入。UI 线程渲染事件、处理按键；bridge 在带独立 <code>asyncio</code> 事件循环的工作线程里运行任务。</p>
 <h2>当前设计</h2>
 <pre><code class="language-text">prompt_toolkit UI 线程
-  |  Enter / Alt+Enter / 斜杠命令
+  |  Enter / Alt+S / Alt+Q / Alt+Enter / 斜杠命令
   v
 ApplicationSession
   |  steering、pending、cancel
@@ -1704,6 +1768,14 @@ ApplicationSession
 <tr>
 <td><code>Alt+Enter</code></td>
 <td>在下一个模型步骤追加指导</td>
+</tr>
+<tr>
+<td><code>Alt+S</code></td>
+<td>在下一个模型步骤追加指导，不受 <code>Enter</code> 模式影响</td>
+</tr>
+<tr>
+<td><code>Alt+Q</code></td>
+<td>排队后续任务，不受 <code>Enter</code> 模式影响</td>
 </tr>
 <tr>
 <td><code>/steer TEXT</code></td>
@@ -1740,6 +1812,7 @@ ApplicationSession
 </tbody>
 </table>
 <p>当前任务进入终止状态时，后续任务自动运行。队列按先进先出，排队的任务留在同一个会话。显式按 Esc 或用 <code>/stop</code> 取消时，未送达的输入会回到编辑器，不会立刻开始另一次运行。</p>
+<p><code>Alt+S</code> 和 <code>Alt+Q</code> 在任务运行时提交编辑器中的普通文本。输入为空时不执行操作。以 <code>/</code>、<code>!</code> 或 <code>$</code> 开头的输入保留在编辑器中，不会作为消息提交。菜单、表单和审批请求优先于消息快捷键。按 <code>?</code> 查看按键说明；运行期间的输入提示也会显示这两个快捷键。</p>
 <p><code>/steer</code> 不是向正在运行的 provider 请求注入提示。循环在每个步骤之前检查引导队列，追加一条带 <code>source: runtime</code> 的 <code>user</code> 事实，再从投影构造下一次请求。这样会话日志仍是唯一事实来源。</p>
 <h2>会话命令</h2>
 <p><code>/new</code>、<code>/resume</code>、<code>/fork</code>、<code>/clone</code>、<code>/compact</code> 和 <code>/new-context</code> 会改变会话状态。在没有活动任务时运行它们。运行期间，普通文本改为排队。</p>
@@ -2051,6 +2124,11 @@ uv run --locked python -m cade.docs check
 <p>未知事件类型非法，不要忽略。</p>
 <p>载荷在追加和读取时都会校验。未知字段、错误的原始类型、非法枚举和非有限数字都会被拒绝。缺失的可选字段允许存在，但默认值不会写进记录。<code>user.source</code> 默认是 <code>user</code>；assistant 的 model/provider/usage/replay 元数据以及可空的 artifact/handoff/usage/details 字段可以缺失。跨事件的调用配对和上下文切点引用由投影校验。</p>
 <h2>事件类型</h2>
+<p>图片工具把附件写入 <code>tool_result.artifact.tool_metadata.images</code>。
+每张图片包含 <code>data</code>（base64）和 <code>mimeType</code>。
+投影恢复文本和图片，请求快照把图片记录在工具消息的 <code>images</code> 字段。
+Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
+工具负责生成附件数据，数据随会话日志保留。</p>
 <h3>对话事件</h3>
 <p>这些事件产生模型可见的消息。</p>
 <table>
@@ -2367,6 +2445,11 @@ uv run --locked python -m cade.docs check
 <li>活动目标。</li>
 </ol>
 <p>请求审计记录这份上下文和归一化请求；它不会把文本变成对话事实。</p>
+<p><code>/context</code> 按实际来源汇总当前请求快照：系统提示、项目指令、工作笔记、记忆、目标、技能目录、已加载技能、内置工具 schema、MCP schema、对话、工具结果和保留摘要。有内容的可选分类才会显示。委派工具的 schema 计入内置工具，子代理的完整对话不属于父会话上下文。每个 token 只归入一类。剩余输入空间已扣除输出预留和安全余量。</p>
+<p>文件来源包括已加载的 <code>AGENTS.md</code> 或替代文件、笔记、记忆、技能正文和引用、读取的文件及附件。MCP 来源逐个服务显示当前 schema 数量和 token 估算，并列出仍在活动对话中的资源、提示和工具结果。schema 刷新会更新目录；已加载内容在投影移除后才会消失。</p>
+<p>对于 OpenAI Responses，<code>/context</code> 调用<a href="https://developers.openai.com/api/docs/guides/token-counting">输入计数接口</a>，复用推理请求转换后的输入、指令、工具和输出格式。接口返回的总量显示为 <strong>Input (provider count)</strong>。这不会生成回复或追加会话事件。接口或账户错误会显示在明确标注的回退估算旁边。</p>
+<p>对于 <code>deepseek-flash</code> 和 <code>deepseek-v4-pro</code>，命令通过 <code>tokenizers</code> 使用<a href="https://api-docs.deepseek.com/quick_start/token_usage/">官方 V4 分词器</a>。首次使用时下载公开模型包，校验 JSON 后缓存到 <code>~/.cade/tokenizers/</code>，后续可离线使用。文本采用模型分词；消息包装、图片和服务端工具格式仍需估算。报告标明分词器来源，不把这个总量称为 provider 实测值。</p>
+<p>分项仍是估算，不是 provider 返回的逐文件计费数据。有模型分词器时使用模型分词，否则使用字符近似。剩余输入空间优先采用 provider 总量计算。最近一次请求上报的输入和输出用量单独显示，不与当前输入或整轮累计混用。检查不会访问 MCP 服务或修改对话。请求准入沿用原有离线估算，普通模型调用不会额外发起预计数请求。</p>
 <h2>压缩</h2>
 <p>完整投影超出输入预算时，<code>Compactor</code> 会运行。</p>
 <ol>
@@ -2397,7 +2480,7 @@ uv run --locked python -m cade.docs check
 <h2>MCP</h2>
 <p>每个配置的 stdio 或 HTTP 服务器保持一条连接。发现过程读取 <code>tools/list</code>；调用通过串行队列使用 <code>tools/call</code>。工具带 <code>mcp__</code> 前缀，默认需要确认，在计划模式和只读模式下被拒绝。官方 SDK 负责协议协商；宿主处理动态工具目录、Schema 校验、取消和凭据隔离。协议版本和可选能力限制见 <a href="#page-mcp">MCP</a>。</p>
 <h2>子代理</h2>
-<p><code>SubagentTool</code> 在 <code>&lt;sessions&gt;/subagents</code> 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。<code>DelegateTool</code> 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。</p>
+<p><code>SubagentRunner</code> 在 <code>&lt;sessions&gt;/subagents</code> 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。<code>DelegateTool</code> 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。</p>
 <h2>快照</h2>
 <p><code>SnapshotStore</code> 捕获 <code>write</code>、<code>edit</code> 和常见的单命令 shell 修改。<code>WorkspaceRecovery</code> 为 CLI <code>--undo</code> 和 TUI <code>/undo</code>、<code>/redo</code> 协调检查点操作。快照是项目状态，不是会话事实。</p>
 <h2>目标</h2>
@@ -2414,13 +2497,18 @@ uv run --locked python -m cade.docs check
 <h1>工具与安全</h1>
 <h2>工作区工具</h2>
 <ul>
-<li><code>read</code>：读取 UTF-8 文件或列出目录。输出有上限。</li>
+<li><code>read</code>：读取文件文本或附加图片。文本最多返回 2,000 行或 50 KB。</li>
 <li><code>write</code>：写入 UTF-8 文本，并创建父目录。</li>
-<li><code>edit</code>：精确替换一处旧文本。</li>
-<li><code>glob</code>：列出匹配 glob 的工作区文件。</li>
-<li><code>grep</code>：用正则搜索工作区文本文件。</li>
-<li><code>bash</code>：运行 shell 命令，可选指定工作目录和 <code>additional_write_paths</code>，为本次调用申请额外权限。</li>
+<li><code>edit</code>：对原始文件执行唯一且互不重叠的批量替换。</li>
+<li><code>find</code>：按 glob 查找路径，遵循忽略规则。</li>
+<li><code>ls</code>：列出目录项，包括隐藏文件。</li>
+<li><code>grep</code>：搜索正则或字面文本，支持大小写控制和上下文行。</li>
+<li><code>bash</code>、<code>powershell</code>：运行 shell 命令，可选指定工作目录和 <code>additional_write_paths</code>，为本次调用申请额外权限。</li>
+<li><code>question</code>：收集选项或自定义答案，关闭问题时结束当前轮次。</li>
+<li><code>websearch</code>、<code>webfetch</code>：搜索或获取网页内容，在所有平台上遵守 <code>network=false</code>。</li>
 </ul>
+<p>搜索排除 <code>.cade</code>，包括会话日志和快照内容。
+上游行为和参数见<a href="#page-tool-catalog">工具目录</a>。</p>
 <p>工作区固定为项目根目录，不是 shell 的当前目录，也不是整个主目录的别名。读取可以使用外部路径，受保护文件除外。工作区内的写入有快照；外部写入没有。</p>
 <h2>模式</h2>
 <ul>
@@ -2597,19 +2685,19 @@ Run the release checklist...
 <section class="page" id="page-subagents" data-title="子代理">
 <h1>子代理</h1>
 <h2>子会话</h2>
-<p><code>subagent</code> 工具在独立会话中运行一个子任务，返回最终答案和子会话 ID：</p>
+<p><code>delegate</code> 工具在独立会话中运行一个或多个子任务，返回最终答案和子会话 ID。单个任务使用 <code>prompt</code>：</p>
 <pre><code class="language-json">{&quot;prompt&quot;: &quot;Find the failing test and report the file and line.&quot;}
 </code></pre>
 <p>子会话：</p>
 <ul>
 <li>继承父级的 provider、预算、策略、审批者和请求上下文；</li>
 <li>获得基础工具，以及绑定到自己日志的 history 工具；</li>
-<li>不再获得 <code>subagent</code> 工具，因此不能递归；</li>
+<li>不再获得 <code>delegate</code> 工具，因此不能递归；</li>
 <li>最多使用 20 个步骤；</li>
 <li>把自己的会话写在 <code>&lt;sessions&gt;/subagents/</code> 下。</li>
 </ul>
 <p>父会话只记录工具调用和返回的摘要。详细证据留在子会话日志里。</p>
-<p><code>delegate</code> 用同一个运行器处理一个或多个任务：</p>
+<p>多个任务使用 <code>tasks</code>，并可用 <code>mode</code> 收紧子级权限：</p>
 <pre><code class="language-json">{&quot;tasks&quot;: [&quot;Inspect the parser&quot;, &quot;Add a regression test&quot;], &quot;mode&quot;: &quot;build&quot;}
 </code></pre>
 <p>任务在各自独立的子会话中顺序运行。每个结果都包含子会话 ID；父会话收到一条合并的工具结果。子级模式不能扩大父级权限：Plan 模式的父会话不能委派 Build 工作。</p>
@@ -2815,6 +2903,7 @@ cade &quot;Fix the failing test.&quot;
 <ul>
 <li><code>Enter</code>：提交消息；任务运行时按照当前输入模式排队、引导或中断。</li>
 <li><code>Alt+Enter</code>：在下一个模型步骤引导正在运行的任务。</li>
+<li><code>Alt+S</code>：引导当前任务；<code>Alt+Q</code>：排队后续任务。这两个快捷键以固定行为提交编辑器中的普通文本，不受 <code>Enter</code> 当前输入模式影响。</li>
 <li><code>Shift+Tab</code>：在 <code>ask</code>、<code>build</code> 和 <code>plan</code> 之间循环。</li>
 <li><code>Esc</code>：中断正在运行的任务，包括还没有产生输出的模型请求。未送达的排队输入回到编辑器。</li>
 <li>空闲且输入为空时，连按两次 <code>Esc</code> 打开 <code>/rewind</code> 检查点选择器。用 <code>/tree</code> 在同一会话中切换分支，用 <code>/fork</code> 将历史复制到新会话。</li>
@@ -2825,6 +2914,7 @@ cade &quot;Fix the failing test.&quot;
 </ul>
 <p>TUI 为模型、模式、推理强度、配置和权限打开原生选择器。按 <code>?</code> 或运行 <code>/help</code> 查看按键和命令参考。</p>
 <p>TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，使用 <code>-p TASK</code> 或 <code>exec TASK</code>。</p>
+<p>对话记录会显示上下文预算不足和输出令牌达到上限的停止原因；如果提供方返回错误详情，也会一并显示。</p>
 <h2>一次性执行</h2>
 <p>提供 <code>-p</code> 或 <code>exec</code> 时，CLI 运行一次后退出：</p>
 <pre><code class="language-bash">cade -p &quot;Fix the failing test.&quot;
@@ -2890,6 +2980,8 @@ uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.htm
 <p>设置仅影响当前终端。单次命令也可以使用 <code>uv --cache-dir ./.uv-cache run --locked ...</code>，无需修改全局目录权限。</p>
 <h2>依赖管理</h2>
 <p>使用 <code>uv add PACKAGE</code> 添加运行时依赖，使用 <code>uv add --dev PACKAGE</code> 添加开发工具，使用 <code>uv remove PACKAGE</code> 删除依赖。让 uv 生成版本要求并更新 <code>uv.lock</code>，不要凭感觉编写版本范围或手动修改依赖版本。只有明确的兼容性要求才能作为额外版本约束的依据，并须记录原因。</p>
+<h2>搜索程序</h2>
+<p>文件搜索需要在 PATH 中安装 fd 和 ripgrep。Debian/Ubuntu 使用 <code>sudo apt-get install ripgrep fd-find</code>，macOS 使用 <code>brew install ripgrep fd</code>，Windows（Scoop）使用 <code>scoop install ripgrep fd</code>。Cade 也识别 Debian/Ubuntu 的 <code>fdfind</code> 命令。</p>
 
 </section>
 <section class="page" id="page-testing" data-title="验证指南">
