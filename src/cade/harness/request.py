@@ -217,11 +217,14 @@ def _to_wire(message: Message) -> dict[str, Any]:
         if "content" not in wire and "tool_calls" not in wire:
             wire["content"] = ""
         return wire
-    return {
+    result: dict[str, Any] = {
         "role": "tool",
         "tool_call_id": message.call_id,
         "content": message.content,
     }
+    if message.images:
+        result["images"] = [image.model_dump() for image in message.images]
+    return result
 
 
 def _tool_call_wire(block: ToolCallBlock) -> dict[str, Any]:
@@ -259,7 +262,7 @@ def _estimate_message(message: Message) -> int:
         if message.provider_state is not None:
             total += _tokens(_json(message.provider_state))
         return total
-    return 4 + _tokens(message.content)
+    return 4 + _tokens(message.content) + 1600 * len(message.images)
 
 
 def _estimate_tools(tools: Sequence[ToolDefinition]) -> int:

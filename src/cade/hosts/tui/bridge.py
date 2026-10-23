@@ -23,6 +23,7 @@ from cade.harness.events import (
     TextDeltaEvent,
     ToolEndEvent,
     ToolStartEvent,
+    ToolUpdateEvent,
     UsageEvent,
 )
 from cade.harness.session.log import SessionLog, list_sessions
@@ -32,6 +33,7 @@ from .compat import (
     AgentHarnessResult,
     ApprovalRequest,
     BusyMessageMode,
+    DiffRenderIntent,
     FinalStructuredEvent,
     ReasoningDeltaStructuredEvent,
     SessionEntry,
@@ -42,11 +44,24 @@ from .compat import (
     ToolCall,
     ToolResultBlock,
     ToolResultStructuredEvent,
+    ToolUpdateData,
+    ToolUpdateStructuredEvent,
     ToolUseStructuredEvent,
     UsageUpdateStructuredEvent,
 )
 
 _SENTINEL = object()
+
+
+def _edit_intent(metadata: object, path: str) -> DiffRenderIntent | None:
+    if not isinstance(metadata, dict) or not isinstance(metadata.get("patch"), str):
+        return None
+    line = metadata.get("firstChangedLine")
+    return DiffRenderIntent(
+        patch=metadata["patch"],
+        files=(path,) if path else (),
+        first_changed_line=line if isinstance(line, int) else None,
+    )
 
 
 def _tool_text(entry: LogEntry) -> str:
@@ -109,6 +124,7 @@ class CadeSessionStore:
 
     def _project(self, entries: list[LogEntry]) -> list[SessionEntry]:
         result: list[SessionEntry] = []
+        paths: dict[str, str] = {}
         for entry in entries:
             if entry.type == "user":
                 text = entry.data.get("text")
@@ -132,6 +148,9 @@ class CadeSessionStore:
                     name = block.get("name")
                     args = block.get("args")
                     if isinstance(call_id, str) and isinstance(name, str):
+                        paths[call_id] = (
+                            str(args.get("path", "")) if isinstance(args, dict) else ""
+                        )
                         result.append(
                             SessionEntry(
                                 entry.id,
@@ -151,6 +170,13 @@ class CadeSessionStore:
                 content = entry.data.get("content")
                 status = entry.data.get("status")
                 if isinstance(call_id, str):
+                    artifact = entry.data.get("artifact")
+                    intent = _edit_intent(
+                        artifact.get("tool_metadata")
+                        if isinstance(artifact, dict)
+                        else None,
+                        paths.get(call_id, ""),
+                    )
                     result.append(
                         SessionEntry(
                             entry.id,
@@ -166,6 +192,9 @@ class CadeSessionStore:
                                     if isinstance(status, str)
                                     else "ok",
                                     "permission_notice": None,
+                                    "render_intent": intent.model_dump()
+                                    if intent is not None
+                                    else None,
                                 },
                             },
                         )
@@ -388,6 +417,7 @@ class CadeInteractionApp:
             text = f"${pending_skill} {text}"
             self._pending_skill = None
         events: Queue[Any] = Queue()
+        paths: dict[str, str] = {}
 
         def emit(event: LoopEvent) -> None:
             if isinstance(event, ProviderRetryEvent):
@@ -401,6 +431,7 @@ class CadeInteractionApp:
                     UsageUpdateStructuredEvent(event.input_tokens, event.output_tokens)
                 )
             elif isinstance(event, ToolStartEvent):
+                paths[event.call_id] = str(event.args.get("path", ""))
                 events.put(
                     ToolUseStructuredEvent(
                         ToolCall(event.call_id, event.name, dict(event.args))
@@ -413,8 +444,15 @@ class CadeInteractionApp:
                             event.call_id,
                             event.content,
                             "error" if event.is_error else "ok",
+                            render_intent=_edit_intent(
+                                event.metadata, paths.pop(event.call_id, "")
+                            ),
                         )
                     )
+                )
+            elif isinstance(event, ToolUpdateEvent):
+                events.put(
+                    ToolUpdateStructuredEvent(ToolUpdateData(event.name, event.content))
                 )
 
         def worker() -> None:

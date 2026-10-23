@@ -84,6 +84,12 @@ an HTTP capture. The remaining request data is not redacted.
 A failed attempt does not become an assistant message. A run result does not
 duplicate the final answer; the answer is the last assistant text.
 
+Image tools store attachments in `tool_result.artifact.tool_metadata.images`.
+Each image has `data` (base64) and `mimeType`. Projection restores these images
+alongside the text; request snapshots record them in a tool message's `images`
+field. The Responses adapter sends them as `input_image` function output items.
+The tool owns the attachment data for the lifetime of the session log.
+
 ## Invariants
 
 1. **One fact, one record.** A tool call appears once, in its assistant event.

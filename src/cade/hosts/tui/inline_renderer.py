@@ -80,7 +80,7 @@ class InlineRenderer(Renderer):
         # 先清理旧布局，让新增历史从布局原点连续写入。
         super().erase()
         if rebuild:
-            # 和 Pi 主屏幕渲染器一样，重建历史而非尝试定位屏幕外的行。
+            # 重建历史，避免定位屏幕外的行。
             self.output.erase_screen()
             self.output.cursor_goto(0, 0)
             self.output.write_raw("\x1b[3J")

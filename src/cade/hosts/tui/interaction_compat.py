@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -88,7 +89,7 @@ def run_shell_shortcut(command: str, app: object) -> str:
         (
             item
             for item in getattr(service, "tools", ())
-            if item.name in {"bash", "shell"}
+            if item.name == ("powershell" if sys.platform == "win32" else "bash")
         ),
         None,
     )

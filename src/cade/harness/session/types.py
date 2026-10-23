@@ -86,6 +86,14 @@ class AssistantMessage(BaseModel):
     provider_state: dict[str, JsonValue] | None = None
 
 
+class ImageAttachment(BaseModel):
+    """工具返回的内联图片；日志保留原始数据。"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    data: str
+    mimeType: str
+
+
 class ToolResultMessage(BaseModel):
     """工具执行结果，按 call_id 与助手调用配对。"""
 
@@ -94,6 +102,7 @@ class ToolResultMessage(BaseModel):
     call_id: str
     content: str
     is_error: bool = False
+    images: tuple[ImageAttachment, ...] = ()
 
 
 type Message = (

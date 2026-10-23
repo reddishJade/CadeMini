@@ -38,6 +38,7 @@ flowchart LR
   app_bootstrap --> coding_security_review
   app_bootstrap --> coding_skills_tools
   app_bootstrap --> coding_subagents
+  app_bootstrap --> coding_tools_native
   app_bootstrap --> coding_tools_registry
   app_bootstrap --> coding_workspace_recovery_coordinator
   app_bootstrap --> coding_workspace_snapshots
@@ -167,6 +168,7 @@ flowchart LR
   coding_tools__worker --> coding_tools_registry
   coding_tools__worker --> harness_execution_scope
   coding_tools__worker --> harness_tools
+  coding_tools_base --> coding_tools_native
   coding_tools_base --> coding_workspace_snapshots
   coding_tools_base --> harness_cancellation
   coding_tools_base --> harness_execution_local_sandbox
@@ -177,12 +179,15 @@ flowchart LR
   coding_tools_base --> harness_tools
   coding_tools_bash --> coding_security_shell
   coding_tools_bash --> coding_tools_base
+  coding_tools_bash --> coding_tools_truncate
   coding_tools_bash --> coding_workspace_snapshots
   coding_tools_bash --> harness_execution_local_subprocess
   coding_tools_bash --> harness_execution_paths
   coding_tools_bash --> harness_session_types
   coding_tools_bash --> harness_tools
   coding_tools_edit --> coding_tools_base
+  coding_tools_edit --> coding_tools_edit_diff
+  coding_tools_edit --> coding_tools_mutation
   coding_tools_edit --> coding_workspace_snapshots
   coding_tools_edit --> harness_session_types
   coding_tools_edit --> harness_tools
@@ -190,24 +195,36 @@ flowchart LR
   coding_tools_history --> harness_session_log
   coding_tools_history --> harness_session_types
   coding_tools_history --> harness_tools
+  coding_tools_images --> harness_tools
+  coding_tools_ls --> coding_tools_base
+  coding_tools_ls --> coding_tools_search
+  coding_tools_ls --> harness_session_types
+  coding_tools_ls --> harness_tools
   coding_tools_question --> harness_cancellation
   coding_tools_question --> harness_session_types
   coding_tools_question --> harness_tools
   coding_tools_read --> coding_tools_base
+  coding_tools_read --> coding_tools_images
+  coding_tools_read --> coding_tools_truncate
   coding_tools_read --> harness_session_types
   coding_tools_read --> harness_tools
   coding_tools_registry --> coding_tools_base
   coding_tools_registry --> coding_tools_bash
   coding_tools_registry --> coding_tools_edit
+  coding_tools_registry --> coding_tools_ls
   coding_tools_registry --> coding_tools_read
   coding_tools_registry --> coding_tools_search
   coding_tools_registry --> coding_tools_write
   coding_tools_registry --> coding_workspace_snapshots
   coding_tools_registry --> harness_execution_local_sandbox
   coding_tools_search --> coding_tools_base
+  coding_tools_search --> coding_tools_native
+  coding_tools_search --> coding_tools_truncate
+  coding_tools_search --> harness_execution_local_subprocess
   coding_tools_search --> harness_session_types
   coding_tools_search --> harness_tools
   coding_tools_write --> coding_tools_base
+  coding_tools_write --> coding_tools_mutation
   coding_tools_write --> coding_workspace_snapshots
   coding_tools_write --> harness_session_types
   coding_tools_write --> harness_tools

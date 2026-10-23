@@ -13,6 +13,7 @@ from cade.coding.tools.base import (
     display_path,
     text_arg,
 )
+from cade.coding.tools.mutation import file_mutation
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.session.types import JsonValue
 from cade.harness.tools import ToolResult
@@ -20,7 +21,7 @@ from cade.harness.tools import ToolResult
 
 class WriteTool(WorkspaceTool):
     name = "write"
-    description = "Write UTF-8 text to a file, creating parent directories."
+    description = "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories."
 
     def __init__(
         self,
@@ -38,7 +39,6 @@ class WriteTool(WorkspaceTool):
                 "content": {"type": "string"},
             },
             "required": ["path", "content"],
-            "additionalProperties": False,
         }
 
     def run(self, args: dict[str, JsonValue]) -> ToolResult:
@@ -55,9 +55,7 @@ class WriteTool(WorkspaceTool):
             if self.snapshots and path.is_relative_to(self.workspace)
             else nullcontext()
         )
-        with change:
+        with file_mutation(path), change:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
-        return ToolResult(
-            content=(f"Wrote {len(data)} bytes to {display_path(self.workspace, path)}")
-        )
+        return ToolResult(content=f"Successfully wrote to {text_arg(args, 'path')}")

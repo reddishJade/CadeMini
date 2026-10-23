@@ -1,0 +1,664 @@
+{
+  "edit": [
+    {
+      "text": "a\nf\nc\nb",
+      "edits": [
+        {
+          "oldText": "a\nf\nc\nb",
+          "newText": "Y\nY\na\nf\nc\nb\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "a\nf\nc\nb",
+        "newContent": "Y\nY\na\nf\nc\nb\n",
+        "diff": "+1 Y\n+2 Y\n 1 a\n 2 f\n 3 c\n-4 b\n+6 b",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,4 +1,6 @@\n+Y\n+Y\n a\n f\n c\n-b\n\\ No newline at end of file\n+b\n"
+      }
+    },
+    {
+      "text": "a\na",
+      "edits": [
+        {
+          "oldText": "a\na",
+          "newText": "Y\na\na\nY"
+        }
+      ],
+      "expected": {
+        "baseContent": "a\na",
+        "newContent": "Y\na\na\nY",
+        "diff": "+1 Y\n 1 a\n-2 a\n+3 a\n+4 Y",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,2 +1,4 @@\n+Y\n a\n-a\n\\ No newline at end of file\n+a\n+Y\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "d\nb\nd\ne\nc\na\nb\nf\nd\nc\nc\nb\nb\nc\na\na\nd\na\n",
+      "edits": [
+        {
+          "oldText": "d\nb\nd\ne\nc\na\nb\nf\nd\nc\nc\nb\nb\nc\na\na\nd\na\n",
+          "newText": "d\nb\nd\nX\ne\nc\na\nb\nf\na\nd\nc\nc\nb\nb\nY\nc\na\na\nd\na"
+        }
+      ],
+      "expected": {
+        "baseContent": "d\nb\nd\ne\nc\na\nb\nf\nd\nc\nc\nb\nb\nc\na\na\nd\na\n",
+        "newContent": "d\nb\nd\nX\ne\nc\na\nb\nf\na\nd\nc\nc\nb\nb\nY\nc\na\na\nd\na",
+        "diff": "  1 d\n  2 b\n  3 d\n+ 4 X\n  4 e\n  5 c\n  6 a\n  7 b\n  8 f\n+10 a\n  9 d\n 10 c\n 11 c\n 12 b\n 13 b\n+16 Y\n 14 c\n 15 a\n 16 a\n 17 d\n-18 a\n+21 a",
+        "firstChangedLine": 4,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,18 +1,21 @@\n d\n b\n d\n+X\n e\n c\n a\n b\n f\n+a\n d\n c\n c\n b\n b\n+Y\n c\n a\n a\n d\n-a\n+a\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "c\nf\ne\nc\ne\nb\nf\na\na\nf\nb\nc\na\nb\na\nd\nc\nd\n",
+      "edits": [
+        {
+          "oldText": "c\nf\ne\nc\ne\nb\nf\na\na\nf\nb\nc\na\nb\na\nd\nc\nd\n",
+          "newText": "c\nf\ne\nc\ne\nb\nc\nf\na\na\nf\nb\nc\nc\na\nb\na\nd\nc\nd"
+        }
+      ],
+      "expected": {
+        "baseContent": "c\nf\ne\nc\ne\nb\nf\na\na\nf\nb\nc\na\nb\na\nd\nc\nd\n",
+        "newContent": "c\nf\ne\nc\ne\nb\nc\nf\na\na\nf\nb\nc\nc\na\nb\na\nd\nc\nd",
+        "diff": "    ...\n  3 e\n  4 c\n  5 e\n  6 b\n+ 7 c\n  7 f\n  8 a\n  9 a\n 10 f\n 11 b\n 12 c\n+14 c\n 13 a\n 14 b\n 15 a\n 16 d\n 17 c\n-18 d\n+20 d",
+        "firstChangedLine": 7,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -3,16 +3,18 @@\n e\n c\n e\n b\n+c\n f\n a\n a\n f\n b\n c\n+c\n a\n b\n a\n d\n c\n-d\n+d\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "f\nb\ne\nf\nb\nb\nd\nd\nc\nf\nf\ne\nb\nf\nc\na\nb\na\nc\nd\n",
+      "edits": [
+        {
+          "oldText": "f\nb\ne\nf\nb\nb\nd\nd\nc\nf\nf\ne\nb\nf\nc\na\nb\na\nc\nd\n",
+          "newText": "f\nb\ne\nf\nb\nb\nY\nd\nd\nc\nf\nf\ne\nb\nf\nc\na\nb\na\nc\nd\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "f\nb\ne\nf\nb\nb\nd\nd\nc\nf\nf\ne\nb\nf\nc\na\nb\na\nc\nd\n",
+        "newContent": "f\nb\ne\nf\nb\nb\nY\nd\nd\nc\nf\nf\ne\nb\nf\nc\na\nb\na\nc\nd\n",
+        "diff": "    ...\n  3 e\n  4 f\n  5 b\n  6 b\n+ 7 Y\n  7 d\n  8 d\n  9 c\n 10 f\n    ...",
+        "firstChangedLine": 7,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -3,8 +3,9 @@\n e\n f\n b\n b\n+Y\n d\n d\n c\n f\n"
+      }
+    },
+    {
+      "text": "f\nd\nd\nf\nd\nb\nc",
+      "edits": [
+        {
+          "oldText": "f\nd\nd\nf\nd\nb\nc",
+          "newText": "f\nd\nd\nf\nY\nd\nY\nb\nc\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "f\nd\nd\nf\nd\nb\nc",
+        "newContent": "f\nd\nd\nf\nY\nd\nY\nb\nc\n",
+        "diff": "  1 f\n  2 d\n  3 d\n  4 f\n+ 5 Y\n  5 d\n+ 7 Y\n  6 b\n- 7 c\n+ 9 c",
+        "firstChangedLine": 5,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,7 +1,9 @@\n f\n d\n d\n f\n+Y\n d\n+Y\n b\n-c\n\\ No newline at end of file\n+c\n"
+      }
+    },
+    {
+      "text": "b\nb\ne\nd\na\na\na\nb\nf\nb\nf\nd",
+      "edits": [
+        {
+          "oldText": "b\nb\ne\nd\na\na\na\nb\nf\nb\nf\nd",
+          "newText": "a\nb\nb\ne\nd\nY\na\na\nY\nY\na\nb\nf\nb\nf\nd\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "b\nb\ne\nd\na\na\na\nb\nf\nb\nf\nd",
+        "newContent": "a\nb\nb\ne\nd\nY\na\na\nY\nY\na\nb\nf\nb\nf\nd\n",
+        "diff": "+ 1 a\n  1 b\n  2 b\n  3 e\n  4 d\n+ 6 Y\n  5 a\n  6 a\n+ 9 Y\n+10 Y\n  7 a\n  8 b\n  9 f\n 10 b\n 11 f\n-12 d\n+16 d",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,12 +1,16 @@\n+a\n b\n b\n e\n d\n+Y\n a\n a\n+Y\n+Y\n a\n b\n f\n b\n f\n-d\n\\ No newline at end of file\n+d\n"
+      }
+    },
+    {
+      "text": "a\nc\nd\nb\nd\na\nf\nf\nc\ne\nb",
+      "edits": [
+        {
+          "oldText": "a\nc\nd\nb\nd\na\nf\nf\nc\ne\nb",
+          "newText": "a\nc\nc\nd\nb\nd\na\nf\nf\nc\nb\ne\nY\nb"
+        }
+      ],
+      "expected": {
+        "baseContent": "a\nc\nd\nb\nd\na\nf\nf\nc\ne\nb",
+        "newContent": "a\nc\nc\nd\nb\nd\na\nf\nf\nc\nb\ne\nY\nb",
+        "diff": "  1 a\n  2 c\n+ 3 c\n  3 d\n  4 b\n  5 d\n  6 a\n  7 f\n  8 f\n  9 c\n+11 b\n 10 e\n+13 Y\n 11 b",
+        "firstChangedLine": 3,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,11 +1,14 @@\n a\n c\n+c\n d\n b\n d\n a\n f\n f\n c\n+b\n e\n+Y\n b\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "e\na\ne\nc\nd\na\na\nc\nc\nb\na\nb\ne\na\na\nf\nd\na",
+      "edits": [
+        {
+          "oldText": "e\na\ne\nc\nd\na\na\nc\nc\nb\na\nb\ne\na\na\nf\nd\na",
+          "newText": "e\na\ne\nc\nd\nc\na\na\nc\nc\nb\na\nb\ne\na\na\nY\nf\nd\na\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "e\na\ne\nc\nd\na\na\nc\nc\nb\na\nb\ne\na\na\nf\nd\na",
+        "newContent": "e\na\ne\nc\nd\nc\na\na\nc\nc\nb\na\nb\ne\na\na\nY\nf\nd\na\n",
+        "diff": "    ...\n  2 a\n  3 e\n  4 c\n  5 d\n+ 6 c\n  6 a\n  7 a\n  8 c\n  9 c\n    ...\n 12 b\n 13 e\n 14 a\n 15 a\n+17 Y\n 16 f\n 17 d\n-18 a\n+20 a",
+        "firstChangedLine": 6,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -2,8 +2,9 @@\n a\n e\n c\n d\n+c\n a\n a\n c\n c\n@@ -12,7 +13,8 @@\n b\n e\n a\n a\n+Y\n f\n d\n-a\n\\ No newline at end of file\n+a\n"
+      }
+    },
+    {
+      "text": "e\nf\nf\nb\nf\nc\nd\n",
+      "edits": [
+        {
+          "oldText": "e\nf\nf\nb\nf\nc\nd\n",
+          "newText": "Y\ne\nc\nf\nf\nb\nb\nf\nc\nd\na"
+        }
+      ],
+      "expected": {
+        "baseContent": "e\nf\nf\nb\nf\nc\nd\n",
+        "newContent": "Y\ne\nc\nf\nf\nb\nb\nf\nc\nd\na",
+        "diff": "+ 1 Y\n  1 e\n+ 3 c\n  2 f\n  3 f\n  4 b\n+ 7 b\n  5 f\n  6 c\n  7 d\n+11 a",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,7 +1,11 @@\n+Y\n e\n+c\n f\n f\n b\n+b\n f\n c\n d\n+a\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "b\na\na\nf\nf\na\nb\na\na\nc\na\ne\nb\nc\nf\nd\nb\ne\nb\n",
+      "edits": [
+        {
+          "oldText": "b\na\na\nf\nf\na\nb\na\na\nc\na\ne\nb\nc\nf\nd\nb\ne\nb\n",
+          "newText": "b\na\na\nf\nf\na\na\nb\na\na\nc\na\ne\nb\nc\nf\nX\nd\nb\ne\nb"
+        }
+      ],
+      "expected": {
+        "baseContent": "b\na\na\nf\nf\na\nb\na\na\nc\na\ne\nb\nc\nf\nd\nb\ne\nb\n",
+        "newContent": "b\na\na\nf\nf\na\na\nb\na\na\nc\na\ne\nb\nc\nf\nX\nd\nb\ne\nb",
+        "diff": "    ...\n  3 a\n  4 f\n  5 f\n  6 a\n+ 7 a\n  7 b\n  8 a\n  9 a\n 10 c\n    ...\n 12 e\n 13 b\n 14 c\n 15 f\n+17 X\n 16 d\n 17 b\n 18 e\n-19 b\n+21 b",
+        "firstChangedLine": 7,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -3,8 +3,9 @@\n a\n f\n f\n a\n+a\n b\n a\n a\n c\n@@ -12,8 +13,9 @@\n e\n b\n c\n f\n+X\n d\n b\n e\n-b\n+b\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "c\nd\nd\nd\nf\na\nf\nf\nf\na\na\nd\nf\nc",
+      "edits": [
+        {
+          "oldText": "c\nd\nd\nd\nf\na\nf\nf\nf\na\na\nd\nf\nc",
+          "newText": "c\nd\nd\nb\nd\nf\na\nf\nf\nf\na\na\nd\nf\nb\nc\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "c\nd\nd\nd\nf\na\nf\nf\nf\na\na\nd\nf\nc",
+        "newContent": "c\nd\nd\nb\nd\nf\na\nf\nf\nf\na\na\nd\nf\nb\nc\n",
+        "diff": "  1 c\n  2 d\n  3 d\n+ 4 b\n  4 d\n  5 f\n  6 a\n  7 f\n    ...\n 10 a\n 11 a\n 12 d\n 13 f\n-14 c\n+15 b\n+16 c",
+        "firstChangedLine": 4,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,7 +1,8 @@\n c\n d\n d\n+b\n d\n f\n a\n f\n@@ -10,5 +11,6 @@\n a\n a\n d\n f\n-c\n\\ No newline at end of file\n+b\n+c\n"
+      }
+    },
+    {
+      "text": "c\nd\nb\na\nd\ne",
+      "edits": [
+        {
+          "oldText": "c\nd\nb\na\nd\ne",
+          "newText": "c\nd\nb\na\nd\nY\ne"
+        }
+      ],
+      "expected": {
+        "baseContent": "c\nd\nb\na\nd\ne",
+        "newContent": "c\nd\nb\na\nd\nY\ne",
+        "diff": "   ...\n 2 d\n 3 b\n 4 a\n 5 d\n+6 Y\n 6 e",
+        "firstChangedLine": 6,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -2,5 +2,6 @@\n d\n b\n a\n d\n+Y\n e\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "b\nb\nd\n",
+      "edits": [
+        {
+          "oldText": "b\nb\nd\n",
+          "newText": "b\nb\nX\nc\na\nb\nd\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "b\nb\nd\n",
+        "newContent": "b\nb\nX\nc\na\nb\nd\n",
+        "diff": " 1 b\n 2 b\n+3 X\n+4 c\n+5 a\n+6 b\n 3 d",
+        "firstChangedLine": 3,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,3 +1,7 @@\n b\n b\n+X\n+c\n+a\n+b\n d\n"
+      }
+    },
+    {
+      "text": "d\nf\nf\ne\nf\nf\nd\nb\nb\nc",
+      "edits": [
+        {
+          "oldText": "d\nf\nf\ne\nf\nf\nd\nb\nb\nc",
+          "newText": "d\nf\nf\ne\nf\nf\nd\nb\nb\nY\nc"
+        }
+      ],
+      "expected": {
+        "baseContent": "d\nf\nf\ne\nf\nf\nd\nb\nb\nc",
+        "newContent": "d\nf\nf\ne\nf\nf\nd\nb\nb\nY\nc",
+        "diff": "    ...\n  6 f\n  7 d\n  8 b\n  9 b\n+10 Y\n 10 c",
+        "firstChangedLine": 10,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -6,5 +6,6 @@\n f\n d\n b\n b\n+Y\n c\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "a\na\ne\nd\ne\ne\nb\na\ne\na\nb",
+      "edits": [
+        {
+          "oldText": "a\na\ne\nd\ne\ne\nb\na\ne\na\nb",
+          "newText": "a\na\ne\nd\ne\ne\nb\na\ne\na\nb\nb\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "a\na\ne\nd\ne\ne\nb\na\ne\na\nb",
+        "newContent": "a\na\ne\nd\ne\ne\nb\na\ne\na\nb\nb\n",
+        "diff": "    ...\n  7 b\n  8 a\n  9 e\n 10 a\n-11 b\n+11 b\n+12 b",
+        "firstChangedLine": 11,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -7,5 +7,6 @@\n b\n a\n e\n a\n-b\n\\ No newline at end of file\n+b\n+b\n"
+      }
+    },
+    {
+      "text": "e\nb\ne\ne",
+      "edits": [
+        {
+          "oldText": "e\nb\ne\ne",
+          "newText": "e\nb\ne\nY\ne\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "e\nb\ne\ne",
+        "newContent": "e\nb\ne\nY\ne\n",
+        "diff": " 1 e\n 2 b\n 3 e\n-4 e\n+4 Y\n+5 e",
+        "firstChangedLine": 4,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,4 +1,5 @@\n e\n b\n e\n-e\n\\ No newline at end of file\n+Y\n+e\n"
+      }
+    },
+    {
+      "text": "b\nf\nf\nc\nb\nc\nd\nb\nf\n",
+      "edits": [
+        {
+          "oldText": "b\nf\nf\nc\nb\nc\nd\nb\nf\n",
+          "newText": "X\na\nb\nf\nf\nc\nb\na\nc\nd\nY\nb\nf"
+        }
+      ],
+      "expected": {
+        "baseContent": "b\nf\nf\nc\nb\nc\nd\nb\nf\n",
+        "newContent": "X\na\nb\nf\nf\nc\nb\na\nc\nd\nY\nb\nf",
+        "diff": "+ 1 X\n+ 2 a\n  1 b\n  2 f\n  3 f\n  4 c\n  5 b\n+ 8 a\n  6 c\n  7 d\n+11 Y\n  8 b\n- 9 f\n+13 f",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,9 +1,13 @@\n+X\n+a\n b\n f\n f\n c\n b\n+a\n c\n d\n+Y\n b\n-f\n+f\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "c\nb\nc\na\nb\nc\nc\nb\nd\ne\nf\nc\ne\nf\ne\na\nf\n",
+      "edits": [
+        {
+          "oldText": "c\nb\nc\na\nb\nc\nc\nb\nd\ne\nf\nc\ne\nf\ne\na\nf\n",
+          "newText": "c\nb\nc\na\nc\nb\nc\nc\nb\nd\ne\nf\nc\ne\nf\ne\na\nf"
+        }
+      ],
+      "expected": {
+        "baseContent": "c\nb\nc\na\nb\nc\nc\nb\nd\ne\nf\nc\ne\nf\ne\na\nf\n",
+        "newContent": "c\nb\nc\na\nc\nb\nc\nc\nb\nd\ne\nf\nc\ne\nf\ne\na\nf",
+        "diff": "  1 c\n  2 b\n  3 c\n  4 a\n+ 5 c\n  5 b\n  6 c\n  7 c\n  8 b\n    ...\n 13 e\n 14 f\n 15 e\n 16 a\n-17 f\n+18 f",
+        "firstChangedLine": 5,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,8 +1,9 @@\n c\n b\n c\n a\n+c\n b\n c\n c\n b\n@@ -13,5 +14,5 @@\n e\n f\n e\n a\n-f\n+f\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "f\ne\nb\nc\n",
+      "edits": [
+        {
+          "oldText": "f\ne\nb\nc\n",
+          "newText": "f\ne\nb\nb\nc\nc\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "f\ne\nb\nc\n",
+        "newContent": "f\ne\nb\nb\nc\nc\n",
+        "diff": " 1 f\n 2 e\n 3 b\n+4 b\n 4 c\n+6 c",
+        "firstChangedLine": 4,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,4 +1,6 @@\n f\n e\n b\n+b\n c\n+c\n"
+      }
+    },
+    {
+      "text": "a\na\nf\nd\nc\na\na\nc\nb\n",
+      "edits": [
+        {
+          "oldText": "a\na\nf\nd\nc\na\na\nc\nb\n",
+          "newText": "a\na\nf\nd\nc\na\nY\na\nY\nc\nb"
+        }
+      ],
+      "expected": {
+        "baseContent": "a\na\nf\nd\nc\na\na\nc\nb\n",
+        "newContent": "a\na\nf\nd\nc\na\nY\na\nY\nc\nb",
+        "diff": "    ...\n  3 f\n  4 d\n  5 c\n  6 a\n+ 7 Y\n  7 a\n+ 9 Y\n  8 c\n- 9 b\n+11 b",
+        "firstChangedLine": 7,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -3,7 +3,9 @@\n f\n d\n c\n a\n+Y\n a\n+Y\n c\n-b\n+b\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "a\nf\nb\ne",
+      "edits": [
+        {
+          "oldText": "a\nf\nb\ne",
+          "newText": "a\na\nX\nf\nb\ne\nY\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "a\nf\nb\ne",
+        "newContent": "a\na\nX\nf\nb\ne\nY\n",
+        "diff": " 1 a\n+2 a\n+3 X\n 2 f\n 3 b\n-4 e\n+6 e\n+7 Y",
+        "firstChangedLine": 2,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,4 +1,7 @@\n a\n+a\n+X\n f\n b\n-e\n\\ No newline at end of file\n+e\n+Y\n"
+      }
+    },
+    {
+      "text": "a\nc\nb\nf\nb\nf\na\nc\ne\nd\ne\nf",
+      "edits": [
+        {
+          "oldText": "a\nc\nb\nf\nb\nf\na\nc\ne\nd\ne\nf",
+          "newText": "a\nc\nb\nb\nf\nb\na\nf\na\nc\ne\nd\ne\nf"
+        }
+      ],
+      "expected": {
+        "baseContent": "a\nc\nb\nf\nb\nf\na\nc\ne\nd\ne\nf",
+        "newContent": "a\nc\nb\nb\nf\nb\na\nf\na\nc\ne\nd\ne\nf",
+        "diff": "  1 a\n  2 c\n  3 b\n+ 4 b\n  4 f\n  5 b\n+ 7 a\n  6 f\n  7 a\n  8 c\n  9 e\n    ...",
+        "firstChangedLine": 4,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,9 +1,11 @@\n a\n c\n b\n+b\n f\n b\n+a\n f\n a\n c\n e\n"
+      }
+    },
+    {
+      "text": "d\nf\nf\nb\nc\nb\nf\na\nd\na\nd",
+      "edits": [
+        {
+          "oldText": "d\nf\nf\nb\nc\nb\nf\na\nd\na\nd",
+          "newText": "d\nf\nf\nb\nb\nc\nb\nf\nc\na\nd\na\nd"
+        }
+      ],
+      "expected": {
+        "baseContent": "d\nf\nf\nb\nc\nb\nf\na\nd\na\nd",
+        "newContent": "d\nf\nf\nb\nb\nc\nb\nf\nc\na\nd\na\nd",
+        "diff": "  1 d\n  2 f\n  3 f\n  4 b\n+ 5 b\n  5 c\n  6 b\n  7 f\n+ 9 c\n  8 a\n  9 d\n 10 a\n 11 d",
+        "firstChangedLine": 5,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,11 +1,13 @@\n d\n f\n f\n b\n+b\n c\n b\n f\n+c\n a\n d\n a\n d\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "f",
+      "edits": [
+        {
+          "oldText": "f",
+          "newText": "c\nf\nY\nY\nc\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "f",
+        "newContent": "c\nf\nY\nY\nc\n",
+        "diff": "-1 f\n+1 c\n+2 f\n+3 Y\n+4 Y\n+5 c",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,1 +1,5 @@\n-f\n\\ No newline at end of file\n+c\n+f\n+Y\n+Y\n+c\n"
+      }
+    },
+    {
+      "text": "a\n",
+      "edits": [
+        {
+          "oldText": "a\n",
+          "newText": "Y\na\na\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "a\n",
+        "newContent": "Y\na\na\n",
+        "diff": "+1 Y\n 1 a\n+3 a",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,1 +1,3 @@\n+Y\n a\n+a\n"
+      }
+    },
+    {
+      "text": "f\nc\nd\ne\ne\na\nd\ne\nb\nc\na\nf\n",
+      "edits": [
+        {
+          "oldText": "f\nc\nd\ne\ne\na\nd\ne\nb\nc\na\nf\n",
+          "newText": "f\nc\nd\ne\ne\na\nd\ne\nY\nb\nc\na\nf"
+        }
+      ],
+      "expected": {
+        "baseContent": "f\nc\nd\ne\ne\na\nd\ne\nb\nc\na\nf\n",
+        "newContent": "f\nc\nd\ne\ne\na\nd\ne\nY\nb\nc\na\nf",
+        "diff": "    ...\n  5 e\n  6 a\n  7 d\n  8 e\n+ 9 Y\n  9 b\n 10 c\n 11 a\n-12 f\n+13 f",
+        "firstChangedLine": 9,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -5,8 +5,9 @@\n e\n a\n d\n e\n+Y\n b\n c\n a\n-f\n+f\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "d\na\nf\nc\ne\nc\nf\na\nf\nc\ne\nc\n",
+      "edits": [
+        {
+          "oldText": "d\na\nf\nc\ne\nc\nf\na\nf\nc\ne\nc\n",
+          "newText": "d\na\nf\nX\nc\ne\nc\nc\nf\nb\na\nf\nc\ne\nc\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "d\na\nf\nc\ne\nc\nf\na\nf\nc\ne\nc\n",
+        "newContent": "d\na\nf\nX\nc\ne\nc\nc\nf\nb\na\nf\nc\ne\nc\n",
+        "diff": "  1 d\n  2 a\n  3 f\n+ 4 X\n  4 c\n  5 e\n  6 c\n+ 8 c\n  7 f\n+10 b\n  8 a\n  9 f\n 10 c\n 11 e\n    ...",
+        "firstChangedLine": 4,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,11 +1,14 @@\n d\n a\n f\n+X\n c\n e\n c\n+c\n f\n+b\n a\n f\n c\n e\n"
+      }
+    },
+    {
+      "text": "e\ne\nc\nd\ne\na\n",
+      "edits": [
+        {
+          "oldText": "e\ne\nc\nd\ne\na\n",
+          "newText": "e\nX\ne\nc\nd\nX\ne\nX\na"
+        }
+      ],
+      "expected": {
+        "baseContent": "e\ne\nc\nd\ne\na\n",
+        "newContent": "e\nX\ne\nc\nd\nX\ne\nX\na",
+        "diff": " 1 e\n+2 X\n 2 e\n 3 c\n 4 d\n+6 X\n 5 e\n-6 a\n+8 X\n+9 a",
+        "firstChangedLine": 2,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,6 +1,9 @@\n e\n+X\n e\n c\n d\n+X\n e\n-a\n+X\n+a\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "d\nf\nb\nf\na\nc\ne\nf\nf\ne\nc\na\nb\nf\nc\nb\nb",
+      "edits": [
+        {
+          "oldText": "d\nf\nb\nf\na\nc\ne\nf\nf\ne\nc\na\nb\nf\nc\nb\nb",
+          "newText": "d\nb\nf\nb\nf\na\nc\ne\nf\nf\ne\nc\na\nb\nf\nc\nb\nb\n"
+        }
+      ],
+      "expected": {
+        "baseContent": "d\nf\nb\nf\na\nc\ne\nf\nf\ne\nc\na\nb\nf\nc\nb\nb",
+        "newContent": "d\nb\nf\nb\nf\na\nc\ne\nf\nf\ne\nc\na\nb\nf\nc\nb\nb\n",
+        "diff": "  1 d\n+ 2 b\n  2 f\n  3 b\n  4 f\n  5 a\n    ...\n 13 b\n 14 f\n 15 c\n 16 b\n-17 b\n+18 b",
+        "firstChangedLine": 2,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,5 +1,6 @@\n d\n+b\n f\n b\n f\n a\n@@ -13,5 +14,5 @@\n b\n f\n c\n b\n-b\n\\ No newline at end of file\n+b\n"
+      }
+    },
+    {
+      "text": "one two three",
+      "edits": [
+        {
+          "oldText": "one",
+          "newText": "1"
+        },
+        {
+          "oldText": "three",
+          "newText": "3"
+        }
+      ],
+      "expected": {
+        "baseContent": "one two three",
+        "newContent": "1 two 3",
+        "diff": "-1 one two three\n+1 1 two 3",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,1 +1,1 @@\n-one two three\n\\ No newline at end of file\n+1 two 3\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "one two three",
+      "edits": [
+        {
+          "oldText": "one two",
+          "newText": "1"
+        },
+        {
+          "oldText": "two",
+          "newText": "2"
+        }
+      ],
+      "expected": {
+        "error": "edits[0] and edits[1] overlap in file.txt. Merge them into one edit or target disjoint regions."
+      }
+    },
+    {
+      "text": "one two three",
+      "edits": [
+        {
+          "oldText": "one",
+          "newText": "1"
+        },
+        {
+          "oldText": "absent",
+          "newText": "2"
+        }
+      ],
+      "expected": {
+        "error": "Could not find edits[1] in file.txt. The oldText must match exactly including all whitespace and newlines."
+      }
+    },
+    {
+      "text": "one two",
+      "edits": [
+        {
+          "oldText": "",
+          "newText": "x"
+        }
+      ],
+      "expected": {
+        "error": "oldText must not be empty in file.txt."
+      }
+    },
+    {
+      "text": "one two",
+      "edits": [
+        {
+          "oldText": "one",
+          "newText": "one"
+        }
+      ],
+      "expected": {
+        "error": "No changes made to file.txt. The replacement produced identical content. This might indicate an issue with special characters or the text not existing as expected."
+      }
+    },
+    {
+      "text": "one one",
+      "edits": [
+        {
+          "oldText": "one",
+          "newText": "two"
+        }
+      ],
+      "expected": {
+        "error": "Found 2 occurrences of the text in file.txt. The text must be unique. Please provide more context to make it unique."
+      }
+    },
+    {
+      "text": "one “smart”  \nkeep “this”  \n",
+      "edits": [
+        {
+          "oldText": "one \"smart\"",
+          "newText": "new"
+        }
+      ],
+      "expected": {
+        "baseContent": "one “smart”  \nkeep “this”  \n",
+        "newContent": "new\nkeep “this”  \n",
+        "diff": "-1 one “smart”  \n+1 new\n 2 keep “this”  ",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,2 +1,2 @@\n-one “smart”  \n+new\n keep “this”  \n"
+      }
+    },
+    {
+      "text": "one\r\ntwo\r\n",
+      "edits": [
+        {
+          "oldText": "one\ntwo",
+          "newText": "three\nfour"
+        }
+      ],
+      "expected": {
+        "baseContent": "one\r\ntwo\r\n",
+        "newContent": "three\nfour\n",
+        "diff": "-1 one\r\n-2 two\r\n+1 three\n+2 four",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,2 +1,2 @@\n-one\r\n-two\r\n+three\n+four\n"
+      }
+    },
+    {
+      "text": "x\nx \n",
+      "edits": [
+        {
+          "oldText": "x",
+          "newText": "y"
+        }
+      ],
+      "expected": {
+        "error": "Found 2 occurrences of the text in file.txt. The text must be unique. Please provide more context to make it unique."
+      }
+    },
+    {
+      "text": "ＡＢＣ\nuntouched “quote”  \n",
+      "edits": [
+        {
+          "oldText": "ABC",
+          "newText": "letters"
+        }
+      ],
+      "expected": {
+        "baseContent": "ＡＢＣ\nuntouched “quote”  \n",
+        "newContent": "letters\nuntouched “quote”  \n",
+        "diff": "-1 ＡＢＣ\n+1 letters\n 2 untouched “quote”  ",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,2 +1,2 @@\n-ＡＢＣ\n+letters\n untouched “quote”  \n"
+      }
+    },
+    {
+      "text": "a",
+      "edits": [
+        {
+          "oldText": "a",
+          "newText": ""
+        }
+      ],
+      "expected": {
+        "baseContent": "a",
+        "newContent": "",
+        "diff": "-1 a",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,1 +0,0 @@\n-a\n\\ No newline at end of file\n"
+      }
+    },
+    {
+      "text": "old",
+      "edits": [
+        {
+          "oldText": "old",
+          "newText": "new"
+        }
+      ],
+      "expected": {
+        "baseContent": "old",
+        "newContent": "new",
+        "diff": "-1 old\n+1 new",
+        "firstChangedLine": 1,
+        "patch": "--- file.txt\n+++ file.txt\n@@ -1,1 +1,1 @@\n-old\n\\ No newline at end of file\n+new\n\\ No newline at end of file\n"
+      }
+    }
+  ]
+}

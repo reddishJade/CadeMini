@@ -2,13 +2,17 @@
 
 ## Workspace tools
 
-- `read`: read a UTF-8 file or list a directory. Output is capped.
+- `read`: read file text or attach an image. Output is capped at 2,000 lines or 50 KB.
 - `write`: write UTF-8 text and create parent directories.
-- `edit`: replace one exact occurrence of old text.
-- `glob`: list workspace files matching a glob.
-- `grep`: search workspace text files with a regular expression.
-- `bash`: run a shell command, optionally with a workdir and
+- `edit`: apply unique, non-overlapping replacements against the original file.
+- `find`: find paths with a glob, respecting ignore rules.
+- `ls`: list directory entries, including dotfiles.
+- `grep`: search with regex or literal matching, case controls, and context lines.
+- `bash`, `powershell`: run a shell command, optionally with a workdir and
   `additional_write_paths` that request extra permissions for this call.
+
+Searches exclude `.cade`, including session logs and snapshot payloads.
+See the [tool catalog](design/tool-catalog.md) for upstream behavior and parameters.
 
 The workspace is the fixed project root, not the shell's current directory or
 an alias for the entire home directory. Reads can use external paths, except

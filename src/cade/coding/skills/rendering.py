@@ -10,7 +10,7 @@ _CATALOG_DESCRIPTION_MAX_CHARS = 768
 
 
 def format_skill_summary_xml(summary: SkillSummary) -> str:
-    """将单个技能摘要格式化为 <skill> 块（pi 风格）。"""
+    """将单个技能摘要格式化为 <skill> 块。"""
     name = summary.name
     desc = summary.description
     if len(desc) > _CATALOG_DESCRIPTION_MAX_CHARS:
@@ -24,7 +24,7 @@ def format_skill_summary_xml(summary: SkillSummary) -> str:
 
 
 def format_skill_list_xml(summaries: list[SkillSummary]) -> str:
-    """格式化 <available-skills> 块（pi 风格）。"""
+    """格式化 <available-skills> 块。"""
     if not summaries:
         return ""
     parts: list[str] = [

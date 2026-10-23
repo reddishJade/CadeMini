@@ -12,6 +12,7 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
+from cade.coding.tools.native import ensure_tool
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.cancellation import CancellationToken
 from cade.harness.execution.local.sandbox import PlatformSandbox
@@ -32,7 +33,7 @@ MAX_TOOL_CHARS = 64_000
 MAX_GLOB_RESULTS = 1_000
 MAX_GREP_RESULTS = 500
 
-_BLOCKED_PARTS = frozenset({".git", ".venv", "__pycache__", "node_modules"})
+_BLOCKED_PARTS = frozenset({".cade"})
 
 
 class WorkspaceTool:
@@ -41,6 +42,7 @@ class WorkspaceTool:
     name: str
     description: str
     parameters: dict[str, Any]
+    handles_cancellation = True
 
     def __init__(
         self, workspace: Path, *, sandbox: PlatformSandbox | None = None
@@ -48,6 +50,7 @@ class WorkspaceTool:
         self.workspace = workspace.resolve()
         self.snapshots: SnapshotStore | None = None
         self.sandbox = sandbox
+        self.native_binary: str | None = None
         self.parameters = self._parameters()
 
     def _parameters(self) -> dict[str, Any]:
@@ -58,9 +61,21 @@ class WorkspaceTool:
         call: ToolCallBlock,
         signal: CancellationToken | None = None,
     ) -> ToolResult:
+        if signal is not None and signal.cancelled:
+            raise ValueError("Operation aborted")
+        if self.name in {"find", "grep"}:
+            self.native_binary = await asyncio.to_thread(
+                ensure_tool,
+                "fd" if self.name == "find" else "rg",
+                allow_download=self.sandbox is None or self.sandbox.network,
+            )
         cancel = threading.Event()
         operation = self.run
-        if self.sandbox is not None and sys.platform != "win32" and self.name != "bash":
+        if (
+            self.sandbox is not None
+            and sys.platform != "win32"
+            and self.name not in {"bash", "powershell"}
+        ):
             operation = self._run_confined
         with process_cancellation(cancel):
             task = asyncio.create_task(asyncio.to_thread(operation, call.args))
@@ -69,7 +84,10 @@ class WorkspaceTool:
                     if signal is not None and signal.cancelled:
                         cancel.set()
                     await asyncio.wait({task}, timeout=0.05)
-                return task.result()
+                result = task.result()
+                if signal is not None and signal.cancelled:
+                    raise ValueError("Operation aborted")
+                return result
             except asyncio.CancelledError:
                 cancel.set()
                 # 等进程退出再返回，避免超时后继续修改文件或提前清理临时目录。
@@ -99,6 +117,7 @@ class WorkspaceTool:
             "tool": self.name,
             "workspace": str(self.workspace),
             "args": args,
+            "native_binary": self.native_binary,
             "read_only": scope.read_only,
             "writable_paths": [str(path) for path in scope.writable_paths],
         }
@@ -199,7 +218,10 @@ def _is_blocked(root: Path, path: Path, *, allow_sensitive: bool = False) -> boo
         relative = path.resolve().relative_to(root.resolve())
     except ValueError:
         relative = path.resolve()
-    if any(part in _BLOCKED_PARTS for part in relative.parts):
+    if any(
+        (part.lower() if sys.platform == "win32" else part) in _BLOCKED_PARTS
+        for part in relative.parts
+    ):
         return True
     name = path.name
     return not allow_sensitive and name.startswith(".env") and name != ".env.example"
@@ -242,6 +264,15 @@ def int_arg(
     except (TypeError, ValueError, OverflowError):
         raise ValueError(f"{key} must be an integer") from None
     return min(max(number, minimum), maximum)
+
+
+def number_arg(args: dict[str, JsonValue], key: str, default: float) -> float:
+    value = args.get(key)
+    if value is None:
+        return default
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        raise TypeError(f"{key} must be a number")
+    return float(value)
 
 
 def looks_binary(data: bytes) -> bool:

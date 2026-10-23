@@ -174,6 +174,12 @@ class ToolUpdateStructuredEvent:
 
 
 @dataclass(frozen=True)
+class ToolUpdateData:
+    tool_name: str
+    partial_result: str
+
+
+@dataclass(frozen=True)
 class ToolResultStructuredEvent:
     data: ToolResultBlock
     step: int = 0

@@ -14,6 +14,7 @@ from prompt_toolkit.utils import get_cwidth
 
 from .chrome import compact_path, welcome_ansi_lines
 from .compat import (
+    DiffRenderIntent,
     ToolInput,
     ToolRenderIntent,
     analyze_shell_command,
@@ -834,9 +835,7 @@ class _TuiState:
             exploration.complete = True
             exploration.failed = status != "ok"
             if exploration.name == "read" and status == "ok":
-                count = sum(
-                    bool(re.match(r"^\d+: ", line)) for line in content.splitlines()
-                )
+                count = len(content.split("\n\n[", 1)[0].splitlines())
                 exploration.solo_label += f" ({count} lines)"
             detail = (
                 _successful_tool_detail(exploration.name, content, render_intent)
@@ -847,9 +846,17 @@ class _TuiState:
             exploration.permission_notice = permission_notice
             return
         name = self.tool_names.pop(tool_id, "")
+        if name in {"bash", "powershell"}:
+            self.log[:] = [
+                entry
+                for entry in self.log
+                if not (entry.role == "tool-detail" and entry.tool_id == tool_id)
+            ]
         if status == "ok":
             detail = _successful_tool_detail(name, content, render_intent)
             self.log.append(_LogEntry("tool-detail", f"  ⎿  {detail}"))
+            if isinstance(render_intent, DiffRenderIntent):
+                self.log.append(_LogEntry("tool-detail", render_intent.patch.rstrip()))
             if permission_notice:
                 self.log.append(_LogEntry("tool-notice", f"  ⎿  {permission_notice}"))
             return
@@ -879,6 +886,31 @@ class _TuiState:
         return None
 
     def _handle_tool_update(self, tool_name: str, partial: str) -> None:
+        if tool_name in {"bash", "powershell"} and partial:
+            tool_id = next(
+                (
+                    key
+                    for key, name in reversed(self.tool_names.items())
+                    if name == tool_name
+                ),
+                None,
+            )
+            if tool_id is None:
+                return
+            entry = next(
+                (
+                    item
+                    for item in self.log
+                    if item.role == "tool-detail" and item.tool_id == tool_id
+                ),
+                None,
+            )
+            text = "  ⎿  " + _tool_output_preview(partial)
+            if entry is None:
+                self.log.append(_LogEntry("tool-detail", text, tool_id=tool_id))
+            else:
+                entry.text = text
+            return
         if tool_name == "delegate":
             for line in partial.splitlines():
                 self._record_subagent_update(line.strip())
@@ -944,10 +976,10 @@ def _successful_tool_detail(
     if render_intent is not None:
         return render_intent_summary(render_intent, content)
     text = content.rstrip()
-    if name == "bash":
+    if name in {"bash", "powershell"}:
         return _tool_output_preview(text) if text else "done"
     if name == "read":
-        count = sum(bool(re.match(r"^\d+: ", line)) for line in content.splitlines())
+        count = len(content.split("\n\n[", 1)[0].splitlines())
         return f"Read {count} lines"
     if name == "ls":
         entries = [
@@ -980,7 +1012,7 @@ def _is_exploration_call(name: str, raw_input: ToolInput) -> bool:
     """判断 agent 工具调用是否可安全归入只读探索组。"""
     if name in {"read", "ls", "grep", "glob", "find"}:
         return True
-    if name != "bash":
+    if name not in {"bash", "powershell"}:
         return False
     command = raw_input.get("command")
     if not isinstance(command, str) or not command.strip():
@@ -1012,7 +1044,7 @@ def _is_exploration_call(name: str, raw_input: ToolInput) -> bool:
 
 def _exploration_label(name: str, raw_input: ToolInput) -> str:
     """生成探索组中简洁且稳定的调用标题。"""
-    if name == "bash":
+    if name in {"bash", "powershell"}:
         command = str(raw_input.get("command", ""))
         primary = analyze_shell_command(command).primary_command
         prefix = {

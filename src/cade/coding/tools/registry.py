@@ -7,10 +7,11 @@ from pathlib import Path
 from cade.coding.tools.base import (
     WorkspaceTool,
 )
-from cade.coding.tools.bash import BashTool
+from cade.coding.tools.bash import BashTool, PowerShellTool
 from cade.coding.tools.edit import EditTool
+from cade.coding.tools.ls import LsTool
 from cade.coding.tools.read import ReadTool
-from cade.coding.tools.search import GlobTool, GrepTool
+from cade.coding.tools.search import FindTool, GrepTool
 from cade.coding.tools.write import WriteTool
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.execution.local.sandbox import PlatformSandbox
@@ -22,14 +23,16 @@ def build_tools(
     snapshots: SnapshotStore | None = None,
     sandbox: PlatformSandbox | None = None,
 ) -> tuple[WorkspaceTool, ...]:
-    """构造共享同一执行环境的六个工具。"""
+    """构造共享执行环境、权限和快照的工作区工具。"""
     tools = (
         ReadTool(workspace),
         WriteTool(workspace, snapshots),
         EditTool(workspace, snapshots),
-        GlobTool(workspace),
+        FindTool(workspace),
+        LsTool(workspace),
         GrepTool(workspace),
         BashTool(workspace, snapshots),
+        PowerShellTool(workspace, snapshots),
     )
     for tool in tools:
         tool.sandbox = sandbox
