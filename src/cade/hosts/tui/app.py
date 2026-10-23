@@ -1744,7 +1744,7 @@ class _CadeTui:
         self._open_command_choices(choices, choose, describe=describe)
 
     def _edit_config_setting(self, config_path: Path, spec: SettingSpec) -> None:
-        """编辑单个设置项：菜单类走选择菜单，其余走文本输入。"""
+        """先选择预设值，仅自定义值使用预填表单。"""
         from .config_registry import (
             MenuItem,
             SettingKind,
@@ -1758,6 +1758,7 @@ class _CadeTui:
 
         config = load_effective_config(config_path)
         current = format_setting(spec, config)
+        current_value = "none" if current == "(unset)" else current
 
         def reopen() -> None:
             self._open_config_browser()
@@ -1778,21 +1779,21 @@ class _CadeTui:
             return
 
         def ask_text() -> None:
-            hint = "Type value, enter to save, esc to cancel"
+            hint = "Enter save · Esc back"
             if spec.nullable:
-                hint += "; 'none' clears"
+                hint += " · none reset"
 
             def submit(value: str) -> None:
                 ok, message = save_setting_text(config_path, spec, value)
                 report_and_reopen(ok, message)
 
             self._open_command_text(
-                f"{spec.key} = {current} — {hint}", submit, on_cancel=reopen
+                f"{spec.label} · {hint}",
+                submit,
+                on_cancel=lambda: self._edit_config_setting(config_path, spec),
             )
-
-        if not spec.is_menu:
-            ask_text()
-            return
+            self._input.text = "" if current == "(unset)" else current
+            self._input.buffer.cursor_position = len(self._input.text)
 
         def pick(selection: object) -> None:
             item = cast("MenuItem", selection)
@@ -1814,11 +1815,24 @@ class _CadeTui:
             return
 
         self._open_command_choices(
-            [(item.title, item) for item in items],
+            [
+                (
+                    f"{item.title} (current)"
+                    if item.value == current_value and not item.custom
+                    else item.title,
+                    item,
+                )
+                for item in items
+            ],
             pick,
             on_cancel=reopen,
             describe=lambda item: cast("MenuItem", item).description,
         )
+        for index, item in enumerate(items):
+            if item.value == current_value and not item.custom:
+                self._command_choices._selected_index = index
+                self._command_choices.current_value = item
+                break
 
     def _accept_command_choice(self) -> None:
         request = self._state.pending_command_choice

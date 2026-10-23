@@ -421,6 +421,12 @@ overrides built-in defaults.
 The file is strict: unknown keys and invalid values are rejected instead of
 silently ignored.
 
+In the TUI, `/config` opens a settings browser. Every setting opens an arrow-key
+menu with the current value selected. Numeric settings offer presets; nullable
+settings offer **Use default**. Choose **Custom value...** to enter an arbitrary
+number, path, or model name in a prefilled form. Press Enter to save or Esc to
+return to the choices. Saved defaults take effect on the next start.
+
 ## Example
 
 ```json

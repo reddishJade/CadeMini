@@ -34,6 +34,7 @@ from cade.harness.tools import ToolResult
 from cade.hosts import cli
 from cade.hosts.tui import app as tui_module
 from cade.hosts.tui.bridge import CadeInteractionApp
+from cade.hosts.tui.config_registry import SETTING_SPECS
 
 pytestmark = pytest.mark.e2e
 
@@ -429,16 +430,80 @@ def test_native_mode_and_permissions(terminal_runner: Runner) -> None:
     terminal_runner(scenario)
 
 
+@pytest.mark.parametrize(
+    "key,initial",
+    [
+        ("read_only", False),
+        ("instructions", True),
+        ("note", True),
+        ("memory", True),
+        ("auto_review", False),
+        ("network", True),
+    ],
+)
+def test_config_boolean_picker(
+    terminal_runner: Runner, key: str, initial: bool
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        path = term.service.workspace / "cade.json"
+        original = path.read_bytes()
+        await term.send(f"/config {key}")
+        assert term.tui._state.pending_command_text is None
+        assert term.tui._command_choices._selected_index == (0 if initial else 1)
+        await term.escape()
+        assert path.read_bytes() == original
+        await term.escape()
+        await term.send(f"/config {key}")
+        await term.choose(1 if initial else 0)
+        assert json.loads(path.read_text(encoding="utf-8"))[key] is not initial
+        assert term.tui._state.pending_command_choice is not None
+        await term.escape()
+        await term.send(f"/config {key}")
+        assert term.tui._command_choices._selected_index == (1 if initial else 0)
+
+    terminal_runner(scenario)
+
+
 def test_config_persists_and_rejects_invalid_input(terminal_runner: Runner) -> None:
     async def scenario(term: Terminal) -> None:
         await term.send("/config max_steps")
+        await term.choose(len(term.tui._command_choices.values) - 1)
         await term.send("7")
         path = term.service.workspace / "cade.json"
         assert json.loads(path.read_text(encoding="utf-8"))["max_steps"] == 7
         await term.escape()
         await term.send("/config max_steps")
+        await term.choose(len(term.tui._command_choices.values) - 1)
+        assert term.tui._input.text == "7"
+        await term.escape()
+        assert term.tui._state.pending_command_text is None
+        assert term.tui._state.pending_command_choice is not None
+        await term.choose(len(term.tui._command_choices.values) - 1)
         await term.send("not-a-number")
         assert json.loads(path.read_text(encoding="utf-8"))["max_steps"] == 7
+
+    terminal_runner(scenario)
+
+
+def test_config_always_offers_choices_before_custom_input(
+    terminal_runner: Runner,
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        for spec in SETTING_SPECS:
+            await term.send(f"/config {spec.key}")
+            assert term.tui._state.pending_command_text is None, spec.key
+            assert term.tui._state.pending_command_choice is not None, spec.key
+            await term.escape()
+            await term.escape()
+        await term.send("/config max_steps")
+        values = [item.value for item, _ in term.tui._command_choices.values]
+        await term.choose(values.index("50"))
+        path = term.service.workspace / "cade.json"
+        assert json.loads(path.read_text(encoding="utf-8"))["max_steps"] == 50
+        await term.escape()
+        await term.send("/config max_steps")
+        await term.choose(0)
+        assert "max_steps" not in json.loads(path.read_text(encoding="utf-8"))
 
     terminal_runner(scenario)
 
