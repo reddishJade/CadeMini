@@ -344,6 +344,9 @@ class _CadeTui:
         question_bindings = cast(
             KeyBindings, self._question_choices.control.key_bindings
         )
+        question_bindings.add("escape", eager=True)(
+            lambda _event: self._cancel_key(None)
+        )
         question_bindings.add("enter")(lambda _event: self._accept_question_choice())
         self._question_checkboxes: CheckboxList[str] = CheckboxList(
             [("", "")],
@@ -353,6 +356,9 @@ class _CadeTui:
         )
         checkbox_bindings = cast(
             KeyBindings, self._question_checkboxes.control.key_bindings
+        )
+        checkbox_bindings.add("escape", eager=True)(
+            lambda _event: self._cancel_key(None)
         )
         checkbox_bindings.add("enter")(lambda _event: self._accept_question_choice())
         self._approval_container = ConditionalContainer(
@@ -824,7 +830,7 @@ class _CadeTui:
 
     def _quit_key(self, _event: object) -> None:
         if self._state.pending_question_choice is not None:
-            self._complete_question_choice([])
+            self._complete_question_choice(None)
         if self._state.pending_command_text is not None:
             request = self._state.pending_command_text
             self._state.pending_command_text = None
@@ -847,7 +853,7 @@ class _CadeTui:
 
     def _cancel_key(self, _event: object) -> None:
         if self._state.pending_question_choice is not None:
-            self._complete_question_choice([])
+            self._complete_question_choice(None)
             return
         if self._state.pending_command_choice is not None:
             request = self._state.pending_command_choice
@@ -1954,7 +1960,9 @@ class _CadeTui:
 
     # ── 用户审批 ──
 
-    async def _answer_questions(self, questions: Sequence[object]) -> list[list[str]]:
+    async def _answer_questions(
+        self, questions: Sequence[object]
+    ) -> list[list[str]] | None:
         """把 Cade 的 Question 对象转换为 TUI 选择菜单。"""
         payload: list[dict[str, object]] = []
         for question in questions:
@@ -1969,11 +1977,11 @@ class _CadeTui:
                     ],
                 }
             )
-        return self._question_prompt_callback(payload)
+        return await asyncio.to_thread(self._question_prompt_callback, payload)
 
     def _question_prompt_callback(
         self, questions: list[dict[str, object]]
-    ) -> list[list[str]]:
+    ) -> list[list[str]] | None:
         """在现有 TUI application 内依次收集 question 工具回答。"""
         answers: list[list[str]] = []
         for question in questions:
@@ -1995,6 +2003,8 @@ class _CadeTui:
                     choices,
                     bool(question.get("multiple", False)),
                 )
+                if result is None:
+                    return None
 
                 multiple = bool(question.get("multiple", False))
                 if multiple:
@@ -2002,7 +2012,18 @@ class _CadeTui:
                         custom = self._wait_for_question_text(
                             str(question.get("question", ""))
                         )
-                        answers.append(custom if custom else [])
+                        if custom is None:
+                            return None
+                        answers.append(
+                            [
+                                *(
+                                    value
+                                    for value in result
+                                    if value != CUSTOM_OPTION_LABEL
+                                ),
+                                *custom,
+                            ]
+                        )
                     else:
                         answers.append(result)
                 else:
@@ -2010,22 +2031,28 @@ class _CadeTui:
                         custom = self._wait_for_question_text(
                             str(question.get("question", ""))
                         )
+                        if custom is None:
+                            return None
                         answers.append(custom if custom else [])
                     else:
                         answers.append(result)
                 continue
 
-            answers.append(
-                self._wait_for_question_text(str(question.get("question", "")))
-            )
+            custom = self._wait_for_question_text(str(question.get("question", "")))
+            if custom is None:
+                return None
+            answers.append(custom)
         return answers
 
-    def _wait_for_question_text(self, prompt: str) -> list[str]:
+    def _wait_for_question_text(self, prompt: str) -> list[str] | None:
         """打开文本输入并等待用户提交回答。"""
         event = Event()
         answer: list[str] = []
+        submitted = False
 
         def submit(value: str) -> None:
+            nonlocal submitted
+            submitted = True
             if value:
                 answer.append(value)
             event.set()
@@ -2035,14 +2062,14 @@ class _CadeTui:
 
         self._call_in_ui_thread(show_text)
         event.wait()
-        return answer
+        return answer if submitted else None
 
     def _wait_for_question_choice(
         self,
         prompt: str,
         choices: list[tuple[str, str]],
         multiple: bool,
-    ) -> list[str]:
+    ) -> list[str] | None:
         request = _QuestionChoiceRequest(prompt, choices, multiple, Event())
 
         def show_choices() -> None:
@@ -2085,7 +2112,7 @@ class _CadeTui:
             result = [self._question_choices.current_value]
         self._complete_question_choice(result)
 
-    def _complete_question_choice(self, result: list[str]) -> None:
+    def _complete_question_choice(self, result: list[str] | None) -> None:
         request = self._state.pending_question_choice
         if request is None:
             return

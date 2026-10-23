@@ -11,12 +11,14 @@ and covered by examples that exercise actual user outcomes.
 
 Workspace tools use stable parameters, defaults, matching rules, truncation
 limits, result text, and cancellation behavior. Editing supports disjoint
-replacements against one original file.
+replacements against one original file. Web tools collect decisions, select a
+search integration, and retrieve textual content.
 
 Cade applies its permission policy, workspace snapshots, session log, and worker
 confinement. Searches exclude `.cade` on every platform. Shell calls support
 `workdir` and `additional_write_paths` permission extensions. Native
 tools and output files use Cade storage names; image processing uses Pillow.
+Search integration choices persist in `cade.json` as `websearch_provider`.
 
 Image attachments live in `tool_result.artifact.tool_metadata.images` and survive
 projection, replay, and request auditing. This extends the current session
@@ -28,5 +30,6 @@ contract without introducing a second history format.
 matched against the original content. Shell timeout values are in seconds and
 have no default. `read` returns raw text or an image; `ls` lists directories.
 
-`tests/test_file_tools.py` checks reference results and Cade integration.
-`tests/fixtures/file_tools.json` stores the expected editing results.
+`tests/test_file_tools.py`, `tests/test_questions.py`, and `tests/test_web_tools.py`
+check reference results and Cade integration. `tests/fixtures/file_tools.json` and
+`tests/fixtures/web_tools.json` store the expected editing and HTML results.

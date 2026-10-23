@@ -26,6 +26,7 @@ flowchart LR
   app_bootstrap --> app_config
   app_bootstrap --> app_provider
   app_bootstrap --> app_session
+  app_bootstrap --> app_settings
   app_bootstrap --> coding_context_instructions
   app_bootstrap --> coding_context_memory
   app_bootstrap --> coding_context_note
@@ -39,7 +40,10 @@ flowchart LR
   app_bootstrap --> coding_skills_tools
   app_bootstrap --> coding_subagents
   app_bootstrap --> coding_tools_native
+  app_bootstrap --> coding_tools_question
   app_bootstrap --> coding_tools_registry
+  app_bootstrap --> coding_tools_webfetch
+  app_bootstrap --> coding_tools_websearch
   app_bootstrap --> coding_workspace_recovery_coordinator
   app_bootstrap --> coding_workspace_snapshots
   app_bootstrap --> harness_compaction
@@ -52,6 +56,7 @@ flowchart LR
   app_bootstrap --> harness_window
   app_config --> coding_mcp_config
   app_config --> coding_security_rules
+  app_config --> coding_tools_websearch
   app_context_report --> ai_types
   app_context_report --> coding_security_policy
   app_context_report --> harness_request
@@ -223,6 +228,17 @@ flowchart LR
   coding_tools_search --> harness_execution_local_subprocess
   coding_tools_search --> harness_session_types
   coding_tools_search --> harness_tools
+  coding_tools_webfetch --> coding_tools_base
+  coding_tools_webfetch --> coding_tools_html_markdown
+  coding_tools_webfetch --> coding_tools_truncate
+  coding_tools_webfetch --> harness_cancellation
+  coding_tools_webfetch --> harness_session_types
+  coding_tools_webfetch --> harness_tools
+  coding_tools_websearch --> coding_tools_question
+  coding_tools_websearch --> coding_tools_webfetch
+  coding_tools_websearch --> harness_cancellation
+  coding_tools_websearch --> harness_session_types
+  coding_tools_websearch --> harness_tools
   coding_tools_write --> coding_tools_base
   coding_tools_write --> coding_tools_mutation
   coding_tools_write --> coding_workspace_snapshots
@@ -283,6 +299,7 @@ flowchart LR
   hosts_cli --> app_bootstrap
   hosts_cli --> app_config
   hosts_cli --> coding_goal
+  hosts_cli --> coding_tools_question
   hosts_cli --> harness_events
   hosts_cli --> harness_provider
   hosts_cli --> harness_session_log

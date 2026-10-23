@@ -129,6 +129,7 @@ class SubagentRunner:
                 plan_dir=self.policy.plan_dir,
                 rules=self.policy.rules,
                 grants=self.policy.grants,
+                network=self.policy.network,
             )
         if mode is not None:
             raise ValueError("This policy does not support child mode overrides")

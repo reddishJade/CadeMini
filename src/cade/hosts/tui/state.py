@@ -94,7 +94,7 @@ class _QuestionChoiceRequest:
     choices: list[tuple[str, str]]
     multiple: bool
     event: Event
-    result: list[str] = field(default_factory=list)
+    result: list[str] | None = None
 
 
 @dataclass

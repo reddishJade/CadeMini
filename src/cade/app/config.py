@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from cade.coding.mcp_config import McpServerConfig
 from cade.coding.security.rules import RuleConfig
+from cade.coding.tools.websearch import SearchSelection
 
 DEFAULT_CONFIG_NAME = "cade.json"
 
@@ -36,6 +37,7 @@ class CadeConfig(BaseModel):
         "workspace-write"
     )
     network: bool = True
+    websearch_provider: SearchSelection = None
     rules: list[RuleConfig] = Field(default_factory=list)
     mcp_servers: dict[str, McpServerConfig] = Field(default_factory=dict)
     trust_project_skills: bool = False

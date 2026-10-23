@@ -14,6 +14,10 @@ from cade.harness.session.types import (
 )
 
 
+class ToolDismissed(Exception):
+    """用户关闭交互工具，结束当前轮次。"""
+
+
 @dataclass(frozen=True)
 class ToolContext:
     """当前会话元数据和工具进度回调，不写入工具参数。"""

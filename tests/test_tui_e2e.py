@@ -1147,3 +1147,62 @@ def test_invalid_arguments_preserve_session(
         assert "E2E answer" in term.transcript
 
     terminal_runner(scenario)
+
+
+@pytest.mark.parametrize("dismiss", [False, True])
+def test_question_answer_and_dismissal(terminal_runner: Runner, dismiss: bool) -> None:
+    async def scenario(term: Terminal) -> None:
+        provider = term.service.provider
+        assert isinstance(provider, ScriptedProvider)
+        provider.batches = [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            id="question",
+                            name="question",
+                            input={
+                                "questions": [
+                                    {
+                                        "question": "Which workflow?",
+                                        "header": "Workflow",
+                                        "options": [
+                                            {
+                                                "label": "Build",
+                                                "description": "Implement the change",
+                                            }
+                                        ],
+                                    }
+                                ]
+                            },
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ]
+        ]
+        await term.send("/mode plan")
+        await term.send("Choose a workflow", wait_idle=False)
+        await term.until(
+            lambda: term.tui._state.pending_question_choice is not None,
+            "question visible",
+        )
+        if dismiss:
+            await term.escape()
+        else:
+            term.pipe.send_text("\r")
+        await term.until(lambda: not term.tui._state.running, "question finished")
+        runs = [entry for entry in term.service.log.branch() if entry.type == "run"]
+        assert runs[-1].data["termination"] == ("aborted" if dismiss else "completed")
+        if dismiss:
+            assert len(provider.requests) == 1
+            assert "cancelled" in term.transcript
+        else:
+            assert len(provider.requests) == 2
+            assert any(
+                '"Which workflow?"="Build"' in str(message.get("content", ""))
+                for message in provider.requests[-1]
+                if message["role"] == "tool"
+            )
+
+    terminal_runner(scenario)
