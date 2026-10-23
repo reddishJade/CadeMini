@@ -116,14 +116,9 @@ class _InjectedClient:
         self.responses = _ResponsesBoundary()
 
 
-@pytest.mark.parametrize(
-    "provider_type", [OpenAIResponsesProvider, ChatGPTResponsesProvider]
-)
-async def test_input_count_matches_the_inference_payload(
-    provider_type: type[OpenAIResponsesProvider],
-) -> None:
+async def test_input_count_matches_the_inference_payload() -> None:
     client = _InjectedClient()
-    provider = provider_type(
+    provider = OpenAIResponsesProvider(
         ProviderConfig(
             api_key="test-key", model="gpt-5.6-luna", response_format=_RESPONSE_FORMAT
         ),
@@ -154,10 +149,19 @@ async def test_input_count_matches_the_inference_payload(
         assert count_request.get(name) == inference.get(name), name
 
 
-async def test_deepseek_does_not_call_an_undocumented_count_endpoint() -> None:
+@pytest.mark.parametrize(
+    ("provider_type", "model"),
+    [
+        (DeepSeekResponsesProvider, "deepseek-flash"),
+        (ChatGPTResponsesProvider, "gpt-5.6-luna"),
+    ],
+)
+async def test_provider_does_not_call_an_undocumented_count_endpoint(
+    provider_type: type[OpenAIResponsesProvider], model: str
+) -> None:
     client = _InjectedClient()
-    provider = DeepSeekResponsesProvider(
-        ProviderConfig(api_key="test-key", model="deepseek-flash"), client=client
+    provider = provider_type(
+        ProviderConfig(api_key="test-key", model=model), client=client
     )
     assert await provider.count_input_tokens(_MESSAGES, [_TOOL]) is None
     assert client.responses.input_tokens.requests == []

@@ -7,12 +7,14 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
 from cade.ai.events import FinalMessage, ProviderEvent
+from cade.ai.providers.responses import ChatGPTResponsesProvider
 from cade.ai.tokenization import TokenCounter
-from cade.ai.types import StreamOptions, ToolDefinition
+from cade.ai.types import ProviderConfig, StreamOptions, ToolDefinition
 from cade.app.bootstrap import create_session
 from cade.app.config import CadeConfig
 from cade.app.context_report import collect_context_usage, inspect_context_usage
@@ -348,6 +350,28 @@ async def test_context_uses_provider_count_without_generating_or_changing_histor
         assert usage.measured_input == 7777
         assert "Input (provider count): 7,777 / 100,000" in report
         assert usage.count_error is None
+
+
+async def test_chatgpt_context_uses_estimates_without_a_remote_count_request(
+    session: ApplicationSession,
+) -> None:
+    client = Mock()
+    session.provider = ChatGPTResponsesProvider(
+        ProviderConfig(api_key="oauth-token", model="gpt-5.6-luna"), client=client
+    )
+    before = session.log.path.read_bytes()
+
+    result = await session.command("/context")
+
+    usage = result.context_usage
+    assert usage is not None
+    assert usage.measured_input is None
+    assert usage.count_error is None
+    report = render_context_usage(usage)
+    assert "Estimated input:" in report
+    assert "Provider count unavailable:" not in report
+    assert session.log.path.read_bytes() == before
+    assert client.mock_calls == []
 
 
 async def test_context_tokenizes_each_source_with_the_selected_model(
