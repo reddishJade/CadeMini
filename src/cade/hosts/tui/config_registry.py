@@ -32,10 +32,6 @@ class SettingSpec:
     kind: SettingKind = SettingKind.TEXT
     nullable: bool = False
 
-    @property
-    def is_menu(self) -> bool:
-        return self.kind in {SettingKind.MENU, SettingKind.BOOL}
-
 
 @dataclass(frozen=True)
 class MenuItem:
@@ -46,8 +42,10 @@ class MenuItem:
 
 
 SETTING_SPECS: tuple[SettingSpec, ...] = (
-    SettingSpec("provider", "Default Provider", "AI provider", SettingKind.MENU),
-    SettingSpec("model", "Default Model", "Registered model id", SettingKind.MENU),
+    SettingSpec("provider", "Default Provider", "AI provider", SettingKind.MENU, True),
+    SettingSpec(
+        "model", "Default Model", "Registered model id", SettingKind.MENU, True
+    ),
     SettingSpec(
         "reasoning_effort",
         "Default Reasoning Effort",
@@ -179,6 +177,19 @@ def setting_menu(
     env_files: tuple[Path, ...] = (),
 ) -> list[MenuItem]:
     del env_files
+    items = _setting_options(spec, config)
+    if spec.nullable:
+        items.insert(0, MenuItem("Use default", "none", "Clear the saved override"))
+    current = getattr(config, spec.key)
+    raw = ("on" if current else "off") if isinstance(current, bool) else str(current)
+    if current is not None and all(item.value != raw for item in items):
+        items.insert(0, MenuItem(str(current), raw))
+    if spec.kind is SettingKind.TEXT or spec.key == "model":
+        items.append(MenuItem("Custom value...", "", custom=True))
+    return items
+
+
+def _setting_options(spec: SettingSpec, config: CadeConfig) -> list[MenuItem]:
     if spec.kind is SettingKind.BOOL:
         return [MenuItem("On", "on"), MenuItem("Off", "off")]
     if spec.key == "provider":
@@ -200,5 +211,12 @@ def setting_menu(
         return [
             MenuItem(mode, mode)
             for mode in ("read-only", "workspace-write", "danger-full-access")
+        ]
+    if spec.key == "max_steps":
+        return [MenuItem(str(value), str(value)) for value in (10, 25, 50, 100, 200)]
+    if spec.key == "context_window":
+        return [
+            MenuItem(f"{value:,} tokens", str(value))
+            for value in (32_000, 64_000, 128_000, 200_000, 1_000_000)
         ]
     return []

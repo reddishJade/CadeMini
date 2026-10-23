@@ -1744,7 +1744,7 @@ class _CadeTui:
         self._open_command_choices(choices, choose, describe=describe)
 
     def _edit_config_setting(self, config_path: Path, spec: SettingSpec) -> None:
-        """有限选项使用菜单，数值和路径使用预填表单。"""
+        """先选择预设值，仅自定义值使用预填表单。"""
         from .config_registry import (
             MenuItem,
             SettingKind,
@@ -1758,6 +1758,7 @@ class _CadeTui:
 
         config = load_effective_config(config_path)
         current = format_setting(spec, config)
+        current_value = "none" if current == "(unset)" else current
 
         def reopen() -> None:
             self._open_config_browser()
@@ -1786,13 +1787,13 @@ class _CadeTui:
                 ok, message = save_setting_text(config_path, spec, value)
                 report_and_reopen(ok, message)
 
-            self._open_command_text(f"{spec.label} · {hint}", submit, on_cancel=reopen)
+            self._open_command_text(
+                f"{spec.label} · {hint}",
+                submit,
+                on_cancel=lambda: self._edit_config_setting(config_path, spec),
+            )
             self._input.text = "" if current == "(unset)" else current
             self._input.buffer.cursor_position = len(self._input.text)
-
-        if not spec.is_menu:
-            ask_text()
-            return
 
         def pick(selection: object) -> None:
             item = cast("MenuItem", selection)
@@ -1816,7 +1817,9 @@ class _CadeTui:
         self._open_command_choices(
             [
                 (
-                    f"{item.title} (current)" if item.value == current else item.title,
+                    f"{item.title} (current)"
+                    if item.value == current_value and not item.custom
+                    else item.title,
                     item,
                 )
                 for item in items
@@ -1826,7 +1829,7 @@ class _CadeTui:
             describe=lambda item: cast("MenuItem", item).description,
         )
         for index, item in enumerate(items):
-            if item.value == current:
+            if item.value == current_value and not item.custom:
                 self._command_choices._selected_index = index
                 self._command_choices.current_value = item
                 break
