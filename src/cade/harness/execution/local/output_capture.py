@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import codecs
 import tempfile
 from contextlib import ExitStack
 from typing import BinaryIO, cast
@@ -19,7 +18,6 @@ class OutputCapture:
         self._path: str | None = None
         self._newlines = 0
         self._last_byte: int | None = None
-        self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
 
     def append(self, data: bytes) -> str:
         if not data:
@@ -41,10 +39,9 @@ class OutputCapture:
         self._data.extend(data)
         if len(self._data) > self._max_bytes:
             del self._data[: -self._max_bytes]
-        return self._decoder.decode(data, final=False)
+        return bytes(self._data).decode("utf-8", "ignore")
 
     def finish(self) -> tuple[str, str | None, int]:
-        self._decoder.decode(b"", final=True)
         self._stack.close()
         self._stream = None
         data = bytes(self._data)

@@ -20,7 +20,7 @@ from cade.harness.cancellation import CancellationToken
 from cade.harness.session.types import ToolCallBlock
 from cade.harness.tools import ToolResult
 
-USER_AGENT = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OpenCode-User/1.0; +https://opencode.ai"
+USER_AGENT = "Cade/0.1.2"
 _ACCEPT = {
     "markdown": "text/markdown;q=1.0, text/x-markdown;q=0.9, text/plain;q=0.8, text/html;q=0.7, */*;q=0.1",
     "text": "text/plain;q=1.0, text/markdown;q=0.9, text/html;q=0.8, */*;q=0.1",
@@ -49,11 +49,7 @@ def bound_web_output(content: str, metadata: dict[str, Any]) -> ToolResult:
     ) as stream:
         stream.write(content.encode("utf-8"))
         file = stream.name
-    shown = f"lines 1-{truncation.outputLines}" if truncation.outputLines else "0 lines"
-    marker = (
-        f"[showing {shown} of {truncation.totalLines}; full output saved to {file}]"
-    )
-    preview = truncation.content + ("\n" if truncation.content else "") + marker
+    preview = truncation.content + f"\n[Output truncated; full output saved to {file}]"
     return ToolResult(
         preview, metadata={**metadata, "truncated": True, "outputPath": file}
     )
@@ -118,41 +114,32 @@ Use a more targeted tool when one is available. This tool is read-only. Large te
                 }
                 body: bytes = b""
                 content_type = ""
-                for attempt in range(2):
-                    async with client.stream("GET", url, headers=headers) as response:
-                        if (
-                            attempt == 0
-                            and response.status_code == 403
-                            and response.headers.get("cf-mitigated") == "challenge"
-                        ):
-                            headers["User-Agent"] = "opencode"
-                            continue
-                        response.raise_for_status()
-                        content_type = response.headers.get("content-type", "")
-                        mime = content_type.split(";", 1)[0].strip().lower()
-                        if mime.startswith("image/") and mime not in {
-                            "image/svg+xml",
-                            "image/vnd.fastbidsheet",
-                        }:
-                            raise ValueError(
-                                f"Unsupported fetched image content type: {mime}"
-                            )
-                        if mime and not (
-                            mime.startswith("text/")
-                            or mime
-                            in {
-                                "application/json",
-                                "application/xml",
-                                "application/javascript",
-                                "application/x-javascript",
-                            }
-                            or mime.endswith(("+json", "+xml"))
-                        ):
-                            raise ValueError(
-                                f"Unsupported fetched file content type: {mime}"
-                            )
-                        body = await collect_body(response, MAX_MARKDOWN_BYTES)
-                    break
+                async with client.stream("GET", url, headers=headers) as response:
+                    response.raise_for_status()
+                    content_type = response.headers.get("content-type", "")
+                    mime = content_type.split(";", 1)[0].strip().lower()
+                    if mime.startswith("image/") and mime not in {
+                        "image/svg+xml",
+                        "image/vnd.fastbidsheet",
+                    }:
+                        raise ValueError(
+                            f"Unsupported fetched image content type: {mime}"
+                        )
+                    if mime and not (
+                        mime.startswith("text/")
+                        or mime
+                        in {
+                            "application/json",
+                            "application/xml",
+                            "application/javascript",
+                            "application/x-javascript",
+                        }
+                        or mime.endswith(("+json", "+xml"))
+                    ):
+                        raise ValueError(
+                            f"Unsupported fetched file content type: {mime}"
+                        )
+                    body = await collect_body(response, MAX_MARKDOWN_BYTES)
             content = body.decode("utf-8-sig", "replace")
             if "text/html" in content_type:
                 if format_name == "markdown":

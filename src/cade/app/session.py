@@ -47,7 +47,7 @@ from cade.harness.session.history import HistoryNode, history_tree
 from cade.harness.session.log import SessionLog, list_sessions
 from cade.harness.session.projection import project
 from cade.harness.session.types import JsonValue, LogEntry, ToolCallBlock, UserMessage
-from cade.harness.tools import Tool, ToolContext, ToolResult, tool_context
+from cade.harness.tools import Tool, ToolResult
 from cade.harness.window import reset_window
 
 
@@ -581,15 +581,6 @@ class ApplicationSession:
             with (
                 self.log.run_lock(),
                 self.recovery.record(self.log),
-                tool_context(
-                    ToolContext(
-                        self.log.session_id,
-                        str(self.log.path),
-                        self.provider.transport,
-                        self.provider.model,
-                        self.provider_config.reasoning_effort or "",
-                    )
-                ),
             ):
                 text = (
                     f"!{args.get('command', '')}"
