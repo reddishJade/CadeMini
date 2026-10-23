@@ -13,7 +13,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `grep` | `pattern`, `path`, `glob`, `ignoreCase`, `literal`, `context`, `limit` | None | Allow except protected paths |
 | `bash`, `powershell` | `command`, `timeout`, `workdir`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
 | `question` | `questions: [{question, header, options, multiple?}]` | Collects user answers; dismissal ends the turn | Allow, including plan |
-| `websearch` | `query` | Searches through the selected integration | Allow when network access is enabled |
+| `websearch` | `query` | Searches through Exa | Allow when network access is enabled |
 | `webfetch` | `url`, `format`, `timeout` | Fetches text, Markdown, or HTML | Allow when network access is enabled |
 | `history` | `query`, `entry_id`, `call_id`, `limit` | None | Allow |
 | `skill` | `name` | None; loads a skill body | Allow |

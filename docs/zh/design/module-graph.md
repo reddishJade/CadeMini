@@ -26,7 +26,6 @@ flowchart LR
   app_bootstrap --> app_config
   app_bootstrap --> app_provider
   app_bootstrap --> app_session
-  app_bootstrap --> app_settings
   app_bootstrap --> coding_context_instructions
   app_bootstrap --> coding_context_memory
   app_bootstrap --> coding_context_note
@@ -56,7 +55,6 @@ flowchart LR
   app_bootstrap --> harness_window
   app_config --> coding_mcp_config
   app_config --> coding_security_rules
-  app_config --> coding_tools_websearch
   app_context_report --> ai_types
   app_context_report --> coding_security_policy
   app_context_report --> harness_request
@@ -234,7 +232,6 @@ flowchart LR
   coding_tools_webfetch --> harness_cancellation
   coding_tools_webfetch --> harness_session_types
   coding_tools_webfetch --> harness_tools
-  coding_tools_websearch --> coding_tools_question
   coding_tools_websearch --> coding_tools_webfetch
   coding_tools_websearch --> harness_cancellation
   coding_tools_websearch --> harness_session_types
