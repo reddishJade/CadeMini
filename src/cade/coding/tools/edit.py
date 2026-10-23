@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import errno
-import json
 import os
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from cade.coding.tools.base import (
     WorkspaceTool,
@@ -53,31 +52,6 @@ class EditTool(WorkspaceTool):
             },
             "required": ["path", "edits"],
         }
-
-    def prepare_arguments(self, args: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        args = dict(args)
-        edits = args.get("edits")
-        if isinstance(edits, str):
-            try:
-                edits = json.loads(edits)
-            except json.JSONDecodeError:
-                pass
-        if (
-            isinstance(edits, dict)
-            and isinstance(edits.get("oldText"), str)
-            and isinstance(edits.get("newText"), str)
-        ):
-            edits = [edits]
-        if isinstance(args.get("oldText"), str) and isinstance(
-            args.get("newText"), str
-        ):
-            edits = [
-                *(edits if isinstance(edits, list) else []),
-                {"oldText": args.pop("oldText"), "newText": args.pop("newText")},
-            ]
-        if edits is not None:
-            args["edits"] = cast(JsonValue, edits)
-        return args
 
     def run(self, args: dict[str, JsonValue]) -> ToolResult:
         path = _resolve_authorized_path(self.workspace, args.get("path"), writing=True)
