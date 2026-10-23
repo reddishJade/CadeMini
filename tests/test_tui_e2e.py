@@ -429,6 +429,40 @@ def test_native_mode_and_permissions(terminal_runner: Runner) -> None:
     terminal_runner(scenario)
 
 
+@pytest.mark.parametrize(
+    "key,initial",
+    [
+        ("read_only", False),
+        ("instructions", True),
+        ("note", True),
+        ("memory", True),
+        ("auto_review", False),
+        ("network", True),
+    ],
+)
+def test_config_boolean_picker(
+    terminal_runner: Runner, key: str, initial: bool
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        path = term.service.workspace / "cade.json"
+        original = path.read_bytes()
+        await term.send(f"/config {key}")
+        assert term.tui._state.pending_command_text is None
+        assert term.tui._command_choices._selected_index == (0 if initial else 1)
+        await term.escape()
+        assert path.read_bytes() == original
+        await term.escape()
+        await term.send(f"/config {key}")
+        await term.choose(1 if initial else 0)
+        assert json.loads(path.read_text(encoding="utf-8"))[key] is not initial
+        assert term.tui._state.pending_command_choice is not None
+        await term.escape()
+        await term.send(f"/config {key}")
+        assert term.tui._command_choices._selected_index == (1 if initial else 0)
+
+    terminal_runner(scenario)
+
+
 def test_config_persists_and_rejects_invalid_input(terminal_runner: Runner) -> None:
     async def scenario(term: Terminal) -> None:
         await term.send("/config max_steps")
@@ -437,6 +471,7 @@ def test_config_persists_and_rejects_invalid_input(terminal_runner: Runner) -> N
         assert json.loads(path.read_text(encoding="utf-8"))["max_steps"] == 7
         await term.escape()
         await term.send("/config max_steps")
+        assert term.tui._input.text == "7"
         await term.send("not-a-number")
         assert json.loads(path.read_text(encoding="utf-8"))["max_steps"] == 7
 
