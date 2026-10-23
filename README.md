@@ -66,7 +66,7 @@ Project settings live in `cade.json`.
 
 Cade includes workspace tools, history retrieval, context compaction, skills,
 memory, MCP tools, resources and prompts over stdio or HTTP, subagents,
-file snapshots, goals, and image reads. On Windows,
+file snapshots, goals, image reads, web search, and webpage retrieval. On Windows,
 the `bash` tool requires Bash (for example, Git for Windows); `powershell` uses
 PowerShell. The TUI supports
 stepwise undo/redo, scoped rewind, and selected-file revert. Recovery covers

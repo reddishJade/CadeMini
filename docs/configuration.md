@@ -52,7 +52,14 @@ silently ignored.
 - `sandbox`: `read-only`, `workspace-write` (default), or `danger-full-access`.
   Windows skips OS confinement regardless of this setting.
 - `network`: allow tool network access. Default is true. OS enforcement of false
-  requires Linux/macOS confinement.
+  for shell commands requires Linux/macOS confinement. Web tools reject calls
+  on every platform when this is false.
+- `websearch_provider`: `exa`, `firecrawl`, `parallel`, `tavily`, `tinyfish`,
+  `random`, `false`, or `null` (default). The first search asks for a selection
+  when unset and saves it here. `false` removes web search from the tool catalog.
+  `random` keeps a preferred integration and switches on HTTP 429 responses.
+  Integrations support `EXA_API_KEY`, `FIRECRAWL_API_KEY`, `PARALLEL_API_KEY`,
+  `TAVILY_API_KEY`, and `TINYFISH_API_KEY`. Keys are optional.
 - `read_only`: deny mutations and allow only classified read-only shell commands.
 - `instructions`: load `AGENTS.md` or `CLAUDE.md` into request context.
 - `note`: load `NOTE.md` working state.

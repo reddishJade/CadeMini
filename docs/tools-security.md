@@ -10,6 +10,9 @@
 - `grep`: search with regex or literal matching, case controls, and context lines.
 - `bash`, `powershell`: run a shell command, optionally with a workdir and
   `additional_write_paths` that request extra permissions for this call.
+- `question`: collect choices or custom answers; dismissal stops the turn.
+- `websearch`, `webfetch`: search or retrieve web content. Both honor
+  `network=false` on every platform.
 
 Searches exclude `.cade`, including session logs and snapshot payloads.
 See the [tool catalog](design/tool-catalog.md) for upstream behavior and parameters.

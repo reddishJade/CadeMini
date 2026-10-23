@@ -9,6 +9,8 @@
 - `ls`：列出目录项，包括隐藏文件。
 - `grep`：搜索正则或字面文本，支持大小写控制和上下文行。
 - `bash`、`powershell`：运行 shell 命令，可选指定工作目录和 `additional_write_paths`，为本次调用申请额外权限。
+- `question`：收集选项或自定义答案，关闭问题时结束当前轮次。
+- `websearch`、`webfetch`：搜索或获取网页内容，在所有平台上遵守 `network=false`。
 
 搜索排除 `.cade`，包括会话日志和快照内容。
 上游行为和参数见[工具目录](design/tool-catalog.md)。
