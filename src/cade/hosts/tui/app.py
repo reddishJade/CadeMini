@@ -635,8 +635,16 @@ class _CadeTui:
         interrupting = Condition(
             lambda: self._state.running and not self._has_pending_interaction()
         )
-        # 等待组合键解析完成，避免空输入时把 Alt 快捷键误判为中断。
-        bindings.add("escape", filter=interrupting)(self._interrupt_key)
+        # 恢复提交期间立即提示；普通任务先解析 Alt 组合键。
+        bindings.add(
+            "escape",
+            filter=interrupting,
+            eager=Condition(
+                lambda: (
+                    self._recovery_task is not None and not self._recovery_task.done()
+                )
+            ),
+        )(self._interrupt_key)
         bindings.add(
             "escape",
             "escape",
