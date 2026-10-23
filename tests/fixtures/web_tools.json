@@ -1,0 +1,256 @@
+{
+  "html": [
+    {
+      "html": "<h1>Hello</h1><script>bad()</script><p>world <strong>wide</strong> <product-name>today</product-name></p><style>.bad {}</style>",
+      "expected": "# Hello\n\nworld **wide** today"
+    },
+    {
+      "html": "<h2>Read <em>this</em></h2><p><a href=\"https://example.com/a (b)\" title=\"Example\">docs</a><br><img src=\"diagram.png\" alt=\"a ] b\"></p><hr><p><del>old</del></p>",
+      "expected": "## Read *this*\n\n[docs](https://example.com/a%20\\(b\\) \"Example\")  \n![a \\] b](diagram.png)\n\n---\n\n~~old~~"
+    },
+    {
+      "html": "<p>Use <code>say(`hello`)</code> now.</p><pre><code class=\"language-ts\">const fence = ```\n&amp; stays decoded</code></pre>",
+      "expected": "Use ``say(`hello`)`` now.\n\n~~~ts\nconst fence = ```\n& stays decoded\n~~~"
+    },
+    {
+      "html": "<p>Use <code>`x`</code>.</p>",
+      "expected": "Use `` `x` ``."
+    },
+    {
+      "html": "<p>Use <code>`x</code>.</p>",
+      "expected": "Use `` `x ``."
+    },
+    {
+      "html": "<p>Use <code>x`</code>.</p>",
+      "expected": "Use `` x` ``."
+    },
+    {
+      "html": "<p>Use <code>`</code>.</p>",
+      "expected": "Use `` ` ``."
+    },
+    {
+      "html": "<p>Use <code>``</code>.</p>",
+      "expected": "Use ``` `` ```."
+    },
+    {
+      "html": "<p>Use <code>``x`</code>.</p>",
+      "expected": "Use ``` ``x` ```."
+    },
+    {
+      "html": "<p>Use <code>say(`x`)</code>.</p>",
+      "expected": "Use ``say(`x`)``."
+    },
+    {
+      "html": "<p>Use <code>a``b`c</code>.</p>",
+      "expected": "Use ```a``b`c```."
+    },
+    {
+      "html": "<p>Use <code>x</code>.</p>",
+      "expected": "Use `x`."
+    },
+    {
+      "html": "<p>Use <code> x </code>.</p>",
+      "expected": "Use `  x  `."
+    },
+    {
+      "html": "<p>Use <code> x</code>.</p>",
+      "expected": "Use `  x `."
+    },
+    {
+      "html": "<p>Use <code>x </code>.</p>",
+      "expected": "Use ` x  `."
+    },
+    {
+      "html": "<p>Use <code>   </code>.</p>",
+      "expected": "Use `   `."
+    },
+    {
+      "html": "<p>Use <code> ` </code>.</p>",
+      "expected": "Use ``  `  ``."
+    },
+    {
+      "html": "<ol start=\"3\"><li>alpha<ul><li>nested <strong>item</strong></li></ul></li><li><p>beta first</p><p>beta second</p></li></ol>",
+      "expected": "3. alpha\n\n   - nested **item**\n\n4. beta first\n\n   beta second"
+    },
+    {
+      "html": "<blockquote><p>quoted <em>text</em></p><ul><li>point</li></ul></blockquote><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>one</td><td><code>1</code></td></tr></tbody></table>",
+      "expected": "> quoted *text*\n\n> - point\n\n| Name | Value |\n| --- | --- |\n| one | `1` |"
+    },
+    {
+      "html": "<p>alpha\n  <span>&amp; beta</span> <unknown>caf&eacute;</unknown>&nbsp;gamma 😀</p><p>delta</p>",
+      "expected": "alpha & beta café gamma 😀\n\ndelta"
+    },
+    {
+      "html": "<p>before <script><b>bad</b></script><style>bad</style><noscript>bad</noscript><iframe>bad</iframe><object>bad</object><embed src=\"bad\"><meta content=\"bad\"><link href=\"bad\"><template>bad</template> after</p>",
+      "expected": "before after"
+    },
+    {
+      "html": "<p># heading</p><p>1. item</p><p>---</p><p>a | b</p>",
+      "expected": "\\# heading\n\n1\\. item\n\n\\---\n\na \\| b"
+    },
+    {
+      "html": "<blockquote><pre>line  \n\n\nnext</pre><table><tr><td>a|b</td><td>c</td></tr></table></blockquote>",
+      "expected": "> ```\n> line  \n> \n> \n> next\n> ```\n\n> | a\\|b | c |\n> | --- | --- |"
+    },
+    {
+      "html": "<blockquote><p>outer</p><blockquote><p>inner</p></blockquote><p>end</p></blockquote>",
+      "expected": "> outer\n>\n> > inner\n>\n> end"
+    },
+    {
+      "html": "<p>a<strong> b</strong> c a <em>b </em>c</p>",
+      "expected": "a **b** c a *b* c"
+    },
+    {
+      "html": "a<strong> </strong>b a<em> </em>b",
+      "expected": "a b a b"
+    },
+    {
+      "html": "<pre><b>x</b><i>y</i><del>z</del></pre>",
+      "expected": "```\nxyz\n```"
+    },
+    {
+      "html": "<table><tr><td>x<br>y</td><td><code>a|b</code></td><td><p>first</p><p>second</p></td></tr></table>",
+      "expected": "| x y | `a\\|b` | first second |\n| --- | --- | --- |"
+    },
+    {
+      "html": "<table><tr><th>Parent</th><th>Sibling</th></tr><tr><td>Before<table><tr><th>Key</th><th>Value</th></tr><tr><td>A</td><td>1</td></tr></table>After</td><td>Tail</td></tr></table>",
+      "expected": "| Parent | Sibling |\n| --- | --- |\n| Before Key Value A 1 After | Tail |"
+    },
+    {
+      "html": "<table>before<tr><td>cell</td></tr>after</table>",
+      "expected": "before after\n\n| cell |\n| --- |"
+    },
+    {
+      "html": "<table>alpha</table>",
+      "expected": "alpha"
+    },
+    {
+      "html": "<p>~~~</p><p><strong></strong>content</p><p>~~~</p>",
+      "expected": "\\~\\~\\~\n\ncontent\n\n\\~\\~\\~"
+    },
+    {
+      "html": "<p>before \u00000\u0000 after</p><pre>code</pre>",
+      "expected": "before \u00000\u0000 after\n\n```\ncode\n```"
+    },
+    {
+      "html": "<p><code>first\n\n\nsecond  </code></p>",
+      "expected": "` first\n\n\nsecond   `"
+    },
+    {
+      "html": "<blockquote><code>x</code> y</blockquote>",
+      "expected": "> `x` y"
+    },
+    {
+      "html": "<dl><dt><code>socket = new <a href=\"#constructor\">WebSocket</a>(url)</code><dd>Creates one.</dl>",
+      "expected": "**` socket = new  `[`WebSocket`](#constructor)`(url)`**\n: Creates one."
+    },
+    {
+      "html": "<code><a href=\"#x\">x</a></code> after",
+      "expected": "[`x`](#x) after"
+    },
+    {
+      "html": "<dl><dt><code><var>socket</var> = new <code><a href=\"#constructor\">WebSocket</a></code>(<var>url</var>)</code><dd>Creates one.</dl>",
+      "expected": "**` socket = new  `[`WebSocket`](#constructor)`(url)`**\n: Creates one."
+    },
+    {
+      "html": "<code>a<a href=\"/x\">b<a href=\"/y\">c</a>d</a>e</code>",
+      "expected": "`a`[`b`](/x)[`c`](/y)`de`"
+    },
+    {
+      "html": "<code>a<a href=\"/x\">b</code>c",
+      "expected": "`a`[`b`](/x)c"
+    },
+    {
+      "html": "<code>a<a href=\"/x\"><div>b</div>c</a>d</code>",
+      "expected": "`a`[](/x)\n\n`bcd`"
+    },
+    {
+      "html": "<ol start=\"0\"><li value=\"4\"><p>first</p><p>continued</p><ul><li><p>nested</p><p>continued nested</p></li></ul></li><li>next</li></ol>",
+      "expected": "4. first\n\n   continued\n\n   - nested\n\n     continued nested\n\n5. next"
+    },
+    {
+      "html": "<a href=\"/docs\">before<div>block</div>after</a>",
+      "expected": "[before](/docs)\n\nblock\n\n[after](/docs)"
+    },
+    {
+      "html": "<a href=\"/a\">x<a href=\"/b\">y</a>z</a>",
+      "expected": "[x](/a)[y](/b)z"
+    },
+    {
+      "html": "<p>a<strong><span> bold</span></strong>c</p>",
+      "expected": "a **bold** c"
+    },
+    {
+      "html": "<table><tr><td><pre>a|b\nnext</pre></td><td><code>x|y</code></td></tr></table>",
+      "expected": "| a\\|b next | `x\\|y` |\n| --- | --- |"
+    },
+    {
+      "html": "<strong>😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀</strong>",
+      "expected": "**😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀**"
+    },
+    {
+      "html": "<a href=\"/docs\">😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀</a>",
+      "expected": "[😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀](/docs)"
+    },
+    {
+      "html": "<img src=\"image.png\" alt=\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\">",
+      "expected": "![😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀](image.png)"
+    },
+    {
+      "html": "<code>😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀</code>",
+      "expected": "`😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀`"
+    },
+    {
+      "html": "<table><tr><th>Name</th></tr><tr><td>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</td></tr></table>",
+      "expected": "| Name |\n| --- |\n| xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx |"
+    },
+    {
+      "html": "<ul><li>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</li></ul><ul><li>next</li></ul>",
+      "expected": "- xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\n- next"
+    },
+    {
+      "html": "<pre>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</pre>",
+      "expected": "```\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n```"
+    },
+    {
+      "html": "<blockquote><pre>````````````````````````````````~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</pre></blockquote>",
+      "expected": "> `````````````````````````````````\n> ````````````````````````````````~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n> `````````````````````````````````"
+    },
+    {
+      "html": "intro<table><tr><td>x</td></tr></table>outro<blockquote>quote<table><tr><td>cell</td></tr></table></blockquote><ul><li>item<table><tr><td>cell</td></tr></table></li></ul>",
+      "expected": "intro\n\n| x |\n| --- |\n\noutro\n\n> quote\n\n> | cell |\n> | --- |\n\n- item\n\n| cell |\n| --- |"
+    },
+    {
+      "html": "<blockquote><pre>x\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\n</pre></blockquote><p>tail</p>",
+      "expected": "> ```\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> x\n> ```\n\ntail"
+    },
+    {
+      "html": "<a href=\"/x\">before<blockquote><p>quote</p></blockquote><ul><li>item</li></ul><pre>code</pre><table><tr><td>cell</td></tr></table>after</a>",
+      "expected": "[before](/x)\n\n> quote\n\n- item\n\n```\ncode\n```\n\n| cell |\n| --- |\n\n[after](/x)"
+    },
+    {
+      "html": "<ol start=\"100\"><li>outer<ul><li>inner</li></ul></li></ol>",
+      "expected": "100. outer\n\n     - inner"
+    },
+    {
+      "html": "<table><caption>Cache modes</caption><tr><th>Name</th><th>Meaning</th></tr><tr><td>A</td><td>Local</td></tr></table><dl><dt>Cache</dt><dd>A local store</dd><dt>Origin</dt><dd>The remote source</dd></dl>",
+      "expected": "Cache modes\n\n| Name | Meaning |\n| --- | --- |\n| A | Local |\n\n**Cache**\n: A local store\n\n**Origin**\n: The remote source"
+    },
+    {
+      "html": "<table><tr><th colspan=\"2\">Group</th></tr><tr><td>A</td><td rowspan=\"2\">Shared</td></tr><tr><td>B</td></tr></table>",
+      "expected": "Group\n\nA | Shared\n\nB"
+    },
+    {
+      "html": "<head><title>noise</title></head><body><p>visible</p><div hidden>hidden</div><div aria-hidden=\"true\">aria</div><div aria-hidden=\"false\">shown</div></body>",
+      "expected": "visible\n\nshown"
+    },
+    {
+      "html": "<pre>first<br>second</pre><p><a href=\"/x\" title=\"line one\n  line two\">link</a></p>",
+      "expected": "```\nfirst\nsecond\n```\n\n[link](/x \"line one line two\")"
+    },
+    {
+      "html": "<details><summary>Closed</summary><p>secret</p></details><details open><summary>Open</summary><p>visible</p></details>",
+      "expected": "Closed\n\nOpen\n\nvisible"
+    }
+  ]
+}
