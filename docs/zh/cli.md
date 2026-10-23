@@ -76,7 +76,7 @@ TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原�
 - `/permissions [list|clear]`：列出或清除会话授权；不带参数时打开选择器。
 - `/goal [TEXT|done|clear]`：显示、设置、完成或清除目标。
 - `/context-window [SIZE|default]`：显示或调整当前上下文窗口。
-- `/context`：显示上下文预算，并列出系统提示、请求上下文、工具定义和投影后的对话，包括渐进式加载的技能和引用文件。
+- `/context`：显示按来源分类的用量和剩余输入空间，包括指令文件、技能、MCP schema 和已加载的 MCP 内容。OpenAI 总量使用输入计数接口；DeepSeek 使用官方 V4 文本分词器并估算请求开销。最近一次请求的 provider 用量单独显示。
 - `/btw QUESTION`：提出一个独立的旁路问题。
 - `/steer TEXT`：为下一个模型步骤排队指导。
 - `/queue [followup|steer|interrupt|TEXT]`：设置忙碌时 `Enter` 的行为，或将 TEXT 排到下一轮。

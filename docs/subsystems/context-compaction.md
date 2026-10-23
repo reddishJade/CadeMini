@@ -13,13 +13,42 @@ The system message is the base prompt plus request-only context:
 The request audit records this context and the normalized request; it does not
 turn the text into conversation facts.
 
-`/context` inventories the next request using the same context source as the
-runtime, including skill instructions restored after compaction or a window
-reset. It lists each context block, available tool definition, and projected
-message with a local token estimate and a short text preview. Source labels
-identify loaded instruction files, skill catalog entries, skill bodies,
-references, and attached files. Files that exist but were not loaded are absent.
-The report does not call the provider or modify the conversation.
+`/context` summarizes the current request snapshot by its actual sources:
+system prompt, project instructions, working note, memory, goal, skill catalog,
+loaded skills, built-in tool schemas, MCP schemas, conversation, tool results,
+and retained summaries. Optional categories appear when present. Delegation
+tool schemas count as built-in tools; child conversations are not parent context.
+Each token belongs to one category. Input remaining excludes the output reserve
+and headroom.
+
+File sources include loaded `AGENTS.md` or its fallback, notes, memory, skill
+bodies and references, read files, and attachments. MCP sources list current
+schema counts and token estimates per server, plus resources, prompts, and tool
+results still present in the active conversation. A schema refresh changes the
+schema list; loaded content remains until projection removes it.
+
+For OpenAI Responses, `/context` calls the
+[input token count endpoint](https://developers.openai.com/api/docs/guides/token-counting)
+with the same converted input, instructions, tools, and response format used by
+inference. The returned total is displayed as **Input (provider count)**. This
+does not generate a reply or add a conversation event. Endpoint or account
+errors are shown alongside the explicitly labeled fallback estimate.
+
+For `deepseek-flash` and `deepseek-v4-pro`, the command uses the
+[official V4 tokenizer](https://api-docs.deepseek.com/quick_start/token_usage/)
+through `tokenizers`. On first use, it downloads the public model archive and
+caches the checksum-verified JSON under `~/.cade/tokenizers/`. Later inspections
+work from that cache. Text uses model tokenization; message framing, images,
+and server-side tool formatting still require an estimate. The report names
+the tokenizer and does not label this total as a provider measurement.
+
+Source breakdowns are estimates, not provider-supplied per-file billing data.
+They use the selected model tokenizer when available, otherwise the character
+heuristic. Input remaining uses the provider total when available. The latest
+request's reported input/output usage remains separate from both current input
+and cumulative run totals. Inspection does not contact MCP servers or modify
+the conversation. Request admission retains its existing offline estimate;
+normal model calls do not issue an additional pre-count request.
 
 ## Compaction
 

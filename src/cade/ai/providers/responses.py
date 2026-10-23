@@ -27,6 +27,7 @@ from cade.ai.events import (
     ToolCallEvent,
     UsageUpdate,
 )
+from cade.ai.tokenization import TokenCounter
 from cade.ai.types import (
     ProviderConfig,
     StreamOptions,
@@ -753,68 +754,116 @@ class OpenAIResponsesProvider:
         owns_client = self._client is None
         client, extra_headers = self._get_client_and_headers()
         try:
-            instructions, input_messages = extract_responses_instructions(messages)
-            responses_input = to_responses_input(
-                input_messages,
-                transport=self.transport,
-                model=self.config.model,
+            params, input_count = self._request_params(
+                messages, tools, self._current_options, extra_headers
             )
-            responses_tools = to_responses_tools(tools, strict=self._strict_tools())
-
-            params: dict[str, Any] = {
-                "model": self.config.model,
-                "input": responses_input,
-                "stream": True,
-                "stream_options": {"include_usage": True},
-            }
-
-            if instructions:
-                params["instructions"] = instructions
-
-            if responses_tools:
-                params["tools"] = responses_tools
-
-            if self.config.response_format:
-                text_conf = to_responses_text_config(self.config.response_format)
-                if text_conf:
-                    params["text"] = text_conf
-
-            # 应用上下文参数
-            opts = self._current_options
-            reasoning: dict[str, str] = {}
-            if self.config.reasoning_effort:
-                reasoning["effort"] = self.config.reasoning_effort
-            if self.config.thinking:
-                reasoning["summary"] = (
-                    opts.reasoning_summary
-                    if opts and opts.reasoning_summary is not None
-                    else "auto"
-                )
-            if reasoning:
-                params["reasoning"] = reasoning
-
-            if opts:
-                if opts.temperature is not None:
-                    params["temperature"] = opts.temperature
-                if opts.max_tokens is not None:
-                    params["max_output_tokens"] = opts.max_tokens
-                if opts.top_p is not None:
-                    params["top_p"] = opts.top_p
-                if opts.tool_choice is not None:
-                    params["tool_choice"] = opts.tool_choice
-
-            request_headers = dict(extra_headers)
-            if opts and opts.headers:
-                request_headers.update(opts.headers)
-            if request_headers:
-                params["extra_headers"] = request_headers
-
-            self._finalize_request_params(params)
-
-            self._metrics["sent_messages"] = len(input_messages)
+            self._metrics["sent_messages"] = input_count
 
             async for event in self._decode_responses_stream(client, params):
                 yield event
+        finally:
+            if owns_client:
+                await client.close()
+
+    def _request_params(
+        self,
+        messages: list[dict[str, Any]],
+        tools: tuple[ToolDefinition, ...],
+        opts: StreamOptions | None,
+        extra_headers: dict[str, str],
+    ) -> tuple[dict[str, Any], int]:
+        """生成推理和预计数共用的线上请求，保留 transport 转换。"""
+        instructions, input_messages = extract_responses_instructions(messages)
+        responses_input = to_responses_input(
+            input_messages,
+            transport=self.transport,
+            model=self.config.model,
+        )
+        responses_tools = to_responses_tools(tools, strict=self._strict_tools())
+
+        params: dict[str, Any] = {
+            "model": self.config.model,
+            "input": responses_input,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+
+        if instructions:
+            params["instructions"] = instructions
+
+        if responses_tools:
+            params["tools"] = responses_tools
+
+        if self.config.response_format:
+            text_conf = to_responses_text_config(self.config.response_format)
+            if text_conf:
+                params["text"] = text_conf
+
+        # 应用上下文参数
+        reasoning: dict[str, str] = {}
+        if self.config.reasoning_effort:
+            reasoning["effort"] = self.config.reasoning_effort
+        if self.config.thinking:
+            reasoning["summary"] = (
+                opts.reasoning_summary
+                if opts and opts.reasoning_summary is not None
+                else "auto"
+            )
+        if reasoning:
+            params["reasoning"] = reasoning
+
+        if opts:
+            if opts.temperature is not None:
+                params["temperature"] = opts.temperature
+            if opts.max_tokens is not None:
+                params["max_output_tokens"] = opts.max_tokens
+            if opts.top_p is not None:
+                params["top_p"] = opts.top_p
+            if opts.tool_choice is not None:
+                params["tool_choice"] = opts.tool_choice
+
+        request_headers = dict(extra_headers)
+        if opts and opts.headers:
+            request_headers.update(opts.headers)
+        if request_headers:
+            params["extra_headers"] = request_headers
+
+        self._finalize_request_params(params)
+
+        return params, len(input_messages)
+
+    async def count_input_tokens(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolDefinition],
+        options: StreamOptions | None = None,
+    ) -> int | None:
+        """用 OpenAI 计数接口检查同一份输入，不生成回复或累计推理用量。"""
+        from openai import APIError
+
+        owns_client = self._client is None
+        client, headers = self._get_client_and_headers()
+        try:
+            params, _ = self._request_params(messages, tuple(tools), options, headers)
+            for name in (
+                "stream",
+                "stream_options",
+                "store",
+                "temperature",
+                "top_p",
+                "max_output_tokens",
+            ):
+                params.pop(name, None)
+            try:
+                result = await client.responses.input_tokens.count(
+                    **params, timeout=15.0
+                )
+            except APIError as exc:
+                raise _format_openai_error(exc) from exc
+            tokens = result.input_tokens
+            if type(tokens) is not int or tokens < 0:
+                raise ValueError("Provider returned an invalid input token count")
+            return tokens
         finally:
             if owns_client:
                 await client.close()
@@ -1140,6 +1189,23 @@ class DeepSeekResponsesProvider(OpenAIResponsesProvider):
         super().__init__(config, client=client)
         self.transport = "deepseek_responses"
         self._metrics["transport"] = self.transport
+
+    async def count_input_tokens(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolDefinition],
+        options: StreamOptions | None = None,
+    ) -> int | None:
+        """DeepSeek 未公开完整输入预计数接口，不假定其支持 OpenAI 端点。"""
+        return None
+
+    async def load_token_counter(self) -> TokenCounter:
+        """使用当前注册的 V4 系列对应的官方分词器。"""
+        from cade.ai.tokenization import load_deepseek_v4_tokenizer
+
+        if self.model not in {"deepseek-flash", "deepseek-v4-pro"}:
+            raise ValueError(f"No tokenizer registered for {self.model}")
+        return await load_deepseek_v4_tokenizer()
 
     def _get_client_and_headers(self) -> tuple[Any, dict[str, str]]:
         """构建使用 DeepSeek API Key 的 Responses 客户端。"""

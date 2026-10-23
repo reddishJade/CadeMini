@@ -302,7 +302,7 @@ COMMAND_CASES = [
     ("/effort low", "Model:"),
     ("/thinking off", "Thinking level: off"),
     ("/context-window 200k", "200,000"),
-    ("/context", "gpt-5.5"),
+    ("/context", "GPT-5.5"),
     ("/mode ask", "Mode: ask"),
     ("/queue followup", "Busy input mode: followup"),
     ("/steer guidance", None),
@@ -327,6 +327,70 @@ def test_command_inventory_is_complete() -> None:
     assert {line.split()[0] for line, _ in COMMAND_CASES} == {
         spec.name for spec in SPECS
     }
+
+
+def test_context_shows_compact_categories_and_loaded_skill_files(
+    terminal_runner: Runner,
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        await term.send("hello, i guess?")
+        original = term.service.log.path.read_bytes()
+        await term.send("/context")
+        report = term.tui._state.log[-1].text
+        assert "Context · GPT-5.5" in report
+        assert "Estimated input:" in report
+        assert "Input sources (estimated" in report
+        assert "User messages:" in report
+        assert "Built-in tools:" in report
+        assert "Input remaining:" in report
+        assert "Skill catalog (1 available)" in report
+        assert "hello, i guess?" not in report
+        assert "E2E answer" not in report
+        assert "Tool definitions" not in report
+        assert "Skill files" not in report
+        assert "□" not in report
+        assert "Subagents:" not in report
+        assert len(report.splitlines()) <= 18
+        assert term.service.log.path.read_bytes() == original
+        await term.send("$e2e-skill check this")
+        await term.send("/context")
+        report = term.tui._state.log[-1].text
+        assert "Skill files" in report
+        assert "SKILL.md:" in report
+        assert "E2E skill body" not in report
+        assert len(term.service.provider.requests) == 2
+
+    terminal_runner(scenario)
+
+
+def test_context_displays_remote_input_count_without_another_model_run(
+    terminal_runner: Runner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[dict[str, Any]]] = []
+
+    async def count(
+        self: ScriptedProvider,
+        messages: list[dict[str, Any]],
+        tools: list[ToolDefinition],
+        options: StreamOptions | None = None,
+    ) -> int:
+        calls.append(messages)
+        return 4321
+
+    monkeypatch.setattr(ScriptedProvider, "count_input_tokens", count, raising=False)
+
+    async def scenario(term: Terminal) -> None:
+        await term.send("first task")
+        before = term.service.log.path.read_bytes()
+        await term.send("/context")
+        report = term.tui._state.log[-1].text
+        assert "Input (provider count): 4,321 / 1,050,000" in report
+        assert "Input sources (estimated" in report
+        assert len(calls) == 1
+        assert len(term.service.provider.requests) == 1
+        assert term.service.log.path.read_bytes() == before
+
+    terminal_runner(scenario)
 
 
 @pytest.mark.parametrize(

@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from typing import Protocol, runtime_checkable
 
 from cade.ai.events import Message, ProviderEvent
+from cade.ai.tokenization import TokenCounter
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.ai.usage import UsageTotals
 
@@ -21,6 +22,25 @@ class StreamProvider(Protocol):
         options: StreamOptions | None = None,
         **kwargs: object,
     ) -> AsyncIterator[ProviderEvent]: ...
+
+
+@runtime_checkable
+class InputTokenCounter(Protocol):
+    """可选的完整请求计数能力；不支持时返回 None。"""
+
+    async def count_input_tokens(
+        self,
+        messages: list[Message],
+        tools: list[ToolDefinition],
+        options: StreamOptions | None = None,
+    ) -> int | None: ...
+
+
+@runtime_checkable
+class TextTokenizer(Protocol):
+    """提供模型对应的文本分词器；完整请求仍包含协议开销。"""
+
+    async def load_token_counter(self) -> TokenCounter: ...
 
 
 @runtime_checkable

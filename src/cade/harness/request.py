@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, fields
 from typing import Any, cast
 
@@ -126,10 +126,12 @@ def estimate(
     *,
     tools: Sequence[ToolDefinition] = (),
     context: Sequence[str] = (),
+    count_tokens: Callable[[str], int] | None = None,
 ) -> int:
     """估算完整投影加工具的请求大小，用于决定是否先压缩。"""
     _system_text, messages = _prepare(conversation, context)
-    return _estimate_messages(messages) + _estimate_tools(tools)
+    counter = count_tokens or _tokens
+    return _estimate_messages(messages, counter) + _estimate_tools(tools, counter)
 
 
 def build(
@@ -143,7 +145,7 @@ def build(
     """完整转换投影并检查预算；不裁剪消息，不执行 I/O。"""
     system_text, messages = _prepare(conversation, context)
 
-    estimated = _estimate_messages(messages) + _estimate_tools(tools)
+    estimated = _estimate_messages(messages, _tokens) + _estimate_tools(tools, _tokens)
 
     return Request(
         messages=tuple(_to_wire(message) for message in messages),
@@ -243,33 +245,37 @@ def _tool_call_wire(block: ToolCallBlock) -> dict[str, Any]:
     }
 
 
-def _estimate_messages(messages: Sequence[Message]) -> int:
-    return sum(_estimate_message(message) for message in messages)
+def _estimate_messages(
+    messages: Sequence[Message], counter: Callable[[str], int]
+) -> int:
+    return sum(_estimate_message(message, counter) for message in messages)
 
 
-def _estimate_message(message: Message) -> int:
+def _estimate_message(message: Message, counter: Callable[[str], int]) -> int:
     if isinstance(message, SystemMessage | UserMessage):
-        return 4 + _tokens(message.text)
+        return 4 + counter(message.text)
     if isinstance(message, SummaryMessage):
-        return 8 + _tokens(message.text) + _tokens(message.source_id)
+        return 8 + counter(message.text) + counter(message.source_id)
     if isinstance(message, AssistantMessage):
         total = 4
         for block in message.blocks:
             if isinstance(block, TextBlock):
-                total += _tokens(block.text)
+                total += counter(block.text)
             else:
-                total += 4 + _tokens(block.name) + _tokens(_json(block.args))
+                total += 4 + counter(block.name) + counter(_json(block.args))
         if message.provider_state is not None:
-            total += _tokens(_json(message.provider_state))
+            total += counter(_json(message.provider_state))
         return total
-    return 4 + _tokens(message.content) + 1600 * len(message.images)
+    return 4 + counter(message.content) + 1600 * len(message.images)
 
 
-def _estimate_tools(tools: Sequence[ToolDefinition]) -> int:
+def _estimate_tools(
+    tools: Sequence[ToolDefinition], counter: Callable[[str], int]
+) -> int:
     total = 0
     for tool in tools:
-        total += 4 + _tokens(tool.name) + _tokens(tool.description)
-        total += _tokens(_json(tool.parameters))
+        total += 4 + counter(tool.name) + counter(tool.description)
+        total += counter(_json(tool.parameters))
     return total
 
 
