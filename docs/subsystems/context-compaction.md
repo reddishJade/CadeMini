@@ -13,17 +13,26 @@ The system message is the base prompt plus request-only context:
 The request audit records this context and the normalized request; it does not
 turn the text into conversation facts.
 
-`/context` summarizes the next request using the runtime's context source,
-including skills restored after compaction or a window reset. It shows local
-token estimates for user messages, agent responses, tool calls and results,
-system prompt, tool definitions, skills, subagents, and retained summaries.
-Each token belongs to one category. Free space is the context window minus
-estimated usage; it includes capacity reserved for output and headroom.
+`/context` summarizes the current request snapshot by its actual sources:
+system prompt, project instructions, working note, memory, goal, skill catalog,
+loaded skills, built-in tool schemas, MCP schemas, conversation, tool results,
+and retained summaries. Optional categories appear when present. Delegation
+tool schemas count as built-in tools; child conversations are not parent context.
+Each token belongs to one category. Input remaining excludes the output reserve
+and headroom.
 
-The file list shows loaded instructions, notes, memory, skill bodies,
-references, and attachments with token estimates. Skill catalog entries are
-summarized by count. The report omits prompt and conversation previews and does
-not call the provider or modify the conversation.
+File sources include loaded `AGENTS.md` or its fallback, notes, memory, skill
+bodies and references, read files, and attachments. MCP sources list current
+schema counts and token estimates per server, plus resources, prompts, and tool
+results still present in the active conversation. A schema refresh changes the
+schema list; loaded content remains until projection removes it.
+
+Estimates use the request builder's character-based approximation (roughly four
+characters per token, plus message and image overhead). They are not model
+tokenizer counts. When available, the last request's provider-reported input
+and output usage is shown separately; it is not the cumulative run total.
+The report does not expand content, contact providers or MCP servers, or modify
+the conversation.
 
 ## Compaction
 

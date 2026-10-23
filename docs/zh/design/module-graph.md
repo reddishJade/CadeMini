@@ -56,6 +56,7 @@ flowchart LR
   app_config --> coding_security_rules
   app_context_report --> ai_models
   app_context_report --> ai_types
+  app_context_report --> coding_mcp_tools
   app_context_report --> coding_security_policy
   app_context_report --> harness_request
   app_context_report --> harness_session_projection
