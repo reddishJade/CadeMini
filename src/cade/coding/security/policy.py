@@ -27,13 +27,15 @@ _PLAN_TOOLS = frozenset(
         "read",
         "write",
         "edit",
-        "glob",
+        "find",
+        "ls",
         "grep",
         "history",
         "skill",
         "delegate",
         "subagent",
         "bash",
+        "powershell",
     }
 )
 
@@ -88,9 +90,9 @@ class WorkspacePolicy:
         path: Path | None = None
         workdir = self.workspace
         try:
-            if name in {"read", "write", "edit"}:
-                path = resolve_path(self.workspace, call.args.get("path"))
-            elif name == "bash":
+            if name in {"read", "write", "edit", "grep", "find", "ls"}:
+                path = resolve_path(self.workspace, call.args.get("path", "."))
+            elif name in {"bash", "powershell"}:
                 workdir = resolve_path(self.workspace, call.args.get("workdir", "."))
         except ValueError as exc:
             return PermissionCheck("deny", str(exc), scope)
@@ -117,7 +119,7 @@ class WorkspacePolicy:
         if path is not None and self._protected(path):
             return PermissionCheck("deny", f"Protected path: {path}", scope)
         sensitive_path = path is not None and self._sensitive(path)
-        if name == "bash" and (self.read_only or self.mode == "plan"):
+        if name in {"bash", "powershell"} and (self.read_only or self.mode == "plan"):
             if classify_command(_command(call)) != "read_only":
                 return PermissionCheck(
                     "deny",
@@ -129,7 +131,7 @@ class WorkspacePolicy:
                     "deny", "Write permissions cannot be requested in this mode.", scope
                 )
         additional: tuple[Path, ...] = ()
-        if name == "bash":
+        if name in {"bash", "powershell"}:
             raw_paths = call.args.get("additional_write_paths", [])
             if not isinstance(raw_paths, list) or any(
                 not isinstance(raw, str) for raw in raw_paths
@@ -160,7 +162,7 @@ class WorkspacePolicy:
             return PermissionCheck(
                 "deny", "An explicit permission rule denies this action.", scope
             )
-        if name == "bash":
+        if name in {"bash", "powershell"}:
             sensitive_reason = sensitive_command_reason(_command(call), workdir)
             if sensitive_reason:
                 return PermissionCheck("ask", sensitive_reason, scope)
@@ -216,7 +218,7 @@ class WorkspacePolicy:
                 "MCP tools may affect resources outside the local sandbox.",
                 scope,
             )
-        if name == "bash":
+        if name in {"bash", "powershell"}:
             reason = risk_reason(_command(call), self.workspace, workdir=workdir)
             if reason:
                 return PermissionCheck("ask", reason, scope)
