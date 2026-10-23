@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import AsyncIterator, Iterator
 from contextlib import ExitStack
 from pathlib import Path
@@ -15,6 +16,9 @@ from cade.app.bootstrap import create_session
 from cade.app.config import CadeConfig
 from cade.app.context_report import collect_context_usage
 from cade.app.session import ApplicationSession
+from cade.coding.mcp.client import McpClient
+from cade.coding.mcp.tools import McpTool
+from cade.coding.mcp_config import McpServerConfig
 from cade.coding.security.policy import filter_tools
 from cade.harness.request import build
 from cade.harness.session.projection import project
@@ -89,8 +93,12 @@ def test_context_summarizes_actual_sources_without_dumping_content(
         "NOTE.md",
         "MEMORY.md",
     }
-    assert "Context files" in report
-    assert "Skill catalog · 1 available" in report
+    assert "Loaded files" in report
+    assert "Project instructions:" in report
+    assert "Working note:" in report
+    assert "Memory:" in report
+    assert "Active goal:" in report
+    assert "Skill catalog (1 available)" in report
     assert "Skill files" not in report
     assert "Finish the review" not in report
     assert "Execution mode" not in report
@@ -111,7 +119,7 @@ def test_context_does_not_list_unloaded_workspace_files(
     usage = collect_context_usage(session)
     report = render_context_usage(usage)
     assert usage.files == ()
-    assert "Context files" not in report
+    assert "Loaded files" not in report
     assert "Unused fallback" not in report
 
 
@@ -133,7 +141,7 @@ async def test_context_shows_skill_body_reference_and_attached_file(
         "manual/SKILL.md",
         "references/guide.md",
     }
-    assert "Skill files · /skill" in report
+    assert "Skill files" in report
     assert "guide.md:" in report
     assert "input.txt:" in report
     assert "Exact workflow" not in report
@@ -215,7 +223,86 @@ def test_message_categories_do_not_double_count_tool_calls(
     categories = {category.name: category.tokens for category in usage.categories}
     assert categories["User messages"] == 5
     assert categories["Agent responses"] == 5
-    assert categories["Tool calls"] == 14
+    assert categories["Tool calls"] == 8
+    assert categories["Tool results"] == 6
     assert any(file.path == session.workspace / "a" for file in usage.files)
-    assert categories["Subagents"] > 0
+    assert categories["Built-in tools"] > 0
+    assert "Subagents" not in categories
     assert sum(categories.values()) == usage.used
+
+
+def test_mcp_schemas_and_loaded_resources_follow_the_active_context(
+    session: ApplicationSession,
+) -> None:
+    connection = McpClient(McpServerConfig(command=sys.executable), session.workspace)
+    resource = McpTool(
+        "docs", {"name": "resources_read"}, connection, operation="resources/read"
+    )
+    search = McpTool("docs", {"name": "search"}, connection)
+    assert session.mcp is not None
+    session.mcp.tools = (resource, search)
+    session.log.append("user", {"text": "Read the handbook"})
+    session.log.append(
+        "assistant",
+        {
+            "blocks": [
+                {
+                    "type": "tool_call",
+                    "id": "m1",
+                    "name": resource.name,
+                    "args": {"uri": "docs://handbook"},
+                }
+            ]
+        },
+    )
+    session.log.append(
+        "tool_result",
+        {
+            "call_id": "m1",
+            "content": "Handbook instructions",
+            "status": "ok",
+            "artifact": {
+                "tool_metadata": {"mcp_server": "docs", "mcp_tool": "resources_read"}
+            },
+        },
+    )
+    before = session.log.path.read_bytes()
+    usage = collect_context_usage(session)
+    report = render_context_usage(usage)
+    assert usage.mcp_servers[0].schemas == 2
+    assert "MCP tools:" in report
+    assert "docs: 2 schemas" in report
+    assert "docs://handbook" in report
+    assert usage.mcp_content[0].server == "docs"
+    assert sum(c.tokens for c in usage.categories) == usage.used
+    assert not connection.connected
+    assert session.log.path.read_bytes() == before
+    session.mcp.tools = (search,)
+    changed = collect_context_usage(session)
+    assert changed.mcp_servers[0].schemas == 1
+    assert changed.mcp_content == usage.mcp_content
+    session.log.append("user", {"text": "Continue"})
+    reset_window(session.log, handoff="Use the previous conclusion")
+    assert collect_context_usage(session).mcp_content == ()
+
+
+def test_last_request_usage_is_not_the_run_total(session: ApplicationSession) -> None:
+    session.log.append("user", {"text": "hello"})
+    for input_tokens, output_tokens in ((100, 20), (200, 30)):
+        session.log.append(
+            "assistant",
+            {
+                "blocks": [{"type": "text", "text": "answer"}],
+                "model": "fake",
+                "provider": "fake",
+                "usage": {"input": input_tokens, "output": output_tokens},
+            },
+        )
+    session.last_usage = {"input": 300, "output": 50}
+    usage = collect_context_usage(session)
+    assert usage.last_request == (200, 30)
+    report = render_context_usage(usage)
+    assert "Last request (provider): 200 input · 30 output" in report
+    assert "300 input" not in report
+    assert "Input remaining:" in report
+    assert usage.input_budget == usage.window - 16384 - 1024

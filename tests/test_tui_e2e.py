@@ -337,24 +337,25 @@ def test_context_shows_compact_categories_and_loaded_skill_files(
         original = term.service.log.path.read_bytes()
         await term.send("/context")
         report = term.tui._state.log[-1].text
-        assert "└ Context Usage" in report
-        assert "Token usage by category" in report
+        assert "Context · GPT-5.5" in report
+        assert "Estimated input:" in report
+        assert "Input sources (estimated)" in report
         assert "User messages:" in report
-        assert "System tools:" in report
-        assert "Skills:" in report
-        assert "Free space:" in report
-        assert "Skill catalog · 1 available" in report
+        assert "Built-in tools:" in report
+        assert "Input remaining:" in report
+        assert "Skill catalog (1 available)" in report
         assert "hello, i guess?" not in report
         assert "E2E answer" not in report
         assert "Tool definitions" not in report
         assert "Skill files" not in report
-        assert report.count("□") == 1
+        assert "□" not in report
+        assert "Subagents:" not in report
         assert len(report.splitlines()) <= 18
         assert term.service.log.path.read_bytes() == original
         await term.send("$e2e-skill check this")
         await term.send("/context")
         report = term.tui._state.log[-1].text
-        assert "Skill files · /skill" in report
+        assert "Skill files" in report
         assert "SKILL.md:" in report
         assert "E2E skill body" not in report
         assert len(term.service.provider.requests) == 2
