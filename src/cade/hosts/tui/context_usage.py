@@ -19,37 +19,58 @@ def render_context_usage(usage: ContextUsage) -> str:
     """仅展示分类和来源，不展开提示词、工具定义或对话正文。"""
     percentage = usage.used / usage.window * 100
     lines = [
-        "└ Context Usage",
-        f"  {usage.model} · ~{_tokens(usage.used)}/{_tokens(usage.window)} tokens ({percentage:.1f}%)",
-        "",
-        "  Token usage by category · local estimates",
+        f"Context · {usage.model}",
+        f"  Estimated input: ~{_tokens(usage.used)} / {_tokens(usage.window)} tokens ({percentage:.1f}%)",
     ]
-    for category in usage.categories:
-        symbol = (
-            "◉"
-            if category.name in {"User messages", "Agent responses", "Tool calls"}
-            else "⛁"
-        )
+    if usage.last_request is not None:
+        input_tokens, output_tokens = usage.last_request
         lines.append(
-            f"  {symbol} {category.name}: {_tokens(category.tokens)} tokens "
+            f"  Last request (provider): {_tokens(input_tokens)} input · {_tokens(output_tokens)} output"
+        )
+    lines.extend(
+        [
+            "",
+            "  Input sources (estimated)",
+        ]
+    )
+    for category in usage.categories:
+        if category.tokens == 0 and category.name not in {
+            "User messages",
+            "Agent responses",
+            "Tool calls",
+        }:
+            continue
+        label = category.name
+        if label == "Skill catalog":
+            label += f" ({usage.catalog_count} available)"
+        lines.append(
+            f"    {label}: ~{_tokens(category.tokens)} tokens "
             f"({category.tokens / usage.window * 100:.1f}%)"
         )
-    free = max(0, usage.window - usage.used)
-    lines.append(
-        f"  □ Free space: {_tokens(free)} tokens ({free / usage.window * 100:.1f}%)"
-    )
-    if usage.catalog_count:
-        lines.extend(("", f"  Skill catalog · {usage.catalog_count} available"))
+    remaining = max(0, usage.input_budget - usage.used)
+    lines.extend(("", f"  Input remaining: ~{_tokens(remaining)} tokens"))
     for kind, heading in (
-        ("context", "Context files"),
-        ("skill", "Skill files · /skill"),
+        ("context", "Loaded files"),
+        ("skill", "Skill files"),
         ("attachment", "Attached files"),
     ):
         files = [file for file in usage.files if file.kind == kind]
         if files:
             lines.extend(("", f"  {heading}"))
             lines.extend(
-                f"   └ {compact_path(file.path)}: {_tokens(file.tokens)} tokens"
+                f"    {compact_path(file.path)}: ~{_tokens(file.tokens)} tokens"
                 for file in files
             )
+    if usage.mcp_servers:
+        lines.extend(("", "  MCP schemas"))
+        lines.extend(
+            f"    {server.server}: {server.schemas} schemas · ~{_tokens(server.tokens)} tokens"
+            for server in usage.mcp_servers
+        )
+    if usage.mcp_content:
+        lines.extend(("", "  MCP content"))
+        lines.extend(
+            f"    {content.server} / {content.source}: ~{_tokens(content.tokens)} tokens"
+            for content in usage.mcp_content
+        )
     return "\n".join(lines)
