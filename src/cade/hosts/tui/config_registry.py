@@ -34,7 +34,7 @@ class SettingSpec:
 
     @property
     def is_menu(self) -> bool:
-        return self.kind is SettingKind.MENU
+        return self.kind in {SettingKind.MENU, SettingKind.BOOL}
 
 
 @dataclass(frozen=True)
@@ -179,6 +179,8 @@ def setting_menu(
     env_files: tuple[Path, ...] = (),
 ) -> list[MenuItem]:
     del env_files
+    if spec.kind is SettingKind.BOOL:
+        return [MenuItem("On", "on"), MenuItem("Off", "off")]
     if spec.key == "provider":
         return [
             MenuItem(provider, provider, label)
