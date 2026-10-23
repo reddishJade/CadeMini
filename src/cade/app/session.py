@@ -18,7 +18,7 @@ from cade.ai.models import (
     get_models,
 )
 from cade.app.commands import COMMANDS, command_help
-from cade.app.context_report import format_context_usage
+from cade.app.context_report import ContextUsage, collect_context_usage
 from cade.app.provider import ProviderConfig, build_provider
 from cade.app.settings import AuthenticationService, SettingsService
 from cade.coding.goal import GoalStore
@@ -80,6 +80,7 @@ class CommandResult:
     side_question: str | None = None
     login_provider: str | None = None
     config_field: str | None = None
+    context_usage: ContextUsage | None = None
 
 
 def _size(value: str) -> int:
@@ -810,7 +811,7 @@ class ApplicationSession:
             self.select_model(self.provider_config.model, levels[arg])
             return CommandResult((f"Thinking level: {arg}",))
         if command == "/context":
-            return CommandResult(format_context_usage(self))
+            return CommandResult(context_usage=collect_context_usage(self))
         if command == "/context-window":
             if not arg:
                 return CommandResult((f"Window: {self.budget.context_window:,}",))

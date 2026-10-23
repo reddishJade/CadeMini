@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from cade.app.commands import COMMAND_INDEX, SPECS
 
 from .compat import CommandContext, SessionEntry
+from .context_usage import render_context_usage
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,8 @@ def handle_command(command: str, ctx: CommandContext) -> bool:
     ctx.changed_session = result.changed_session
     for line in result.lines:
         ctx.output.write(line)
+    if result.context_usage is not None:
+        ctx.output.write(render_context_usage(result.context_usage))
     if result.draft is not None:
         ctx.state.draft_input = result.draft
     if result.task is not None:

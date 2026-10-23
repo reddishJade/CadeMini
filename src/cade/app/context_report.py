@@ -1,18 +1,20 @@
-"""只读估算下一次模型请求的上下文用量。"""
+"""只读统计下一次请求的分类用量和实际文件来源。"""
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, replace
 from html import unescape
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
 
+from cade.ai.models import get_model
 from cade.ai.types import ToolDefinition
 from cade.coding.security.policy import filter_tools
 from cade.harness.request import estimate
 from cade.harness.session.projection import project
 from cade.harness.session.types import (
     AssistantMessage,
-    Message,
     SummaryMessage,
     SystemMessage,
     TextBlock,
@@ -24,160 +26,201 @@ from cade.harness.session.types import (
 if TYPE_CHECKING:
     from .session import ApplicationSession
 
-
-def _short(tokens: int) -> str:
-    if tokens >= 1_000_000:
-        return f"{tokens / 1_000_000:.1f}m"
-    if tokens >= 1_000:
-        return f"{tokens / 1_000:.1f}k"
-    return str(tokens)
-
-
-def _preview(text: str) -> str:
-    return " ".join(re.sub(r"<[^>]+>", "", text).split())[:120]
+_FILE_BLOCK = re.compile(
+    r"<(skill|file|project-instructions|working-note|memory)(?=[\s>])([^>]*)>"
+    r"(.*?)</\1>",
+    re.DOTALL,
+)
+_CATALOG = re.compile(
+    r"<skill-activation>.*?</skill-activation>|<available-skills>.*?</available-skills>",
+    re.DOTALL,
+)
 
 
-def _sources(text: str) -> list[str]:
-    """从实际请求文本提取来源，避免把磁盘文件误报为已加载。"""
-    labels = {
-        "project-instructions": "Project instructions",
-        "working-note": "Working note",
-        "memory": "Memory",
-        "file": "Attached file",
-        "skill": "Skill instructions",
+@dataclass(frozen=True)
+class TokenCategory:
+    name: str
+    tokens: int
+
+
+@dataclass(frozen=True)
+class ContextFile:
+    kind: Literal["context", "skill", "attachment"]
+    path: Path
+    tokens: int
+
+
+@dataclass(frozen=True)
+class ContextUsage:
+    model: str
+    used: int
+    window: int
+    categories: tuple[TokenCategory, ...]
+    files: tuple[ContextFile, ...]
+    catalog_count: int = 0
+
+
+def _attributes(text: str) -> dict[str, str]:
+    return {
+        key: unescape(value)
+        for key, _quote, value in re.findall(r"""([\w-]+)=(['"])(.*?)\2""", text)
     }
-    sources: list[str] = []
-    for tag, attributes in re.findall(
-        r"<(project-instructions|working-note|memory|file|skill)\b([^>]*)>", text
-    ):
-        values = re.findall(
-            r"""\b(?:source|path|name|root)=["'](.*?)["']""", attributes
-        )
-        if values:
-            sources.append(" · ".join((labels[tag], *(unescape(v) for v in values))))
-    if "<available-skills>" in text:
-        sources.extend(
-            f"Skill catalog · {unescape(name)}"
-            for name in re.findall(r"<name>(.*?)</name>", text, re.DOTALL)
-        )
-    return list(dict.fromkeys(sources))
 
 
-def _message_text(message: Message) -> str:
-    if isinstance(message, AssistantMessage):
-        return "\n".join(
-            block.text for block in message.blocks if isinstance(block, TextBlock)
-        )
-    if isinstance(message, ToolResultMessage):
-        return message.content
-    return message.text
+def _without_skills(text: str) -> str:
+    return _FILE_BLOCK.sub(
+        lambda match: (
+            "" if match[1] == "skill" and "name" in _attributes(match[2]) else match[0]
+        ),
+        _CATALOG.sub("", text),
+    )
 
 
-def _call_label(call: ToolCallBlock) -> str:
-    if call.name == "skill":
-        reference = call.args.get("reference")
-        suffix = f" · reference: {reference}" if reference is not None else ""
-        return f"skill · {call.args.get('name', '')}{suffix}"
-    return f"{call.name} · {call.id}"
+def _file_sources(text: str, workspace: Path) -> list[ContextFile]:
+    sources: list[ContextFile] = []
+    for match in _FILE_BLOCK.finditer(text):
+        tag, raw_attributes, _body = match.groups()
+        attributes = _attributes(raw_attributes)
+        tokens = estimate((SystemMessage(text=match[0]),)) - 4
+        if tag == "skill" and "root" in attributes:
+            sources.append(
+                ContextFile("skill", Path(attributes["root"]) / "SKILL.md", tokens)
+            )
+        elif tag == "file" and "path" in attributes:
+            sources.append(
+                ContextFile("attachment", workspace / attributes["path"], tokens)
+            )
+        elif "source" in attributes:
+            sources.append(
+                ContextFile("context", workspace / attributes["source"], tokens)
+            )
+    return sources
 
 
-def format_context_usage(service: ApplicationSession) -> tuple[str, ...]:
-    """展示实际预算与明确标注的本地估算，不修改会话。"""
+def collect_context_usage(service: ApplicationSession) -> ContextUsage:
+    """按实际请求归类；技能正文不再重复计入用户消息或工具结果。"""
     messages = project(service.log.branch())
-    available_tools = filter_tools(service.tools, service.policy.mode)
-    definitions = tuple(
-        ToolDefinition(
-            name=tool.name,
-            description=tool.description,
-            parameters=tool.parameters,
-        )
-        for tool in available_tools
-    )
     context = service.request_context()
-    system = tuple(m for m in messages if isinstance(m, SystemMessage))
-    summaries = tuple(m for m in messages if isinstance(m, SummaryMessage))
-    working = tuple(
-        m for m in messages if isinstance(m, UserMessage | AssistantMessage)
+    definitions = tuple(
+        ToolDefinition(tool.name, tool.description, tool.parameters)
+        for tool in filter_tools(service.tools, service.policy.mode)
     )
-    evidence = tuple(m for m in messages if isinstance(m, ToolResultMessage))
-
-    fixed = estimate(system, tools=definitions, context=context)
-    durable = estimate(summaries)
-    working_tokens = estimate(working)
-    evidence_tokens = estimate(evidence)
-    total = estimate(messages, tools=definitions, context=context)
-    budget = service.budget
-    remaining = max(0, budget.input_budget - total)
-    percentage = 100 * total / budget.context_window
-    lines = [
+    system = tuple(m for m in messages if isinstance(m, SystemMessage))
+    system_tokens = estimate(system, context=tuple(_without_skills(p) for p in context))
+    counts: dict[str, int] = dict.fromkeys(
         (
-            f"Context Usage · {service.provider.model} · "
-            f"~{_short(total)}/{_short(budget.context_window)} ({percentage:.1f}%)"
+            "User messages",
+            "Agent responses",
+            "Tool calls",
+            "System prompt",
+            "System tools",
+            "Skills",
+            "Subagents",
         ),
-        "",
-        "Local estimates:",
-        f"  {'Fixed prefix':<19}{_short(fixed):>8} tokens",
-        f"  {'Durable state':<19}{_short(durable):>8} tokens",
-        f"  {'Working messages':<19}{_short(working_tokens):>8} tokens",
-        f"  {'Tool evidence':<19}{_short(evidence_tokens):>8} tokens",
-        f"Input budget: {_short(budget.input_budget)}",
-        f"Remaining input: {_short(remaining)}",
-        (
-            f"Output reserve: {_short(budget.output_reserve)}"
-            f" · Headroom: {_short(budget.headroom_tokens)}"
-        ),
-    ]
-    if service.last_usage:
-        last = service.last_usage
-        lines.append(
-            f"Last run · input {_short(last.get('input', 0))}"
-            f" · output {_short(last.get('output', 0))}"
-        )
-    lines.extend(("", "System prompt:"))
-    for message in system:
-        lines.append(
-            f"  ~{_short(estimate((message,)))} tokens · {_preview(message.text)}"
-        )
-    lines.extend(("", f"Request context · {len(context)} blocks:"))
-    for index, part in enumerate(context, 1):
-        tokens = estimate((), context=(part,))
-        lines.append(f"  {index}. ~{_short(tokens)} tokens · {_preview(part)}")
-        lines.extend(f"     {source}" for source in _sources(part))
-
-    lines.extend(("", f"Tool definitions · {len(definitions)}:"))
+        0,
+    )
+    counts["System prompt"] = system_tokens
+    counts["Skills"] = estimate(system, context=context) - system_tokens
     for definition in definitions:
-        tokens = estimate((), tools=(definition,))
-        lines.append(f"  {definition.name} · ~{_short(tokens)} tokens")
+        category = (
+            "Subagents"
+            if definition.name in {"subagent", "delegate"}
+            else "System tools"
+        )
+        counts[category] += estimate((), tools=(definition,))
 
     calls = {
-        block.id: _call_label(block)
+        block.id: block
         for message in messages
         if isinstance(message, AssistantMessage)
         for block in message.blocks
         if isinstance(block, ToolCallBlock)
     }
-    conversation = tuple(m for m in messages if not isinstance(m, SystemMessage))
-    lines.extend(("", f"Conversation · {len(conversation)} messages:"))
-    for index, message in enumerate(conversation, 1):
-        label = message.role
-        if isinstance(message, SummaryMessage):
-            label += f" · {message.kind}"
-        elif isinstance(message, ToolResultMessage):
-            label += f" · {calls.get(message.call_id, message.call_id)}"
-            if message.images:
-                label += f" · {len(message.images)} images"
-        elif isinstance(message, UserMessage) and message.source == "runtime":
-            label += " · runtime guidance"
-        text = _message_text(message)
-        tokens = estimate((message,))
-        lines.append(
-            f"  {index}. {label} · ~{_short(tokens)} tokens · {_preview(text)}"
-        )
-        if isinstance(message, AssistantMessage):
-            lines.extend(
-                f"     {_call_label(block)}"
-                for block in message.blocks
-                if isinstance(block, ToolCallBlock)
+    skill_paths = {skill.name: skill.file_path for skill in service.skills}
+    sources = [
+        source for part in context for source in _file_sources(part, service.workspace)
+    ]
+    for message in messages:
+        if isinstance(message, UserMessage):
+            remaining = estimate(
+                (message.model_copy(update={"text": _without_skills(message.text)}),)
             )
-        lines.extend(f"     {source}" for source in _sources(text))
-    return tuple(lines)
+            counts["User messages"] += remaining
+            counts["Skills"] += estimate((message,)) - remaining
+            sources.extend(_file_sources(message.text, service.workspace))
+        elif isinstance(message, AssistantMessage):
+            response = message.model_copy(
+                update={
+                    "blocks": tuple(
+                        b for b in message.blocks if isinstance(b, TextBlock)
+                    )
+                }
+            )
+            counts["Agent responses"] += estimate((response,))
+            for block in message.blocks:
+                if isinstance(block, ToolCallBlock):
+                    category = (
+                        "Subagents"
+                        if block.name in {"subagent", "delegate"}
+                        else "Tool calls"
+                    )
+                    counts[category] += (
+                        estimate((AssistantMessage(blocks=(block,)),)) - 4
+                    )
+        elif isinstance(message, ToolResultMessage):
+            call = calls.get(message.call_id)
+            category = "Tool calls"
+            if call is not None and call.name in {"subagent", "delegate"}:
+                category = "Subagents"
+            elif call is not None and call.name == "skill" and not message.is_error:
+                category = "Skills"
+                name, reference = call.args.get("name"), call.args.get("reference")
+                if (
+                    isinstance(name, str)
+                    and name in skill_paths
+                    and isinstance(reference, str)
+                ):
+                    path = skill_paths[name].parent / "references" / reference
+                    sources.append(ContextFile("skill", path, estimate((message,)) - 4))
+            elif call is not None and call.name == "read" and not message.is_error:
+                path = call.args.get("path")
+                if isinstance(path, str):
+                    sources.append(
+                        ContextFile(
+                            "context",
+                            service.workspace / path,
+                            estimate((message,)) - 4,
+                        )
+                    )
+            counts[category] += estimate((message,))
+            sources.extend(_file_sources(message.content, service.workspace))
+        elif isinstance(message, SummaryMessage):
+            counts["Context summaries"] = counts.get("Context summaries", 0) + estimate(
+                (message,)
+            )
+
+    files: dict[tuple[str, Path], ContextFile] = {}
+    for source in sources:
+        key = (source.kind, source.path)
+        previous = files.get(key)
+        files[key] = replace(
+            source, tokens=source.tokens + (previous.tokens if previous else 0)
+        )
+    model = get_model(service.provider_config.provider, service.provider.model)
+    model_name = model.name if model else service.provider.model
+    if effort := service.provider_config.reasoning_effort:
+        model_name += f" ({effort.capitalize()})"
+    return ContextUsage(
+        model=model_name,
+        used=estimate(messages, tools=definitions, context=context),
+        window=service.budget.context_window,
+        categories=tuple(
+            TokenCategory(name, tokens) for name, tokens in counts.items()
+        ),
+        files=tuple(files.values()),
+        catalog_count=sum(
+            len(re.findall(r"<name>.*?</name>", part, re.DOTALL))
+            for part in context
+            if "<available-skills>" in part
+        ),
+    )
