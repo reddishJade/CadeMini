@@ -65,14 +65,20 @@ class SubprocessShell:
         sandbox_violation: str | None = None
 
         def _drain() -> None:
+            last_update = 0.0
             if proc.stdout is None:
                 return
             try:
                 stdout = cast(BufferedReader, proc.stdout)
                 while raw := stdout.read1(8192):
                     progress = output_capture.append(raw)
-                    if on_progress and progress:
+                    if (
+                        on_progress
+                        and progress
+                        and time.monotonic() - last_update >= 0.1
+                    ):
                         on_progress(progress)
+                        last_update = time.monotonic()
             except (LookupError, OSError, RuntimeError, TypeError, ValueError):
                 logger.debug("error draining process output", exc_info=True)
 

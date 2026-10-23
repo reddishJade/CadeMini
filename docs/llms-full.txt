@@ -1332,7 +1332,6 @@ flowchart LR
   app_bootstrap --> coding_security_review
   app_bootstrap --> coding_skills_tools
   app_bootstrap --> coding_subagents
-  app_bootstrap --> coding_tools_native
   app_bootstrap --> coding_tools_question
   app_bootstrap --> coding_tools_registry
   app_bootstrap --> coding_tools_webfetch
@@ -1476,7 +1475,6 @@ flowchart LR
   coding_tools_base --> harness_tools
   coding_tools_bash --> coding_security_shell
   coding_tools_bash --> coding_tools_base
-  coding_tools_bash --> coding_tools_truncate
   coding_tools_bash --> coding_workspace_snapshots
   coding_tools_bash --> harness_execution_local_subprocess
   coding_tools_bash --> harness_execution_paths
@@ -1663,13 +1661,14 @@ navigation aid; when it disagrees with the tool schema, the schema wins.
 
 See [the behavior contract](../decisions/0015-tool-behavior-parity.md)
 for tool defaults and Cade integration. `read` returns file content without
-line-number prefixes and supports image attachments. Use `ls` for directories.
+line-number prefixes and supports image attachments. `offset` and `limit`
+are positive integers. Editing uses exact text matching; all edits target the
+original file and must be unique and disjoint. Use `ls` for directories.
 Shell `timeout` is in seconds and has no default. `bash` uses Bash on Windows;
 `powershell` uses PowerShell and is available only on Windows.
 
-`find` uses fd and `grep` uses ripgrep. Missing binaries are downloaded to
-`~/.cade/bin` unless `CADE_OFFLINE` is `1`, `true`, or `yes`, or network access
-is disabled. Searches exclude `.cade`, including snapshots and session logs.
+`find` uses fd and `grep` uses ripgrep. Install both on PATH. Cade reports
+missing programs without downloading binaries. Searches exclude `.cade`, including snapshots and session logs.
 
 ## Related
 
@@ -2694,7 +2693,7 @@ and sequential execution.
   `network=false` on every platform.
 
 Searches exclude `.cade`, including session logs and snapshot payloads.
-See the [tool catalog](design/tool-catalog.md) for upstream behavior and parameters.
+See the [tool catalog](design/tool-catalog.md) for parameters and limits.
 
 The workspace is the fixed project root, not the shell's current directory or
 an alias for the entire home directory. Reads can use external paths, except
@@ -3451,6 +3450,19 @@ bubblewrap (`sudo apt-get install bubblewrap` on Debian/Ubuntu) and a host that
 permits unprivileged user namespaces. Denied UID mappings are sandbox startup
 errors, not approval failures. CI uses Ubuntu 22.04 without disabling host
 security policies. macOS uses system `sandbox-exec`.
+File search requires fd and ripgrep on PATH. Install them before running tests:
+
+```bash
+# Debian or Ubuntu
+sudo apt-get install ripgrep fd-find
+# macOS
+brew install ripgrep fd
+# Windows (Scoop)
+scoop install ripgrep fd
+```
+
+Cade also recognizes Debian/Ubuntu's `fdfind` executable.
+
 Native sandbox tests run on Linux and macOS; Windows
 skips those tests and executes tools directly.
 

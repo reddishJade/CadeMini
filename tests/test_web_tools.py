@@ -31,15 +31,11 @@ from cade.harness.session.types import ToolCallBlock
         ),
     ],
 )
-async def test_webfetch_formats_and_cloudflare_retry(
-    format_name: str, expected: str
-) -> None:
+async def test_webfetch_formats(format_name: str, expected: str) -> None:
     requests: list[httpx.Request] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        if len(requests) == 1:
-            return httpx.Response(403, headers={"cf-mitigated": "challenge"})
         return httpx.Response(
             200,
             text="<h1>Hello</h1><p>world <strong>wide</strong></p><script>bad()</script>",
@@ -55,7 +51,8 @@ async def test_webfetch_formats_and_cloudflare_retry(
     )
     assert result.content == expected
     assert requests[0].url == httpx.URL("http://localhost/page")
-    assert requests[1].headers["user-agent"] == "opencode"
+    assert len(requests) == 1
+    assert requests[0].headers["user-agent"].startswith("Cade/")
 
 
 async def test_webfetch_permissions_sizes_and_cancellation(tmp_path: Path) -> None:

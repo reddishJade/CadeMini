@@ -1019,7 +1019,6 @@ flowchart LR
   app_bootstrap --> coding_security_review
   app_bootstrap --> coding_skills_tools
   app_bootstrap --> coding_subagents
-  app_bootstrap --> coding_tools_native
   app_bootstrap --> coding_tools_question
   app_bootstrap --> coding_tools_registry
   app_bootstrap --> coding_tools_webfetch
@@ -1163,7 +1162,6 @@ flowchart LR
   coding_tools_base --> harness_tools
   coding_tools_bash --> coding_security_shell
   coding_tools_bash --> coding_tools_base
-  coding_tools_bash --> coding_tools_truncate
   coding_tools_bash --> coding_workspace_snapshots
   coding_tools_bash --> harness_execution_local_subprocess
   coding_tools_bash --> harness_execution_paths
@@ -1345,12 +1343,13 @@ flowchart LR
 权威 JSON schema 内建于每个工具。这张表只用于导航；与工具 schema 不一致时，以 schema 为准。
 
 工具默认值和 Cade 集成见[行为契约](../../decisions/0015-tool-behavior-parity.md)。
-`read` 返回不带行号前缀的文件内容，并支持图片附件。列目录请用 `ls`。
+`read` 返回不带行号前缀的文件内容，并支持图片附件。`offset` 和 `limit` 必须为正整数。
+编辑只支持精确匹配，每个替换都基于原始文件，命中位置必须唯一且互不重叠。列目录请用 `ls`。
 Shell 的 `timeout` 单位是秒，没有默认超时。Windows 上的 `bash` 使用 Bash；
 `powershell` 使用 PowerShell，仅支持 Windows。
 
-`find` 使用 fd，`grep` 使用 ripgrep。缺少的程序会下载到 `~/.cade/bin`。
-`CADE_OFFLINE` 为 `1`、`true` 或 `yes`，或网络关闭时，不下载。
+`find` 使用 fd，`grep` 使用 ripgrep。请将这两个程序安装到 PATH。
+Cade 会报告缺少的程序，不会自动下载。
 搜索排除 `.cade`，包括其中的快照和会话日志。
 
 ## 相关页面
@@ -2786,6 +2785,10 @@ $env:UV_CACHE_DIR = "$PWD\.uv-cache"
 ## 依赖管理
 
 使用 `uv add PACKAGE` 添加运行时依赖，使用 `uv add --dev PACKAGE` 添加开发工具，使用 `uv remove PACKAGE` 删除依赖。让 uv 生成版本要求并更新 `uv.lock`，不要凭感觉编写版本范围或手动修改依赖版本。只有明确的兼容性要求才能作为额外版本约束的依据，并须记录原因。
+
+## 搜索程序
+
+文件搜索需要在 PATH 中安装 fd 和 ripgrep。Debian/Ubuntu 使用 `sudo apt-get install ripgrep fd-find`，macOS 使用 `brew install ripgrep fd`，Windows（Scoop）使用 `scoop install ripgrep fd`。Cade 也识别 Debian/Ubuntu 的 `fdfind` 命令。
 
 # 验证指南
 

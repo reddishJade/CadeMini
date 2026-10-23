@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
-import json
 import os
 import shlex
 import sys
@@ -29,15 +28,10 @@ from cade.harness.request import Budget, build
 from cade.harness.session.log import SessionLog
 from cade.harness.session.projection import project
 from cade.harness.session.types import ToolCallBlock
-from cade.harness.tools import ToolContext, tool_context
-
-_CORPUS = json.loads(
-    (Path(__file__).parent / "fixtures/file_tools.json").read_text(encoding="utf-8")
-)
 
 
-async def test_shell_streams_output_and_exposes_current_session(tmp_path: Path) -> None:
-    script = "import os,time; print('started',flush=True); time.sleep(.5); print(os.environ['CADE_MODEL'],flush=True)"
+async def test_shell_streams_output_while_command_is_running(tmp_path: Path) -> None:
+    script = "import os,time; print('started',flush=True); time.sleep(.5); print('finished',flush=True)"
     command = (
         shlex.quote(sys.executable.replace("\\", "/")) + " -u -c " + shlex.quote(script)
     )
@@ -48,36 +42,32 @@ async def test_shell_streams_output_and_exposes_current_session(tmp_path: Path) 
         if isinstance(event, ToolUpdateEvent):
             updates.append(event)
 
-    with tool_context(
-        ToolContext("session", "session.jsonl", "provider", "model", "high")
-    ):
-        pending = asyncio.create_task(
-            execute_tool(
-                ToolCallBlock(id="b", name="bash", args={"command": command}),
-                {"bash": tool},
-                on_event=observe,
-                timeout_seconds=0.01,
-            )
+    pending = asyncio.create_task(
+        execute_tool(
+            ToolCallBlock(id="b", name="bash", args={"command": command}),
+            {"bash": tool},
+            on_event=observe,
+            timeout_seconds=0.01,
         )
-        async with asyncio.timeout(5):
-            while not any("started" in event.content for event in updates):
-                await asyncio.sleep(0.01)
-        assert not pending.done()
-        result = await pending
+    )
+    async with asyncio.timeout(5):
+        while not any("started" in event.content for event in updates):
+            await asyncio.sleep(0.01)
+    assert not pending.done()
+    result = await pending
     assert not result.result.is_error
-    assert result.result.content == f"started{os.linesep}model{os.linesep}"
+    assert result.result.content == f"started{os.linesep}finished{os.linesep}"
 
 
-@pytest.mark.parametrize("case", _CORPUS["edit"])
-def test_edit_reference_results(case: dict[str, Any]) -> None:
-    edits = [Edit(item["oldText"], item["newText"]) for item in case["edits"]]
-    if "error" in case["expected"]:
-        with pytest.raises(ValueError) as failure:
-            apply_edits(case["text"], edits, "file.txt")
-        assert str(failure.value) == case["expected"]["error"]
-    else:
-        after = apply_edits(case["text"], edits, "file.txt")
-        assert after == case["expected"]["newContent"]
+def test_edits_match_original_content_and_report_ambiguous_text() -> None:
+    assert (
+        apply_edits("one two", [Edit("one", "two"), Edit("two", "three")], "file.txt")
+        == "two three"
+    )
+    with pytest.raises(ValueError, match="Found 2 occurrences"):
+        apply_edits("x x", [Edit("x", "y")], "file.txt")
+    with pytest.raises(ValueError, match="Could not find"):
+        apply_edits("value = “old”", [Edit('value = "old"', "new")], "file.txt")
 
 
 def test_edit_keeps_bom_crlf_and_unchanged_unicode(tmp_path: Path) -> None:
@@ -141,15 +131,17 @@ def test_edit_can_replace_a_single_trailing_space() -> None:
         {"edits": '[{"oldText":"old","newText":"new"}]'},
     ],
 )
-async def test_edit_argument_preparation(tmp_path: Path, args: dict[str, Any]) -> None:
+async def test_invalid_edit_argument_shapes_are_rejected(
+    tmp_path: Path, args: dict[str, Any]
+) -> None:
     (tmp_path / "file.txt").write_bytes(b"old")
     tool = EditTool(tmp_path)
     result = await execute_tool(
         ToolCallBlock(id="e", name="edit", args={"path": "file.txt", **args}),
         {"edit": tool},
     )
-    assert not result.result.is_error
-    assert (tmp_path / "file.txt").read_bytes() == b"new"
+    assert result.result.is_error
+    assert (tmp_path / "file.txt").read_bytes() == b"old"
 
 
 async def test_strict_responses_optional_nulls_use_tool_defaults(
@@ -174,27 +166,22 @@ def test_read_paging_long_lines_and_utf8_limits(tmp_path: Path) -> None:
     path.write_bytes(b"a\n" * 2001)
     tool = ReadTool(tmp_path)
     result = tool.run({"path": "file.txt"})
-    assert (
-        result.content
-        == "\n".join(["a"] * 2000)
-        + "\n\n[Showing lines 1-2000 of 2002. Use offset=2001 to continue.]"
-    )
+    assert result.content.startswith("a\n" * 2000)
+    assert "offset=2001" in result.content
     assert tool.run({"path": "file.txt", "offset": 2001}).content == "a\n"
     path.write_bytes(("中" * 20000).encode())
     result = tool.run({"path": "file.txt"})
-    assert (
-        result.content
-        == "[Line 1 is 58.6KB, exceeds 50.0KB limit. Use bash: sed -n '1p' file.txt | head -c 51200]"
-    )
+    shown = result.content.split("\n\n[")[0]
+    assert len(shown.encode()) <= 50 * 1024
+    assert set(shown) == {"中"} and "Output truncated" in result.content
     path.write_bytes(b"")
     assert tool.run({"path": "file.txt"}).content == ""
 
 
-def test_tail_truncation_has_complete_utf8_characters() -> None:
-    result = truncate("head\n" + "中" * 100, tail=True, max_bytes=11)
+def test_text_truncation_keeps_complete_utf8_characters() -> None:
+    result = truncate("中" * 100, max_bytes=11)
     assert result.content == "中" * 3
-    assert result.lastLinePartial
-    assert result.outputBytes == 9
+    assert result.truncated
 
 
 @pytest.mark.parametrize("tool_name", ["find", "grep", "ls"])
@@ -321,3 +308,51 @@ def test_large_image_is_resized_and_attached(tmp_path: Path) -> None:
     with Image.open(io.BytesIO(data)) as resized:
         assert resized.size == (2000, 667)
         assert attachment["mimeType"] == "image/jpeg"
+
+
+@pytest.mark.parametrize("args", [{"offset": 0}, {"offset": 1.5}, {"limit": -1}])
+async def test_read_requires_positive_integer_paging(
+    tmp_path: Path, args: dict[str, Any]
+) -> None:
+    path = tmp_path / "file.txt"
+    path.write_text("text", encoding="utf8")
+    result = await execute_tool(
+        ToolCallBlock(id="r", name="read", args={"path": "file.txt", **args}),
+        {"read": ReadTool(tmp_path)},
+    )
+    assert result.result.is_error
+
+
+async def test_search_explains_missing_native_dependency(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("cade.coding.tools.native.shutil.which", lambda name: None)
+    tool = next(tool for tool in build_tools(tmp_path) if tool.name == "find")
+    result = await execute_tool(
+        ToolCallBlock(id="f", name="find", args={"pattern": "*"}), {"find": tool}
+    )
+    assert result.result.is_error
+    assert "fd is not installed" in result.result.content
+    assert "PATH" in result.result.content
+
+
+async def test_shell_retains_full_output_and_returns_a_bounded_tail(
+    tmp_path: Path,
+) -> None:
+    script = "print('BEGIN'); print('x' * 100000); print('END')"
+    command = (
+        shlex.quote(sys.executable.replace("\\", "/")) + " -c " + shlex.quote(script)
+    )
+    result = await BashTool(tmp_path).execute(
+        ToolCallBlock(id="b", name="bash", args={"command": command})
+    )
+    assert not result.is_error and result.metadata is not None
+    assert len(result.content.encode()) < 52 * 1024
+    assert "END" in result.content and "BEGIN" not in result.content
+    full = Path(result.metadata["fullOutputPath"])
+    try:
+        saved = full.read_text(encoding="utf8")
+        assert saved.startswith("BEGIN\n") and saved.endswith("END\n")
+        assert len(saved) > 100000
+    finally:
+        full.unlink()

@@ -12,7 +12,7 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
-from cade.coding.tools.native import ensure_tool
+from cade.coding.tools.native import find_tool
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.cancellation import CancellationToken
 from cade.harness.execution.local.sandbox import PlatformSandbox
@@ -64,11 +64,7 @@ class WorkspaceTool:
         if signal is not None and signal.cancelled:
             raise ValueError("Operation aborted")
         if self.name in {"find", "grep"}:
-            self.native_binary = await asyncio.to_thread(
-                ensure_tool,
-                "fd" if self.name == "find" else "rg",
-                allow_download=self.sandbox is None or self.sandbox.network,
-            )
+            self.native_binary = find_tool("fd" if self.name == "find" else "rg")
         cancel = threading.Event()
         operation = self.run
         if (

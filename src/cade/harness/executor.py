@@ -68,9 +68,6 @@ async def execute_tool(
         call = call.model_copy(
             update={"args": _optional_arguments(call.args, tool.parameters)}
         )
-    prepare = getattr(tool, "prepare_arguments", None)
-    if callable(prepare):
-        call = call.model_copy(update={"args": prepare(call.args)})
     authorization = await authorize(
         call, policy, approve, context=context, messages=messages
     )

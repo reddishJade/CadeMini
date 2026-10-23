@@ -20,13 +20,8 @@ class ToolDismissed(Exception):
 
 @dataclass(frozen=True)
 class ToolContext:
-    """当前会话元数据和工具进度回调，不写入工具参数。"""
+    """工具进度回调，不写入模型参数。"""
 
-    session_id: str = ""
-    session_file: str = ""
-    provider: str = ""
-    model: str = ""
-    reasoning_effort: str = ""
     on_update: Callable[[str], None] | None = None
 
 

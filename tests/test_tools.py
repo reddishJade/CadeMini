@@ -35,7 +35,8 @@ async def test_read_file_with_offset_and_limit(tmp_path: Path) -> None:
         _call("read", {"path": "a.txt", "offset": 2, "limit": 1})
     )
 
-    assert result.content == "two\n\n[2 more lines in file. Use offset=3 to continue.]"
+    assert result.content.startswith("two\n")
+    assert "offset=3" in result.content
 
 
 async def test_read_directory(tmp_path: Path) -> None:

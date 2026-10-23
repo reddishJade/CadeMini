@@ -28,7 +28,6 @@ from cade.coding.skills.tools import (
     render_skill_catalog,
 )
 from cade.coding.subagents import DelegateTool, SubagentRunner, SubagentTool
-from cade.coding.tools.native import bin_directory
 from cade.coding.tools.question import AnswerHandler, QuestionTool
 from cade.coding.tools.registry import build_tools
 from cade.coding.tools.webfetch import WebFetchTool
@@ -187,7 +186,6 @@ def create_session(
         protected_paths=(workspace / ".git" / "hooks", workspace / ".git" / "config"),
         hidden_paths=(workspace / ".cade", Path.home() / ".cade"),
         readable_paths=(
-            bin_directory(),
             *(skill.file_path.parent for skill in skill_registry.definitions()),
         ),
     )

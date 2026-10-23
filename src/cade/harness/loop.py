@@ -46,7 +46,7 @@ from cade.harness.session.types import (
     ToolCallBlock,
     ToolResultMessage,
 )
-from cade.harness.tools import Tool, ToolContext, tool_context
+from cade.harness.tools import Tool
 
 
 def _exclusive_session[**P](
@@ -57,19 +57,9 @@ def _exclusive_session[**P](
     @wraps(operation)
     async def locked(log: SessionLog, *args: P.args, **kwargs: P.kwargs) -> RunResult:
         lifecycle = cast(TurnLifecycle | None, kwargs.get("lifecycle"))
-        provider = cast(Provider, kwargs["provider"])
         with (
             log.run_lock(),
             lifecycle.record(log) if lifecycle is not None else nullcontext(),
-            tool_context(
-                ToolContext(
-                    log.session_id,
-                    str(log.path),
-                    provider.transport,
-                    provider.model,
-                    getattr(provider, "reasoning_effort", "") or "",
-                )
-            ),
         ):
             return await operation(log, *args, **kwargs)
 

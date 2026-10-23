@@ -19,7 +19,6 @@ from cade.coding.tools.base import (
     resolve_workspace_path,
     text_arg,
 )
-from cade.coding.tools.truncate import MAX_BYTES, format_size, truncate
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.execution.local.subprocess import (
     SubprocessShell,
@@ -31,7 +30,7 @@ from cade.harness.tools import ToolResult, current_tool_context
 
 class BashTool(WorkspaceTool):
     name = "bash"
-    description = "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds."
+    description = "Execute a bash command in the current working directory. Returns stdout and stderr. Output is limited to the last 50KB. If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds."
     manages_timeout = True
 
     def __init__(
@@ -70,40 +69,9 @@ class BashTool(WorkspaceTool):
             or timeout <= 0
         ):
             raise ValueError("Invalid timeout: must be a finite number of seconds")
-        if isinstance(timeout, int | float) and timeout * 1000 > 2_147_483_647:
-            raise ValueError("Invalid timeout: maximum is 2147483.647 seconds")
         timeout_ms = int(timeout * 1000) if isinstance(timeout, int | float) else None
         runtime = current_tool_context()
         environment = self.sandbox.environment() if self.sandbox else dict(os.environ)
-        variables = {
-            "CADE_SESSION_ID": runtime.session_id,
-            "CADE_SESSION_FILE": runtime.session_file,
-            "CADE_PROVIDER": runtime.provider,
-            "CADE_MODEL": runtime.model,
-            "CADE_REASONING_LEVEL": runtime.reasoning_effort,
-        }
-        for key, value in variables.items():
-            environment.pop(key, None)
-            if value:
-                environment[key] = value
-        rolling = ""
-        last_update = 0.0
-
-        def progress(chunk: str) -> None:
-            nonlocal rolling, last_update
-            if runtime.on_update is None:
-                return
-            rolling = (
-                (rolling + chunk)
-                .encode("utf-8")[-MAX_BYTES * 2 :]
-                .decode("utf-8", "ignore")
-            )
-            if time.monotonic() - last_update >= 0.1:
-                runtime.on_update(truncate(rolling, tail=True).content)
-                last_update = time.monotonic()
-
-        if runtime.on_update is not None:
-            runtime.on_update("")
         workdir = resolve_path(self.workspace, args.get("workdir", "."))
         _ensure_not_blocked(self.workspace, workdir)
         if not workdir.is_dir():
@@ -136,60 +104,28 @@ class BashTool(WorkspaceTool):
                 cwd=workdir,
                 timeout=timeout_ms,
                 env=environment,
-                on_progress=progress,
+                on_progress=runtime.on_update,
             )
         elapsed = round(time.monotonic() - started, 1)
-        if runtime.on_update is not None:
-            runtime.on_update(truncate(rolling, tail=True).content)
-        full_output = result.output
-        full_path = result.full_output_path
-        if full_path:
-            full_output = Path(full_path).read_bytes().decode("utf-8", "replace")
-        truncation = truncate(full_output, tail=True)
-        if truncation.truncated and full_path is None:
-            import tempfile
-
-            with tempfile.NamedTemporaryFile(
-                prefix=f"cade-{self.name}-", suffix=".log", delete=False
-            ) as stream:
-                stream.write(full_output.encode("utf-8"))
-                full_path = stream.name
-        output = truncation.content or "(no output)"
-        details: dict[str, Any] = {}
-        if truncation.truncated:
-            first = truncation.totalLines - truncation.outputLines + 1
-            last = truncation.totalLines
-            if truncation.lastLinePartial:
-                last_line = full_output.removesuffix("\n").rsplit("\n", 1)[-1]
-                output += f"\n\n[Showing last {format_size(truncation.outputBytes)} of line {last} (line is {format_size(len(last_line.encode()))}). Full output: {full_path}]"
-            else:
-                note = (
-                    f" ({format_size(MAX_BYTES)} limit)"
-                    if truncation.truncatedBy == "bytes"
-                    else ""
-                )
-                output += f"\n\n[Showing lines {first}-{last} of {last}{note}. Full output: {full_path}]"
-            details.update(truncation=truncation.record(), fullOutputPath=full_path)
+        output = result.output or "(no output)"
+        if result.full_output_path:
+            output += f"\n\n[Output truncated. Full output: {result.full_output_path}]"
+        details: dict[str, Any] = {
+            "exit_code": result.returncode,
+            "wall_time_seconds": elapsed,
+            "fullOutputPath": result.full_output_path,
+        }
         if result.timed_out:
-            output = (
-                output if truncation.content else ""
-            ) + f"\n\nCommand timed out after {timeout:g} seconds"
+            output += f"\n\nCommand timed out after {timeout:g} seconds"
         elif result.cancelled:
-            output = (output if truncation.content else "") + "\n\nCommand aborted"
+            output += "\n\nCommand aborted"
         elif result.returncode is None:
             output += "\n\nCommand terminated without an exit code"
         elif result.returncode != 0:
             output += f"\n\nCommand exited with code {result.returncode}"
-        details.update(exit_code=result.returncode, wall_time_seconds=elapsed)
         if result.timed_out or result.cancelled:
-            raise ValueError(output.lstrip("\n"))
-        return ToolResult(
-            content=output.lstrip("\n")
-            if result.timed_out or result.cancelled
-            else output,
-            is_error=(result.returncode != 0 or result.timed_out or result.cancelled),
-            metadata=details,
-        )
+            raise ValueError(output)
+        return ToolResult(output, is_error=result.returncode != 0, metadata=details)
 
     def shell_argv(self, command: str) -> list[str]:
         executable = None

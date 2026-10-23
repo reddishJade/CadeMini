@@ -15,7 +15,7 @@
   `network=false` on every platform.
 
 Searches exclude `.cade`, including session logs and snapshot payloads.
-See the [tool catalog](design/tool-catalog.md) for upstream behavior and parameters.
+See the [tool catalog](design/tool-catalog.md) for parameters and limits.
 
 The workspace is the fixed project root, not the shell's current directory or
 an alias for the entire home directory. Reads can use external paths, except

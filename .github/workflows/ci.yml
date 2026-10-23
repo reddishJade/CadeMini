@@ -49,7 +49,7 @@ jobs:
           fi
       - name: Install and probe Linux sandbox
         run: |
-          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo apt-get update && sudo apt-get install -y bubblewrap ripgrep fd-find
           bwrap --ro-bind / / --dev /dev --unshare-pid --proc /proc \
             --die-with-parent -- /bin/true
       - name: Install check dependencies
@@ -121,6 +121,8 @@ jobs:
           enable-cache: true
       - name: Install check dependencies
         run: uv sync --locked --extra dev
+      - name: Install native search tools
+        run: brew install ripgrep fd
       - name: Check native Seatbelt execution and CLI integration
         run: |
           mkdir -p tmp test-results/ci

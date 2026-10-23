@@ -6,7 +6,9 @@ require the earlier Cade project.
 
 ## Install and start
 
-You need Python 3.12+ and [uv](https://docs.astral.sh/uv/). From this checkout:
+You need Python 3.12+, [uv](https://docs.astral.sh/uv/), fd, and ripgrep.
+Install fd and ripgrep on PATH; see the [development guide](docs/development.md#setup).
+From this checkout:
 
 ```bash
 uv sync --locked
