@@ -11,6 +11,7 @@ from typing import Any, ClassVar
 
 import pytest
 from openai.types.responses import ResponseFailedEvent
+from openai.types.responses.input_token_count_response import InputTokenCountResponse
 
 from cade.ai.events import (
     FinalMessage,
@@ -21,6 +22,7 @@ from cade.ai.events import (
 )
 from cade.ai.providers.responses import (
     ChatGPTResponsesProvider,
+    DeepSeekResponsesProvider,
     OpenAIResponsesProvider,
     ProviderRequestError,
     _format_openai_error,
@@ -72,9 +74,21 @@ _MESSAGES = [
 ]
 
 
+class _InputTokensBoundary:
+    def __init__(self) -> None:
+        self.requests: list[dict[str, Any]] = []
+
+    async def count(self, **params: Any) -> InputTokenCountResponse:
+        self.requests.append(params)
+        return InputTokenCountResponse(
+            object="response.input_tokens", input_tokens=12345
+        )
+
+
 class _ResponsesBoundary:
     def __init__(self) -> None:
         self.requests: list[dict[str, Any]] = []
+        self.input_tokens = _InputTokensBoundary()
 
     def create(self, **params: Any) -> list[dict[str, Any]]:
         self.requests.append(params)
@@ -100,6 +114,54 @@ class _ResponsesBoundary:
 class _InjectedClient:
     def __init__(self) -> None:
         self.responses = _ResponsesBoundary()
+
+
+@pytest.mark.parametrize(
+    "provider_type", [OpenAIResponsesProvider, ChatGPTResponsesProvider]
+)
+async def test_input_count_matches_the_inference_payload(
+    provider_type: type[OpenAIResponsesProvider],
+) -> None:
+    client = _InjectedClient()
+    provider = provider_type(
+        ProviderConfig(
+            api_key="test-key", model="gpt-5.6-luna", response_format=_RESPONSE_FORMAT
+        ),
+        client=client,
+    )
+    options = StreamOptions(
+        temperature=0.2, top_p=0.9, max_tokens=128, headers={"X-Fixture": "count"}
+    )
+    measured = await provider.count_input_tokens(_MESSAGES, [_TOOL], options)
+    assert measured == 12345
+    assert client.responses.requests == []
+    count_request = client.responses.input_tokens.requests[0]
+    assert "stream" not in count_request
+    assert "store" not in count_request
+    assert "max_output_tokens" not in count_request
+    events = [event async for event in provider.stream(_MESSAGES, [_TOOL], options)]
+    assert any(isinstance(event, UsageUpdate) for event in events)
+    inference = client.responses.requests[0]
+    for name in (
+        "model",
+        "input",
+        "instructions",
+        "tools",
+        "text",
+        "reasoning",
+        "extra_headers",
+    ):
+        assert count_request.get(name) == inference.get(name), name
+
+
+async def test_deepseek_does_not_call_an_undocumented_count_endpoint() -> None:
+    client = _InjectedClient()
+    provider = DeepSeekResponsesProvider(
+        ProviderConfig(api_key="test-key", model="deepseek-flash"), client=client
+    )
+    assert await provider.count_input_tokens(_MESSAGES, [_TOOL]) is None
+    assert client.responses.input_tokens.requests == []
+    assert client.responses.requests == []
 
 
 class _FailingResponsesBoundary:

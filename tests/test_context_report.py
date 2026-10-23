@@ -11,10 +11,11 @@ from typing import Any
 import pytest
 
 from cade.ai.events import FinalMessage, ProviderEvent
+from cade.ai.tokenization import TokenCounter
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.app.bootstrap import create_session
 from cade.app.config import CadeConfig
-from cade.app.context_report import collect_context_usage
+from cade.app.context_report import collect_context_usage, inspect_context_usage
 from cade.app.session import ApplicationSession
 from cade.coding.mcp.client import McpClient
 from cade.coding.mcp.tools import McpTool
@@ -306,3 +307,61 @@ def test_last_request_usage_is_not_the_run_total(session: ApplicationSession) ->
     assert "300 input" not in report
     assert "Input remaining:" in report
     assert usage.input_budget == usage.window - 16384 - 1024
+
+
+@pytest.mark.parametrize("fails", [False, True])
+async def test_context_uses_provider_count_without_generating_or_changing_history(
+    session: ApplicationSession, fails: bool
+) -> None:
+    requests: list[list[dict[str, Any]]] = []
+
+    class CountingProvider(RecordingProvider):
+        async def count_input_tokens(
+            self,
+            messages: list[dict[str, Any]],
+            tools: list[ToolDefinition],
+            options: StreamOptions | None = None,
+        ) -> int | None:
+            requests.append(messages)
+            if fails:
+                raise RuntimeError("Count endpoint is unavailable")
+            return 7777
+
+    provider = CountingProvider()
+    session.provider = provider
+    (session.workspace / "AGENTS.md").write_text(
+        "Count these project instructions", encoding="utf-8"
+    )
+    before = session.log.path.read_bytes()
+    result = await session.command("/context")
+    usage = result.context_usage
+    assert usage is not None
+    assert "Count these project instructions" in str(requests[0][0]["content"])
+    assert session.log.path.read_bytes() == before
+    assert provider.requests == []
+    report = render_context_usage(usage)
+    if fails:
+        assert usage.measured_input is None
+        assert "Estimated input:" in report
+        assert "Provider count unavailable:" in report
+    else:
+        assert usage.measured_input == 7777
+        assert "Input (provider count): 7,777 / 100,000" in report
+        assert usage.count_error is None
+
+
+async def test_context_tokenizes_each_source_with_the_selected_model(
+    session: ApplicationSession,
+) -> None:
+    class TokenizingProvider(RecordingProvider):
+        async def load_token_counter(self) -> TokenCounter:
+            return TokenCounter("fixture model tokenizer", len)
+
+    session.provider = TokenizingProvider()
+    session.log.append("user", {"text": "你好"})
+    usage = await inspect_context_usage(session)
+    categories = {category.name: category.tokens for category in usage.categories}
+    assert categories["User messages"] == 6
+    assert usage.counter_label == "fixture model tokenizer"
+    assert sum(categories.values()) == usage.used
+    assert "fixture model tokenizer" in render_context_usage(usage)
