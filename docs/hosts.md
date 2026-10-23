@@ -42,6 +42,9 @@ command reference.
 The TUI requires both stdin and stdout to be terminals. In a pipe or a
 non-interactive process, use `-p TASK` or `exec TASK`.
 
+The transcript shows context budget failures and output token limits as stopped
+turns, including the provider error when available.
+
 ## One-shot
 
 With `-p` or `exec`, the CLI runs once and exits:
