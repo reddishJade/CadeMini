@@ -18,7 +18,7 @@ from cade.ai.models import (
     get_models,
 )
 from cade.app.commands import COMMANDS, command_help
-from cade.app.context_report import ContextUsage, collect_context_usage
+from cade.app.context_report import ContextUsage, inspect_context_usage
 from cade.app.provider import ProviderConfig, build_provider
 from cade.app.settings import AuthenticationService, SettingsService
 from cade.coding.goal import GoalStore
@@ -490,10 +490,12 @@ class ApplicationSession:
 
         return manual
 
-    def request_context(self) -> tuple[str, ...]:
+    def request_context(
+        self, entries: Sequence[LogEntry] | None = None
+    ) -> tuple[str, ...]:
         """返回下一次模型请求使用的上下文，包含压缩后恢复的技能。"""
         parts = list(self.context())
-        entries = self.log.branch()
+        entries = self.log.branch() if entries is None else entries
         visible = project(entries)
         for tool in self.base_tools:
             if isinstance(tool, LoadSkillTool):
@@ -811,7 +813,7 @@ class ApplicationSession:
             self.select_model(self.provider_config.model, levels[arg])
             return CommandResult((f"Thinking level: {arg}",))
         if command == "/context":
-            return CommandResult(context_usage=collect_context_usage(self))
+            return CommandResult(context_usage=await inspect_context_usage(self))
         if command == "/context-window":
             if not arg:
                 return CommandResult((f"Window: {self.budget.context_window:,}",))
