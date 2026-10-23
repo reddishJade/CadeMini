@@ -22,7 +22,6 @@ from cade.coding.security.review import AutoReviewer
 from cade.coding.subagents import (
     DelegateTool,
     SubagentRunner,
-    SubagentTool,
 )
 from cade.coding.tools.registry import build_tools
 from cade.harness.loop import run
@@ -63,7 +62,7 @@ def _text(text: str) -> list[ProviderEvent]:
     return [TextDelta(text), FinalMessage(text, "end_turn")]
 
 
-async def test_subagent_runs_in_its_own_session(tmp_path: Path) -> None:
+async def test_delegate_runs_one_task_in_its_own_session(tmp_path: Path) -> None:
     provider = FakeProvider([_text("child answer")])
     runner = SubagentRunner(
         workspace=tmp_path,
@@ -76,12 +75,12 @@ async def test_subagent_runs_in_its_own_session(tmp_path: Path) -> None:
         approve=lambda request: ApprovalResult(True, "Approved for test"),
         context=lambda: ("context",),
     )
-    tool = SubagentTool(runner=runner)
+    tool = DelegateTool(runner=runner)
 
     result = await tool.execute(
         ToolCallBlock(
             id="s1",
-            name="subagent",
+            name="delegate",
             args={"prompt": "child task"},
         )
     )
@@ -89,7 +88,8 @@ async def test_subagent_runs_in_its_own_session(tmp_path: Path) -> None:
     assert result.is_error is False
     assert "child answer" in result.content
     assert result.metadata is not None
-    session_id = result.metadata["session_id"]
+    assert result.metadata["tasks"] == 1
+    session_id = result.metadata["sessions"][0]
     assert isinstance(session_id, str)
     paths = list((tmp_path / "sessions" / "subagents").glob("session-*.jsonl"))
     assert len(paths) == 1
@@ -100,7 +100,7 @@ async def test_subagent_runs_in_its_own_session(tmp_path: Path) -> None:
         for entry in child.branch()
     )
     names = {definition.name for definition in provider.requests[0][1]}
-    assert "subagent" not in names
+    assert "delegate" not in names
 
 
 async def test_delegate_runs_multiple_child_tasks(tmp_path: Path) -> None:
@@ -176,7 +176,7 @@ async def test_child_reviewer_retains_parent_human_constraints(tmp_path: Path) -
                     [
                         ToolCall(
                             id="child",
-                            name="subagent",
+                            name="delegate",
                             input={"prompt": "Overwrite outside.txt"},
                         )
                     ]
@@ -219,7 +219,7 @@ async def test_child_reviewer_retains_parent_human_constraints(tmp_path: Path) -
         SessionLog.create(root / "sessions"),
         "Inspect only; never modify external files.",
         provider=provider,
-        tools=(*tools, SubagentTool(runner=runner)),
+        tools=(*tools, DelegateTool(runner=runner)),
         budget=Budget(100_000),
         policy=policy,
         approve=reviewer,

@@ -18,7 +18,6 @@
 | `skill` | `name` | 无；加载技能正文 | 允许 |
 | `memory` | `text` | 追加到 `MEMORY.md` | 允许；只读模式拒绝 |
 | `goal` | `action`、`objective` | 更新 `.cade/goal.json` | 允许 |
-| `subagent` | `prompt`、`description` | 创建子会话 | 允许；继承父级限制 |
 | `delegate` | `prompt` 或 `tasks`、`mode`、`description` | 创建一个或多个子会话 | 允许 |
 | `mcp__*` | 由服务器定义 | 远程副作用 | 询问；计划模式和只读模式拒绝 |
 

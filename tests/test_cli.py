@@ -949,7 +949,7 @@ def test_cli_rule_allows_write_without_approval(tmp_path: Path) -> None:
     assert (workspace / "docs" / "a.txt").read_text(encoding="utf-8") == "x"
 
 
-def test_cli_runs_a_subagent(tmp_path: Path) -> None:
+def test_cli_delegates_a_child_task(tmp_path: Path) -> None:
     sessions = tmp_path / "sessions"
     provider = FakeProvider(
         [
@@ -958,7 +958,7 @@ def test_cli_runs_a_subagent(tmp_path: Path) -> None:
                     [
                         ToolCall(
                             id="s1",
-                            name="subagent",
+                            name="delegate",
                             input={"prompt": "child task"},
                         )
                     ]
@@ -989,8 +989,11 @@ def test_cli_runs_a_subagent(tmp_path: Path) -> None:
     assert "child answer" in str(tool_result.data["content"])
     child_files = list((sessions / "subagents").glob("session-*.jsonl"))
     assert len(child_files) == 1
+    parent_names = {tool.name for tool in provider.requests[0][1]}
+    assert "delegate" in parent_names
+    assert "subagent" not in parent_names
     child_names = {tool.name for tool in provider.requests[1][1]}
-    assert "subagent" not in child_names
+    assert "delegate" not in child_names
 
 
 def test_cli_includes_memory(tmp_path: Path) -> None:

@@ -27,7 +27,7 @@ from cade.coding.skills.tools import (
     discover_skills,
     render_skill_catalog,
 )
-from cade.coding.subagents import DelegateTool, SubagentRunner, SubagentTool
+from cade.coding.subagents import DelegateTool, SubagentRunner
 from cade.coding.tools.question import AnswerHandler, QuestionTool
 from cade.coding.tools.registry import build_tools
 from cade.coding.tools.webfetch import WebFetchTool
@@ -279,7 +279,7 @@ def create_session(
         system_prompt=system_prompt,
         provider=selected,
         provider_config=provider_config,
-        tools=(*tools, SubagentTool(runner=runner), DelegateTool(runner=runner)),
+        tools=(*tools, DelegateTool(runner=runner)),
         skills=skill_registry.definitions(),
         mcp=mcp,
         workspace=workspace,

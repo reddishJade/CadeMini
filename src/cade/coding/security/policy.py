@@ -36,7 +36,6 @@ _PLAN_TOOLS = frozenset(
         "history",
         "skill",
         "delegate",
-        "subagent",
         "bash",
         "powershell",
     }

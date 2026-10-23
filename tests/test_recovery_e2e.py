@@ -169,7 +169,7 @@ def test_parent_turn_undo_includes_synchronous_subagent_edits(
                         [
                             ToolCall(
                                 id="delegate-call",
-                                name="subagent",
+                                name="delegate",
                                 input={"prompt": "Write child.txt"},
                             )
                         ]

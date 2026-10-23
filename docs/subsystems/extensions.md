@@ -24,7 +24,7 @@ that cannot start is reported and skipped.
 
 ## Subagents
 
-`SubagentTool` creates a child session under `<sessions>/subagents`. The child
+`SubagentRunner` creates a child session under `<sessions>/subagents`. The child
 gets the parent provider, budget, policy, approver, context, and base tools plus
 its own history. It cannot spawn another subagent and is limited to
 20 steps. The parent records only the call and summary. `DelegateTool` runs one

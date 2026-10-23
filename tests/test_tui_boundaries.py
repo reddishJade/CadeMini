@@ -106,7 +106,7 @@ def test_tui_child_inherits_selected_approver(
     provider = session.provider
     assert isinstance(provider, ScriptedProvider)
     provider.batches = [
-        [ToolCallEvent([ToolCall("child", "subagent", {"prompt": "write a file"})])],
+        [ToolCallEvent([ToolCall("child", "delegate", {"prompt": "write a file"})])],
         [
             ToolCallEvent(
                 [ToolCall("write", "write", {"path": "child.txt", "content": "ok"})]

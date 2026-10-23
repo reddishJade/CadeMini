@@ -2,7 +2,7 @@
 
 ## 子会话
 
-`subagent` 工具在独立会话中运行一个子任务，返回最终答案和子会话 ID：
+`delegate` 工具在独立会话中运行一个或多个子任务，返回最终答案和子会话 ID。单个任务使用 `prompt`：
 
 ```json
 {"prompt": "Find the failing test and report the file and line."}
@@ -12,13 +12,13 @@
 
 - 继承父级的 provider、预算、策略、审批者和请求上下文；
 - 获得基础工具，以及绑定到自己日志的 history 工具；
-- 不再获得 `subagent` 工具，因此不能递归；
+- 不再获得 `delegate` 工具，因此不能递归；
 - 最多使用 20 个步骤；
 - 把自己的会话写在 `<sessions>/subagents/` 下。
 
 父会话只记录工具调用和返回的摘要。详细证据留在子会话日志里。
 
-`delegate` 用同一个运行器处理一个或多个任务：
+多个任务使用 `tasks`，并可用 `mode` 收紧子级权限：
 
 ```json
 {"tasks": ["Inspect the parser", "Add a regression test"], "mode": "build"}

@@ -621,7 +621,7 @@ def test_model_and_effort_native_selectors(terminal_runner: Runner) -> None:
         await term.choose(low)
         assert term.service.provider_config.reasoning_effort == "low"
         for tool in term.service.base_tools:
-            if tool.name in {"subagent", "delegate"}:
+            if tool.name == "delegate":
                 assert tool.runner.provider is term.service.provider
                 assert tool.runner.budget is term.service.budget
         assert term.service.compactor.provider is term.service.provider

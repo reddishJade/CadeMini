@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from cade.coding.security.policy import Mode, WorkspacePolicy, filter_tools
-from cade.coding.tools.base import text_arg
 from cade.coding.tools.history import HistoryTool
 from cade.harness.cancellation import CancellationToken
 from cade.harness.lifecycle import TurnLifecycle
@@ -41,9 +40,7 @@ class SubagentRunner:
     ) -> None:
         self.workspace = workspace.resolve()
         self.provider = provider
-        self.tools = tuple(
-            tool for tool in tools if tool.name not in {"subagent", "delegate"}
-        )
+        self.tools = tuple(tool for tool in tools if tool.name != "delegate")
         self.budget = budget
         self.sessions_dir = sessions_dir
         self.system_prompt = system_prompt
@@ -134,42 +131,6 @@ class SubagentRunner:
         if mode is not None:
             raise ValueError("This policy does not support child mode overrides")
         return self.policy
-
-
-class SubagentTool:
-    """父代理通过 subagent 工具启动一个不递归的子会话。"""
-
-    name = "subagent"
-    description = (
-        "Run one independent subagent task in its own session and return its "
-        "final answer. Use it for a self-contained investigation or change."
-    )
-
-    def __init__(
-        self,
-        *,
-        runner: SubagentRunner,
-    ) -> None:
-        self.runner = runner
-        self.parameters: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "prompt": {"type": "string"},
-                "description": {"type": "string"},
-            },
-            "required": ["prompt"],
-            "additionalProperties": False,
-        }
-
-    async def execute(
-        self,
-        call: ToolCallBlock,
-        signal: CancellationToken | None = None,
-    ) -> ToolResult:
-        return await self.runner.run_task(
-            text_arg(call.args, "prompt"),
-            signal=signal,
-        )
 
 
 class DelegateTool:

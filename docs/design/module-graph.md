@@ -163,7 +163,6 @@ flowchart LR
   coding_skills_tools --> harness_session_types
   coding_skills_tools --> harness_tools
   coding_subagents --> coding_security_policy
-  coding_subagents --> coding_tools_base
   coding_subagents --> coding_tools_history
   coding_subagents --> harness_cancellation
   coding_subagents --> harness_lifecycle

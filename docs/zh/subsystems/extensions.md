@@ -16,7 +16,7 @@
 
 ## 子代理
 
-`SubagentTool` 在 `<sessions>/subagents` 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。`DelegateTool` 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。
+`SubagentRunner` 在 `<sessions>/subagents` 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。`DelegateTool` 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。
 
 ## 快照
 

@@ -1033,7 +1033,7 @@ implementation can be replaced without changing the session schema or the loop.
 | Seam | Contract | Implementations | Main consumers |
 | --- | --- | --- | --- |
 | Provider | `harness.provider.Provider` streaming events | OpenAI Responses, ChatGPT plan (SIWC), DeepSeek Responses | Loop, compaction, auto-review |
-| Tool | `harness.tools.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, subagent, MCP | Loop |
+| Tool | `harness.tools.Tool` name, description, parameters, execute | Workspace tools, history, skill, memory, goal, delegate, MCP | Loop |
 | Policy | `permissions.Policy.check` returns decision, reason, and scope | `WorkspacePolicy` | Loop, CLI shell |
 | Approval | `ApprovalRequest` to `ApprovalResult`, optionally async | `SessionApprover`, `AutoReviewer` | Authorization |
 | Execution scope | `ExecutionScope` and `PlatformSandbox.wrap` | bubblewrap, Seatbelt, Windows direct | Workspace tools |
@@ -1469,7 +1469,6 @@ flowchart LR
   coding_skills_tools --> harness_session_types
   coding_skills_tools --> harness_tools
   coding_subagents --> coding_security_policy
-  coding_subagents --> coding_tools_base
   coding_subagents --> coding_tools_history
   coding_subagents --> harness_cancellation
   coding_subagents --> harness_lifecycle
@@ -1661,7 +1660,6 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `skill` | `name` | None; loads a skill body | Allow |
 | `memory` | `text` | Appends to `MEMORY.md` | Allow; denied read-only |
 | `goal` | `action`, `objective` | Updates `.cade/goal.json` | Allow |
-| `subagent` | `prompt`, `description` | Creates a child session | Allow; inherits parent limits |
 | `delegate` | `prompt` or `tasks`, `mode`, `description` | Creates one or more child sessions | Allow |
 | `mcp__*` | Server-defined | Remote side effects | Ask; denied plan and read-only |
 
@@ -2702,7 +2700,7 @@ that cannot start is reported and skipped.
 
 ## Subagents
 
-`SubagentTool` creates a child session under `<sessions>/subagents`. The child
+`SubagentRunner` creates a child session under `<sessions>/subagents`. The child
 gets the parent provider, budget, policy, approver, context, and base tools plus
 its own history. It cannot spawn another subagent and is limited to
 20 steps. The parent records only the call and summary. `DelegateTool` runs one
@@ -3145,8 +3143,8 @@ does not fetch external URLs.
 
 ## Child sessions
 
-The `subagent` tool runs one child task in its own session and returns the final
-answer with the child session ID:
+The `delegate` tool runs one or more child tasks in separate sessions and
+returns their final answers with the child session IDs. Use `prompt` for one task:
 
 ```json
 {"prompt": "Find the failing test and report the file and line."}
@@ -3156,14 +3154,14 @@ The child:
 
 - gets the parent's provider, budget, policy, approver, and request context;
 - gets the base tools plus a history tool bound to its own log;
-- does not get another `subagent` tool, so it cannot recurse;
+- does not get the `delegate` tool, so it cannot recurse;
 - uses at most 20 steps;
 - writes its own session under `<sessions>/subagents/`.
 
 The parent records only the tool call and the returned summary. The child log
 keeps the detailed evidence.
 
-`delegate` uses the same runner for one or more tasks:
+Use `tasks` for multiple tasks and `mode` to restrict child permissions:
 
 ```json
 {"tasks": ["Inspect the parser", "Add a regression test"], "mode": "build"}

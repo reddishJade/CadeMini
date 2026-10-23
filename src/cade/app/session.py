@@ -28,7 +28,7 @@ from cade.coding.security.review import AutoReviewer
 from cade.coding.skills.context import restore_skill_context
 from cade.coding.skills.models import SkillDef
 from cade.coding.skills.tools import LoadSkillTool
-from cade.coding.subagents import DelegateTool, SubagentTool
+from cade.coding.subagents import DelegateTool
 from cade.coding.tools.base import resolve_workspace_path
 from cade.coding.tools.history import HistoryTool
 from cade.coding.tools.question import QuestionTool
@@ -440,7 +440,7 @@ class ApplicationSession:
         if isinstance(self.automatic_approver, AutoReviewer):
             self.automatic_approver.provider = provider
         for tool in self.base_tools:
-            if isinstance(tool, (SubagentTool, DelegateTool)):
+            if isinstance(tool, DelegateTool):
                 tool.runner.provider = provider
                 tool.runner.budget = budget
 
@@ -521,9 +521,7 @@ class ApplicationSession:
 
         selected_approver = self._select_approver(approve, approver)
         runners = {
-            tool.runner
-            for tool in self.base_tools
-            if isinstance(tool, (SubagentTool, DelegateTool))
+            tool.runner for tool in self.base_tools if isinstance(tool, DelegateTool)
         }
         previous_approvers = {runner: runner.approve for runner in runners}
         for runner in runners:

@@ -22,7 +22,7 @@ from cade.app.bootstrap import create_session
 from cade.app.config import CadeConfig
 from cade.app.provider import ProviderConfig
 from cade.coding.security.review import AutoReviewer
-from cade.coding.subagents import DelegateTool, SubagentTool
+from cade.coding.subagents import DelegateTool
 from cade.harness.cancellation import CancellationToken
 from cade.harness.execution.scope import ExecutionScope, current_scope
 from cade.harness.permissions import PermissionCheck
@@ -154,9 +154,7 @@ def test_model_update_reaches_all_consumers(
         assert service.budget.context_window == 200_000
         assert service.context_window_explicit
         runners = {
-            tool.runner
-            for tool in service.base_tools
-            if isinstance(tool, (SubagentTool, DelegateTool))
+            tool.runner for tool in service.base_tools if isinstance(tool, DelegateTool)
         }
         assert runners
         assert all(
@@ -216,5 +214,5 @@ def test_failed_model_selection_keeps_active_configuration(
             tool.runner.provider is service.provider
             and tool.runner.budget == service.budget
             for tool in service.base_tools
-            if isinstance(tool, (SubagentTool, DelegateTool))
+            if isinstance(tool, DelegateTool)
         )

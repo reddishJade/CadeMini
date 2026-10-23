@@ -2,8 +2,8 @@
 
 ## Child sessions
 
-The `subagent` tool runs one child task in its own session and returns the final
-answer with the child session ID:
+The `delegate` tool runs one or more child tasks in separate sessions and
+returns their final answers with the child session IDs. Use `prompt` for one task:
 
 ```json
 {"prompt": "Find the failing test and report the file and line."}
@@ -13,14 +13,14 @@ The child:
 
 - gets the parent's provider, budget, policy, approver, and request context;
 - gets the base tools plus a history tool bound to its own log;
-- does not get another `subagent` tool, so it cannot recurse;
+- does not get the `delegate` tool, so it cannot recurse;
 - uses at most 20 steps;
 - writes its own session under `<sessions>/subagents/`.
 
 The parent records only the tool call and the returned summary. The child log
 keeps the detailed evidence.
 
-`delegate` uses the same runner for one or more tasks:
+Use `tasks` for multiple tasks and `mode` to restrict child permissions:
 
 ```json
 {"tasks": ["Inspect the parser", "Add a regression test"], "mode": "build"}
