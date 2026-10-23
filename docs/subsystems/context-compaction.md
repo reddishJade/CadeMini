@@ -13,13 +13,17 @@ The system message is the base prompt plus request-only context:
 The request audit records this context and the normalized request; it does not
 turn the text into conversation facts.
 
-`/context` inventories the next request using the same context source as the
-runtime, including skill instructions restored after compaction or a window
-reset. It lists each context block, available tool definition, and projected
-message with a local token estimate and a short text preview. Source labels
-identify loaded instruction files, skill catalog entries, skill bodies,
-references, and attached files. Files that exist but were not loaded are absent.
-The report does not call the provider or modify the conversation.
+`/context` summarizes the next request using the runtime's context source,
+including skills restored after compaction or a window reset. It shows local
+token estimates for user messages, agent responses, tool calls and results,
+system prompt, tool definitions, skills, subagents, and retained summaries.
+Each token belongs to one category. Free space is the context window minus
+estimated usage; it includes capacity reserved for output and headroom.
+
+The file list shows loaded instructions, notes, memory, skill bodies,
+references, and attachments with token estimates. Skill catalog entries are
+summarized by count. The report omits prompt and conversation previews and does
+not call the provider or modify the conversation.
 
 ## Compaction
 

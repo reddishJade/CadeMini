@@ -54,6 +54,7 @@ flowchart LR
   app_bootstrap --> harness_window
   app_config --> coding_mcp_config
   app_config --> coding_security_rules
+  app_context_report --> ai_models
   app_context_report --> ai_types
   app_context_report --> coding_security_policy
   app_context_report --> harness_request
@@ -314,6 +315,7 @@ flowchart LR
   hosts_tui_config_registry --> app_settings
   hosts_tui_context_stats --> harness_request
   hosts_tui_context_stats --> harness_session_projection
+  hosts_tui_context_usage --> app_context_report
   hosts_tui_login_flow --> ai_auth
   hosts_tui_settings --> ai_models
   hosts_tui_setup_wizard --> ai_models
