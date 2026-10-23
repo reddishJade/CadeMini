@@ -138,8 +138,10 @@ _SHORTCUT_HELP = """Shortcuts
   /command       run a slash command
   Up/Down        recall previous/next input (on first/last line)
   Tab            complete commands, skills, and @file references
-  Enter          send; queue the next task while running
-  Alt+Enter      steer the current task while running
+  Enter          send; use the selected busy-input mode while running
+  Alt+Q          queue the next task while running
+  Alt+S          steer the current task while running
+  Alt+Enter      steer the current task while running (alias for Alt+S)
   Ctrl+J         insert a newline (Shift+Enter where supported)
   Esc Enter      newline when idle; steer while running
   Mouse wheel    browse terminal history (Shift+PageUp/Down where supported)"""
@@ -613,6 +615,8 @@ class _CadeTui:
             lambda: self._state.running and not self._has_pending_interaction()
         )
         bindings.add("escape", "enter", filter=steering)(self._steer_key)
+        bindings.add("escape", "s", filter=steering)(self._steer_key)
+        bindings.add("escape", "q", filter=steering)(self._queue_key)
         bindings.add("escape", "enter", filter=~steering)(self._insert_newline)
         bindings.add(
             "s-tab",
@@ -631,8 +635,15 @@ class _CadeTui:
         interrupting = Condition(
             lambda: self._state.running and not self._has_pending_interaction()
         )
+        # 恢复提交期间立即提示；普通任务先解析 Alt 组合键。
         bindings.add(
-            "escape", filter=interrupting, eager=Condition(lambda: not self._input.text)
+            "escape",
+            filter=interrupting,
+            eager=Condition(
+                lambda: (
+                    self._recovery_task is not None and not self._recovery_task.done()
+                )
+            ),
         )(self._interrupt_key)
         bindings.add(
             "escape",
@@ -647,10 +658,10 @@ class _CadeTui:
             ),
         )(self._history_key)
         bindings.add("c-d")(self._eof_key)
-        # 菜单或表单中的 Esc 立即取消；普通输入保留 Esc Enter 换行。
+        # 表单中的 Esc 立即取消；补全保留 Alt 组合键解析。
         bindings.add(
             "escape",
-            eager=True,
+            eager=Condition(lambda: self._state.pending_command_text is not None),
             filter=Condition(
                 lambda: (
                     self._state.pending_command_text is not None
@@ -715,23 +726,36 @@ class _CadeTui:
         self._submit(text)
 
     def _steer_key(self, _event: object) -> None:
-        """Alt Enter 将普通输入注入当前任务，不启动新的任务。"""
+        """将普通输入作为当前任务的引导。"""
+        self._submit_busy_input(BusyMessageMode.STEER)
+
+    def _queue_key(self, _event: object) -> None:
+        """将普通输入排为后续任务，不受 Enter 策略影响。"""
+        self._submit_busy_input(BusyMessageMode.FOLLOW_UP)
+
+    def _submit_busy_input(self, mode: BusyMessageMode) -> None:
+        """显式快捷键只提交运行期间的普通消息。"""
+        if self._closing or not self._state.running or self._has_pending_interaction():
+            return
         text = self._input.text.strip()
         if not text:
             return
         if text.startswith(("/", "!", "$")):
-            self._state.log.append(
-                _LogEntry("system", "Type a message to steer the current task.")
+            action = (
+                "steer the current task"
+                if mode is BusyMessageMode.STEER
+                else "queue the next task"
             )
+            self._state.log.append(_LogEntry("system", f"Type a message to {action}."))
             self._refresh()
             return
         self._input.buffer.reset(append_to_history=True)
-        self._submit_busy_message(text, BusyMessageMode.STEER)
+        self._submit_busy_message(text, mode)
 
     def _submit_busy_message(
         self, text: str, mode: BusyMessageMode | None = None
     ) -> None:
-        """普通 Enter 使用排队策略，Alt Enter 显式引导当前任务。"""
+        """普通 Enter 使用当前策略，显式快捷键传入固定策略。"""
         outcome = self._agent_app.agent.submit_busy_message(
             UserMessage(content=text),
             mode or self._interaction_state.busy_mode,
@@ -772,7 +796,9 @@ class _CadeTui:
                 BusyMessageMode.STEER: "steer",
                 BusyMessageMode.INTERRUPT: "replace",
             }[self._interaction_state.busy_mode]
-            text = f"Enter {action} · Alt+Enter steer · Esc stop · Ctrl+C clear"
+            text = (
+                f"Enter {action} · Alt+Q queue · Alt+S steer · Esc stop · Ctrl+C clear"
+            )
         else:
             text = "Enter send · Shift+Tab mode · Ctrl+J newline · @ files · / commands · cade --continue"
         return fit_text(text, self._output_width())

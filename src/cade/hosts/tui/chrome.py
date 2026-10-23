@@ -66,7 +66,7 @@ def welcome_text(
                 "",
                 "Describe a task to get started.",
                 "/ commands · @ files · ! shell · $ skills · ↑/↓ history",
-                "Enter send / queue · Alt+Enter steer · Ctrl+J newline",
+                "Enter send · Alt+Q queue · Alt+S steer · Ctrl+J newline",
                 "Ctrl+T thinking · Ctrl+O tool details · ? help",
                 "cade --continue · /resume choose history",
             ]

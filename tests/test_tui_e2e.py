@@ -699,6 +699,81 @@ def test_alt_enter_still_steers_instead_of_aborting(terminal_runner: Runner) -> 
     terminal_runner(scenario)
 
 
+@pytest.mark.parametrize("mode", ["followup", "steer", "interrupt"])
+@pytest.mark.parametrize("key,steer", [("\x1bs", True), ("\x1bq", False)])
+def test_busy_shortcuts_override_enter_mode(
+    terminal_runner: Runner, mode: str, key: str, steer: bool
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        await term.send("/queue " + mode)
+        provider = term.service.provider
+        provider.delay = 0.5
+        provider.batches = [
+            [
+                ToolCallEvent(
+                    [ToolCall("read-shortcut", "read", {"path": "input.txt"})]
+                ),
+                FinalMessage("", "tool_use"),
+            ]
+        ]
+        (term.service.workspace / "input.txt").write_text("fixture", encoding="utf-8")
+        await term.send("original task", wait_idle=False)
+        await term.until(lambda: bool(provider.requests), "original request started")
+        term.pipe.send_text("shortcut message")
+        await term.until(
+            lambda: term.tui._input.text == "shortcut message", "draft typed"
+        )
+        term.pipe.send_text(key)
+        await term.until(lambda: not term.tui._input.text, "shortcut submitted draft")
+        assert list(term.service.steering) == (["shortcut message"] if steer else [])
+        assert list(term.service.pending) == ([] if steer else ["shortcut message"])
+        assert term.service.cancel is not None and not term.service.cancel.cancelled
+        assert term.service.busy_mode == mode
+        await term.until(
+            lambda: not term.tui._state.running and not term.service.pending,
+            "shortcut work completed",
+        )
+        entries = term.service.log.branch()
+        users = [entry for entry in entries if entry.type == "user"]
+        assert [entry.data["text"] for entry in users] == [
+            "original task",
+            "shortcut message",
+        ]
+        assert users[-1].data.get("source", "user") == ("runtime" if steer else "user")
+        assert len(provider.requests) == (2 if steer else 3)
+        assert ("shortcut message" in json.dumps(provider.requests[1])) is steer
+        runs = [entry for entry in entries if entry.type == "run"]
+        assert len(runs) == (1 if steer else 2)
+        assert all(entry.data["termination"] == "completed" for entry in runs)
+
+    terminal_runner(scenario)
+
+
+@pytest.mark.parametrize("key", ["\x1bs", "\x1bq"])
+@pytest.mark.parametrize("draft", ["", "   ", "/new", "!echo hello", "$e2e-skill"])
+def test_busy_shortcuts_preserve_nonmessage_input(
+    terminal_runner: Runner, key: str, draft: str
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        term.service.provider.delay = 10
+        await term.send("active task", wait_idle=False)
+        await term.until(
+            lambda: bool(term.service.provider.requests), "request started"
+        )
+        term.pipe.send_text(draft)
+        await term.until(lambda: term.tui._input.text == draft, "draft typed")
+        term.pipe.send_text(key)
+        await asyncio.sleep(0.2)
+        assert term.tui._input.text == draft
+        assert term.service.running
+        assert term.service.cancel is not None and not term.service.cancel.cancelled
+        assert not term.service.pending
+        assert not term.service.steering
+        assert len(term.service.provider.requests) == 1
+
+    terminal_runner(scenario)
+
+
 def test_ctrl_c_clears_draft_without_interrupting(terminal_runner: Runner) -> None:
     async def scenario(term: Terminal) -> None:
         term.service.provider.delay = 10

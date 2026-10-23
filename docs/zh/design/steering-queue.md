@@ -6,7 +6,7 @@
 
 ```text
 prompt_toolkit UI 线程
-  |  Enter / Alt+Enter / 斜杠命令
+  |  Enter / Alt+S / Alt+Q / Alt+Enter / 斜杠命令
   v
 ApplicationSession
   |  steering、pending、cancel
@@ -29,6 +29,8 @@ ApplicationSession
 | --- | --- |
 | `Enter` | 使用当前的忙时输入模式：排队、引导或替换 |
 | `Alt+Enter` | 在下一个模型步骤追加指导 |
+| `Alt+S` | 在下一个模型步骤追加指导，不受 `Enter` 模式影响 |
+| `Alt+Q` | 排队后续任务，不受 `Enter` 模式影响 |
 | `/steer TEXT` | 在下一个模型步骤追加指导 |
 | `/queue TEXT` | 把 TEXT 排为后续任务 |
 | `/queue followup` | 让 `Enter` 排队后续任务 |
@@ -39,6 +41,8 @@ ApplicationSession
 | `/exit` 或 `/quit` | 退出 TUI |
 
 当前任务进入终止状态时，后续任务自动运行。队列按先进先出，排队的任务留在同一个会话。显式按 Esc 或用 `/stop` 取消时，未送达的输入会回到编辑器，不会立刻开始另一次运行。
+
+`Alt+S` 和 `Alt+Q` 在任务运行时提交编辑器中的普通文本。输入为空时不执行操作。以 `/`、`!` 或 `$` 开头的输入保留在编辑器中，不会作为消息提交。菜单、表单和审批请求优先于消息快捷键。按 `?` 查看按键说明；运行期间的输入提示也会显示这两个快捷键。
 
 `/steer` 不是向正在运行的 provider 请求注入提示。循环在每个步骤之前检查引导队列，追加一条带 `source: runtime` 的 `user` 事实，再从投影构造下一次请求。这样会话日志仍是唯一事实来源。
 

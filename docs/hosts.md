@@ -24,6 +24,9 @@ leaving the application. Common keys:
 
 - `Enter` submits a message; while running, it queues, steers, or interrupts according to the busy-input mode.
 - `Alt+Enter` steers the running task at the next model step.
+- `Alt+S` steers the running task; `Alt+Q` queues a follow-up task. These
+  shortcuts submit plain editor text using a fixed action, regardless of the
+  busy-input mode selected for `Enter`.
 - `Shift+Tab` cycles `ask`, `build`, and `plan`.
 - `Esc` interrupts the running task, including a model request that has not
   produced output yet. Undelivered queued input returns to the editor.
