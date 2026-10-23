@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.1.3
+
+- Removed the redundant `subagent` tool. Use `delegate` for one or more
+  child tasks, with optional restrictions on child permissions.
+- Added source totals and loaded file estimates to `/context`, OpenAI API
+  input counting, and DeepSeek's official text tokenizer. ChatGPT plan
+  sessions use local estimates instead of an unsupported counting endpoint.
+- Added menu-based configuration presets, custom values, and dedicated
+  queue and steer shortcuts in the TUI.
+- Simplified workspace tools with exact batched edits, bounded text and image
+  reads, native file search, and separate Bash and PowerShell execution.
+- Added multiple-choice questions and web retrieval. Web search uses Exa;
+  remove the obsolete `websearch_provider` configuration field.
+- Improved feedback for incomplete turns and browser login output.
+
 ## 0.1.2
 
 - `cade "TASK"` now starts the TUI, sends the task as its first message, and
