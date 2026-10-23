@@ -88,3 +88,7 @@ $env:UV_CACHE_DIR = "$PWD\.uv-cache"
 ## 依赖管理
 
 使用 `uv add PACKAGE` 添加运行时依赖，使用 `uv add --dev PACKAGE` 添加开发工具，使用 `uv remove PACKAGE` 删除依赖。让 uv 生成版本要求并更新 `uv.lock`，不要凭感觉编写版本范围或手动修改依赖版本。只有明确的兼容性要求才能作为额外版本约束的依据，并须记录原因。
+
+## 搜索程序
+
+文件搜索需要在 PATH 中安装 fd 和 ripgrep。Debian/Ubuntu 使用 `sudo apt-get install ripgrep fd-find`，macOS 使用 `brew install ripgrep fd`，Windows（Scoop）使用 `scoop install ripgrep fd`。Cade 也识别 Debian/Ubuntu 的 `fdfind` 命令。

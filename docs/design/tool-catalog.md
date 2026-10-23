@@ -39,13 +39,14 @@ navigation aid; when it disagrees with the tool schema, the schema wins.
 
 See [the behavior contract](../decisions/0015-tool-behavior-parity.md)
 for tool defaults and Cade integration. `read` returns file content without
-line-number prefixes and supports image attachments. Use `ls` for directories.
+line-number prefixes and supports image attachments. `offset` and `limit`
+are positive integers. Editing uses exact text matching; all edits target the
+original file and must be unique and disjoint. Use `ls` for directories.
 Shell `timeout` is in seconds and has no default. `bash` uses Bash on Windows;
 `powershell` uses PowerShell and is available only on Windows.
 
-`find` uses fd and `grep` uses ripgrep. Missing binaries are downloaded to
-`~/.cade/bin` unless `CADE_OFFLINE` is `1`, `true`, or `yes`, or network access
-is disabled. Searches exclude `.cade`, including snapshots and session logs.
+`find` uses fd and `grep` uses ripgrep. Install both on PATH. Cade reports
+missing programs without downloading binaries. Searches exclude `.cade`, including snapshots and session logs.
 
 ## Related
 

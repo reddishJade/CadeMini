@@ -9,15 +9,16 @@ and covered by examples that exercise actual user outcomes.
 
 ## Decision
 
-Workspace tools use stable parameters, defaults, matching rules, truncation
-limits, result text, and cancellation behavior. Editing supports disjoint
+Workspace tools expose one documented input schema and concise output limits.
+Editing uses exact matching; malformed input returns an error. Editing supports disjoint
 replacements against one original file. Web tools search through Exa and
 retrieve textual content.
 
 Cade applies its permission policy, workspace snapshots, session log, and worker
 confinement. Searches exclude `.cade` on every platform. Shell calls support
 `workdir` and `additional_write_paths` permission extensions. Native
-tools and output files use Cade storage names; image processing uses Pillow.
+tools are installed on PATH; Cade does not download executables. Output files
+use Cade storage names; image processing uses Pillow.
 Search uses the MCP SDK without provider selection or automatic fallback.
 
 Image attachments live in `tool_result.artifact.tool_metadata.images` and survive
@@ -32,5 +33,7 @@ have no default. `read` returns raw text or an image; `ls` lists directories.
 
 `tests/test_file_tools.py`, `tests/test_questions.py`, and `tests/test_web_tools.py`
 check editing, image transport, user questions, and web content outcomes.
+Shell output buffering and overflow files belong to the process execution layer.
+The runtime carries progress callbacks without injecting session environment variables.
 HTML conversion uses Markdownify and Beautiful Soup; diff previews use the
 Python standard library. Image decoding and resizing use Pillow.

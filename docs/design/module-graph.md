@@ -38,7 +38,6 @@ flowchart LR
   app_bootstrap --> coding_security_review
   app_bootstrap --> coding_skills_tools
   app_bootstrap --> coding_subagents
-  app_bootstrap --> coding_tools_native
   app_bootstrap --> coding_tools_question
   app_bootstrap --> coding_tools_registry
   app_bootstrap --> coding_tools_webfetch
@@ -182,7 +181,6 @@ flowchart LR
   coding_tools_base --> harness_tools
   coding_tools_bash --> coding_security_shell
   coding_tools_bash --> coding_tools_base
-  coding_tools_bash --> coding_tools_truncate
   coding_tools_bash --> coding_workspace_snapshots
   coding_tools_bash --> harness_execution_local_subprocess
   coding_tools_bash --> harness_execution_paths
