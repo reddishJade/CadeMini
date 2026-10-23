@@ -15,7 +15,7 @@ from cade.coding.tools.base import (
     number_arg,
     text_arg,
 )
-from cade.coding.tools.native import ensure_tool
+from cade.coding.tools.native import find_tool
 from cade.coding.tools.truncate import MAX_BYTES, format_size, truncate
 from cade.harness.execution.local.subprocess import SubprocessShell
 from cade.harness.session.types import JsonValue
@@ -25,10 +25,7 @@ from cade.harness.tools import ToolResult
 def _native(
     tool: str, args: list[str], cwd: Path, executable: str | None
 ) -> tuple[str, int | None]:
-    executable = executable or ensure_tool(tool, allow_download=False)
-    if executable is None:
-        label = "ripgrep (rg)" if tool == "rg" else "fd"
-        raise ValueError(f"{label} is not available and could not be downloaded")
+    executable = executable or find_tool(tool)
     result = SubprocessShell().run([executable, *args], cwd=cwd, timeout=None)
     if result.cancelled:
         raise ValueError("Operation aborted")
@@ -48,7 +45,7 @@ def finish_search(
     truncation = truncate(output, max_lines=sys.maxsize)
     if truncation.truncated:
         notices.append(f"{format_size(MAX_BYTES)} limit reached")
-        details["truncation"] = truncation.record()
+        details["truncated"] = True
     if final_notice:
         notices.append(final_notice)
     output = truncation.content
