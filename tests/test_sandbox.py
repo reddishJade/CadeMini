@@ -16,7 +16,7 @@ from unittest.mock import Mock
 import pytest
 
 from cade.coding.security.policy import WorkspacePolicy
-from cade.coding.tools.bash import BashTool
+from cade.coding.tools.bash import BashTool, PowerShellTool
 from cade.coding.tools.registry import build_tools
 from cade.harness.cancellation import CancellationToken
 from cade.harness.execution.local.sandbox import PlatformSandbox, SandboxUnavailable
@@ -105,7 +105,9 @@ async def test_cancelling_shell_kills_child_before_returning(tmp_path: Path) -> 
         command = f"{shlex.quote(sys.executable)} {shlex.quote(str(script))}"
     signal = CancellationToken()
     task = asyncio.create_task(
-        BashTool(tmp_path).execute(
+        (
+            PowerShellTool(tmp_path) if sys.platform == "win32" else BashTool(tmp_path)
+        ).execute(
             ToolCallBlock(id="cancel", name="bash", args={"command": command}),
             signal,
         )
@@ -116,9 +118,8 @@ async def test_cancelling_shell_kills_child_before_returning(tmp_path: Path) -> 
         await asyncio.sleep(0.05)
     assert (tmp_path / "started.txt").exists()
     signal.cancel("stop")
-    result = await task
-    assert result.is_error
-    assert "cancelled" in result.content.lower()
+    with pytest.raises(ValueError, match="Command aborted"):
+        await task
     await asyncio.sleep(1.1)
     assert not (tmp_path / "late.txt").exists()
 

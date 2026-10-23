@@ -157,7 +157,7 @@ def test_sensitive_access_is_not_remembered_by_session_grants(
     assert policy.check(read).decision == "ask"
 
 
-def test_approved_file_tools_can_access_env_but_glob_still_hides_it(
+def test_approved_file_tools_can_access_env_but_find_still_hides_it(
     tmp_path: Path, home: Path
 ) -> None:
     workspace = tmp_path / "workspace"
@@ -167,7 +167,7 @@ def test_approved_file_tools_can_access_env_but_glob_still_hides_it(
     tools = {tool.name: tool for tool in build_tools(workspace)}
 
     assert "TOKEN=secret" in tools["read"].run({"path": ".env"}).content
-    assert ".env" not in tools["glob"].run({"pattern": "*"}).content
+    assert ".env" not in tools["find"].run({"pattern": "*"}).content
 
 
 @pytest.mark.parametrize(

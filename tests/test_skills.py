@@ -271,10 +271,8 @@ async def test_skill_script_reads_bundled_asset_through_authorized_shell(
     bash = next(
         tool for tool in build_tools(workspace, sandbox=sandbox) if tool.name == "bash"
     )
-    command = (
-        f"& '{sys.executable}' '{script}'"
-        if sys.platform == "win32"
-        else f"{shlex.quote(sys.executable)} {shlex.quote(str(script))}"
+    command = " ".join(
+        shlex.quote(str(path).replace("\\", "/")) for path in (sys.executable, script)
     )
     approvals: list[str] = []
 
