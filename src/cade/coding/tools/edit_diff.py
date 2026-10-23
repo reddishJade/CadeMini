@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from difflib import unified_diff
 from itertools import pairwise
 
 
@@ -158,193 +159,17 @@ def apply_edits(content: str, edits: list[Edit], path: str) -> str:
     return result
 
 
-@dataclass(frozen=True)
-class _Component:
-    count: int
-    kind: str
-    previous: _Component | None
-
-
-@dataclass
-class _Path:
-    old_pos: int
-    last: _Component | None
-
-
-def _line_changes(before: str, after: str) -> list[tuple[str, list[str]]]:
-    """使用确定的 Myers 路径选择，保持重复行的差异顺序。"""
-    old = re.findall(r"[^\n]*\n|[^\n]+", before)
-    new = re.findall(r"[^\n]*\n|[^\n]+", after)
-
-    def common(path: _Path, diagonal: int) -> int:
-        old_pos = path.old_pos
-        new_pos = old_pos - diagonal
-        count = 0
-        while (
-            new_pos + 1 < len(new)
-            and old_pos + 1 < len(old)
-            and old[old_pos + 1] == new[new_pos + 1]
-        ):
-            new_pos += 1
-            old_pos += 1
-            count += 1
-        if count:
-            path.last = _Component(count, " ", path.last)
-        path.old_pos = old_pos
-        return new_pos
-
-    def extend(path: _Path, kind: str) -> _Path:
-        last = path.last
-        component = (
-            _Component(last.count + 1, kind, last.previous)
-            if last and last.kind == kind
-            else _Component(1, kind, last)
-        )
-        return _Path(path.old_pos + (kind == "-"), component)
-
-    base = _Path(-1, None)
-    new_pos = common(base, 0)
-    paths: dict[int, _Path] = {0: base}
-    min_diagonal = -len(old) - len(new)
-    max_diagonal = -min_diagonal
-    complete = base.old_pos + 1 >= len(old) and new_pos + 1 >= len(new)
-    for length in range(1, len(old) + len(new) + 1):
-        if complete:
-            break
-        for diagonal in range(
-            max(min_diagonal, -length), min(max_diagonal, length) + 1, 2
-        ):
-            removed = paths.pop(diagonal - 1, None)
-            added = paths.get(diagonal + 1)
-            can_add = added is not None and 0 <= added.old_pos - diagonal < len(new)
-            can_remove = removed is not None and removed.old_pos + 1 < len(old)
-            if not can_add and not can_remove:
-                paths.pop(diagonal, None)
-                continue
-            if added is not None and (
-                not can_remove
-                or (can_add and removed is not None and removed.old_pos < added.old_pos)
-            ):
-                base = extend(added, "+")
-            elif removed is not None:
-                base = extend(removed, "-")
-            else:
-                continue
-            new_pos = common(base, diagonal)
-            if base.old_pos + 1 >= len(old) and new_pos + 1 >= len(new):
-                complete = True
-                break
-            paths[diagonal] = base
-            if base.old_pos + 1 >= len(old):
-                max_diagonal = min(max_diagonal, diagonal - 1)
-            if new_pos + 1 >= len(new):
-                min_diagonal = max(min_diagonal, diagonal + 1)
-    components: list[_Component] = []
-    last = base.last
-    while last is not None:
-        components.append(last)
-        last = last.previous
-    result: list[tuple[str, list[str]]] = []
-    old_pos = new_pos = 0
-    for part in reversed(components):
-        if part.kind == "-":
-            lines = old[old_pos : old_pos + part.count]
-            old_pos += part.count
-        else:
-            lines = new[new_pos : new_pos + part.count]
-            new_pos += part.count
-            if part.kind == " ":
-                old_pos += part.count
-        result.append((part.kind, lines))
-    return result
-
-
-def _unified_patch(path: str, changes: list[tuple[str, list[str]]]) -> str:
-    parts = [*changes, (" ", [])]
-    old_start = new_start = 0
-    old_line = new_line = 1
-    current: list[str] = []
-    output = [f"--- {path}", f"+++ {path}"]
-    for index, (kind, lines) in enumerate(parts):
-        if kind != " ":
-            if not old_start:
-                old_start, new_start = old_line, new_line
-                previous = parts[index - 1][1] if index else []
-                current = [" " + line for line in previous[-4:]]
-                old_start -= len(current)
-                new_start -= len(current)
-            current.extend(kind + line for line in lines)
-            if kind == "+":
-                new_line += len(lines)
-            else:
-                old_line += len(lines)
-        else:
-            if old_start:
-                if len(lines) <= 8 and index < len(parts) - 2:
-                    current.extend(" " + line for line in lines)
-                else:
-                    context = min(len(lines), 4)
-                    current.extend(" " + line for line in lines[:context])
-                    old_count, new_count = (
-                        old_line - old_start + context,
-                        new_line - new_start + context,
-                    )
-                    output.append(
-                        f"@@ -{old_start - (old_count == 0)},{old_count} +{new_start - (new_count == 0)},{new_count} @@"
-                    )
-                    for line in current:
-                        output.append(line.removesuffix("\n"))
-                        if not line.endswith("\n"):
-                            output.append("\\ No newline at end of file")
-                    old_start = new_start = 0
-                    current = []
-            old_line += len(lines)
-            new_line += len(lines)
-    return "\n".join(output) + "\n"
-
-
 def diff_details(path: str, before: str, after: str) -> dict[str, str | int]:
-    changes = _line_changes(before, after)
-    width = len(str(max(len(before.split("\n")), len(after.split("\n")))))
-    output: list[str] = []
-    first_changed = 1
-    changed = False
-    old_line = new_line = 1
-    for index, (kind, raw_lines) in enumerate(changes):
-        lines = [line.removesuffix("\n") for line in raw_lines]
-        if kind != " ":
-            if not changed:
-                first_changed = new_line
-                changed = True
-            for line in lines:
-                number = new_line if kind == "+" else old_line
-                output.append(f"{kind}{number:>{width}} {line}")
-                if kind == "+":
-                    new_line += 1
-                else:
-                    old_line += 1
-        else:
-            leading = changed
-            trailing = index < len(changes) - 1
-            if not leading and not trailing:
-                old_line += len(lines)
-                new_line += len(lines)
-                continue
-            selected = set(range(min(len(lines), 4))) if leading else set()
-            if trailing:
-                selected.update(range(max(0, len(lines) - 4), len(lines)))
-            previous = -1
-            for number in sorted(selected):
-                if number > previous + 1:
-                    output.append(f" {'':>{width}} ...")
-                output.append(f" {old_line + number:>{width}} {lines[number]}")
-                previous = number
-            if previous < len(lines) - 1:
-                output.append(f" {'':>{width}} ...")
-            old_line += len(lines)
-            new_line += len(lines)
+    old, new = before.splitlines(keepends=True), after.splitlines(keepends=True)
+    first = next(
+        (
+            index
+            for index, (left, right) in enumerate(zip(old, new, strict=False), 1)
+            if left != right
+        ),
+        min(len(old), len(new)) + 1,
+    )
     return {
-        "diff": "\n".join(output),
-        "patch": _unified_patch(path, changes),
-        "firstChangedLine": first_changed,
+        "patch": "".join(unified_diff(old, new, fromfile=path, tofile=path)),
+        "firstChangedLine": first,
     }

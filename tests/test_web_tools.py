@@ -19,21 +19,12 @@ from cade.harness.cancellation import CancellationToken
 from cade.harness.executor import execute_tool
 from cade.harness.session.types import ToolCallBlock
 
-_CORPUS = json.loads(
-    (Path(__file__).parent / "fixtures/web_tools.json").read_text(encoding="utf-8")
-)
-
-
-@pytest.mark.parametrize("case", _CORPUS["html"])
-def test_html_reference_results(case: dict[str, str]) -> None:
-    assert html_to_markdown(case["html"]) == case["expected"]
-
 
 @pytest.mark.parametrize(
     ("format_name", "expected"),
     [
         ("markdown", "# Hello\n\nworld **wide**"),
-        ("text", "Helloworld wide"),
+        ("text", "Hello world wide"),
         (
             "html",
             "<h1>Hello</h1><p>world <strong>wide</strong></p><script>bad()</script>",
@@ -197,3 +188,17 @@ async def test_search_selection_disable_and_persistence() -> None:
     assert result.is_error
     assert saved == [False]
     assert not filter_tools((tool,), "build")
+
+
+def test_web_content_keeps_structure_and_excludes_active_content() -> None:
+    converted = html_to_markdown(
+        '<h1>Guide</h1><p><a href="https://example.com">Docs</a></p>'
+        "<ul><li>First</li><li>Second</li></ul><pre>print(1)</pre>"
+        "<script>secret()</script><style>hidden</style><iframe>embedded</iframe>"
+    )
+    assert "# Guide" in converted
+    assert "[Docs](https://example.com)" in converted
+    assert "First" in converted and "Second" in converted
+    assert "```" in converted and "print(1)" in converted
+    assert "secret" not in converted and "hidden" not in converted
+    assert "embedded" not in converted

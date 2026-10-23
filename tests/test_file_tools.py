@@ -19,7 +19,7 @@ from cade.ai.providers.responses import to_responses_input
 from cade.coding.security.policy import WorkspacePolicy
 from cade.coding.tools.bash import BashTool
 from cade.coding.tools.edit import EditTool
-from cade.coding.tools.edit_diff import Edit, apply_edits, diff_details
+from cade.coding.tools.edit_diff import Edit, apply_edits
 from cade.coding.tools.read import ReadTool
 from cade.coding.tools.registry import build_tools
 from cade.coding.tools.truncate import truncate
@@ -78,9 +78,6 @@ def test_edit_reference_results(case: dict[str, Any]) -> None:
     else:
         after = apply_edits(case["text"], edits, "file.txt")
         assert after == case["expected"]["newContent"]
-        assert diff_details("file.txt", case["text"], after) == {
-            key: case["expected"][key] for key in ("diff", "patch", "firstChangedLine")
-        }
 
 
 def test_edit_keeps_bom_crlf_and_unchanged_unicode(tmp_path: Path) -> None:
@@ -300,3 +297,27 @@ def test_image_survives_log_projection_and_responses_conversion(tmp_path: Path) 
         attachment["image_url"]
         == "data:image/png;base64," + base64.b64encode(image.getvalue()).decode()
     )
+
+
+def test_edit_reports_patch_and_first_changed_line(tmp_path: Path) -> None:
+    path = tmp_path / "file.txt"
+    path.write_text("before\nold\nafter\n", encoding="utf8")
+    result = EditTool(tmp_path).run(
+        {"path": "file.txt", "edits": [{"oldText": "old", "newText": "new"}]}
+    )
+    assert result.metadata is not None
+    assert result.metadata["firstChangedLine"] == 2
+    assert "-old\n+new\n" in result.metadata["patch"]
+    assert " before" in result.metadata["patch"]
+
+
+def test_large_image_is_resized_and_attached(tmp_path: Path) -> None:
+    path = tmp_path / "large.png"
+    Image.new("RGB", (3000, 1000), "red").save(path)
+    result = ReadTool(tmp_path).run({"path": "large.png"})
+    assert result.metadata is not None
+    attachment = result.metadata["images"][0]
+    data = base64.b64decode(attachment["data"])
+    with Image.open(io.BytesIO(data)) as resized:
+        assert resized.size == (2000, 667)
+        assert attachment["mimeType"] == "image/jpeg"

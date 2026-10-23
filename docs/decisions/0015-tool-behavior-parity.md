@@ -31,5 +31,6 @@ matched against the original content. Shell timeout values are in seconds and
 have no default. `read` returns raw text or an image; `ls` lists directories.
 
 `tests/test_file_tools.py`, `tests/test_questions.py`, and `tests/test_web_tools.py`
-check reference results and Cade integration. `tests/fixtures/file_tools.json` and
-`tests/fixtures/web_tools.json` store the expected editing and HTML results.
+check editing, image transport, user questions, and web content outcomes.
+HTML conversion uses Markdownify and Beautiful Soup; diff previews use the
+Python standard library. Image decoding and resizing use Pillow.
