@@ -11,14 +11,14 @@ and covered by examples that exercise actual user outcomes.
 
 Workspace tools use stable parameters, defaults, matching rules, truncation
 limits, result text, and cancellation behavior. Editing supports disjoint
-replacements against one original file. Web tools collect decisions, select a
-search integration, and retrieve textual content.
+replacements against one original file. Web tools search through Exa and
+retrieve textual content.
 
 Cade applies its permission policy, workspace snapshots, session log, and worker
 confinement. Searches exclude `.cade` on every platform. Shell calls support
 `workdir` and `additional_write_paths` permission extensions. Native
 tools and output files use Cade storage names; image processing uses Pillow.
-Search integration choices persist in `cade.json` as `websearch_provider`.
+Search uses the MCP SDK without provider selection or automatic fallback.
 
 Image attachments live in `tool_result.artifact.tool_metadata.images` and survive
 projection, replay, and request auditing. This extends the current session

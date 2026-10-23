@@ -12,7 +12,7 @@
 | `grep` | `pattern`、`path`、`glob`、`ignoreCase`、`literal`、`context`、`limit` | 无 | 允许，受保护路径除外 |
 | `bash`、`powershell` | `command`、`timeout`、`workdir`、`additional_write_paths` | 任意进程；对常见修改做快照 | build 模式下允许普通开发；检测到风险时询问 |
 | `question` | `questions: [{question, header, options, multiple?}]` | 收集用户答案；关闭问题时结束当前轮次 | 允许，包括计划模式 |
-| `websearch` | `query` | 通过选定的搜索服务查询 | 网络开启时允许 |
+| `websearch` | `query` | 通过 Exa 搜索网页 | 网络开启时允许 |
 | `webfetch` | `url`、`format`、`timeout` | 获取文本、Markdown 或 HTML | 网络开启时允许 |
 | `history` | `query`、`entry_id`、`call_id`、`limit` | 无 | 允许 |
 | `skill` | `name` | 无；加载技能正文 | 允许 |

@@ -8,11 +8,11 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import httpx2
 import pytest
 
-from cade.coding.security.policy import WorkspacePolicy, filter_tools
+from cade.coding.security.policy import WorkspacePolicy
 from cade.coding.tools.html_markdown import html_to_markdown
-from cade.coding.tools.question import Question
 from cade.coding.tools.webfetch import WebFetchTool
 from cade.coding.tools.websearch import WebSearchTool
 from cade.harness.cancellation import CancellationToken
@@ -90,106 +90,6 @@ async def test_webfetch_permissions_sizes_and_cancellation(tmp_path: Path) -> No
     assert (await oversized.execute(call)).is_error
 
 
-@pytest.mark.parametrize(
-    "provider", ["exa", "firecrawl", "parallel", "tavily", "tinyfish"]
-)
-async def test_search_provider_payloads(
-    provider: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    requests: list[dict[str, Any]] = []
-    monkeypatch.delenv(provider.upper() + "_API_KEY", raising=False)
-
-    def respond(request: httpx.Request) -> httpx.Response:
-        payload = json.loads(request.content)
-        requests.append(payload)
-        if provider == "tavily":
-            return httpx.Response(
-                200,
-                json={
-                    "results": [
-                        {
-                            "url": "https://example.com",
-                            "title": "Example",
-                            "content": "Snippet",
-                        }
-                    ]
-                },
-            )
-        text = "Title: Example\nURL: https://example.com\nText: Snippet"
-        result: dict[str, Any] = {"content": [{"type": "text", "text": text}]}
-        if provider == "parallel":
-            result["structuredContent"] = {
-                "results": [
-                    {
-                        "url": "https://example.com",
-                        "title": "Example",
-                        "excerpts": ["Snippet"],
-                    }
-                ]
-            }
-        elif provider in {"firecrawl", "tinyfish"}:
-            result["content"][0]["text"] = json.dumps(
-                {
-                    "data": {
-                        "web": [
-                            {
-                                "url": "https://example.com",
-                                "title": "Example",
-                                "description": "Snippet",
-                            }
-                        ]
-                    }
-                }
-                if provider == "firecrawl"
-                else {
-                    "results": [
-                        {
-                            "url": "https://example.com",
-                            "title": "Example",
-                            "snippet": "Snippet",
-                        }
-                    ]
-                }
-            )
-        return httpx.Response(
-            200, text="data: " + json.dumps({"result": result}) + "\n\n"
-        )
-
-    tool = WebSearchTool(selection=provider, transport=httpx.MockTransport(respond))
-    result = await tool.execute(
-        ToolCallBlock(id="w", name="websearch", args={"query": "current information"})
-    )
-    assert result.content == "## [Example](https://example.com)\n\nSnippet"
-    assert not result.is_error
-    if provider == "exa":
-        assert requests[0]["params"] == {
-            "name": "web_search_exa",
-            "arguments": {"query": "current information", "numResults": 8},
-        }
-    elif provider == "tavily":
-        assert requests[0] == {
-            "query": "current information",
-            "search_depth": "basic",
-            "chunks_per_source": 3,
-            "max_results": 8,
-        }
-
-
-async def test_search_selection_disable_and_persistence() -> None:
-    saved: list[Any] = []
-
-    async def answer(questions: tuple[Question, ...]) -> list[list[str]]:
-        return [["Disable web search"]]
-
-    tool = WebSearchTool(answer=answer, save_selection=saved.append)
-    result = await tool.execute(
-        ToolCallBlock(id="s", name="websearch", args={"query": "query"})
-    )
-    assert result.is_error
-    assert saved == [False]
-    assert not filter_tools((tool,), "build")
-
-
 def test_web_content_keeps_structure_and_excludes_active_content() -> None:
     converted = html_to_markdown(
         '<h1>Guide</h1><p><a href="https://example.com">Docs</a></p>'
@@ -202,3 +102,93 @@ def test_web_content_keeps_structure_and_excludes_active_content() -> None:
     assert "```" in converted and "print(1)" in converted
     assert "secret" not in converted and "hidden" not in converted
     assert "embedded" not in converted
+
+
+@pytest.mark.parametrize("encoding", ["json", "sse"])
+async def test_search_uses_exa_through_mcp(
+    encoding: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requests: list[dict[str, Any]] = []
+    monkeypatch.setenv("EXA_API_KEY", "test-key")
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.host == "mcp.exa.ai"
+        assert request.url.params["exaApiKey"] == "test-key"
+        if request.method != "POST":
+            return httpx2.Response(405)
+        payload = json.loads(request.content)
+        requests.append(payload)
+        if "id" not in payload:
+            return httpx2.Response(202)
+        result = (
+            {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "serverInfo": {"name": "exa", "version": "1"},
+            }
+            if payload["method"] == "initialize"
+            else {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Title: Example\nURL: https://example.com\nText: Snippet",
+                    }
+                ]
+            }
+        )
+        if payload["method"] == "tools/list":
+            result = {
+                "tools": [{"name": "web_search_exa", "inputSchema": {"type": "object"}}]
+            }
+        data = {"jsonrpc": "2.0", "id": payload["id"], "result": result}
+        if encoding == "sse":
+            return httpx2.Response(
+                200,
+                text="event: message\ndata: " + json.dumps(data) + "\n\n",
+                headers={"content-type": "text/event-stream"},
+            )
+        return httpx2.Response(200, json=data)
+
+    result = await WebSearchTool(transport=httpx2.MockTransport(respond)).execute(
+        ToolCallBlock(id="s", name="websearch", args={"query": "current information"})
+    )
+    assert not result.is_error, result.content
+    assert "https://example.com" in result.content and "Snippet" in result.content
+    call = next(request for request in requests if request["method"] == "tools/call")
+    assert call["params"]["name"] == "web_search_exa"
+    assert call["params"]["arguments"] == {
+        "query": "current information",
+        "numResults": 8,
+    }
+
+
+async def test_search_reports_provider_failures() -> None:
+    tool = WebSearchTool(
+        transport=httpx2.MockTransport(lambda request: httpx2.Response(429))
+    )
+    result = await tool.execute(
+        ToolCallBlock(id="s", name="websearch", args={"query": "query"})
+    )
+    assert result.is_error and "429" in result.content
+
+
+async def test_search_respects_network_policy_and_cancellation(tmp_path: Path) -> None:
+    started = asyncio.Event()
+
+    async def respond(request: httpx2.Request) -> httpx2.Response:
+        started.set()
+        await asyncio.Event().wait()
+        return httpx2.Response(200)
+
+    tool = WebSearchTool(transport=httpx2.MockTransport(respond))
+    call = ToolCallBlock(id="s", name="websearch", args={"query": "query"})
+    denied = await execute_tool(
+        call, {"websearch": tool}, policy=WorkspacePolicy(tmp_path, network=False)
+    )
+    assert denied.result.is_error and not started.is_set()
+    token = CancellationToken()
+    pending = asyncio.create_task(execute_tool(call, {"websearch": tool}, cancel=token))
+    await asyncio.wait_for(started.wait(), 1)
+    token.cancel()
+    result = await asyncio.wait_for(pending, 1)
+    assert result.result.is_error

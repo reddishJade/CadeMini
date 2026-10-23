@@ -468,12 +468,8 @@ silently ignored.
 - `network`: allow tool network access. Default is true. OS enforcement of false
   for shell commands requires Linux/macOS confinement. Web tools reject calls
   on every platform when this is false.
-- `websearch_provider`: `exa`, `firecrawl`, `parallel`, `tavily`, `tinyfish`,
-  `random`, `false`, or `null` (default). The first search asks for a selection
-  when unset and saves it here. `false` removes web search from the tool catalog.
-  `random` keeps a preferred integration and switches on HTTP 429 responses.
-  Integrations support `EXA_API_KEY`, `FIRECRAWL_API_KEY`, `PARALLEL_API_KEY`,
-  `TAVILY_API_KEY`, and `TINYFISH_API_KEY`. Keys are optional.
+- Web search uses Exa. Set `EXA_API_KEY` to supply your own key; it is optional.
+  Remove the obsolete `websearch_provider` field from existing `cade.json` files.
 - `read_only`: deny mutations and allow only classified read-only shell commands.
 - `instructions`: load `AGENTS.md` or `CLAUDE.md` into request context.
 - `note`: load `NOTE.md` working state.
@@ -1237,7 +1233,6 @@ Top-level fields. Nested types follow the table.
 | `mode` | `plan \| build \| ask` | `"build"` |
 | `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
 | `network` | `boolean` | `true` |
-| `websearch_provider` | `SearchSelection` | `null` |
 | `rules` | `list[RuleConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
 | `trust_project_skills` | `boolean` | `false` |
@@ -1325,7 +1320,6 @@ flowchart LR
   app_bootstrap --> app_config
   app_bootstrap --> app_provider
   app_bootstrap --> app_session
-  app_bootstrap --> app_settings
   app_bootstrap --> coding_context_instructions
   app_bootstrap --> coding_context_memory
   app_bootstrap --> coding_context_note
@@ -1355,7 +1349,6 @@ flowchart LR
   app_bootstrap --> harness_window
   app_config --> coding_mcp_config
   app_config --> coding_security_rules
-  app_config --> coding_tools_websearch
   app_context_report --> ai_types
   app_context_report --> coding_security_policy
   app_context_report --> harness_request
@@ -1533,7 +1526,6 @@ flowchart LR
   coding_tools_webfetch --> harness_cancellation
   coding_tools_webfetch --> harness_session_types
   coding_tools_webfetch --> harness_tools
-  coding_tools_websearch --> coding_tools_question
   coding_tools_websearch --> coding_tools_webfetch
   coding_tools_websearch --> harness_cancellation
   coding_tools_websearch --> harness_session_types
@@ -1645,7 +1637,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `grep` | `pattern`, `path`, `glob`, `ignoreCase`, `literal`, `context`, `limit` | None | Allow except protected paths |
 | `bash`, `powershell` | `command`, `timeout`, `workdir`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
 | `question` | `questions: [{question, header, options, multiple?}]` | Collects user answers; dismissal ends the turn | Allow, including plan |
-| `websearch` | `query` | Searches through the selected integration | Allow when network access is enabled |
+| `websearch` | `query` | Searches through Exa | Allow when network access is enabled |
 | `webfetch` | `url`, `format`, `timeout` | Fetches text, Markdown, or HTML | Allow when network access is enabled |
 | `history` | `query`, `entry_id`, `call_id`, `limit` | None | Allow |
 | `skill` | `name` | None; loads a skill body | Allow |

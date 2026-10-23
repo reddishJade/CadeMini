@@ -43,7 +43,7 @@ Cade 默认读取 `<project-root>/cade.json`。用 `--config PATH` 选择其他�
 - `mode`：`plan`、`build` 或 `ask`。默认是 `build`；旧的 `act` 值请改成 `ask`。
 - `sandbox`：`read-only`、`workspace-write`（默认）或 `danger-full-access`。Windows 会跳过操作系统隔离，与这里的设置无关。
 - `network`：允许工具访问网络，默认是 true。设为 false 时，所有平台都会拒绝网页工具调用。Shell 的网络隔离仍依赖 Linux 和 macOS 的沙箱。
-- `websearch_provider`：支持 `exa`、`firecrawl`、`parallel`、`tavily`、`tinyfish`、`random`、`false` 和 `null`（默认）。未设置时，首次搜索会询问并保存选择。`false` 从工具目录移除网页搜索。`random` 保留首选服务，收到 HTTP 429 后切换。各服务支持 `EXA_API_KEY`、`FIRECRAWL_API_KEY`、`PARALLEL_API_KEY`、`TAVILY_API_KEY` 和 `TINYFISH_API_KEY`，密钥可省略。
+- 网页搜索使用 Exa，可通过 `EXA_API_KEY` 提供自己的密钥。已有 `cade.json` 需要移除 `websearch_provider` 字段。
 - `read_only`：拒绝修改，只允许已归类的只读 shell 命令。
 - `instructions`：把 `AGENTS.md` 或 `CLAUDE.md` 加载到请求上下文。
 - `note`：加载 `NOTE.md` 工作状态。
