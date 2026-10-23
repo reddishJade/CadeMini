@@ -14,8 +14,6 @@ from cade.harness.session.types import (
 )
 
 
-
-
 @dataclass(frozen=True)
 class ToolContext:
     """当前会话元数据和工具进度回调，不写入工具参数。"""
