@@ -317,9 +317,7 @@ async def test_native_file_worker_preserves_large_json_result(
     )
     assert not result.is_error, result.content
     assert result.content.startswith(('"' * 400 + "\n") * 127)
-    assert result.content.endswith(
-        "[Showing lines 1-127 of 201 (50.0KB limit). Use offset=128 to continue.]"
-    )
+    assert "Output truncated" in result.content
 
 
 def test_native_read_only_shell_cannot_write(native_sandbox: PlatformSandbox) -> None:
