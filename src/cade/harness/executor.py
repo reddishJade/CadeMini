@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import jsonschema
@@ -13,7 +13,7 @@ from referencing import Registry
 from referencing.exceptions import Unresolvable
 
 from cade.harness.cancellation import CancellationToken
-from cade.harness.events import LoopEvent, ToolStartEvent
+from cade.harness.events import LoopEvent, ToolStartEvent, ToolUpdateEvent
 from cade.harness.execution.scope import execution_scope
 from cade.harness.permissions import (
     Approver,
@@ -22,8 +22,13 @@ from cade.harness.permissions import (
     authorize,
     parent_authorization,
 )
-from cade.harness.session.types import ToolCallBlock
-from cade.harness.tools import Tool, ToolResult
+from cade.harness.session.types import JsonValue, ToolCallBlock
+from cade.harness.tools import (
+    Tool,
+    ToolResult,
+    current_tool_context,
+    tool_context,
+)
 
 _MAX_TOOL_RESULT_CHARS = 64_000
 
@@ -57,6 +62,14 @@ async def execute_tool(
     on_event: Callable[[LoopEvent], None] | None = None,
 ) -> ToolExecution:
     """执行一个调用；完成事件由调用方在结果提交后发出。"""
+    tool = tools.get(call.name)
+    if tool is not None:
+        call = call.model_copy(
+            update={"args": _optional_arguments(call.args, tool.parameters)}
+        )
+    prepare = getattr(tool, "prepare_arguments", None)
+    if callable(prepare):
+        call = call.model_copy(update={"args": prepare(call.args)})
     authorization = await authorize(
         call, policy, approve, context=context, messages=messages
     )
@@ -68,7 +81,6 @@ async def execute_tool(
             ),
             authorization,
         )
-    tool = tools.get(call.name)
     if tool is None:
         return ToolExecution(
             ToolResult(f"Unknown tool: {call.name}", is_error=True), authorization
@@ -84,12 +96,22 @@ async def execute_tool(
         )
     if on_event is not None:
         on_event(ToolStartEvent(call.id, call.name, call.args))
-    with execution_scope(authorization.scope), parent_authorization(messages):
+    runtime = replace(
+        current_tool_context(),
+        on_update=(lambda text: on_event(ToolUpdateEvent(call.id, call.name, text)))
+        if on_event is not None
+        else None,
+    )
+    with (
+        execution_scope(authorization.scope),
+        parent_authorization(messages),
+        tool_context(runtime),
+    ):
         try:
-            operation = tool.execute(call, cancel)
+            operation = _execute_cancellable(tool, call, cancel)
             result = (
                 await asyncio.wait_for(operation, timeout=timeout_seconds)
-                if timeout_seconds > 0
+                if timeout_seconds > 0 and not getattr(tool, "manages_timeout", False)
                 else await operation
             )
         except TimeoutError:
@@ -99,7 +121,7 @@ async def execute_tool(
             )
         # 第三方工具可能抛出任意库异常，执行边界将异常转换为工具结果。
         except Exception as exc:  # noqa: BLE001
-            result = ToolResult(f"Tool error: {exc}", is_error=True)
+            result = ToolResult(str(exc), is_error=True)
     if len(result.content) > _MAX_TOOL_RESULT_CHARS:
         result = ToolResult(
             result.content[:_MAX_TOOL_RESULT_CHARS] + "\n[truncated]",
@@ -107,3 +129,60 @@ async def execute_tool(
             result.metadata,
         )
     return ToolExecution(result, authorization)
+
+
+def _optional_arguments(value: JsonValue, schema: dict[str, Any]) -> JsonValue:
+    """把 strict Responses 用 null 表达的省略值还原为可选参数。"""
+    if not isinstance(schema, dict):
+        return value
+    if isinstance(value, dict):
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+        if not isinstance(properties, dict) or not isinstance(required, list):
+            return value
+        result: dict[str, JsonValue] = {}
+        for key, item in value.items():
+            field = properties.get(key, {})
+            if not isinstance(field, dict):
+                result[key] = item
+                continue
+            field_type = field.get("type")
+            nullable = (
+                field_type == "null"
+                or (isinstance(field_type, list) and "null" in field_type)
+                or any(part.get("type") == "null" for part in field.get("anyOf", []))
+            )
+            if (
+                item is None
+                and key in properties
+                and key not in required
+                and not nullable
+            ):
+                continue
+            result[key] = _optional_arguments(item, field)
+        return result
+    if isinstance(value, list):
+        return [_optional_arguments(item, schema.get("items", {})) for item in value]
+    return value
+
+
+async def _execute_cancellable(
+    tool: Tool, call: ToolCallBlock, cancel: CancellationToken | None
+) -> ToolResult:
+    if cancel is None or getattr(tool, "handles_cancellation", False):
+        return await tool.execute(call, cancel)
+    if cancel.cancelled:
+        return ToolResult("Operation aborted", is_error=True)
+    task = asyncio.create_task(tool.execute(call, cancel))
+    interrupted = asyncio.create_task(cancel.wait())
+    try:
+        await asyncio.wait((task, interrupted), return_when=asyncio.FIRST_COMPLETED)
+        if task.done():
+            return await task
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        return ToolResult("Operation aborted", is_error=True)
+    finally:
+        task.cancel()
+        interrupted.cancel()
+        await asyncio.gather(task, interrupted, return_exceptions=True)

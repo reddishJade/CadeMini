@@ -46,8 +46,8 @@ from cade.harness.request import Budget, build
 from cade.harness.session.history import HistoryNode, history_tree
 from cade.harness.session.log import SessionLog, list_sessions
 from cade.harness.session.projection import project
-from cade.harness.session.types import LogEntry, ToolCallBlock, UserMessage
-from cade.harness.tools import Tool, ToolResult
+from cade.harness.session.types import JsonValue, LogEntry, ToolCallBlock, UserMessage
+from cade.harness.tools import Tool, ToolContext, ToolResult, tool_context
 from cade.harness.window import reset_window
 
 
@@ -578,10 +578,22 @@ class ApplicationSession:
         self.running = True
         self.cancel = self.cancel or CancellationToken()
         try:
-            with self.log.run_lock(), self.recovery.record(self.log):
+            with (
+                self.log.run_lock(),
+                self.recovery.record(self.log),
+                tool_context(
+                    ToolContext(
+                        self.log.session_id,
+                        str(self.log.path),
+                        self.provider.transport,
+                        self.provider.model,
+                        self.provider_config.reasoning_effort or "",
+                    )
+                ),
+            ):
                 text = (
                     f"!{args.get('command', '')}"
-                    if name == "bash"
+                    if name in {"bash", "powershell"}
                     else f"Run tool {name}"
                 )
                 user = self.log.append("user", {"text": text})
@@ -617,10 +629,17 @@ class ApplicationSession:
                         "call_id": call.id,
                         "content": result.content,
                         "status": "error" if result.is_error else "ok",
+                        "artifact": {"tool_metadata": cast(JsonValue, result.metadata)}
+                        if result.metadata is not None
+                        else None,
                     },
                 )
                 if on_event is not None:
-                    on_event(ToolEndEvent(call.id, result.content, result.is_error))
+                    on_event(
+                        ToolEndEvent(
+                            call.id, result.content, result.is_error, result.metadata
+                        )
+                    )
                 return result
         finally:
             self.cancel = None

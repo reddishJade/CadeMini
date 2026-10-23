@@ -43,6 +43,14 @@ class ToolEndEvent:
     call_id: str
     content: str
     is_error: bool
+    metadata: dict[str, JsonValue] | None = None
+
+
+@dataclass(frozen=True)
+class ToolUpdateEvent:
+    call_id: str
+    name: str
+    content: str
 
 
 @dataclass(frozen=True)
@@ -65,6 +73,7 @@ type LoopEvent = (
     | ProviderRetryEvent
     | ToolStartEvent
     | ToolEndEvent
+    | ToolUpdateEvent
     | ReasoningDeltaEvent
     | UsageEvent
 )
