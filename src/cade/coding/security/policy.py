@@ -30,6 +30,8 @@ _PLAN_TOOLS = frozenset(
         "find",
         "ls",
         "question",
+        "websearch",
+        "webfetch",
         "grep",
         "history",
         "skill",
@@ -43,7 +45,12 @@ _PLAN_TOOLS = frozenset(
 
 def filter_tools(tools: Sequence[Tool], mode: Mode) -> tuple[Tool, ...]:
     """Plan 保留计划文件工具，由策略限制具体写入位置。"""
-    return tuple(tool for tool in tools if mode != "plan" or tool.name in _PLAN_TOOLS)
+    return tuple(
+        tool
+        for tool in tools
+        if (mode != "plan" or tool.name in _PLAN_TOOLS)
+        and getattr(tool, "enabled", True)
+    )
 
 
 class WorkspacePolicy:
@@ -60,6 +67,7 @@ class WorkspacePolicy:
         plan_dir: Path | None = None,
         rules: Sequence[RuleConfig] = (),
         grants: GrantStore | None = None,
+        network: bool = True,
     ) -> None:
         self.workspace = workspace.resolve()
         self.read_only = read_only or sandbox == "read-only"
@@ -67,6 +75,7 @@ class WorkspacePolicy:
         self.temp_dir = temp_dir.resolve() if temp_dir else None
         self.plan_dir = (plan_dir or self.workspace / ".cade-plans").resolve()
         self.rules = tuple(rules)
+        self.network = network
         self.grants = grants or GrantStore()
         self._mode: Mode = "build"
         self.set_mode(mode)
@@ -88,6 +97,8 @@ class WorkspacePolicy:
     def check(self, call: ToolCallBlock) -> PermissionCheck:
         scope = ExecutionScope(read_only=self.read_only or self.mode == "plan")
         name = call.name
+        if name in {"websearch", "webfetch"} and not self.network:
+            return PermissionCheck("deny", "Network access is disabled.", scope)
         path: Path | None = None
         workdir = self.workspace
         try:
