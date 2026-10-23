@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import threading
 import time
 import urllib.parse
 from typing import Any, Self
+from unittest.mock import Mock
 
 import jwt
 import pytest
@@ -12,6 +14,76 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from cade.ai.auth import AuthCredential
 from cade.ai.auth import chatgpt as siwc
+
+
+@pytest.mark.parametrize(
+    ("platform", "command"),
+    [
+        ("darwin", ["open"]),
+        ("win32", ["rundll32", "url.dll,FileProtocolHandler"]),
+        ("linux", ["xdg-open"]),
+    ],
+)
+def test_browser_launcher_keeps_output_out_of_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    command: list[str],
+) -> None:
+    launcher = Mock()
+    monkeypatch.setattr(siwc.sys, "platform", platform)
+    monkeypatch.setattr(siwc.subprocess, "CREATE_NO_WINDOW", 0x08000000, raising=False)
+    monkeypatch.setattr(siwc.subprocess, "Popen", launcher)
+    url = "https://example.com/authorize?state=test&nonce=value"
+
+    siwc._open_browser(url)
+
+    launcher.assert_called_once_with(
+        [*command, url],
+        stdin=siwc.subprocess.DEVNULL,
+        stdout=siwc.subprocess.DEVNULL,
+        stderr=siwc.subprocess.DEVNULL,
+        start_new_session=platform != "win32",
+        creationflags=siwc.subprocess.CREATE_NO_WINDOW if platform == "win32" else 0,
+    )
+
+
+@pytest.mark.parametrize("open_browser", [True, False])
+def test_browser_login_keeps_manual_link_when_launcher_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch, open_browser: bool
+) -> None:
+    launcher = Mock(side_effect=FileNotFoundError("xdg-open unavailable"))
+    monkeypatch.setattr(siwc.subprocess, "Popen", launcher)
+    messages: list[str] = []
+    cancel = threading.Event()
+    cancel.set()
+
+    with pytest.raises(siwc.LoginCancelledError):
+        siwc.login_chatgpt_browser(
+            existing=AuthCredential(
+                provider="chatgpt",
+                access="token",
+                extra={
+                    "client_id": "oaiapp_test",
+                    "id_token": "saved-token",
+                    "email": "user@example.com",
+                },
+            ),
+            host_id="urn:uuid:test",
+            open_browser=open_browser,
+            notify_callback=messages.append,
+            cancel_event=cancel,
+        )
+
+    assert len(messages) == 1
+    assert messages[0].startswith("Complete ChatGPT authorization in your browser.")
+    assert messages[0].count(siwc.AUTHORIZE_URL) == 1
+    query = urllib.parse.parse_qs(
+        urllib.parse.urlparse(messages[0].splitlines()[-1]).query
+    )
+    assert query["client_id"] == ["oaiapp_test"]
+    assert "id_token_hint" not in query
+    assert "login_hint" not in query
+    assert launcher.call_count == int(open_browser)
 
 
 def _signed_id_token(
@@ -76,11 +148,6 @@ def test_initial_authorization_url_registers_dynamic_client() -> None:
 
 
 def test_returning_authorization_url_reuses_registration() -> None:
-    existing = AuthCredential(
-        provider="chatgpt",
-        access="token",
-        extra={"client_id": "oaiapp_test", "id_token": "saved", "email": "a@b.c"},
-    )
     url = siwc.build_authorization_url(
         client_id="oaiapp_test",
         redirect_uri="http://127.0.0.1:1455/auth/callback",
@@ -88,13 +155,12 @@ def test_returning_authorization_url_reuses_registration() -> None:
         nonce="nonce",
         challenge="challenge",
         host_id="urn:uuid:host",
-        existing=existing,
     )
     query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
 
     assert query["client_id"] == ["oaiapp_test"]
-    assert query["id_token_hint"] == ["saved"]
-    assert query["login_hint"] == ["a@b.c"]
+    assert "id_token_hint" not in query
+    assert "login_hint" not in query
     assert "agent_name_hint" not in query
 
 

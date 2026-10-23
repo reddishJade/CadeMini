@@ -1248,6 +1248,15 @@ class ChatGPTResponsesProvider(OpenAIResponsesProvider):
         self.transport = "chatgpt"
         self._metrics["transport"] = self.transport
 
+    async def count_input_tokens(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolDefinition],
+        options: StreamOptions | None = None,
+    ) -> int | None:
+        """SIWC 未公开输入预计数接口，避免将端点拒绝误报为登录过期。"""
+        return None
+
     def _get_client_and_headers(self) -> tuple[Any, dict[str, str]]:
         """构建使用 OAuth Access Token 的 Responses 客户端。"""
         if self._client is not None:

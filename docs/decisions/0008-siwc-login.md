@@ -27,8 +27,9 @@ implementation follows SIWC:
 - The first login authorizes `client_id=dynamic_agent_client` with
   `agent_name_hint` and a stable `ext_agent_host_id`. The callback issues a
   client ID, which is stored in `auth.json`.
-- Later logins reuse the issued client ID and send `id_token_hint` and
-  `login_hint`.
+- Later logins reuse the issued client ID. Authorization URLs omit
+  `id_token_hint` and `login_hint`, following OpenCode's SIWC flow, to keep saved
+  identity tokens and email addresses out of terminal links.
 - Authorization uses PKCE S256, `state`, `nonce`, the scopes
   `openid profile email offline_access resource.invoke chatgpt.tokens.use.direct`,
   and `resource=https://api.openai.com/v1`.
