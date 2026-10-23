@@ -45,12 +45,7 @@ _PLAN_TOOLS = frozenset(
 
 def filter_tools(tools: Sequence[Tool], mode: Mode) -> tuple[Tool, ...]:
     """Plan 保留计划文件工具，由策略限制具体写入位置。"""
-    return tuple(
-        tool
-        for tool in tools
-        if (mode != "plan" or tool.name in _PLAN_TOOLS)
-        and getattr(tool, "enabled", True)
-    )
+    return tuple(tool for tool in tools if mode != "plan" or tool.name in _PLAN_TOOLS)
 
 
 class WorkspacePolicy:

@@ -12,7 +12,6 @@ from pathlib import Path
 from cade.app.config import CadeConfig
 from cade.app.provider import ProviderConfig, build_provider
 from cade.app.session import ApplicationSession, UnavailableProvider
-from cade.app.settings import SettingsService
 from cade.coding.context.instructions import load_project_instructions
 from cade.coding.context.memory import MemoryTool, load_memory
 from cade.coding.context.note import load_working_note
@@ -30,10 +29,10 @@ from cade.coding.skills.tools import (
 )
 from cade.coding.subagents import DelegateTool, SubagentRunner, SubagentTool
 from cade.coding.tools.native import bin_directory
-from cade.coding.tools.question import AnswerHandler, Question, QuestionTool
+from cade.coding.tools.question import AnswerHandler, QuestionTool
 from cade.coding.tools.registry import build_tools
 from cade.coding.tools.webfetch import WebFetchTool
-from cade.coding.tools.websearch import SearchSelection, WebSearchTool
+from cade.coding.tools.websearch import WebSearchTool
 from cade.coding.workspace.recovery.coordinator import WorkspaceRecovery
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.compaction import Compactor
@@ -195,6 +194,7 @@ def create_session(
     tools = (
         *build_tools(workspace, snapshots=snapshots, sandbox=sandbox),
         WebFetchTool(),
+        WebSearchTool(),
         LoadSkillTool(workspace, skill_registry),
         MemoryTool(workspace),
         GoalTool(workspace),
@@ -242,26 +242,6 @@ def create_session(
 
     recovery = WorkspaceRecovery(
         snapshots, system_prompt=system_prompt, read_only=policy.read_only
-    )
-
-    async def search_answer(questions: tuple[Question, ...]) -> list[list[str]] | None:
-        handler = session.question_tool.answer if session.question_tool else answer
-        return await handler(questions) if handler is not None else None
-
-    def save_search_selection(selection: SearchSelection) -> None:
-        import json
-
-        SettingsService(workspace, config_path).save(
-            "websearch_provider", json.dumps(selection)
-        )
-
-    tools = (
-        *tools,
-        WebSearchTool(
-            selection=config.websearch_provider,
-            answer=search_answer,
-            save_selection=save_search_selection,
-        ),
     )
 
     async def refresh_base_tools() -> Sequence[Tool]:
