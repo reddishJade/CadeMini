@@ -316,8 +316,10 @@ async def test_native_file_worker_preserves_large_json_result(
         ToolCallBlock(id="read", name="read", args={"path": "quotes.txt"})
     )
     assert not result.is_error, result.content
-    assert "1: " + '"' * 400 in result.content
-    assert "output capped" in result.content
+    assert result.content.startswith(('"' * 400 + "\n") * 127)
+    assert result.content.endswith(
+        "[Showing lines 1-127 of 201 (50.0KB limit). Use offset=128 to continue.]"
+    )
 
 
 def test_native_read_only_shell_cannot_write(native_sandbox: PlatformSandbox) -> None:
