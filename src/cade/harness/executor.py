@@ -25,6 +25,7 @@ from cade.harness.permissions import (
 from cade.harness.session.types import JsonValue, ToolCallBlock
 from cade.harness.tools import (
     Tool,
+    ToolDismissed,
     ToolResult,
     current_tool_context,
     tool_context,
@@ -114,6 +115,10 @@ async def execute_tool(
                 if timeout_seconds > 0 and not getattr(tool, "manages_timeout", False)
                 else await operation
             )
+        except ToolDismissed as exc:
+            if cancel is not None:
+                cancel.cancel(str(exc))
+            result = ToolResult(str(exc), is_error=True)
         except TimeoutError:
             result = ToolResult(
                 f"Tool timed out after {timeout_seconds:g}s: {call.name}",

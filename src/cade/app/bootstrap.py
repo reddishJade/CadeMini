@@ -29,6 +29,7 @@ from cade.coding.skills.tools import (
 )
 from cade.coding.subagents import DelegateTool, SubagentRunner, SubagentTool
 from cade.coding.tools.native import bin_directory
+from cade.coding.tools.question import AnswerHandler, QuestionTool
 from cade.coding.tools.registry import build_tools
 from cade.coding.workspace.recovery.coordinator import WorkspaceRecovery
 from cade.coding.workspace.snapshots import SnapshotStore
@@ -127,6 +128,7 @@ def create_session(
     auto_approve: bool = False,
     config_path: Path | None = None,
     goal: str | None = None,
+    answer: AnswerHandler | None = None,
 ) -> BootstrappedSession:
     """为单次任务和交互入口创建相同的应用会话。"""
     workspace = workspace.resolve()
@@ -242,6 +244,7 @@ def create_session(
         return (
             *(tool for tool in tools if not tool.name.startswith("mcp__")),
             *remote,
+            *((session.question_tool,) if session.question_tool is not None else ()),
         )
 
     runner = SubagentRunner(
@@ -290,4 +293,6 @@ def create_session(
         context_window_explicit=bool(config.context_window),
         recovery=recovery,
     )
+    if answer is not None:
+        session.question_tool = QuestionTool(answer)
     return BootstrappedSession(session, approver, mcp.errors)

@@ -1,4 +1,4 @@
-"""规范化提问参数，并委托宿主收集答案。"""
+"""规范化提问参数、答案格式和取消行为。"""
 
 from __future__ import annotations
 
@@ -8,29 +8,33 @@ from typing import Any
 
 from cade.harness.cancellation import CancellationToken
 from cade.harness.session.types import JsonValue, ToolCallBlock
-from cade.harness.tools import ToolResult
+from cade.harness.tools import ToolDismissed, ToolResult
 
 
 @dataclass(frozen=True)
 class Question:
     text: str
-    options: tuple[tuple[str, str], ...] = ()
+    options: tuple[tuple[str, str], ...]
+    header: str
     multiple: bool = False
-    header: str = ""
 
 
-type AnswerHandler = Callable[[tuple[Question, ...]], Awaitable[list[list[str]]]]
+type AnswerHandler = Callable[[tuple[Question, ...]], Awaitable[list[list[str]] | None]]
 
 
 class QuestionTool:
-    """从交互宿主收集选项或自由文本答案。"""
-
     name = "question"
-    description = (
-        "Ask the user a question before proceeding. Provide options for a "
-        "single- or multiple-choice decision, or omit options for free text. "
-        "Do this only when a user decision is required."
-    )
+    description = """Use this tool when you need to ask the user questions during execution. This allows you to:
+1. Gather user preferences or requirements
+2. Clarify ambiguous instructions
+3. Get decisions on implementation choices as you work
+4. Offer choices to the user about what direction to take.
+
+Usage notes:
+- A "Type your own answer" option is added automatically; don't include a separate option for free form answers
+- Set `multiple: true` to allow selecting more than one option
+- If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label"""
+    manages_timeout = True
 
     def __init__(self, answer: AnswerHandler) -> None:
         self.answer = answer
@@ -40,26 +44,42 @@ class QuestionTool:
                 "questions": {
                     "type": "array",
                     "minItems": 1,
+                    "description": "Questions to ask",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "header": {"type": "string", "maxLength": 30},
-                            "question": {"type": "string"},
-                            "multiple": {"type": "boolean"},
+                            "question": {
+                                "type": "string",
+                                "description": "Complete question",
+                            },
+                            "header": {
+                                "type": "string",
+                                "description": "Very short label (max 30 chars)",
+                            },
                             "options": {
                                 "type": "array",
-                                "minItems": 1,
+                                "description": "Available choices",
                                 "items": {
                                     "type": "object",
                                     "properties": {
-                                        "label": {"type": "string"},
-                                        "description": {"type": "string"},
+                                        "label": {
+                                            "type": "string",
+                                            "description": "Display text (1-5 words, concise)",
+                                        },
+                                        "description": {
+                                            "type": "string",
+                                            "description": "Explanation of choice",
+                                        },
                                     },
-                                    "required": ["label"],
+                                    "required": ["label", "description"],
                                 },
                             },
+                            "multiple": {
+                                "type": "boolean",
+                                "description": "Allow selecting multiple choices",
+                            },
                         },
-                        "required": ["question"],
+                        "required": ["question", "header", "options"],
                     },
                 }
             },
@@ -67,74 +87,53 @@ class QuestionTool:
         }
 
     async def execute(
-        self,
-        call: ToolCallBlock,
-        signal: CancellationToken | None = None,
+        self, call: ToolCallBlock, signal: CancellationToken | None = None
     ) -> ToolResult:
         questions = parse_questions(call.args.get("questions"))
         if signal is not None and signal.cancelled:
-            return ToolResult(content="Question cancelled.", is_error=True)
+            raise ToolDismissed("The user dismissed this question")
         answers = await self.answer(questions)
-        if signal is not None and signal.cancelled:
-            return ToolResult(content="Question cancelled.", is_error=True)
-        if len(answers) != len(questions):
-            return ToolResult(content="Question was not answered.", is_error=True)
-        pieces = []
-        for question, values in zip(questions, answers, strict=True):
-            if not values:
-                pieces.append(f"{question.text}: unanswered")
-            else:
-                pieces.append(f"{question.text}: {', '.join(values)}")
-        return ToolResult(content="User answers:\n" + "\n".join(pieces))
+        if answers is None or (signal is not None and signal.cancelled):
+            raise ToolDismissed("The user dismissed this question")
+        formatted = ", ".join(
+            f'"{question.text}"="{", ".join(answers[index]) if index < len(answers) and answers[index] else "Unanswered"}"'
+            for index, question in enumerate(questions)
+        )
+        return ToolResult(
+            f"User has answered your questions: {formatted}. You can now continue with the user's answers in mind.",
+            metadata={"answers": answers},
+        )
 
 
 def parse_questions(raw: JsonValue | None) -> tuple[Question, ...]:
-    """打开终端控件前先校验模型传入的参数。"""
     if not isinstance(raw, list) or not raw:
         raise ValueError("questions must be a non-empty array")
-    parsed: list[Question] = []
-    for value in raw:
-        if not isinstance(value, dict):
+    result: list[Question] = []
+    for item in raw:
+        if not isinstance(item, dict):
             raise TypeError("each question must be an object")
-        question = value.get("question")
-        if not isinstance(question, str) or not question.strip():
-            raise ValueError("question text must be non-empty")
-        header = value.get("header")
-        if header is None:
-            header = ""
-        if not isinstance(header, str) or len(header) > 30:
-            raise ValueError("question header must be 0-30 characters")
-        multiple = value.get("multiple")
-        if multiple is None:
-            multiple = False
-        if not isinstance(multiple, bool):
-            raise TypeError("question multiple must be boolean")
-        raw_options = value.get("options")
-        if raw_options is None:
-            raw_options = []
-        if not isinstance(raw_options, list):
-            raise TypeError("question options must be an array")
-        options: list[tuple[str, str]] = []
-        for item in raw_options:
-            if not isinstance(item, dict):
-                raise TypeError("question option must be an object")
-            label = item.get("label")
-            if not isinstance(label, str) or not label.strip():
-                raise ValueError("question option label is required")
-            description = item.get("description")
-            if description is None:
-                description = ""
-            if not isinstance(description, str):
-                raise TypeError("question description must be text")
-            options.append((label.strip(), description.strip()))
-        if len({name for name, _ in options}) != len(options):
-            raise ValueError("question options must have unique labels")
-        parsed.append(
-            Question(
-                text=question.strip(),
-                options=tuple(options),
-                multiple=multiple,
-                header=header.strip(),
-            )
+        text, header, options = (
+            item.get("question"),
+            item.get("header"),
+            item.get("options"),
         )
-    return tuple(parsed)
+        if (
+            not isinstance(text, str)
+            or not isinstance(header, str)
+            or not isinstance(options, list)
+        ):
+            raise TypeError("question, header and options are required")
+        parsed: list[tuple[str, str]] = []
+        for option in options:
+            if (
+                not isinstance(option, dict)
+                or not isinstance(option.get("label"), str)
+                or not isinstance(option.get("description"), str)
+            ):
+                raise TypeError("each option requires label and description")
+            parsed.append((str(option["label"]), str(option["description"])))
+        multiple = item.get("multiple", False)
+        if not isinstance(multiple, bool):
+            raise TypeError("multiple must be boolean")
+        result.append(Question(text, tuple(parsed), header, multiple))
+    return tuple(result)

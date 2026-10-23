@@ -15,7 +15,7 @@ _SKILL_INVOCATION_PATTERN = re.compile(
     r"^\$([A-Za-z0-9][A-Za-z0-9._-]*)(?:\s+(.*))?$",
     re.DOTALL,
 )
-CUSTOM_OPTION_LABEL = "Custom answer"
+CUSTOM_OPTION_LABEL = "Type your own answer"
 
 
 @dataclass(frozen=True)

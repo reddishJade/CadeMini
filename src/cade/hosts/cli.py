@@ -14,6 +14,7 @@ from typing import Any
 from cade.app.bootstrap import create_session, resolve_sessions_dir, undo_session
 from cade.app.config import CadeConfig
 from cade.coding.goal import GoalStore
+from cade.coding.tools.question import Question
 from cade.harness.events import (
     LoopEvent,
     RunResult,
@@ -139,6 +140,7 @@ def _main(
             resume="" if args.continue_ else args.resume,
             auto_approve=args.yes,
             config_path=args.config,
+            answer=_terminal_questions if one_shot else None,
         )
     except (OSError, ValueError, RuntimeError, LogError) as exc:
         print(f"cade: {exc}", file=sys.stderr)
@@ -291,6 +293,45 @@ def _parser(*, exec_mode: bool = False) -> argparse.ArgumentParser:
     parser.add_argument("--context-window", type=int, default=None)
     parser.add_argument("--json", action="store_true", help="Emit JSONL events")
     return parser
+
+
+async def _terminal_questions(
+    questions: tuple[Question, ...],
+) -> list[list[str]] | None:
+    if not sys.stdin.isatty():
+        return None
+
+    def ask() -> list[list[str]] | None:
+        answers: list[list[str]] = []
+        for question in questions:
+            print(f"\n{question.header}\n{question.text}", file=sys.stderr)
+            for index, (label, description) in enumerate(question.options, 1):
+                print(f"{index}. {label}: {description}", file=sys.stderr)
+            print(
+                "Type your own answer, or enter option numbers separated by commas."
+                if question.multiple
+                else "Type your own answer, or enter an option number.",
+                file=sys.stderr,
+            )
+            try:
+                print("> ", file=sys.stderr, end="", flush=True)
+                value = input()
+            except (EOFError, KeyboardInterrupt):
+                return None
+            values = value.split(",") if question.multiple else [value]
+            answers.append(
+                [
+                    question.options[int(item.strip()) - 1][0]
+                    if item.strip().isdigit()
+                    and 1 <= int(item.strip()) <= len(question.options)
+                    else item.strip()
+                    for item in values
+                    if item.strip()
+                ]
+            )
+        return answers
+
+    return await asyncio.to_thread(ask)
 
 
 def _print_sessions(sessions_dir: Path) -> None:

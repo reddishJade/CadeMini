@@ -29,6 +29,7 @@ _PLAN_TOOLS = frozenset(
         "edit",
         "find",
         "ls",
+        "question",
         "grep",
         "history",
         "skill",
