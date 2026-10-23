@@ -27,12 +27,28 @@ schema counts and token estimates per server, plus resources, prompts, and tool
 results still present in the active conversation. A schema refresh changes the
 schema list; loaded content remains until projection removes it.
 
-Estimates use the request builder's character-based approximation (roughly four
-characters per token, plus message and image overhead). They are not model
-tokenizer counts. When available, the last request's provider-reported input
-and output usage is shown separately; it is not the cumulative run total.
-The report does not expand content, contact providers or MCP servers, or modify
-the conversation.
+For OpenAI Responses, `/context` calls the
+[input token count endpoint](https://developers.openai.com/api/docs/guides/token-counting)
+with the same converted input, instructions, tools, and response format used by
+inference. The returned total is displayed as **Input (provider count)**. This
+does not generate a reply or add a conversation event. Endpoint or account
+errors are shown alongside the explicitly labeled fallback estimate.
+
+For `deepseek-flash` and `deepseek-v4-pro`, the command uses the
+[official V4 tokenizer](https://api-docs.deepseek.com/quick_start/token_usage/)
+through `tokenizers`. On first use, it downloads the public model archive and
+caches the checksum-verified JSON under `~/.cade/tokenizers/`. Later inspections
+work from that cache. Text uses model tokenization; message framing, images,
+and server-side tool formatting still require an estimate. The report names
+the tokenizer and does not label this total as a provider measurement.
+
+Source breakdowns are estimates, not provider-supplied per-file billing data.
+They use the selected model tokenizer when available, otherwise the character
+heuristic. Input remaining uses the provider total when available. The latest
+request's reported input/output usage remains separate from both current input
+and cumulative run totals. Inspection does not contact MCP servers or modify
+the conversation. Request admission retains its existing offline estimate;
+normal model calls do not issue an additional pre-count request.
 
 ## Compaction
 

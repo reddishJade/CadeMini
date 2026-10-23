@@ -16,7 +16,11 @@
 
 文件来源包括已加载的 `AGENTS.md` 或替代文件、笔记、记忆、技能正文和引用、读取的文件及附件。MCP 来源逐个服务显示当前 schema 数量和 token 估算，并列出仍在活动对话中的资源、提示和工具结果。schema 刷新会更新目录；已加载内容在投影移除后才会消失。
 
-估算沿用请求构造器按字符计算的近似值，主要按每四个字符一个 token，再加消息和图片开销，并非模型 tokenizer 的精确计数。有记录时，报告单独显示最近一次请求由 provider 返回的输入和输出用量，不使用整轮任务的累计值。报告不展开正文，不访问 provider 或 MCP 服务，也不修改对话。
+对于 OpenAI Responses，`/context` 调用[输入计数接口](https://developers.openai.com/api/docs/guides/token-counting)，复用推理请求转换后的输入、指令、工具和输出格式。接口返回的总量显示为 **Input (provider count)**。这不会生成回复或追加会话事件。接口或账户错误会显示在明确标注的回退估算旁边。
+
+对于 `deepseek-flash` 和 `deepseek-v4-pro`，命令通过 `tokenizers` 使用[官方 V4 分词器](https://api-docs.deepseek.com/quick_start/token_usage/)。首次使用时下载公开模型包，校验 JSON 后缓存到 `~/.cade/tokenizers/`，后续可离线使用。文本采用模型分词；消息包装、图片和服务端工具格式仍需估算。报告标明分词器来源，不把这个总量称为 provider 实测值。
+
+分项仍是估算，不是 provider 返回的逐文件计费数据。有模型分词器时使用模型分词，否则使用字符近似。剩余输入空间优先采用 provider 总量计算。最近一次请求上报的输入和输出用量单独显示，不与当前输入或整轮累计混用。检查不会访问 MCP 服务或修改对话。请求准入沿用原有离线估算，普通模型调用不会额外发起预计数请求。
 
 ## 压缩
 

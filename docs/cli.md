@@ -117,7 +117,9 @@ modes, configuration, and permissions.
 - `/context-window [SIZE|default]` shows or changes the current context window.
 - `/context` shows estimated context usage, source totals, remaining input space, and loaded
   file paths with token estimates, including instructions, skills, MCP schemas,
-  and loaded MCP content. Last-request provider usage is shown separately.
+  and loaded MCP content. OpenAI totals use its input-count API; DeepSeek uses
+  its official V4 text tokenizer with estimated request overhead. Last-request
+  provider usage is shown separately.
 - `/btw QUESTION` asks an independent side question.
 - `/steer TEXT` queues guidance for the next model step.
 - `/queue [followup|steer|interrupt|TEXT]` chooses how busy `Enter` behaves, or queues TEXT for the next turn.

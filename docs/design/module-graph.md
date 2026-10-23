@@ -10,6 +10,7 @@ flowchart LR
   ai_models --> ai_types
   ai_providers__codec --> ai_types
   ai_providers_base --> ai_events
+  ai_providers_base --> ai_tokenization
   ai_providers_base --> ai_types
   ai_providers_base --> ai_usage
   ai_providers_registry --> ai_providers_base
@@ -17,6 +18,7 @@ flowchart LR
   ai_providers_registry --> ai_types
   ai_providers_responses --> ai_cache
   ai_providers_responses --> ai_events
+  ai_providers_responses --> ai_tokenization
   ai_providers_responses --> ai_types
   ai_providers_responses --> ai_usage
   ai_resolver --> ai_models
@@ -55,12 +57,15 @@ flowchart LR
   app_config --> coding_mcp_config
   app_config --> coding_security_rules
   app_context_report --> ai_models
+  app_context_report --> ai_providers_base
+  app_context_report --> ai_tokenization
   app_context_report --> ai_types
   app_context_report --> coding_mcp_tools
   app_context_report --> coding_security_policy
   app_context_report --> harness_request
   app_context_report --> harness_session_projection
   app_context_report --> harness_session_types
+  app_context_report --> harness_tools
   app_provider --> ai_models
   app_provider --> ai_providers_base
   app_provider --> ai_providers_registry
