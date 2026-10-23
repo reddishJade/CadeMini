@@ -90,15 +90,15 @@ def _preview_edit_file(action_input: dict, lines: list[str]) -> None:
         for index, item in enumerate(edits, start=1):
             if not isinstance(item, dict):
                 continue
-            old_text = str(item.get("old_text", ""))
-            new_text = str(item.get("new_text", ""))
+            old_text = str(item.get("oldText", ""))
+            new_text = str(item.get("newText", ""))
             lines.append(f"[dim]Edit {index}[/dim]")
             old_cut = _append_edit_preview(lines, "old_text", old_text)
             new_cut = _append_edit_preview(lines, "new_text", new_text)
             truncated = truncated or old_cut or new_cut
     else:
-        old_text = str(action_input.get("old_text", ""))
-        new_text = str(action_input.get("new_text", ""))
+        old_text = str(action_input.get("oldText", ""))
+        new_text = str(action_input.get("newText", ""))
         if action_input.get("replace_all", False):
             lines.append("[yellow]Replace all occurrences[/yellow]")
         if old_text or new_text:
@@ -123,15 +123,15 @@ def full_edit_preview_lines(action_input: ToolInput) -> list[str]:
     if not isinstance(edits, list):
         edits = [
             {
-                "old_text": action_input.get("old_text", ""),
-                "new_text": action_input.get("new_text", ""),
+                "oldText": action_input.get("oldText", ""),
+                "newText": action_input.get("newText", ""),
             }
         ]
     for index, item in enumerate(edits, start=1):
         if not isinstance(item, dict):
             continue
-        old_text = str(item.get("old_text", ""))
-        new_text = str(item.get("new_text", ""))
+        old_text = str(item.get("oldText", ""))
+        new_text = str(item.get("newText", ""))
         lines.extend(
             (
                 f"Edit {index}",

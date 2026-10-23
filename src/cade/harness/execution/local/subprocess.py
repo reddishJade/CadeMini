@@ -41,7 +41,7 @@ class SubprocessShell:
         self,
         argv: list[str],
         cwd: Path,
-        timeout: int = 30_000,
+        timeout: int | None = 30_000,
         cancel_event: threading.Event | None = None,
         on_progress: Callable[[str], None] | None = None,
         env: dict[str, str] | None = None,
@@ -80,9 +80,11 @@ class SubprocessShell:
         output_thread.start()
 
         try:
-            deadline = time.monotonic() + (timeout / 1000.0)
+            deadline = (
+                time.monotonic() + (timeout / 1000.0) if timeout is not None else None
+            )
             while proc.poll() is None:
-                if time.monotonic() >= deadline:
+                if deadline is not None and time.monotonic() >= deadline:
                     timed_out = True
                     kill_process(proc)
                     break

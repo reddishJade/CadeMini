@@ -7,7 +7,7 @@ from pathlib import Path
 from cade.coding.tools.base import (
     WorkspaceTool,
 )
-from cade.coding.tools.bash import BashTool
+from cade.coding.tools.bash import BashTool, PowerShellTool
 from cade.coding.tools.edit import EditTool
 from cade.coding.tools.ls import LsTool
 from cade.coding.tools.read import ReadTool
@@ -32,6 +32,7 @@ def build_tools(
         LsTool(workspace),
         GrepTool(workspace),
         BashTool(workspace, snapshots),
+        PowerShellTool(workspace, snapshots),
     )
     for tool in tools:
         tool.sandbox = sandbox
