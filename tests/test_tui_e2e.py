@@ -302,7 +302,7 @@ COMMAND_CASES = [
     ("/effort low", "Model:"),
     ("/thinking off", "Thinking level: off"),
     ("/context-window 200k", "200,000"),
-    ("/context", "gpt-5.5"),
+    ("/context", "GPT-5.5"),
     ("/mode ask", "Mode: ask"),
     ("/queue followup", "Busy input mode: followup"),
     ("/steer guidance", None),
@@ -327,6 +327,39 @@ def test_command_inventory_is_complete() -> None:
     assert {line.split()[0] for line, _ in COMMAND_CASES} == {
         spec.name for spec in SPECS
     }
+
+
+def test_context_shows_compact_categories_and_loaded_skill_files(
+    terminal_runner: Runner,
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        await term.send("hello, i guess?")
+        original = term.service.log.path.read_bytes()
+        await term.send("/context")
+        report = term.tui._state.log[-1].text
+        assert "└ Context Usage" in report
+        assert "Token usage by category" in report
+        assert "User messages:" in report
+        assert "System tools:" in report
+        assert "Skills:" in report
+        assert "Free space:" in report
+        assert "Skill catalog · 1 available" in report
+        assert "hello, i guess?" not in report
+        assert "E2E answer" not in report
+        assert "Tool definitions" not in report
+        assert "Skill files" not in report
+        assert report.count("□") == 1
+        assert len(report.splitlines()) <= 18
+        assert term.service.log.path.read_bytes() == original
+        await term.send("$e2e-skill check this")
+        await term.send("/context")
+        report = term.tui._state.log[-1].text
+        assert "Skill files · /skill" in report
+        assert "SKILL.md:" in report
+        assert "E2E skill body" not in report
+        assert len(term.service.provider.requests) == 2
+
+    terminal_runner(scenario)
 
 
 @pytest.mark.parametrize(
