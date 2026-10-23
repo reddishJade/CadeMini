@@ -7,10 +7,11 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | --- | --- | --- | --- |
 | `read` | `path`, `offset`, `limit` | None | Allow except protected paths |
 | `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in ask, allow in build |
-| `edit` | `path`, `old`, `new` | Replaces one occurrence; snapshot first | Ask in ask, allow in build |
-| `glob` | `pattern`, `path` | None | Allow |
-| `grep` | `pattern`, `path`, `include` | None | Allow |
-| `bash` | `command`, `workdir`, `timeout_ms`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
+| `edit` | `path`, `edits: [{oldText, newText}]` | Applies disjoint replacements against the original file; snapshot first | Ask in ask, allow in build |
+| `find` | `pattern`, `path`, `limit` | None | Allow except protected paths |
+| `ls` | `path`, `limit` | None | Allow except protected paths |
+| `grep` | `pattern`, `path`, `glob`, `ignoreCase`, `literal`, `context`, `limit` | None | Allow except protected paths |
+| `bash`, `powershell` | `command`, `timeout`, `workdir`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
 | `history` | `query`, `entry_id`, `call_id`, `limit` | None | Allow |
 | `skill` | `name` | None; loads a skill body | Allow |
 | `memory` | `text` | Appends to `MEMORY.md` | Allow; denied read-only |
@@ -32,6 +33,16 @@ The built-in tool surface. MCP tools are discovered at startup and named
 
 The authoritative JSON schemas are built into each tool. This table is a
 navigation aid; when it disagrees with the tool schema, the schema wins.
+
+See [the behavior contract](../decisions/0015-tool-behavior-parity.md)
+for tool defaults and Cade integration. `read` returns file content without
+line-number prefixes and supports image attachments. Use `ls` for directories.
+Shell `timeout` is in seconds and has no default. `bash` uses Bash on Windows;
+`powershell` uses PowerShell and is available only on Windows.
+
+`find` uses fd and `grep` uses ripgrep. Missing binaries are downloaded to
+`~/.cade/bin` unless `CADE_OFFLINE` is `1`, `true`, or `yes`, or network access
+is disabled. Searches exclude `.cade`, including snapshots and session logs.
 
 ## Related
 

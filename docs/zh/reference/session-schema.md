@@ -26,6 +26,12 @@
 
 ## 事件类型
 
+图片工具把附件写入 `tool_result.artifact.tool_metadata.images`。
+每张图片包含 `data`（base64）和 `mimeType`。
+投影恢复文本和图片，请求快照把图片记录在工具消息的 `images` 字段。
+Responses 适配器将其发送为函数输出中的 `input_image`。
+工具负责生成附件数据，数据随会话日志保留。
+
 ### 对话事件
 
 这些事件产生模型可见的消息。

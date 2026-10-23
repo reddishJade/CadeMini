@@ -6,10 +6,11 @@
 | --- | --- | --- | --- |
 | `read` | `path`、`offset`、`limit` | 无 | 允许，受保护路径除外 |
 | `write` | `path`、`content` | 创建或替换文件；先做快照 | ask 模式下询问，build 模式下允许 |
-| `edit` | `path`、`old`、`new` | 替换一处内容；先做快照 | ask 模式下询问，build 模式下允许 |
-| `glob` | `pattern`、`path` | 无 | 允许 |
-| `grep` | `pattern`、`path`、`include` | 无 | 允许 |
-| `bash` | `command`、`workdir`、`timeout_ms`、`additional_write_paths` | 任意进程；对常见修改做快照 | build 模式下允许普通开发；检测到风险时询问 |
+| `edit` | `path`、`edits: [{oldText, newText}]` | 对原始文件执行互不重叠的替换；先做快照 | ask 模式下询问，build 模式下允许 |
+| `find` | `pattern`、`path`、`limit` | 无 | 允许，受保护路径除外 |
+| `ls` | `path`、`limit` | 无 | 允许，受保护路径除外 |
+| `grep` | `pattern`、`path`、`glob`、`ignoreCase`、`literal`、`context`、`limit` | 无 | 允许，受保护路径除外 |
+| `bash`、`powershell` | `command`、`timeout`、`workdir`、`additional_write_paths` | 任意进程；对常见修改做快照 | build 模式下允许普通开发；检测到风险时询问 |
 | `history` | `query`、`entry_id`、`call_id`、`limit` | 无 | 允许 |
 | `skill` | `name` | 无；加载技能正文 | 允许 |
 | `memory` | `text` | 追加到 `MEMORY.md` | 允许；只读模式拒绝 |
@@ -28,6 +29,15 @@
 ## 参数
 
 权威 JSON schema 内建于每个工具。这张表只用于导航；与工具 schema 不一致时，以 schema 为准。
+
+工具默认值和 Cade 集成见[行为契约](../../decisions/0015-tool-behavior-parity.md)。
+`read` 返回不带行号前缀的文件内容，并支持图片附件。列目录请用 `ls`。
+Shell 的 `timeout` 单位是秒，没有默认超时。Windows 上的 `bash` 使用 Bash；
+`powershell` 使用 PowerShell，仅支持 Windows。
+
+`find` 使用 fd，`grep` 使用 ripgrep。缺少的程序会下载到 `~/.cade/bin`。
+`CADE_OFFLINE` 为 `1`、`true` 或 `yes`，或网络关闭时，不下载。
+搜索排除 `.cade`，包括其中的快照和会话日志。
 
 ## 相关页面
 
