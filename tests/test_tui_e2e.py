@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import threading
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
@@ -1079,7 +1080,7 @@ def test_shell_shortcut_cancels_and_settles(
 ) -> None:
     class WaitingShell:
         def __init__(self) -> None:
-            self.name = "bash"
+            self.name = "powershell" if sys.platform == "win32" else "bash"
             self.description = "Wait for cancellation"
             self.parameters = {
                 "type": "object",
