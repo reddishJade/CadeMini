@@ -150,7 +150,6 @@ class TuiLoginFlow:
             )
 
         def work(cancel: threading.Event) -> None:
-            self._post("system", "Starting ChatGPT sign-in...")
             try:
                 message = asyncio.run(self._service.auth.login_chatgpt(notify, cancel))
             except LoginCancelledError:

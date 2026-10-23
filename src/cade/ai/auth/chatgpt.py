@@ -2,7 +2,7 @@
 
 使用 OAuth 2.0 Authorization Code + PKCE，动态注册客户端，并用 ChatGPT
 套餐额度调用公开的 Responses API。首次登录注册客户端；后续登录复用已签发的
-client_id，并携带 id_token_hint 与 login_hint。
+client_id。
 """
 
 from __future__ import annotations
@@ -12,10 +12,11 @@ import hashlib
 import http.server
 import logging
 import secrets
+import subprocess
+import sys
 import threading
 import time
 import urllib.parse
-import webbrowser
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -74,12 +75,11 @@ def build_authorization_url(
     nonce: str,
     challenge: str,
     host_id: str,
-    existing: AuthCredential | None = None,
 ) -> str:
     """构造 SIWC 授权地址。
 
     首次注册使用 dynamic_agent_client 并附带 agent_name_hint；后续登录使用
-    已签发的 client_id，并携带保留的 id_token 与 email 提示。
+    已签发的 client_id。
     """
     params = {
         "client_id": client_id,
@@ -93,15 +93,7 @@ def build_authorization_url(
         "code_challenge": challenge,
         "code_challenge_method": "S256",
     }
-    if existing is not None:
-        extra = existing.extra or {}
-        id_token = extra.get("id_token")
-        email = extra.get("email")
-        if isinstance(id_token, str) and id_token:
-            params["id_token_hint"] = id_token
-        if isinstance(email, str) and email:
-            params["login_hint"] = email
-    else:
+    if client_id == CLIENT_ID:
         params["agent_name_hint"] = AGENT_NAME
     return f"{AUTHORIZE_URL}?{urllib.parse.urlencode(params)}"
 
@@ -196,6 +188,27 @@ def _serve_callback(server: _OAuthCallbackServer, deadline: float) -> None:
         return
 
 
+def _open_browser(url: str) -> None:
+    """静默启动系统浏览器；调用方始终提供手动授权链接。"""
+    if sys.platform == "darwin":
+        command = ["open", url]
+    elif sys.platform == "win32":
+        command = ["rundll32", "url.dll,FileProtocolHandler", url]
+    else:
+        command = ["xdg-open", url]
+    try:
+        subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=sys.platform != "win32",
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+    except OSError:
+        pass
+
+
 def login_chatgpt_browser(
     existing: AuthCredential | None = None,
     host_id: str | None = None,
@@ -228,13 +241,12 @@ def login_chatgpt_browser(
         nonce=nonce,
         challenge=challenge,
         host_id=host_id,
-        existing=existing if issued_client_id else None,
     )
 
     if notify_callback:
         notify_callback(
             "Complete ChatGPT authorization in your browser.\n"
-            f"If the browser does not open automatically, visit:\n{auth_url}"
+            f"If the browser does not open, visit:\n{auth_url}"
         )
 
     deadline = time.time() + timeout_seconds
@@ -244,7 +256,7 @@ def login_chatgpt_browser(
     server_thread.start()
 
     if open_browser:
-        webbrowser.open(auth_url)
+        _open_browser(auth_url)
 
     while server_thread.is_alive():
         if _wait_cancelled(cancel_event, 0.2):
