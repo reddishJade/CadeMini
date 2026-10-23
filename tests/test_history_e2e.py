@@ -227,6 +227,9 @@ def test_history_commands_do_not_replace_an_active_run(
     async def scenario(term: Terminal) -> None:
         term.service.provider.delay = 10
         await term.send("running task", wait_idle=False)
+        await term.until(
+            lambda: bool(term.service.provider.requests), "request started"
+        )
         await term.send(command, wait_idle=False)
         assert "after the current task finishes" in term.transcript
         assert term.tui._state.pending_command_choice is None
