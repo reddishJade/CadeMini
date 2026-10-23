@@ -13,6 +13,14 @@ The system message is the base prompt plus request-only context:
 The request audit records this context and the normalized request; it does not
 turn the text into conversation facts.
 
+`/context` inventories the next request using the same context source as the
+runtime, including skill instructions restored after compaction or a window
+reset. It lists each context block, available tool definition, and projected
+message with a local token estimate and a short text preview. Source labels
+identify loaded instruction files, skill catalog entries, skill bodies,
+references, and attached files. Files that exist but were not loaded are absent.
+The report does not call the provider or modify the conversation.
+
 ## Compaction
 
 `Compactor` runs when the full projection exceeds the input budget.

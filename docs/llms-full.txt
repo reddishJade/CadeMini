@@ -337,7 +337,9 @@ modes, configuration, and permissions.
 - `/permissions [list|clear]` lists or clears session grants; without arguments it opens a picker.
 - `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
 - `/context-window [SIZE|default]` shows or changes the current context window.
-- `/context` prints the session ID, provider, budget, and event count.
+- `/context` shows the context budget and inventories the system prompt,
+  request context, tool definitions, and projected conversation, including
+  progressively loaded skills and references.
 - `/btw QUESTION` asks an independent side question.
 - `/steer TEXT` queues guidance for the next model step.
 - `/queue [followup|steer|interrupt|TEXT]` chooses how busy `Enter` behaves, or queues TEXT for the next turn.
@@ -2567,6 +2569,14 @@ The system message is the base prompt plus request-only context:
 
 The request audit records this context and the normalized request; it does not
 turn the text into conversation facts.
+
+`/context` inventories the next request using the same context source as the
+runtime, including skill instructions restored after compaction or a window
+reset. It lists each context block, available tool definition, and projected
+message with a local token estimate and a short text preview. Source labels
+identify loaded instruction files, skill catalog entries, skill bodies,
+references, and attached files. Files that exist but were not loaded are absent.
+The report does not call the provider or modify the conversation.
 
 ## Compaction
 
