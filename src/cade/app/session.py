@@ -489,6 +489,16 @@ class ApplicationSession:
 
         return manual
 
+    def request_context(self) -> tuple[str, ...]:
+        """返回下一次模型请求使用的上下文，包含压缩后恢复的技能。"""
+        parts = list(self.context())
+        entries = self.log.branch()
+        visible = project(entries)
+        for tool in self.base_tools:
+            if isinstance(tool, LoadSkillTool):
+                parts.extend(restore_skill_context(tool.registry, entries, visible))
+        return tuple(parts)
+
     async def run_task(
         self,
         text: str,
@@ -522,18 +532,6 @@ class ApplicationSession:
                     await self.mcp.refresh()
                 return filter_tools(self.tools, self.policy.mode)
 
-            def request_context() -> Sequence[str]:
-                parts = list(self.context())
-                for tool in self.base_tools:
-                    if isinstance(tool, LoadSkillTool):
-                        entries = self.log.branch()
-                        parts.extend(
-                            restore_skill_context(
-                                tool.registry, entries, project(entries)
-                            )
-                        )
-                return parts
-
             result = await run(
                 self.log,
                 text,
@@ -553,7 +551,7 @@ class ApplicationSession:
                 cancel=self.cancel,
                 on_event=on_event,
                 refresh_tools=refresh_tools,
-                context_source=request_context,
+                context_source=self.request_context,
             )
             self.last_usage = result.usage or {}
             return result

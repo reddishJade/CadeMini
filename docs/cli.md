@@ -115,7 +115,9 @@ modes, configuration, and permissions.
 - `/permissions [list|clear]` lists or clears session grants; without arguments it opens a picker.
 - `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
 - `/context-window [SIZE|default]` shows or changes the current context window.
-- `/context` prints the session ID, provider, budget, and event count.
+- `/context` shows the context budget and inventories the system prompt,
+  request context, tool definitions, and projected conversation, including
+  progressively loaded skills and references.
 - `/btw QUESTION` asks an independent side question.
 - `/steer TEXT` queues guidance for the next model step.
 - `/queue [followup|steer|interrupt|TEXT]` chooses how busy `Enter` behaves, or queues TEXT for the next turn.
