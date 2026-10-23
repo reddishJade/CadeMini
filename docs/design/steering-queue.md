@@ -8,7 +8,7 @@ and handles keys; the bridge runs the task in a worker thread with its own
 
 ```text
 prompt_toolkit UI thread
-  |  Enter / Alt+Enter / slash commands
+  |  Enter / Alt+S / Alt+Q / Alt+Enter / slash commands
   v
 ApplicationSession
   |  steering, pending, cancel
@@ -33,6 +33,8 @@ structured event queue  -->  UI thread
 | --- | --- |
 | `Enter` | Use the current busy-input mode: queue, steer, or replace |
 | `Alt+Enter` | Append guidance at the next model step |
+| `Alt+S` | Append guidance at the next model step, regardless of the `Enter` mode |
+| `Alt+Q` | Queue a follow-up task, regardless of the `Enter` mode |
 | `/steer TEXT` | Append guidance at the next model step |
 | `/queue TEXT` | Queue TEXT as a follow-up task |
 | `/queue followup` | Make `Enter` queue a follow-up task |
@@ -46,6 +48,12 @@ A follow-up runs automatically when the current task reaches a terminal state.
 Queue order is FIFO, and queued tasks stay in the same session. Explicit Esc or
 `/stop` cancellation instead returns undelivered inputs to the editor, so they
 do not immediately start another run.
+
+`Alt+S` and `Alt+Q` submit the editor's plain text during a run. Empty input
+does nothing. Inputs starting with `/`, `!`, or `$` stay in the editor so the
+shortcuts do not reinterpret commands as messages. Menus, forms, and approval
+requests take priority over message shortcuts. Press `?` to see the key reference;
+the running-task hint also shows both shortcuts.
 
 `/steer` is not a prompt injection into a running provider request. The loop
 checks the steering queue before each step, appends a `user` fact with
