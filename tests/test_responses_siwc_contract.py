@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import uuid
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -292,7 +294,7 @@ async def test_siwc_request_shape_and_usage() -> None:
             temperature=0.2,
             top_p=0.9,
             max_tokens=1024,
-            session_id="ignored-session",
+            session_id="explicit-session",
             headers={"x-trace-label": "preserved"},
         ),
     )
@@ -311,8 +313,12 @@ async def test_siwc_request_shape_and_usage() -> None:
         "top_p",
     ):
         assert unsupported not in request
-    assert "session-id" not in request.get("extra_headers", {})
-    assert request["extra_headers"] == {"x-trace-label": "preserved"}
+    assert request["prompt_cache_key"] == "explicit-session"
+    assert request["extra_headers"] == {
+        "x-trace-label": "preserved",
+        "session-id": "explicit-session",
+        "thread-id": "explicit-session",
+    }
     assert request["text"] == _EXPECTED_TEXT_FORMAT
     assert request["input"] == [
         {
@@ -381,6 +387,58 @@ async def test_siwc_without_tools_keeps_plain_input() -> None:
             "content": [{"type": "input_text", "text": "Hi."}],
         }
     ]
+
+
+async def test_siwc_cache_affinity_is_stable_and_provider_local() -> None:
+    client = _InjectedClient()
+    first = ChatGPTResponsesProvider(_config(), client=client)
+    await _collect(first)
+    await _collect(first, tools=[_TOOL])
+    second = ChatGPTResponsesProvider(_config(), client=client)
+    await _collect(second)
+
+    keys = [request["prompt_cache_key"] for request in client.responses.requests]
+    assert keys[0] == keys[1]
+    assert keys[2] != keys[0]
+    assert str(uuid.UUID(keys[0])) == keys[0]
+    for request in client.responses.requests:
+        assert request["extra_headers"] == {
+            "session-id": request["prompt_cache_key"],
+            "thread-id": request["prompt_cache_key"],
+        }
+
+
+@pytest.mark.parametrize("session_id", ["chosen-session", "long-session-" * 20])
+async def test_siwc_cache_override_matches_headers_and_restores_default(
+    session_id: str,
+) -> None:
+    client = _InjectedClient()
+    provider = ChatGPTResponsesProvider(_config(), client=client)
+    await _collect(provider)
+    await _collect(
+        provider,
+        options=StreamOptions(
+            session_id=session_id,
+            headers={"SESSION-ID": "wrong", "Thread-Id": "wrong", "x-trace": "keep"},
+        ),
+    )
+    await _collect(provider)
+
+    initial, overridden, restored = client.responses.requests
+    expected = (
+        hashlib.sha256(session_id.encode()).hexdigest()
+        if len(session_id) > 64
+        else session_id
+    )
+    assert overridden["prompt_cache_key"] == expected
+    assert len(expected) <= 64
+    assert overridden["extra_headers"] == {
+        "session-id": expected,
+        "thread-id": expected,
+        "x-trace": "keep",
+    }
+    assert initial["prompt_cache_key"] == restored["prompt_cache_key"]
+    assert initial["prompt_cache_key"] != expected
 
 
 @pytest.mark.asyncio

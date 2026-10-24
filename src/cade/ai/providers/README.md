@@ -24,6 +24,18 @@ ModelProfileConfig
 
 Keep transport-specific parameters inside adapters, passing them through `extra` rather than adding vendor fields to generic configuration. Providers own client configuration and model metadata, not product state. Upper-layer tests should use protocol-compatible streams; do not retain obsolete test stubs in production packages.
 
+## SIWC cache affinity
+
+The ChatGPT adapter sends the same stable value in `prompt_cache_key`,
+`session-id`, and `thread-id`. `StreamOptions.session_id` overrides the
+provider-local default; IDs longer than 64 characters use a SHA-256 digest.
+Other headers and the Responses input remain unchanged. This request affinity
+helps cache reuse but does not guarantee a hit. OpenAI's official Responses
+client uses these headers, but the public SIWC guide does not define them as a
+cache requirement. See [decision 0018](../../../../docs/decisions/0018-siwc-cache-affinity.md)
+for the evidence and compatibility boundary. Ordinary OpenAI and DeepSeek
+requests do not inherit these SIWC headers.
+
 ## Example
 
 Set `OPENAI_API_KEY`. Pass message and tool-definition lists as `messages` and

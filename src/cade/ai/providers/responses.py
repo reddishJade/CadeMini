@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import uuid
 from collections import defaultdict
 from collections.abc import AsyncIterator, Iterator, Mapping
 from inspect import isawaitable
@@ -1235,7 +1237,7 @@ class ChatGPTResponsesProvider(OpenAIResponsesProvider):
     """使用 ChatGPT 套餐额度调用公开 Responses API。
 
     SIWC 要求 ``store=false``、``stream=true``，并拒绝部分请求字段。
-    工具通过 ``additional_tools`` 输入项传递，符合 SIWC 的请求约束。
+    工具通过 ``additional_tools`` 传递；稳定会话头和缓存键保持请求关联。
     """
 
     def __init__(
@@ -1247,6 +1249,7 @@ class ChatGPTResponsesProvider(OpenAIResponsesProvider):
         super().__init__(config, client=client)
         self.transport = "chatgpt"
         self._metrics["transport"] = self.transport
+        self._default_session_id = str(uuid.uuid4())
 
     async def count_input_tokens(
         self,
@@ -1279,6 +1282,23 @@ class ChatGPTResponsesProvider(OpenAIResponsesProvider):
             params.pop(name, None)
         params["store"] = False
         params["stream"] = True
+
+        options = self._current_options
+        session_id = (
+            options.session_id
+            if options and options.session_id
+            else self._default_session_id
+        )
+        if len(session_id) > 64:
+            session_id = hashlib.sha256(session_id.encode()).hexdigest()
+        headers = params.setdefault("extra_headers", {})
+        # 会话头和缓存键必须一致，不能让调用方的大小写变体覆盖关联标识。
+        for header in ("session-id", "thread-id"):
+            for existing in tuple(headers):
+                if existing.lower() == header:
+                    del headers[existing]
+            headers[header] = session_id
+        params["prompt_cache_key"] = session_id
 
         tools = params.pop("tools", None)
         if tools:

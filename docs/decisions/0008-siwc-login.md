@@ -68,4 +68,6 @@ The stable host ID lives in `~/.cade/host.json`, separate from
 
 The login surface is documented in [CLI](../cli.md) and
 [Quickstart](../quickstart.md). The provider boundary remains in
-[0007](0007-responses-only-provider.md).
+[0007](0007-responses-only-provider.md). Stable request-affinity headers are
+specified separately in [0018](0018-siwc-cache-affinity.md); they do not restore
+the legacy transport.
