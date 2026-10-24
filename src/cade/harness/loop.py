@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from functools import wraps
+from time import perf_counter
 from typing import Any, Concatenate, cast
 
 from cade.ai.events import (
@@ -24,6 +25,7 @@ from cade.harness.events import (
     LoopEvent,
     ProviderRetryEvent,
     ReasoningDeltaEvent,
+    ResponseMetricsEvent,
     RunResult,
     Termination,
     TextDeltaEvent,
@@ -412,6 +414,9 @@ async def _consume_provider(
     replay: ProviderReplayPayload | None = None
     stop_reason = "end_turn"
     failure: ProviderFailure | None = None
+    started = perf_counter()
+    first_token_at: float | None = None
+    finished_at: float | None = None
 
     try:
         async for event in provider.stream(
@@ -428,6 +433,13 @@ async def _consume_provider(
                     stop_reason,
                     cancelled=True,
                 )
+            if (
+                first_token_at is None
+                and isinstance(event, (TextDelta, ReasoningDelta))
+                and event.chunk
+            ):
+                first_token_at = perf_counter()
+                _emit(on_event, ResponseMetricsEvent(first_token_at - started))
             if isinstance(event, TextDelta):
                 text_parts.append(event.chunk)
                 _emit(on_event, TextDeltaEvent(event.chunk))
@@ -455,6 +467,7 @@ async def _consume_provider(
                     ),
                 )
             elif isinstance(event, FinalMessage):
+                finished_at = perf_counter()
                 stop_reason = event.stop_reason
                 replay = event.replay_payload
                 if not text_parts and event.content:
@@ -481,6 +494,24 @@ async def _consume_provider(
             message=text or "provider error",
             exception_type="ProviderError",
         )
+    cancelled = stop_reason in {"aborted", "cancelled"}
+    if failure is None and not cancelled and finished_at is not None:
+        duration = finished_at - first_token_at if first_token_at is not None else 0.0
+        output_tokens = usage["output"] if usage is not None else 0
+        _emit(
+            on_event,
+            ResponseMetricsEvent(
+                ttft_seconds=(
+                    first_token_at - started if first_token_at is not None else None
+                ),
+                tokens_per_second=(
+                    output_tokens / duration
+                    if output_tokens > 0 and duration > 0
+                    else None
+                ),
+                completed=True,
+            ),
+        )
     return _ProviderResult(
         text=text,
         calls=tuple(calls),
@@ -488,7 +519,7 @@ async def _consume_provider(
         provider_state=_provider_state(replay),
         stop_reason=stop_reason,
         failure=failure,
-        cancelled=stop_reason in {"aborted", "cancelled"},
+        cancelled=cancelled,
     )
 
 

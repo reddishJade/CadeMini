@@ -15,9 +15,11 @@ from cade.ai.events import (
     FinalMessage,
     ProviderEvent,
     ProviderFailure,
+    ReasoningDelta,
     TextDelta,
     ToolCall,
     ToolCallEvent,
+    UsageUpdate,
 )
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.app.bootstrap import create_session
@@ -83,6 +85,73 @@ def test_tui_preserves_configured_plan_mode(session: ApplicationSession) -> None
         assert tui._state.mode == "plan"
         list(tui._agent_app.ask_stream("hello", mode=tui._interaction_state.mode))
     assert session.policy.mode == "plan"
+
+
+@pytest.mark.parametrize(
+    ("batch", "expected"),
+    [
+        (
+            [
+                TextDelta("hello"),
+                UsageUpdate(50, 100),
+                FinalMessage("hello", "end_turn"),
+            ],
+            "TTFT 2.00s · TPS 20.0",
+        ),
+        (
+            [
+                TextDelta(""),
+                ReasoningDelta("thinking"),
+                TextDelta("hello"),
+                UsageUpdate(50, 100),
+                FinalMessage("hello", "end_turn"),
+            ],
+            "TTFT 2.00s · TPS 20.0",
+        ),
+        ([TextDelta("hello"), FinalMessage("hello", "end_turn")], "TTFT 2.00s · TPS —"),
+        (
+            [TextDelta("hello"), UsageUpdate(50, 0), FinalMessage("hello", "end_turn")],
+            "TTFT 2.00s · TPS —",
+        ),
+        (
+            [
+                TextDelta("partial"),
+                UsageUpdate(50, 100),
+                FinalMessage("partial", "error"),
+            ],
+            "TTFT 2.00s · TPS —",
+        ),
+        (
+            [
+                TextDelta("partial"),
+                UsageUpdate(50, 100),
+                FinalMessage("partial", "cancelled"),
+            ],
+            "TTFT 2.00s · TPS —",
+        ),
+        ([FinalMessage("hello", "end_turn")], None),
+    ],
+)
+def test_tui_displays_request_metrics(
+    session: ApplicationSession,
+    monkeypatch: pytest.MonkeyPatch,
+    batch: list[ProviderEvent],
+    expected: str | None,
+) -> None:
+    clock = iter([10.0, 12.0, 17.0])
+    monkeypatch.setattr("cade.harness.loop.perf_counter", lambda: next(clock))
+    provider = session.provider
+    assert isinstance(provider, ScriptedProvider)
+    provider.batches = [batch]
+    state = _TuiState()
+    for event in CadeInteractionApp(session).ask_stream("hello"):
+        state.handle_event(event)
+        if event.type == "response_metrics" and not event.data.completed:
+            assert "TTFT 2.00s · TPS —" in state.render()
+    if expected is None:
+        assert "TTFT" not in state.render()
+    else:
+        assert expected in state.render()
 
 
 def test_tui_file_input_is_expanded_once(session: ApplicationSession) -> None:
@@ -180,6 +249,7 @@ def test_retry_discards_failed_display_and_keeps_one_answer(
     assistants = [entry for entry in session.log.branch() if entry.type == "assistant"]
     assert len(assistants) == 1
     assert assistants[0].data["blocks"] == [{"type": "text", "text": "success"}]
+    assert state.render().count("TTFT") == 1
 
 
 @pytest.mark.parametrize("restriction", ["plan", "read_only"])

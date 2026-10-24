@@ -61,6 +61,15 @@ class ReasoningDeltaEvent:
 
 
 @dataclass(frozen=True)
+class ResponseMetricsEvent:
+    """请求性能；首增量更新 TTFT，成功结束后更新 TPS。"""
+
+    ttft_seconds: float | None
+    tokens_per_second: float | None = None
+    completed: bool = False
+
+
+@dataclass(frozen=True)
 class UsageEvent:
     """一次 provider 调用的累计用量，供宿主实时更新状态栏。"""
 
@@ -75,6 +84,7 @@ type LoopEvent = (
     | ToolEndEvent
     | ToolUpdateEvent
     | ReasoningDeltaEvent
+    | ResponseMetricsEvent
     | UsageEvent
 )
 

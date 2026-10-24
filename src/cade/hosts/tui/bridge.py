@@ -19,6 +19,7 @@ from cade.harness.events import (
     LoopEvent,
     ProviderRetryEvent,
     ReasoningDeltaEvent,
+    ResponseMetricsEvent,
     RunResult,
     TextDeltaEvent,
     ToolEndEvent,
@@ -36,6 +37,8 @@ from .compat import (
     DiffRenderIntent,
     FinalStructuredEvent,
     ReasoningDeltaStructuredEvent,
+    ResponseMetricsData,
+    ResponseMetricsStructuredEvent,
     SessionEntry,
     SessionInfoView,
     SubmitOutcome,
@@ -426,6 +429,16 @@ class CadeInteractionApp:
                 events.put(TextDeltaStructuredEvent(event.text))
             elif isinstance(event, ReasoningDeltaEvent):
                 events.put(ReasoningDeltaStructuredEvent(event.text))
+            elif isinstance(event, ResponseMetricsEvent):
+                events.put(
+                    ResponseMetricsStructuredEvent(
+                        ResponseMetricsData(
+                            event.ttft_seconds,
+                            event.tokens_per_second,
+                            event.completed,
+                        )
+                    )
+                )
             elif isinstance(event, UsageEvent):
                 events.put(
                     UsageUpdateStructuredEvent(event.input_tokens, event.output_tokens)
