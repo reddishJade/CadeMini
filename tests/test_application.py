@@ -89,11 +89,51 @@ def test_application_runs_without_terminal_and_records_recovery(
         assert len(session.recovery.store.actions(session.log.session_id)) == 1
 
 
+@pytest.mark.parametrize("network", [False, True])
+def test_web_tools_follow_network_setting_in_catalog_and_requests(
+    tmp_path: Path, network: bool
+) -> None:
+    catalogs: list[set[str]] = []
+
+    class CatalogProvider(WritingProvider):
+        async def stream(
+            self,
+            messages: list[dict[str, Any]],
+            tools: list[ToolDefinition],
+            options: StreamOptions | None = None,
+        ) -> AsyncIterator[ProviderEvent]:
+            catalogs.append({tool.name for tool in tools})
+            async for event in super().stream(messages, tools, options):
+                yield event
+
+    with ExitStack() as resources:
+        session = create_session(
+            tmp_path,
+            CadeConfig(network=network, sandbox="danger-full-access"),
+            resources=resources,
+            provider=CatalogProvider(),
+        ).session
+        web_tools = {"websearch", "webfetch"}
+        expected = web_tools if network else set()
+        assert web_tools & {tool.name for tool in session.tools} == expected
+        result = asyncio.run(session.run_task("write the result", lambda event: None))
+        assert result.termination == "completed"
+        assert len(catalogs) == 2
+        for catalog in catalogs:
+            assert web_tools & catalog == expected
+        listed = asyncio.run(session.command("/tool list"))
+        assert any("websearch" in line for line in listed.lines) is network
+        session.policy.network = not network
+        asyncio.run(session.run_task("finish", lambda event: None))
+        assert web_tools & catalogs[-1] == (set() if network else web_tools)
+
+
 def test_direct_application_tool_uses_shared_execution_scope(tmp_path: Path) -> None:
     expected = ExecutionScope(True, (tmp_path / "approved",))
 
     class ScopedPolicy:
         mode = "build"
+        network = True
 
         def check(self, call: ToolCallBlock) -> PermissionCheck:
             return PermissionCheck("ask", "approved scope", expected)

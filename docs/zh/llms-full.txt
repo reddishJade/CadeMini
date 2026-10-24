@@ -2144,7 +2144,7 @@ MCP 的协议版本与可选能力边界见 [MCP](../mcp.md)。子会话权限�
 - `edit`：对原始文件执行唯一且互不重叠的批量替换。
 - `bash`、`powershell`：运行 shell 命令，可选指定工作目录和 `additional_write_paths`，为本次调用申请额外权限。
 - `question`：收集选项或自定义答案，关闭问题时结束当前轮次。
-- `websearch`、`webfetch`：搜索或获取网页内容，在所有平台上遵守 `network=false`。
+- `websearch`、`webfetch`：搜索或获取网页内容。设置 `network=false` 时，这两个工具不会出现在工具目录和模型请求中，子代理也不例外。执行策略仍会在所有平台上拒绝旧请求。
 
 列目录、查找文件和搜索内容请使用 `bash` 或 `powershell`。这些命令遵守 shell 的权限和沙箱策略。
 上游行为和参数见[工具目录](design/tool-catalog.md)。

@@ -8,8 +8,9 @@
 - `bash`, `powershell`: run a shell command, optionally with a workdir and
   `additional_write_paths` that request extra permissions for this call.
 - `question`: collect choices or custom answers; dismissal stops the turn.
-- `websearch`, `webfetch`: search or retrieve web content. Both honor
-  `network=false` on every platform.
+- `websearch`, `webfetch`: search or retrieve web content. With `network=false`,
+  both are hidden from tool catalogs and model requests, including subagents.
+  The execution policy still rejects stale calls on every platform.
 
 Use `bash` or `powershell` for directory listings, file discovery, and content
 search. These commands follow the shell's permissions and sandbox policy.

@@ -175,7 +175,8 @@ class ApplicationSession:
             *(self.mcp.tools if self.mcp is not None else ()),
             HistoryTool(self.workspace, self.log),
         )
-        return (*regular, self.question_tool) if self.question_tool else regular
+        available = (*regular, self.question_tool) if self.question_tool else regular
+        return filter_tools(available, self.policy.mode, network=self.policy.network)
 
     def history(self) -> tuple[HistoryNode, ...]:
         """返回完整会话树，活动路径和非活动路径共用同一读取快照。"""
@@ -530,13 +531,13 @@ class ApplicationSession:
             async def refresh_tools() -> Sequence[Tool]:
                 if self.mcp is not None:
                     await self.mcp.refresh()
-                return filter_tools(self.tools, self.policy.mode)
+                return self.tools
 
             result = await run(
                 self.log,
                 text,
                 provider=self.provider,
-                tools=filter_tools(self.tools, self.policy.mode),
+                tools=self.tools,
                 budget=self.budget,
                 policy=self.policy,
                 approve=selected_approver,
@@ -603,7 +604,7 @@ class ApplicationSession:
                 )
                 execution = await execute_tool(
                     call,
-                    index_tools(filter_tools(self.tools, self.policy.mode)),
+                    index_tools(self.tools),
                     policy=self.policy,
                     approve=self._select_approver(approve),
                     context=self.context(),

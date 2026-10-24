@@ -24,11 +24,14 @@ from cade.coding.subagents import (
     SubagentRunner,
 )
 from cade.coding.tools.registry import build_tools
+from cade.coding.tools.webfetch import WebFetchTool
+from cade.coding.tools.websearch import WebSearchTool
 from cade.harness.loop import run
 from cade.harness.permissions import ApprovalResult
 from cade.harness.request import Budget
 from cade.harness.session.log import SessionLog
 from cade.harness.session.types import ToolCallBlock
+from cade.harness.tools import Tool
 
 
 class FakeProvider:
@@ -101,6 +104,50 @@ async def test_delegate_runs_one_task_in_its_own_session(tmp_path: Path) -> None
     )
     names = {definition.name for definition in provider.requests[0][1]}
     assert "delegate" not in names
+
+
+@pytest.mark.parametrize("network", [False, True])
+async def test_child_tool_refresh_preserves_network_visibility(
+    tmp_path: Path, network: bool
+) -> None:
+    (tmp_path / "input.txt").write_text("input")
+    provider = FakeProvider(
+        [
+            [
+                ToolCallEvent([ToolCall("read-1", "read", {"path": "input.txt"})]),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("finished"),
+        ]
+    )
+    tools = (*build_tools(tmp_path), WebFetchTool(), WebSearchTool())
+    refreshes = 0
+
+    async def refresh() -> tuple[Tool, ...]:
+        nonlocal refreshes
+        refreshes += 1
+        return tools
+
+    runner = SubagentRunner(
+        workspace=tmp_path,
+        provider=provider,
+        tools=tools,
+        budget=Budget(100_000),
+        sessions_dir=tmp_path / "sessions",
+        system_prompt="system",
+        policy=WorkspacePolicy(tmp_path, network=network),
+        approve=lambda request: ApprovalResult(True, "Approved for test"),
+        refresh_tools=refresh,
+    )
+    result = await runner.run_task("read input")
+    assert not result.is_error
+    assert refreshes == 2
+    expected = {"websearch", "webfetch"} if network else set()
+    for _, definitions, _ in provider.requests:
+        assert {tool.name for tool in definitions} & {
+            "websearch",
+            "webfetch",
+        } == expected
 
 
 async def test_delegate_runs_multiple_child_tasks(tmp_path: Path) -> None:

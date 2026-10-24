@@ -71,7 +71,7 @@ class SubagentRunner:
             HistoryTool(self.workspace, child),
         )
         if isinstance(policy, WorkspacePolicy):
-            child_tools = filter_tools(child_tools, policy.mode)
+            child_tools = filter_tools(child_tools, policy.mode, network=policy.network)
         child_context = tuple(self.context())
         if isinstance(policy, WorkspacePolicy):
             child_context = (*child_context, policy.describe())
@@ -80,7 +80,7 @@ class SubagentRunner:
             base = await self.refresh_tools() if self.refresh_tools else self.tools
             refreshed = (*base, HistoryTool(self.workspace, child))
             return (
-                filter_tools(refreshed, policy.mode)
+                filter_tools(refreshed, policy.mode, network=policy.network)
                 if isinstance(policy, WorkspacePolicy)
                 else refreshed
             )
