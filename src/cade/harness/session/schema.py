@@ -43,12 +43,19 @@ class _User(_System):
     source: Literal["user", "runtime"] = "user"
 
 
+class _ResponseMetrics(_Payload):
+    ttft_seconds: Annotated[float, Field(ge=0)] | None = None
+    tokens_per_second: Annotated[float, Field(ge=0)] | None = None
+
+
 class _Assistant(_Payload):
     blocks: list[ContentBlock]
     model: str | None = None
     provider: str | None = None
     usage: _Usage | None = None
     provider_state: dict[str, JsonValue] | None = None
+    reasoning: str | None = None
+    response_metrics: _ResponseMetrics | None = None
 
     @model_validator(mode="after")
     def valid_calls(self) -> _Assistant:

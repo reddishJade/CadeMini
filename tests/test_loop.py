@@ -14,6 +14,7 @@ from cade.ai.events import (
     FinalMessage,
     ProviderEvent,
     ProviderFailure,
+    ReasoningDelta,
     TextDelta,
     ToolCall,
     ToolCallEvent,
@@ -162,6 +163,38 @@ async def test_tree_continuation_recovers_only_selected_path_calls(
     assert ("OLD RESULT ONE" in wire) == (selection == "first_result")
     assert second.id in {e.id for e in log.entries()}
     assert second.id not in {e.id for e in log.branch()}
+
+
+@pytest.mark.parametrize("stop_reason", ["cancelled", "error"])
+async def test_interrupted_reasoning_preserves_prior_answer(
+    tmp_path: Path, stop_reason: str
+) -> None:
+    provider = FakeProvider(
+        [
+            [TextDelta("I will inspect the input"), *_tool_response("echo")],
+            [ReasoningDelta("still checking"), FinalMessage("", stop_reason)],
+        ]
+    )
+    log = _log(tmp_path)
+    result = await run(
+        log,
+        "inspect the input",
+        provider=provider,
+        tools=(EchoTool(),),
+        budget=Budget(100_000),
+        max_provider_retries=0,
+    )
+    assert result.answer == "I will inspect the input"
+    assert result.termination == (
+        "aborted" if stop_reason == "cancelled" else "provider_error"
+    )
+    assistants = [
+        entry
+        for entry in SessionLog.open(log.path).branch()
+        if entry.type == "assistant"
+    ]
+    assert assistants[-1].data["reasoning"] == "still checking"
+    assert assistants[-1].data["blocks"] == []
 
 
 async def test_run_completes_without_tools(tmp_path: Path) -> None:

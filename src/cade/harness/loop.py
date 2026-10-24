@@ -216,9 +216,9 @@ async def run(
             has_usage = True
 
         if result.cancelled:
-            if result.text:
+            if result.text or result.reasoning:
                 _append_assistant(log, provider, result)
-                last_answer = result.text
+                last_answer = result.text or last_answer
             reason = cancel.reason if cancel is not None else "cancelled"
             return _finish(
                 log,
@@ -237,11 +237,11 @@ async def run(
                 if retry_delay_seconds > 0:
                     await asyncio.sleep(retry_delay_seconds)
                 continue
-            if result.text:
+            if result.text or result.reasoning:
                 _append_assistant(
                     log, provider, replace(result, calls=(), provider_state=None)
                 )
-                last_answer = result.text
+                last_answer = result.text or last_answer
             return _finish(
                 log,
                 "provider_error",
@@ -252,6 +252,8 @@ async def run(
             )
 
         if not result.text and not result.calls:
+            if result.reasoning:
+                _append_assistant(log, provider, result)
             failure = ProviderFailure(
                 message="empty model response",
                 exception_type="EmptyResponse",
@@ -378,6 +380,8 @@ class _ProviderResult:
     stop_reason: str
     failure: ProviderFailure | None = None
     cancelled: bool = False
+    reasoning: str = ""
+    response_metrics: ResponseMetricsEvent | None = None
 
 
 async def _call_provider(
@@ -414,6 +418,7 @@ async def _consume_provider(
     on_event: Callable[[LoopEvent], None] | None,
 ) -> _ProviderResult:
     text_parts: list[str] = []
+    reasoning_parts: list[str] = []
     calls: list[ToolCallBlock] = []
     usage: dict[str, int] | None = None
     replay: ProviderReplayPayload | None = None
@@ -430,14 +435,8 @@ async def _consume_provider(
             request.options,
         ):
             if cancel is not None and cancel.cancelled:
-                return _ProviderResult(
-                    "".join(text_parts),
-                    (),
-                    usage,
-                    None,
-                    stop_reason,
-                    cancelled=True,
-                )
+                stop_reason = "aborted"
+                break
             if (
                 first_token_at is None
                 and isinstance(event, (TextDelta, ReasoningDelta))
@@ -449,6 +448,7 @@ async def _consume_provider(
                 text_parts.append(event.chunk)
                 _emit(on_event, TextDeltaEvent(event.chunk))
             elif isinstance(event, ReasoningDelta):
+                reasoning_parts.append(event.chunk)
                 _emit(on_event, ReasoningDeltaEvent(event.chunk))
             elif isinstance(event, ToolCallEvent):
                 for call in event.calls:
@@ -483,9 +483,7 @@ async def _consume_provider(
     except asyncio.CancelledError:
         if cancel is None or not cancel.cancelled:
             raise
-        return _ProviderResult(
-            "".join(text_parts), (), usage, None, "aborted", cancelled=True
-        )
+        stop_reason = "aborted"
     except Exception as exc:  # noqa: BLE001
         # Provider 适配器可能抛出供应商库异常；统一转成可重试的失败事实。
         failure = ProviderFailure(
@@ -500,31 +498,34 @@ async def _consume_provider(
             exception_type="ProviderError",
         )
     cancelled = stop_reason in {"aborted", "cancelled"}
-    if failure is None and not cancelled and finished_at is not None:
-        duration = finished_at - first_token_at if first_token_at is not None else 0.0
-        output_tokens = usage["output"] if usage is not None else 0
-        _emit(
-            on_event,
-            ResponseMetricsEvent(
-                ttft_seconds=(
-                    first_token_at - started if first_token_at is not None else None
-                ),
-                tokens_per_second=(
-                    output_tokens / duration
-                    if output_tokens > 0 and duration > 0
-                    else None
-                ),
-                completed=True,
-            ),
-        )
+    succeeded = failure is None and not cancelled and finished_at is not None
+    duration = (
+        finished_at - first_token_at
+        if finished_at is not None and first_token_at is not None
+        else 0.0
+    )
+    output_tokens = usage["output"] if usage is not None else 0
+    metrics = ResponseMetricsEvent(
+        ttft_seconds=(first_token_at - started if first_token_at is not None else None),
+        tokens_per_second=(
+            output_tokens / duration
+            if succeeded and output_tokens > 0 and duration > 0
+            else None
+        ),
+        completed=True,
+    )
+    if succeeded:
+        _emit(on_event, metrics)
     return _ProviderResult(
         text=text,
-        calls=tuple(calls),
+        calls=() if cancelled else tuple(calls),
         usage=usage,
-        provider_state=_provider_state(replay),
+        provider_state=None if cancelled else _provider_state(replay),
         stop_reason=stop_reason,
         failure=failure,
         cancelled=cancelled,
+        reasoning="".join(reasoning_parts),
+        response_metrics=metrics,
     )
 
 
@@ -604,16 +605,21 @@ def _append_assistant(
                 "args": call.args,
             }
         )
-    log.append(
-        "assistant",
-        {
-            "blocks": blocks,
-            "model": provider.model,
-            "provider": provider.transport,
-            "usage": cast(JsonValue, result.usage),
-            "provider_state": result.provider_state,
-        },
-    )
+    data: dict[str, JsonValue] = {
+        "blocks": blocks,
+        "model": provider.model,
+        "provider": provider.transport,
+        "usage": cast(JsonValue, result.usage),
+        "provider_state": result.provider_state,
+    }
+    if result.reasoning:
+        data["reasoning"] = result.reasoning
+    if result.response_metrics is not None:
+        data["response_metrics"] = {
+            "ttft_seconds": result.response_metrics.ttft_seconds,
+            "tokens_per_second": result.response_metrics.tokens_per_second,
+        }
+    log.append("assistant", data)
 
 
 def _append_tool_result(

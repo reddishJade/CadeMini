@@ -334,6 +334,17 @@ def test_incomplete_tail_is_ignored_and_repaired(tmp_path: Path) -> None:
         ("user", {"text": "task", "typo": True}),
         ("assistant", {"blocks": [{"type": "unknown"}]}),
         ("assistant", {"blocks": [{"type": "tool_call", "id": "", "name": "echo"}]}),
+        ("assistant", {"blocks": [], "reasoning": 42}),
+        ("assistant", {"blocks": [], "response_metrics": {"ttft_seconds": -1.0}}),
+        ("assistant", {"blocks": [], "response_metrics": {"tokens_per_second": -1.0}}),
+        (
+            "assistant",
+            {"blocks": [], "response_metrics": {"ttft_seconds": float("nan")}},
+        ),
+        (
+            "assistant",
+            {"blocks": [], "response_metrics": {"tokens_per_second": "fast"}},
+        ),
         ("tool_result", {"call_id": "c1", "status": "success", "content": "ok"}),
         ("compaction", {"summary": "summary", "first_kept_id": 12}),
         ("window", {"start_id": "u1", "reason": "implicit"}),

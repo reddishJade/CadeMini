@@ -15,6 +15,8 @@ from prompt_toolkit.utils import get_cwidth
 from .chrome import compact_path, welcome_ansi_lines
 from .compat import (
     DiffRenderIntent,
+    ResponseMetricsData,
+    ResponseMetricsStructuredEvent,
     ToolInput,
     ToolRenderIntent,
     analyze_shell_command,
@@ -267,10 +269,10 @@ class _TuiState:
                 text = str(record.content).strip()
                 if text:
                     self.log.append(_LogEntry("cade", text, markdown=True))
-            elif record.type == "system":
+            elif record.type in {"system", "stop"}:
                 text = str(record.content).strip()
                 if text:
-                    self.log.append(_LogEntry("system", text))
+                    self.log.append(_LogEntry(record.type, text))
             elif record.type == "event" and isinstance(record.content, Mapping):
                 content = record.content
                 if content.get("type") == "final":
@@ -310,6 +312,22 @@ class _TuiState:
                 self.add_user(display_text)
         elif event_type == "command" and isinstance(data, str):
             self.add_command(data)
+        elif event_type == "response_metrics" and isinstance(data, dict):
+            ttft = data.get("ttft_seconds")
+            tps = data.get("tokens_per_second")
+            self.handle_event(
+                ResponseMetricsStructuredEvent(
+                    ResponseMetricsData(
+                        ttft_seconds=float(ttft)
+                        if isinstance(ttft, (int, float))
+                        else None,
+                        tokens_per_second=float(tps)
+                        if isinstance(tps, (int, float))
+                        else None,
+                        completed=True,
+                    )
+                )
+            )
         elif event_type == "thinking":
             self._restore_thinking(data)
         elif event_type == "tool_use" and isinstance(data, dict):

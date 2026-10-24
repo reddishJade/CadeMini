@@ -56,7 +56,7 @@ class ToolUpdateEvent:
 
 @dataclass(frozen=True)
 class ReasoningDeltaEvent:
-    """推理摘要增量；只用于宿主展示，不进入 API 投影。"""
+    """推理摘要增量；汇总后随 assistant 保存，不进入 API 投影。"""
 
     text: str
 

@@ -40,7 +40,7 @@ Responses 适配器将其发送为函数输出中的 `input_image`。
 | --- | --- | --- |
 | `system` | `{"text": str}` | 最新一条最先输出；永不被遮蔽 |
 | `user` | `{"text": str, "source": "user"\|"runtime"}` | 在所在位置输出用户消息 |
-| `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null}` | 助手消息；空 blocks 被跳过 |
+| `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null, "reasoning": str\|null, "response_metrics": object\|null}` | 助手消息；空 blocks 被跳过 |
 | `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | 工具消息；与对应调用配对 |
 | `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | 先输出摘要消息，再从 `first_kept_id` 输出尾部 |
 | `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null}` | 从 `start_id` 开始投影；可选交接摘要 |
@@ -55,6 +55,18 @@ block 是以下之一：
 `assistant.blocks` 是工具调用的唯一记录。不要另外添加 `tool_use` 事件。`tool_result.call_id` 与它配对。
 
 `provider_state` 是 Responses 重放用的不透明适配器数据。它保存在 assistant 事实里，并传回同一个适配器。它永远不会进入对话词汇。
+
+harness 负责可选字段 `assistant.reasoning` 和 `assistant.response_metrics`。
+`reasoning` 保存 provider 流式输出的推理摘要。
+`response_metrics` 包含 `ttft_seconds` 和 `tokens_per_second`，值为非负有限数或 null。
+TTFT 包含等待首个非空文本或推理增量的时间。
+TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间。
+请求失败或取消时，TPS 为 null。
+这些字段随 assistant 记录保留，用于恢复宿主显示，不进入模型消息或 provider 重放数据。
+重试丢弃的失败尝试不会成为 assistant 记录。
+
+TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格式化提示，也不重复保存回答。
+见[决策 0016](../../decisions/0016-durable-response-observations.md)。
 
 ### 仅日志事件
 

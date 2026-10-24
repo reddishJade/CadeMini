@@ -21,6 +21,7 @@ them.
 - [0013: Use checkpoint recovery for CLI undo](0013-unified-cli-undo.md)
 - [0014: Avoid rescanning and rewriting unchanged storage](0014-storage-append-cost.md)
 - [0015: Define consistent tool behavior](0015-tool-behavior-parity.md)
+- [0016: Preserve response observations for session restoration](0016-durable-response-observations.md)
 
 ## Adding a record
 

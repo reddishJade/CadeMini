@@ -42,7 +42,7 @@ These produce model-visible messages.
 | --- | --- | --- |
 | `system` | `{"text": str}` | Latest one is emitted first; never shadowed |
 | `user` | `{"text": str, "source": "user"\|"runtime"}` | User message at its position |
-| `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null}` | Assistant message; empty blocks are skipped |
+| `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null, "reasoning": str\|null, "response_metrics": object\|null}` | Assistant message; empty blocks are skipped |
 | `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | Tool message; paired with its call |
 | `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | Emits a summary message, then the tail from `first_kept_id` |
 | `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null}` | Starts the projection at `start_id`; optional handoff summary |
@@ -60,6 +60,20 @@ A block is one of:
 A `provider_state` is opaque adapter data for Responses replay. It is
 stored on the assistant fact and passed back to the same adapter. It never enters
 the conversation vocabulary.
+
+The harness owns optional `assistant.reasoning` and `assistant.response_metrics`.
+`reasoning` contains the provider's streamed reasoning summary. `response_metrics`
+contains `ttft_seconds` and `tokens_per_second`, each a nonnegative finite number
+or null. TTFT includes the wait for the first nonempty text or reasoning delta.
+TPS uses reported output tokens and the interval from that delta to the final
+response; failed or cancelled requests have null TPS. These fields remain with
+the assistant record for the session's lifetime. They restore host output and
+never enter model messages or provider replay data. Failed attempts discarded
+for a retry do not become assistant records.
+
+The TUI restores stop notices from `run.termination` and `run.error`, without
+storing formatted notices or duplicating answers. See
+[decision 0016](../decisions/0016-durable-response-observations.md).
 
 ### Log-only events
 

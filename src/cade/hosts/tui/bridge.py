@@ -52,6 +52,7 @@ from .compat import (
     ToolUpdateStructuredEvent,
     ToolUseStructuredEvent,
     UsageUpdateStructuredEvent,
+    final_stop_reason,
 )
 
 _SENTINEL = object()
@@ -140,10 +141,28 @@ class CadeSessionStore:
                 blocks = entry.data.get("blocks")
                 if not isinstance(blocks, list):
                     continue
+                reasoning = entry.data.get("reasoning")
+                if isinstance(reasoning, str) and reasoning:
+                    result.append(
+                        SessionEntry(
+                            entry.id,
+                            "event",
+                            {"type": "thinking", "data": {"content": reasoning}},
+                        )
+                    )
                 text = _tool_text(entry)
                 if text:
                     result.append(
                         SessionEntry(entry.id, "assistant", text, dict(entry.data))
+                    )
+                metrics = entry.data.get("response_metrics")
+                if isinstance(metrics, dict):
+                    result.append(
+                        SessionEntry(
+                            entry.id,
+                            "event",
+                            {"type": "response_metrics", "data": metrics},
+                        )
                     )
                 for block in blocks:
                     if not isinstance(block, dict) or block.get("type") != "tool_call":
@@ -216,6 +235,16 @@ class CadeSessionStore:
                             },
                         )
                     )
+            elif entry.type == "run":
+                error = entry.data.get("error")
+                reason = final_stop_reason(
+                    AgentHarnessResult(
+                        stop_reason=str(entry.data.get("termination", "")),
+                        error=error if isinstance(error, str) else None,
+                    )
+                )
+                if reason:
+                    result.append(SessionEntry(entry.id, "stop", reason))
             elif entry.type == "compaction":
                 result.append(
                     SessionEntry(

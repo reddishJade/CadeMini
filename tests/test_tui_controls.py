@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from cade.ai.auth import AuthCredential
-from cade.ai.events import ProviderEvent, TextDelta
+from cade.ai.events import ProviderEvent, ReasoningDelta, TextDelta
 from cade.ai.models import get_models
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.app.auth import JsonCredentialStore
@@ -54,8 +54,9 @@ class WaitingProvider:
     model = "gpt-5.5"
     transport = "openai_responses"
 
-    def __init__(self, partial: bool) -> None:
+    def __init__(self, partial: bool, reasoning: bool = False) -> None:
         self.partial = partial
+        self.reasoning = reasoning
         self.started = asyncio.Event()
         self.closed = asyncio.Event()
 
@@ -66,6 +67,8 @@ class WaitingProvider:
         options: StreamOptions | None = None,
     ) -> AsyncIterator[ProviderEvent]:
         try:
+            if self.reasoning:
+                yield ReasoningDelta("reasoning summary")
             if self.partial:
                 yield TextDelta("partial answer")
             self.started.set()
@@ -75,11 +78,12 @@ class WaitingProvider:
 
 
 @pytest.mark.parametrize("partial", [False, True])
+@pytest.mark.parametrize("reasoning", [False, True])
 async def test_cancel_wakes_waiting_provider_and_closes_stream(
-    tmp_path: Path, partial: bool
+    tmp_path: Path, partial: bool, reasoning: bool
 ) -> None:
     log = SessionLog.create(tmp_path / "sessions")
-    provider = WaitingProvider(partial)
+    provider = WaitingProvider(partial, reasoning)
     token = CancellationToken()
     task = asyncio.create_task(
         run(
@@ -100,7 +104,14 @@ async def test_cancel_wakes_waiting_provider_and_closes_stream(
         assert provider.closed.is_set()
         assert result.answer == ("partial answer" if partial else "")
         assistants = [entry for entry in log.branch() if entry.type == "assistant"]
-        assert len(assistants) == int(partial)
+        assert len(assistants) == int(partial or reasoning)
+        if reasoning:
+            reopened = SessionLog.open(log.path)
+            assistant = next(
+                entry for entry in reopened.branch() if entry.type == "assistant"
+            )
+            assert assistant.data["reasoning"] == "reasoning summary"
+            assert assistant.data["response_metrics"]["tokens_per_second"] is None
         assert log.branch()[-1].data["termination"] == "aborted"
     finally:
         task.cancel()

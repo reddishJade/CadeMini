@@ -105,7 +105,7 @@ def test_tui_preserves_configured_plan_mode(session: ApplicationSession) -> None
         (
             [
                 TextDelta(""),
-                ReasoningDelta("thinking"),
+                ReasoningDelta("request reasoning summary 73"),
                 TextDelta("hello"),
                 UsageUpdate(50, 100),
                 FinalMessage("hello", "end_turn"),
@@ -152,10 +152,20 @@ def test_tui_displays_request_metrics(
         state.handle_event(event)
         if event.type == "response_metrics" and not event.data.completed:
             assert "TTFT 2.00s · TPS —" in state.render()
+    session.log = SessionLog.open(session.log.path)
+    restored = _TuiState()
+    restored.restore_history(CadeInteractionApp(session).session_store.build_branch())
     if expected is None:
         assert "TTFT" not in state.render()
+        assert "TTFT" not in restored.render()
     else:
         assert expected in state.render()
+        assert restored.render().count(expected) == 1
+    if any(isinstance(event, ReasoningDelta) for event in batch):
+        assert "request reasoning summary 73" in restored.render()
+        assert "request reasoning summary 73" not in str(
+            [message.model_dump() for message in project(session.log.branch())]
+        )
 
 
 def test_tui_file_input_is_expanded_once(session: ApplicationSession) -> None:
@@ -370,6 +380,50 @@ def test_tui_displays_and_restores_automatic_approval_reason(
     assert restored.render().count("Reviewer approved: Requested file change") == 1
 
 
+@pytest.mark.parametrize(
+    ("termination", "error", "expected"),
+    [
+        ("completed", None, None),
+        ("max_tokens", None, "[stopped] output token limit reached"),
+        ("aborted", "cancelled", "[stopped] cancelled"),
+        ("provider_error", "service unavailable", "[stopped] service unavailable"),
+        ("context_error", "request exceeds budget", "[stopped] request exceeds budget"),
+        ("step_limit", None, "[stopped] step limit reached"),
+    ],
+)
+def test_tui_restores_run_outcomes_without_duplicate_answers(
+    session: ApplicationSession,
+    termination: str,
+    error: str | None,
+    expected: str | None,
+) -> None:
+    first = session.log.append("user", {"text": "first task"})
+    session.log.append(
+        "assistant", {"blocks": [{"type": "text", "text": "first answer"}]}
+    )
+    session.log.append("run", {"termination": "completed", "steps": 1})
+    session.log.append("user", {"text": "second task"})
+    session.log.append(
+        "assistant", {"blocks": [{"type": "text", "text": "second answer"}]}
+    )
+    session.log.append("run", {"termination": termination, "steps": 1, "error": error})
+    session.log = SessionLog.open(session.log.path)
+    app = CadeInteractionApp(session)
+    state = _TuiState()
+    state.restore_history(app.session_store.build_branch())
+    assert state.render().count("first answer") == 1
+    assert state.render().count("second answer") == 1
+    if expected:
+        assert state.render().count(expected) == 1
+        assert state.render().index(expected) > state.render().index("second answer")
+    else:
+        assert "[stopped]" not in state.render()
+    session.log.switch_branch(first.id)
+    state.restore_history(app.session_store.build_branch())
+    assert "[stopped]" not in state.render()
+    assert "second answer" not in state.render()
+
+
 def test_failed_stream_is_saved_before_recovery_seals(
     session: ApplicationSession,
 ) -> None:
@@ -403,7 +457,11 @@ def test_retry_discards_failed_display_and_keeps_one_answer(
     provider = session.provider
     assert isinstance(provider, ScriptedProvider)
     provider.batches = [
-        [TextDelta("failed text"), ProviderFailure("timeout", "TimeoutError")],
+        [
+            ReasoningDelta("failed reasoning"),
+            TextDelta("failed text"),
+            ProviderFailure("timeout", "TimeoutError"),
+        ],
         [TextDelta("success"), FinalMessage("success", "end_turn")],
     ]
     state = _TuiState()
@@ -416,6 +474,12 @@ def test_retry_discards_failed_display_and_keeps_one_answer(
     assert len(assistants) == 1
     assert assistants[0].data["blocks"] == [{"type": "text", "text": "success"}]
     assert state.render().count("TTFT") == 1
+    session.log = SessionLog.open(session.log.path)
+    restored = _TuiState()
+    restored.restore_history(CadeInteractionApp(session).session_store.build_branch())
+    assert "failed text" not in restored.render()
+    assert "failed reasoning" not in restored.render()
+    assert restored.render().count("TTFT") == 1
 
 
 @pytest.mark.parametrize("restriction", ["plan", "read_only"])
