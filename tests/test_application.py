@@ -25,7 +25,7 @@ from cade.coding.security.review import AutoReviewer
 from cade.coding.subagents import DelegateTool
 from cade.harness.cancellation import CancellationToken
 from cade.harness.execution.scope import ExecutionScope, current_scope
-from cade.harness.permissions import PermissionCheck
+from cade.harness.permissions import ApprovalResult, PermissionCheck
 from cade.harness.session.types import ToolCallBlock
 from cade.harness.tools import ToolResult
 
@@ -109,8 +109,8 @@ def test_direct_application_tool_uses_shared_execution_scope(tmp_path: Path) -> 
             assert current_scope() == expected
             return ToolResult("scoped")
 
-    async def approve(call: ToolCallBlock) -> bool:
-        return True
+    async def approve(call: ToolCallBlock) -> ApprovalResult:
+        return ApprovalResult(True, "approved by user")
 
     with ExitStack() as resources:
         session = create_session(

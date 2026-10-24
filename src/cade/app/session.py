@@ -473,7 +473,7 @@ class ApplicationSession:
 
     def _select_approver(
         self,
-        approve: Callable[[ToolCallBlock], Awaitable[bool]] | None,
+        approve: Callable[[ToolCallBlock], Awaitable[ApprovalResult]] | None,
         approver: Approver | None = None,
     ) -> Approver:
         """应用配置决定审批方式，宿主只提供人工交互回调。"""
@@ -485,8 +485,7 @@ class ApplicationSession:
         async def manual(request: ApprovalRequest) -> ApprovalResult:
             if approve is None:
                 return ApprovalResult(False, "no approval handler")
-            allowed = await approve(request.call)
-            return ApprovalResult(allowed, "" if allowed else "denied by user")
+            return await approve(request.call)
 
         return manual
 
@@ -506,7 +505,7 @@ class ApplicationSession:
         self,
         text: str,
         on_event: Callable[[LoopEvent], None],
-        approve: Callable[[ToolCallBlock], Awaitable[bool]] | None = None,
+        approve: Callable[[ToolCallBlock], Awaitable[ApprovalResult]] | None = None,
         *,
         approver: Approver | None = None,
     ) -> RunResult:
@@ -566,7 +565,7 @@ class ApplicationSession:
         self,
         name: str,
         args: dict[str, Any],
-        approve: Callable[[ToolCallBlock], Awaitable[bool]],
+        approve: Callable[[ToolCallBlock], Awaitable[ApprovalResult]],
         on_event: Callable[[LoopEvent], None] | None = None,
     ) -> ToolResult:
         """直接工具调用共用权限、取消、会话事实和恢复检查点。"""

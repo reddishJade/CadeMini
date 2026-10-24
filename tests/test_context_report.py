@@ -23,6 +23,7 @@ from cade.coding.mcp.client import McpClient
 from cade.coding.mcp.tools import McpTool
 from cade.coding.mcp_config import McpServerConfig
 from cade.coding.security.policy import filter_tools
+from cade.harness.permissions import ApprovalResult
 from cade.harness.request import build
 from cade.harness.session.projection import project
 from cade.harness.session.types import ToolCallBlock
@@ -73,8 +74,8 @@ def session(
         ).session
 
 
-async def approve(call: ToolCallBlock) -> bool:
-    return True
+async def approve(call: ToolCallBlock) -> ApprovalResult:
+    return ApprovalResult(True, "approved by user")
 
 
 def test_context_summarizes_actual_sources_without_dumping_content(

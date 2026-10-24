@@ -263,14 +263,14 @@ def test_tui_sensitive_approval_only_allows_once(
             return HITLResult("allow", "session")
 
         agent.user_approval_callback = approve
-        assert asyncio.run(agent.approve(call))
+        assert asyncio.run(agent.approve(call)).allowed
         assert requests[0].allowed_scopes == (
             ("once",) if sensitive else ("once", "session")
         )
         assert service.policy.grants.match(call) is not sensitive
         if sensitive:
             assert "sensitive" in requests[0].reason.lower()
-            assert asyncio.run(agent.approve(call))
+            assert asyncio.run(agent.approve(call)).allowed
             assert len(requests) == 2
         return 0
 

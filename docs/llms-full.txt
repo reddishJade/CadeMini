@@ -1617,6 +1617,7 @@ flowchart LR
   hosts_tui_bridge --> coding_security_sensitive
   hosts_tui_bridge --> harness_cancellation
   hosts_tui_bridge --> harness_events
+  hosts_tui_bridge --> harness_permissions
   hosts_tui_bridge --> harness_session_log
   hosts_tui_bridge --> harness_session_types
   hosts_tui_command_handlers --> app_commands

@@ -31,6 +31,7 @@ from cade.harness.session.projection import project
 from cade.harness.session.types import ToolCallBlock
 from cade.hosts.tui.app import _CadeTui
 from cade.hosts.tui.bridge import CadeInteractionApp
+from cade.hosts.tui.compat import HITLResult
 from cade.hosts.tui.interaction_compat import run_shell_shortcut
 from cade.hosts.tui.state import _TuiState
 
@@ -186,10 +187,10 @@ def test_tui_child_inherits_selected_approver(
     ]
     approvals: list[str] = []
 
-    async def manual(call: ToolCallBlock) -> bool:
+    async def manual(call: ToolCallBlock) -> ApprovalResult:
         assert not automatic
         approvals.append(call.name)
-        return True
+        return ApprovalResult(True, "approved by user")
 
     async def reviewer(request: ApprovalRequest) -> ApprovalResult:
         approvals.append(request.call.name)
@@ -202,6 +203,58 @@ def test_tui_child_inherits_selected_approver(
     list(app.ask_stream("delegate the work"))
     assert approvals == ["write"]
     assert (session.workspace / "child.txt").read_text(encoding="utf-8") == "ok"
+
+
+@pytest.mark.parametrize("child", [False, True])
+def test_tui_denial_suggestion_reaches_model(
+    session: ApplicationSession, child: bool
+) -> None:
+    session.policy.set_mode("ask")
+    provider = session.provider
+    assert isinstance(provider, ScriptedProvider)
+    write = [
+        ToolCallEvent(
+            [ToolCall("write", "write", {"path": "denied.txt", "content": "x"})]
+        ),
+        FinalMessage("", "tool_use"),
+    ]
+    provider.batches = [write, [FinalMessage("understood", "end_turn")]]
+    if child:
+        provider.batches.insert(
+            0,
+            [
+                ToolCallEvent(
+                    [ToolCall("child", "delegate", {"prompt": "write a file"})]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+        )
+        provider.batches.append([FinalMessage("parent done", "end_turn")])
+    suggestion = "Use the read tool instead; do not create files."
+    app = CadeInteractionApp(session)
+    app.agent.user_approval_callback = lambda request: HITLResult(
+        "deny", suggestion=suggestion
+    )
+    list(app.ask_stream("inspect the workspace"))
+    assert not (session.workspace / "denied.txt").exists()
+    assert any(
+        suggestion in str(message.get("content", ""))
+        for request in provider.requests
+        for message in request
+        if message.get("role") == "tool"
+    )
+    logs = [session.log]
+    if child:
+        logs.extend(
+            SessionLog.open(path)
+            for path in (session.sessions_dir / "subagents").glob("session-*.jsonl")
+        )
+    assert any(
+        suggestion in str(entry.data["content"])
+        for log in logs
+        for entry in log.branch()
+        if entry.type == "tool_result"
+    )
 
 
 def test_failed_stream_is_saved_before_recovery_seals(

@@ -27,6 +27,7 @@ from cade.harness.events import (
     ToolUpdateEvent,
     UsageEvent,
 )
+from cade.harness.permissions import ApprovalResult
 from cade.harness.session.log import SessionLog, list_sessions
 from cade.harness.session.types import LogEntry, ToolCallBlock
 
@@ -325,14 +326,14 @@ class CadeAgent:
     def has_pending_input(self) -> bool:
         return bool(self._service.pending or self._service.steering)
 
-    async def approve(self, call: ToolCallBlock) -> bool:
+    async def approve(self, call: ToolCallBlock) -> ApprovalResult:
         check = self._service.policy.check(call)
         if check.decision == "deny":
-            return False
+            return ApprovalResult(False, check.reason)
         sensitive = is_sensitive_reason(check.reason)
         callback = self.user_approval_callback
         if callback is None:
-            return False
+            return ApprovalResult(False, "no approval handler")
         tool = cast(
             Any,
             next(
@@ -349,11 +350,11 @@ class CadeAgent:
         result = callback(request)
         if asyncio.iscoroutine(result):
             result = await result
-        if getattr(result, "action", result) != "allow":
-            return False
-        if getattr(result, "scope", "once") == "session" and not sensitive:
+        if result.action != "allow":
+            return ApprovalResult(False, result.suggestion.strip() or "denied by user")
+        if result.scope == "session" and not sensitive:
             self._service.policy.grants.add(call)
-        return True
+        return ApprovalResult(True, "approved by user")
 
 
 class CadeInteractionApp:
