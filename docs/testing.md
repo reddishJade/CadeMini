@@ -33,6 +33,12 @@ package, command, or dependency is required.
 
 ## Execution environment
 
+General shell contracts run through the native shell: PowerShell on Windows,
+Bash on Linux and macOS. Use `shell_tool_class` and `python_command` from
+`tests/conftest.py` to select the tool and quote Python arguments. Keep the same
+behavioral assertions on every platform. Do not substitute PowerShell for a
+test that specifically exercises Bash syntax or Bash executable discovery.
+
 Shell cancellation tests must be able to terminate the processes they start.
 On Windows, `taskkill /T /F` needs permission to terminate the test's process
 tree. If it reports `Access denied`, run the check in an approved execution

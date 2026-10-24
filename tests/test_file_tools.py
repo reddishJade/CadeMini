@@ -6,8 +6,7 @@ import asyncio
 import base64
 import io
 import os
-import shlex
-import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -30,13 +29,15 @@ from cade.harness.session.projection import project
 from cade.harness.session.types import ToolCallBlock
 
 
-async def test_shell_streams_output_while_command_is_running(tmp_path: Path) -> None:
+async def test_shell_streams_output_while_command_is_running(
+    tmp_path: Path,
+    shell_tool_class: type[BashTool],
+    python_command: Callable[[Sequence[str]], str],
+) -> None:
     script = "import os,time; print('started',flush=True); time.sleep(.5); print('finished',flush=True)"
-    command = (
-        shlex.quote(sys.executable.replace("\\", "/")) + " -u -c " + shlex.quote(script)
-    )
+    command = python_command(["-u", "-c", script])
     updates: list[ToolUpdateEvent] = []
-    tool = BashTool(tmp_path)
+    tool = shell_tool_class(tmp_path)
 
     def observe(event: object) -> None:
         if isinstance(event, ToolUpdateEvent):
@@ -44,8 +45,8 @@ async def test_shell_streams_output_while_command_is_running(tmp_path: Path) -> 
 
     pending = asyncio.create_task(
         execute_tool(
-            ToolCallBlock(id="b", name="bash", args={"command": command}),
-            {"bash": tool},
+            ToolCallBlock(id="b", name=tool.name, args={"command": command}),
+            {tool.name: tool},
             on_event=observe,
             timeout_seconds=0.01,
         )
@@ -338,13 +339,14 @@ async def test_search_explains_missing_native_dependency(
 
 async def test_shell_retains_full_output_and_returns_a_bounded_tail(
     tmp_path: Path,
+    shell_tool_class: type[BashTool],
+    python_command: Callable[[Sequence[str]], str],
 ) -> None:
     script = "print('BEGIN'); print('x' * 100000); print('END')"
-    command = (
-        shlex.quote(sys.executable.replace("\\", "/")) + " -c " + shlex.quote(script)
-    )
-    result = await BashTool(tmp_path).execute(
-        ToolCallBlock(id="b", name="bash", args={"command": command})
+    command = python_command(["-c", script])
+    tool = shell_tool_class(tmp_path)
+    result = await tool.execute(
+        ToolCallBlock(id="b", name=tool.name, args={"command": command})
     )
     assert not result.is_error and result.metadata is not None
     assert len(result.content.encode()) < 52 * 1024

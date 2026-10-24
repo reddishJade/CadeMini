@@ -264,19 +264,22 @@ def test_snapshot_retains_both_content_images_and_nested_shell_targets(
     assert deleted[1] == created[2]
 
 
-def test_bash_rm_snapshots_before_change(tmp_path: Path) -> None:
+def test_shell_rm_snapshots_before_change(
+    tmp_path: Path, shell_tool_class: type[BashTool]
+) -> None:
     target = tmp_path / "a.txt"
     target.write_text("old", encoding="utf-8")
     store = SnapshotStore(tmp_path)
-    tool = BashTool(tmp_path, snapshots=store)
+    tool = shell_tool_class(tmp_path, snapshots=store)
 
-    asyncio.run(
+    result = asyncio.run(
         tool.execute(
-            ToolCallBlock(id="b1", name="bash", args={"command": "rm a.txt"}),
+            ToolCallBlock(id="b1", name=tool.name, args={"command": "rm a.txt"}),
             None,
         )
     )
 
+    assert not result.is_error, result.content
     assert not target.exists()
     store.undo_last()
     assert target.read_text(encoding="utf-8") == "old"

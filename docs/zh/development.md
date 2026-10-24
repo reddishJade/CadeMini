@@ -6,6 +6,10 @@ Cade 独立维护，不依赖早期 Cade。所有工作都在本仓库根目录�
 
 需要 Python 3.12+ 和 uv。Linux 上的工具执行还需要可用的 bubblewrap（Debian/Ubuntu 上是 `sudo apt-get install bubblewrap`），以及允许非特权用户命名空间的主机。UID 映射被拒绝属于沙箱启动错误，不是审批失败。CI 使用 Ubuntu 22.04，不关闭主机安全策略。macOS 使用系统 `sandbox-exec`。原生沙箱测试在 Linux 和 macOS 上运行；Windows 跳过这些测试，直接执行工具。
 
+通用 shell 回归测试在 Windows 上使用 PowerShell，在 Linux 和 macOS 上使用 Bash。
+Windows 开发需要在 PATH 中提供 `pwsh` 或 `powershell`；使用 `bash` 工具时才需要 Git Bash。
+CI 在 Linux 和 Windows 上运行回归测试。
+
 ```bash
 uv sync --locked --extra dev --extra docs
 mkdir -p tmp test-results

@@ -107,6 +107,36 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  windows-regression:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: "0.12.19"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install native search tools
+        run: choco install ripgrep fd --yes --no-progress
+      - name: Install check dependencies
+        run: uv sync --locked --extra dev --extra docs
+      - name: Regression tests
+        run: |
+          New-Item -ItemType Directory -Force tmp, test-results/ci | Out-Null
+          uv run --locked pytest -q tests --basetemp=tmp/pytest --junitxml=test-results/ci/pytest-windows.xml
+      - name: CLI startup check
+        run: uv run --locked cade --help
+      - name: Module startup check
+        run: uv run --locked python -m cade --help
+      - name: Login startup check
+        run: uv run --locked cade login --help
+
   macos-sandbox:
     runs-on: macos-latest
     steps:

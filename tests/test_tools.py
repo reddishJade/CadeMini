@@ -8,6 +8,7 @@ import pytest
 
 from cade.coding.security.policy import WorkspacePolicy
 from cade.coding.tools.base import WorkspaceTool, resolve_workspace_path
+from cade.coding.tools.bash import BashTool
 from cade.coding.tools.registry import build_tools
 from cade.harness.session.types import JsonValue, ToolCallBlock
 
@@ -138,24 +139,30 @@ async def test_grep_finds_matching_lines(tmp_path: Path) -> None:
     assert "b.txt" not in result.content
 
 
-async def test_bash_runs_command_and_reports_exit(tmp_path: Path) -> None:
+async def test_shell_runs_command_and_reports_exit(
+    tmp_path: Path, shell_tool_class: type[BashTool]
+) -> None:
     root = _workspace(tmp_path)
-    bash = _tool(build_tools(root), "bash")
+    shell = _tool(build_tools(root), shell_tool_class.name)
 
-    ok = await bash.execute(_call("bash", {"command": "echo hi"}))
+    ok = await shell.execute(_call(shell.name, {"command": "echo hi"}))
     assert "hi" in ok.content
     assert ok.is_error is False
 
-    failed = await bash.execute(_call("bash", {"command": "exit 3"}))
+    failed = await shell.execute(_call(shell.name, {"command": "exit 3"}))
     assert failed.is_error is True
     assert "Command exited with code 3" in failed.content
 
 
-async def test_bash_workdir_does_not_define_writable_scope(tmp_path: Path) -> None:
+async def test_shell_workdir_does_not_define_writable_scope(
+    tmp_path: Path, shell_tool_class: type[BashTool]
+) -> None:
     root = _workspace(tmp_path)
-    bash = _tool(build_tools(root), "bash")
+    shell = _tool(build_tools(root), shell_tool_class.name)
 
-    result = await bash.execute(_call("bash", {"command": "echo hi", "workdir": ".."}))
+    result = await shell.execute(
+        _call(shell.name, {"command": "echo hi", "workdir": ".."})
+    )
     assert not result.is_error
 
 

@@ -23,7 +23,10 @@ scoop install ripgrep fd
 Cade also recognizes Debian/Ubuntu's `fdfind` executable.
 
 Native sandbox tests run on Linux and macOS; Windows
-skips those tests and executes tools directly.
+skips those tests and executes tools directly. General shell regression tests
+use PowerShell on Windows and Bash on Linux and macOS. Windows development
+requires `pwsh` or `powershell` on PATH; Git Bash is needed only when using the
+`bash` tool. CI runs the regression suite on both Linux and Windows.
 
 ```bash
 uv sync --locked --extra dev --extra docs

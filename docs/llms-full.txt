@@ -3546,7 +3546,10 @@ scoop install ripgrep fd
 Cade also recognizes Debian/Ubuntu's `fdfind` executable.
 
 Native sandbox tests run on Linux and macOS; Windows
-skips those tests and executes tools directly.
+skips those tests and executes tools directly. General shell regression tests
+use PowerShell on Windows and Bash on Linux and macOS. Windows development
+requires `pwsh` or `powershell` on PATH; Git Bash is needed only when using the
+`bash` tool. CI runs the regression suite on both Linux and Windows.
 
 ```bash
 uv sync --locked --extra dev --extra docs
@@ -3690,6 +3693,12 @@ environment. Check startup outside the source tree and confirm that no `cade`
 package, command, or dependency is required.
 
 ## Execution environment
+
+General shell contracts run through the native shell: PowerShell on Windows,
+Bash on Linux and macOS. Use `shell_tool_class` and `python_command` from
+`tests/conftest.py` to select the tool and quote Python arguments. Keep the same
+behavioral assertions on every platform. Do not substitute PowerShell for a
+test that specifically exercises Bash syntax or Bash executable discovery.
 
 Shell cancellation tests must be able to terminate the processes they start.
 On Windows, `taskkill /T /F` needs permission to terminate the test's process

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import shlex
-import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import pytest
@@ -17,6 +16,7 @@ from cade.coding.skills.tools import (
     discover_skills,
     render_skill_catalog,
 )
+from cade.coding.tools.bash import BashTool
 from cade.coding.tools.registry import build_tools
 from cade.harness.execution.local.sandbox import PlatformSandbox
 from cade.harness.executor import execute_tool
@@ -238,6 +238,8 @@ def test_loaded_skill_survives_compaction_without_duplicate_context(
 
 async def test_skill_script_reads_bundled_asset_through_authorized_shell(
     tmp_path: Path,
+    shell_tool_class: type[BashTool],
+    python_command: Callable[[Sequence[str]], str],
 ) -> None:
     workspace = tmp_path / "workspace"
     runtime = tmp_path / "runtime"
@@ -268,12 +270,12 @@ async def test_skill_script_reads_bundled_asset_through_authorized_shell(
         hidden_paths=(workspace / ".cade",),
         readable_paths=(root,),
     )
-    bash = next(
-        tool for tool in build_tools(workspace, sandbox=sandbox) if tool.name == "bash"
+    shell = next(
+        tool
+        for tool in build_tools(workspace, sandbox=sandbox)
+        if tool.name == shell_tool_class.name
     )
-    command = " ".join(
-        shlex.quote(str(path).replace("\\", "/")) for path in (sys.executable, script)
-    )
+    command = python_command([str(script)])
     approvals: list[str] = []
 
     def approve(request) -> ApprovalResult:
@@ -281,14 +283,14 @@ async def test_skill_script_reads_bundled_asset_through_authorized_shell(
         return ApprovalResult(True, "Run the bundled skill script")
 
     result = await execute_tool(
-        ToolCallBlock(id="script", name="bash", args={"command": command}),
-        {"bash": bash},
+        ToolCallBlock(id="script", name=shell.name, args={"command": command}),
+        {shell.name: shell},
         policy=WorkspacePolicy(workspace, mode="ask"),
         approve=approve,
     )
     assert not result.result.is_error, result.result.content
     assert "SCRIPT_OK:ASSET EVIDENCE" in result.result.content
-    assert approvals == ["bash"]
+    assert approvals == [shell.name]
 
 
 def test_utf8_reference_is_not_misclassified_at_sample_boundary(tmp_path: Path) -> None:

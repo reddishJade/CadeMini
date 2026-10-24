@@ -27,6 +27,11 @@ uv build --no-sources
 
 ## 执行环境
 
+通用 shell 契约在 Windows 上使用 PowerShell，在 Linux 和 macOS 上使用 Bash。
+使用 `tests/conftest.py` 中的 `shell_tool_class` 和 `python_command`，选择工具并转义 Python 参数。
+各平台保留相同的行为断言。
+专门验证 Bash 语法或可执行文件查找的测试仍使用 Bash。
+
 Shell 取消测试必须能终止自己启动的进程。Windows 上的 `taskkill /T /F` 需要终止测试进程树的权限。如果返回 `Access denied`，请在获准且具备该权限的执行环境中运行检查。
 
 如果 uv 无法访问全局缓存，使用[工作区缓存](development.md#uv-缓存权限)。如果 pytest 无法写入 `.pytest_cache`，可用 `-p no:cacheprovider` 禁用可选缓存。两种情况下，`--basetemp` 都放在 `tmp/` 下。
