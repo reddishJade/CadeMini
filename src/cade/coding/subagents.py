@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 from cade.coding.security.policy import Mode, WorkspacePolicy, filter_tools
 from cade.coding.tools.history import HistoryTool
 from cade.harness.cancellation import CancellationToken
+from cade.harness.events import LoopEvent, ToolStartEvent, ToolUpdateEvent
 from cade.harness.lifecycle import TurnLifecycle
 from cade.harness.loop import run
 from cade.harness.permissions import Approver, Policy
@@ -16,7 +18,7 @@ from cade.harness.provider import Provider
 from cade.harness.request import Budget
 from cade.harness.session.log import SessionLog
 from cade.harness.session.types import JsonValue, ToolCallBlock
-from cade.harness.tools import Tool, ToolResult
+from cade.harness.tools import Tool, ToolResult, current_tool_context
 
 
 class SubagentRunner:
@@ -57,6 +59,7 @@ class SubagentRunner:
         *,
         mode: Mode | None = None,
         signal: CancellationToken | None = None,
+        on_update: Callable[[str], None] | None = None,
     ) -> ToolResult:
         if not prompt.strip():
             raise ValueError("prompt must not be empty")
@@ -82,6 +85,14 @@ class SubagentRunner:
                 else refreshed
             )
 
+        def emit(event: LoopEvent) -> None:
+            if on_update is None:
+                return
+            if isinstance(event, ToolStartEvent):
+                on_update(event.name)
+            elif isinstance(event, ToolUpdateEvent):
+                on_update(event.content)
+
         result = await run(
             child,
             prompt,
@@ -93,6 +104,7 @@ class SubagentRunner:
             context=child_context,
             max_steps=self.max_steps,
             cancel=signal,
+            on_event=emit,
             lifecycle=self.lifecycle,
             refresh_tools=refresh_child_tools,
         )
@@ -170,14 +182,21 @@ class DelegateTool:
         tasks = _tasks(call.args)
         mode = _mode(call.args)
         results: list[ToolResult] = []
-        for prompt in tasks:
-            results.append(
-                await self.runner.run_task(
-                    prompt,
-                    mode=mode,
-                    signal=signal,
-                )
+        update = current_tool_context().on_update
+        for index, prompt in enumerate(tasks, 1):
+            label = " ".join(prompt.split())
+            if update is not None:
+                update(f"[{index}] → {label}")
+            result = await self.runner.run_task(
+                prompt,
+                mode=mode,
+                signal=signal,
+                on_update=partial(_task_update, index, update) if update else None,
             )
+            results.append(result)
+            if update is not None:
+                marker = "✗" if result.is_error else "✓"
+                update(f"[{index}] {marker} {label}")
         failed = any(result.is_error for result in results)
         content = "\n\n".join(
             f"[{index + 1}/{len(results)}]\n{result.content}"
@@ -195,6 +214,12 @@ class DelegateTool:
                 ],
             },
         )
+
+
+def _task_update(index: int, update: Callable[[str], None], text: str) -> None:
+    """给子任务的每行进度附加任务序号。"""
+    for line in text.splitlines():
+        update(f"[{index}]   {line}")
 
 
 def _tasks(args: dict[str, JsonValue]) -> list[str]:

@@ -165,6 +165,7 @@ flowchart LR
   coding_subagents --> coding_security_policy
   coding_subagents --> coding_tools_history
   coding_subagents --> harness_cancellation
+  coding_subagents --> harness_events
   coding_subagents --> harness_lifecycle
   coding_subagents --> harness_loop
   coding_subagents --> harness_permissions

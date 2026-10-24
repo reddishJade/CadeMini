@@ -257,6 +257,57 @@ def test_tui_denial_suggestion_reaches_model(
     )
 
 
+@pytest.mark.parametrize("failed", [False, True])
+def test_tui_displays_delegate_task_progress(
+    session: ApplicationSession, failed: bool
+) -> None:
+    (session.workspace / "input.txt").write_text("input", encoding="utf-8")
+    provider = session.provider
+    assert isinstance(provider, ScriptedProvider)
+    provider.batches = [
+        [
+            ToolCallEvent(
+                [
+                    ToolCall(
+                        "children",
+                        "delegate",
+                        {"tasks": ["read input", "check result"]},
+                    )
+                ]
+            ),
+            FinalMessage("", "tool_use"),
+        ],
+        [
+            ToolCallEvent([ToolCall("read", "read", {"path": "input.txt"})]),
+            FinalMessage("", "tool_use"),
+        ],
+        [FinalMessage("first done", "max_tokens" if failed else "end_turn")],
+        [FinalMessage("second done", "end_turn")],
+        [FinalMessage("parent done", "end_turn")],
+    ]
+    state = _TuiState()
+    updates: list[str] = []
+    for event in CadeInteractionApp(session).ask_stream("delegate the checks"):
+        state.handle_event(event)
+        if event.type == "tool_update":
+            assert event.data.tool_name == "delegate"
+            updates.append(event.data.partial_result)
+            if event.data.partial_result == "[1]   read":
+                assert "● Subagents" in state.render()
+                assert state.subagents[1].tool == "read"
+    marker = "✗" if failed else "✓"
+    assert updates == [
+        "[1] → read input",
+        "[1]   read",
+        f"[1] {marker} read input",
+        "[2] → check result",
+        "[2] ✓ check result",
+    ]
+    assert state.subagents[1].task == f"{marker} read input"
+    assert state.subagents[2].task == "✓ check result"
+    assert all(not slot.tool for slot in state.subagents.values())
+
+
 def test_failed_stream_is_saved_before_recovery_seals(
     session: ApplicationSession,
 ) -> None:
