@@ -612,21 +612,40 @@ class ApplicationSession:
                     on_event=on_event,
                 )
                 result = execution.result
+                authorization = execution.authorization
+                artifact: dict[str, JsonValue] = {
+                    "authorization": {
+                        "decision": authorization.decision,
+                        "reason": authorization.reason,
+                        "read_only": authorization.scope.read_only,
+                        "writable_paths": [
+                            str(path) for path in authorization.scope.writable_paths
+                        ],
+                    }
+                }
+                if result.metadata is not None:
+                    artifact["tool_metadata"] = cast(JsonValue, result.metadata)
                 self.log.append(
                     "tool_result",
                     {
                         "call_id": call.id,
                         "content": result.content,
                         "status": "error" if result.is_error else "ok",
-                        "artifact": {"tool_metadata": cast(JsonValue, result.metadata)}
-                        if result.metadata is not None
-                        else None,
+                        "artifact": artifact,
                     },
                 )
                 if on_event is not None:
                     on_event(
                         ToolEndEvent(
-                            call.id, result.content, result.is_error, result.metadata
+                            call.id,
+                            result.content,
+                            result.is_error,
+                            result.metadata,
+                            authorization_reason=(
+                                authorization.reason
+                                if authorization.decision == "allow"
+                                else ""
+                            ),
                         )
                     )
                 return result

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from contextlib import ExitStack
 from pathlib import Path
@@ -25,6 +26,8 @@ from cade.ai.types import StreamOptions, ToolDefinition
 from cade.app.bootstrap import create_session
 from cade.app.config import CadeConfig
 from cade.app.session import ApplicationSession
+from cade.coding.security.review import AutoReviewer
+from cade.harness.events import LoopEvent, ToolEndEvent
 from cade.harness.permissions import ApprovalRequest, ApprovalResult
 from cade.harness.session.log import SessionLog
 from cade.harness.session.projection import project
@@ -306,6 +309,65 @@ def test_tui_displays_delegate_task_progress(
     assert state.subagents[1].task == f"{marker} read input"
     assert state.subagents[2].task == "✓ check result"
     assert all(not slot.tool for slot in state.subagents.values())
+
+
+@pytest.mark.parametrize("direct", [False, True])
+def test_tui_displays_and_restores_automatic_approval_reason(
+    session: ApplicationSession, direct: bool
+) -> None:
+    session.policy.set_mode("ask")
+    reviewer = ScriptedProvider()
+    reviewer.batches = [
+        [FinalMessage('{"allowed":true,"reason":"Requested file change"}', "end_turn")]
+    ]
+    session.automatic_approver = AutoReviewer(reviewer, workspace=session.workspace)
+    app = CadeInteractionApp(session)
+    if direct:
+        events: list[LoopEvent] = []
+        result = asyncio.run(
+            session.execute_tool(
+                "write",
+                {"path": "approved.txt", "content": "approved"},
+                app.agent.approve,
+                events.append,
+            )
+        )
+        assert not result.is_error
+        completed = [event for event in events if isinstance(event, ToolEndEvent)]
+        assert len(completed) == 1
+        assert (
+            "Reviewer approved: Requested file change"
+            in completed[0].authorization_reason
+        )
+    else:
+        provider = session.provider
+        assert isinstance(provider, ScriptedProvider)
+        provider.batches = [
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            "write",
+                            "write",
+                            {"path": "approved.txt", "content": "approved"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            [FinalMessage("done", "end_turn")],
+        ]
+        live = _TuiState()
+        for event in app.ask_stream("write the file"):
+            live.handle_event(event)
+        assert live.render().count("Reviewer approved: Requested file change") == 1
+    assert (session.workspace / "approved.txt").read_text(
+        encoding="utf-8"
+    ) == "approved"
+    session.log = SessionLog.open(session.log.path)
+    restored = _TuiState()
+    restored.restore_history(app.session_store.build_branch())
+    assert restored.render().count("Reviewer approved: Requested file change") == 1
 
 
 def test_failed_stream_is_saved_before_recovery_seals(

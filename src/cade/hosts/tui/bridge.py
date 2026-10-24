@@ -181,6 +181,17 @@ class CadeSessionStore:
                         else None,
                         paths.get(call_id, ""),
                     )
+                    authorization = (
+                        artifact.get("authorization")
+                        if isinstance(artifact, dict)
+                        else None
+                    )
+                    notice = (
+                        authorization.get("reason")
+                        if isinstance(authorization, dict)
+                        and authorization.get("decision") == "allow"
+                        else None
+                    )
                     result.append(
                         SessionEntry(
                             entry.id,
@@ -195,7 +206,9 @@ class CadeSessionStore:
                                     "status": status
                                     if isinstance(status, str)
                                     else "ok",
-                                    "permission_notice": None,
+                                    "permission_notice": notice
+                                    if isinstance(notice, str)
+                                    else None,
                                     "render_intent": intent.model_dump()
                                     if intent is not None
                                     else None,
@@ -458,6 +471,7 @@ class CadeInteractionApp:
                             event.call_id,
                             event.content,
                             "error" if event.is_error else "ok",
+                            permission_notice=event.authorization_reason or None,
                             render_intent=_edit_intent(
                                 event.metadata, paths.pop(event.call_id, "")
                             ),

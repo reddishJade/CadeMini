@@ -327,6 +327,11 @@ async def run(
                     result_tool.content,
                     result_tool.is_error,
                     result_tool.metadata,
+                    authorization_reason=(
+                        execution.authorization.reason
+                        if execution.authorization.decision == "allow"
+                        else ""
+                    ),
                 ),
             )
 

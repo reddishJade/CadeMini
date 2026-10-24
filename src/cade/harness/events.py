@@ -44,6 +44,7 @@ class ToolEndEvent:
     content: str
     is_error: bool
     metadata: dict[str, JsonValue] | None = None
+    authorization_reason: str = ""
 
 
 @dataclass(frozen=True)
