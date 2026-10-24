@@ -1160,7 +1160,6 @@ flowchart LR
   coding_tools__worker --> coding_tools_registry
   coding_tools__worker --> harness_execution_scope
   coding_tools__worker --> harness_tools
-  coding_tools_base --> coding_tools_native
   coding_tools_base --> coding_workspace_snapshots
   coding_tools_base --> harness_cancellation
   coding_tools_base --> harness_execution_local_sandbox
@@ -1187,10 +1186,6 @@ flowchart LR
   coding_tools_history --> harness_session_types
   coding_tools_history --> harness_tools
   coding_tools_images --> harness_tools
-  coding_tools_ls --> coding_tools_base
-  coding_tools_ls --> coding_tools_search
-  coding_tools_ls --> harness_session_types
-  coding_tools_ls --> harness_tools
   coding_tools_question --> harness_cancellation
   coding_tools_question --> harness_session_types
   coding_tools_question --> harness_tools
@@ -1202,18 +1197,10 @@ flowchart LR
   coding_tools_registry --> coding_tools_base
   coding_tools_registry --> coding_tools_bash
   coding_tools_registry --> coding_tools_edit
-  coding_tools_registry --> coding_tools_ls
   coding_tools_registry --> coding_tools_read
-  coding_tools_registry --> coding_tools_search
   coding_tools_registry --> coding_tools_write
   coding_tools_registry --> coding_workspace_snapshots
   coding_tools_registry --> harness_execution_local_sandbox
-  coding_tools_search --> coding_tools_base
-  coding_tools_search --> coding_tools_native
-  coding_tools_search --> coding_tools_truncate
-  coding_tools_search --> harness_execution_local_subprocess
-  coding_tools_search --> harness_session_types
-  coding_tools_search --> harness_tools
   coding_tools_webfetch --> coding_tools_base
   coding_tools_webfetch --> coding_tools_html_markdown
   coding_tools_webfetch --> coding_tools_truncate
@@ -1327,9 +1314,6 @@ flowchart LR
 | `read` | `path`、`offset`、`limit` | 无 | 允许，受保护路径除外 |
 | `write` | `path`、`content` | 创建或替换文件；先做快照 | ask 模式下询问，build 模式下允许 |
 | `edit` | `path`、`edits: [{oldText, newText}]` | 对原始文件执行互不重叠的替换；先做快照 | ask 模式下询问，build 模式下允许 |
-| `find` | `pattern`、`path`、`limit` | 无 | 允许，受保护路径除外 |
-| `ls` | `path`、`limit` | 无 | 允许，受保护路径除外 |
-| `grep` | `pattern`、`path`、`glob`、`ignoreCase`、`literal`、`context`、`limit` | 无 | 允许，受保护路径除外 |
 | `bash`、`powershell` | `command`、`timeout`、`workdir`、`additional_write_paths` | 任意进程；对常见修改做快照 | build 模式下允许普通开发；检测到风险时询问 |
 | `question` | `questions: [{question, header, options, multiple?}]` | 收集用户答案；关闭问题时结束当前轮次 | 允许，包括计划模式 |
 | `websearch` | `query` | 通过 Exa 搜索网页 | 网络开启时允许 |
@@ -1354,13 +1338,11 @@ flowchart LR
 
 工具默认值和 Cade 集成见[行为契约](../../decisions/0015-tool-behavior-parity.md)。
 `read` 返回不带行号前缀的文件内容，并支持图片附件。`offset` 和 `limit` 必须为正整数。
-编辑只支持精确匹配，每个替换都基于原始文件，命中位置必须唯一且互不重叠。列目录请用 `ls`。
+编辑只支持精确匹配，每个替换都基于原始文件，命中位置必须唯一且互不重叠。列目录、查找文件和搜索内容请使用 shell 命令。
 Shell 的 `timeout` 单位是秒，没有默认超时。Windows 上的 `bash` 使用 Bash；
 `powershell` 使用 PowerShell，仅支持 Windows。
 
-`find` 使用 fd，`grep` 使用 ripgrep。请将这两个程序安装到 PATH。
-Cade 会报告缺少的程序，不会自动下载。
-搜索排除 `.cade`，包括其中的快照和会话日志。
+不再提供独立的 `ls`、`find` 或 `grep` 工具。搜索命令遵守 shell 的输出限制、权限和沙箱策略。见[决策 0017](../../decisions/0017-shell-search.md)。
 
 ## 相关页面
 
@@ -2160,14 +2142,11 @@ MCP 的协议版本与可选能力边界见 [MCP](../mcp.md)。子会话权限�
 - `read`：读取文件文本或附加图片。文本最多返回 2,000 行或 50 KB。
 - `write`：写入 UTF-8 文本，并创建父目录。
 - `edit`：对原始文件执行唯一且互不重叠的批量替换。
-- `find`：按 glob 查找路径，遵循忽略规则。
-- `ls`：列出目录项，包括隐藏文件。
-- `grep`：搜索正则或字面文本，支持大小写控制和上下文行。
 - `bash`、`powershell`：运行 shell 命令，可选指定工作目录和 `additional_write_paths`，为本次调用申请额外权限。
 - `question`：收集选项或自定义答案，关闭问题时结束当前轮次。
 - `websearch`、`webfetch`：搜索或获取网页内容，在所有平台上遵守 `network=false`。
 
-搜索排除 `.cade`，包括会话日志和快照内容。
+列目录、查找文件和搜索内容请使用 `bash` 或 `powershell`。这些命令遵守 shell 的权限和沙箱策略。
 上游行为和参数见[工具目录](design/tool-catalog.md)。
 
 工作区固定为项目根目录，不是 shell 的当前目录，也不是整个主目录的别名。读取可以使用外部路径，受保护文件除外。工作区内的写入有快照；外部写入没有。
@@ -2829,7 +2808,7 @@ $env:UV_CACHE_DIR = "$PWD\.uv-cache"
 
 ## 搜索程序
 
-文件搜索需要在 PATH 中安装 fd 和 ripgrep。Debian/Ubuntu 使用 `sudo apt-get install ripgrep fd-find`，macOS 使用 `brew install ripgrep fd`，Windows（Scoop）使用 `scoop install ripgrep fd`。Cade 也识别 Debian/Ubuntu 的 `fdfind` 命令。
+文件查找和内容搜索通过 shell 命令执行。可安装 fd 和 ripgrep，但启动 Cade 不依赖这两个程序。Debian/Ubuntu 使用 `sudo apt-get install ripgrep fd-find`，macOS 使用 `brew install ripgrep fd`，Windows（Scoop）使用 `scoop install ripgrep fd`。Debian/Ubuntu 上的 fd 命令名为 `fdfind`。
 
 # 验证指南
 

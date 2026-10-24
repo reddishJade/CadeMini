@@ -95,4 +95,4 @@ $env:UV_CACHE_DIR = "$PWD\.uv-cache"
 
 ## 搜索程序
 
-文件搜索需要在 PATH 中安装 fd 和 ripgrep。Debian/Ubuntu 使用 `sudo apt-get install ripgrep fd-find`，macOS 使用 `brew install ripgrep fd`，Windows（Scoop）使用 `scoop install ripgrep fd`。Cade 也识别 Debian/Ubuntu 的 `fdfind` 命令。
+文件查找和内容搜索通过 shell 命令执行。可安装 fd 和 ripgrep，但启动 Cade 不依赖这两个程序。Debian/Ubuntu 使用 `sudo apt-get install ripgrep fd-find`，macOS 使用 `brew install ripgrep fd`，Windows（Scoop）使用 `scoop install ripgrep fd`。Debian/Ubuntu 上的 fd 命令名为 `fdfind`。

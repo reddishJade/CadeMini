@@ -27,12 +27,9 @@ _PLAN_TOOLS = frozenset(
         "read",
         "write",
         "edit",
-        "find",
-        "ls",
         "question",
         "websearch",
         "webfetch",
-        "grep",
         "history",
         "skill",
         "delegate",
@@ -96,7 +93,7 @@ class WorkspacePolicy:
         path: Path | None = None
         workdir = self.workspace
         try:
-            if name in {"read", "write", "edit", "grep", "find", "ls"}:
+            if name in {"read", "write", "edit"}:
                 path = resolve_path(self.workspace, call.args.get("path", "."))
             elif name in {"bash", "powershell"}:
                 workdir = resolve_path(self.workspace, call.args.get("workdir", "."))

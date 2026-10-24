@@ -22,6 +22,7 @@ them.
 - [0014: Avoid rescanning and rewriting unchanged storage](0014-storage-append-cost.md)
 - [0015: Define consistent tool behavior](0015-tool-behavior-parity.md)
 - [0016: Preserve response observations for session restoration](0016-durable-response-observations.md)
+- [0017: Use shell commands for file discovery and search](0017-shell-search.md)
 
 ## Adding a record
 

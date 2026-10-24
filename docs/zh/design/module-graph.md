@@ -177,7 +177,6 @@ flowchart LR
   coding_tools__worker --> coding_tools_registry
   coding_tools__worker --> harness_execution_scope
   coding_tools__worker --> harness_tools
-  coding_tools_base --> coding_tools_native
   coding_tools_base --> coding_workspace_snapshots
   coding_tools_base --> harness_cancellation
   coding_tools_base --> harness_execution_local_sandbox
@@ -204,10 +203,6 @@ flowchart LR
   coding_tools_history --> harness_session_types
   coding_tools_history --> harness_tools
   coding_tools_images --> harness_tools
-  coding_tools_ls --> coding_tools_base
-  coding_tools_ls --> coding_tools_search
-  coding_tools_ls --> harness_session_types
-  coding_tools_ls --> harness_tools
   coding_tools_question --> harness_cancellation
   coding_tools_question --> harness_session_types
   coding_tools_question --> harness_tools
@@ -219,18 +214,10 @@ flowchart LR
   coding_tools_registry --> coding_tools_base
   coding_tools_registry --> coding_tools_bash
   coding_tools_registry --> coding_tools_edit
-  coding_tools_registry --> coding_tools_ls
   coding_tools_registry --> coding_tools_read
-  coding_tools_registry --> coding_tools_search
   coding_tools_registry --> coding_tools_write
   coding_tools_registry --> coding_workspace_snapshots
   coding_tools_registry --> harness_execution_local_sandbox
-  coding_tools_search --> coding_tools_base
-  coding_tools_search --> coding_tools_native
-  coding_tools_search --> coding_tools_truncate
-  coding_tools_search --> harness_execution_local_subprocess
-  coding_tools_search --> harness_session_types
-  coding_tools_search --> harness_tools
   coding_tools_webfetch --> coding_tools_base
   coding_tools_webfetch --> coding_tools_html_markdown
   coding_tools_webfetch --> coding_tools_truncate

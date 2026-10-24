@@ -9,7 +9,8 @@ bubblewrap (`sudo apt-get install bubblewrap` on Debian/Ubuntu) and a host that
 permits unprivileged user namespaces. Denied UID mappings are sandbox startup
 errors, not approval failures. CI uses Ubuntu 22.04 without disabling host
 security policies. macOS uses system `sandbox-exec`.
-File search requires fd and ripgrep on PATH. Install them before running tests:
+File discovery and content search use shell commands. You can install fd and
+ripgrep for these operations; they are not required to start Cade:
 
 ```bash
 # Debian or Ubuntu
@@ -20,7 +21,7 @@ brew install ripgrep fd
 scoop install ripgrep fd
 ```
 
-Cade also recognizes Debian/Ubuntu's `fdfind` executable.
+On Debian/Ubuntu, invoke fd as `fdfind`.
 
 Native sandbox tests run on Linux and macOS; Windows
 skips those tests and executes tools directly. General shell regression tests

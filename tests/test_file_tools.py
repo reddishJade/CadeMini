@@ -1,4 +1,4 @@
-"""验证文件、搜索和 shell 工具的行为。"""
+"""验证文件和 shell 工具的行为。"""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ from cade.coding.tools.bash import BashTool
 from cade.coding.tools.edit import EditTool
 from cade.coding.tools.edit_diff import Edit, apply_edits
 from cade.coding.tools.read import ReadTool
-from cade.coding.tools.registry import build_tools
 from cade.coding.tools.truncate import truncate
 from cade.harness.events import ToolUpdateEvent
 from cade.harness.executor import execute_tool
@@ -185,63 +184,6 @@ def test_text_truncation_keeps_complete_utf8_characters() -> None:
     assert result.truncated
 
 
-@pytest.mark.parametrize("tool_name", ["find", "grep", "ls"])
-async def test_search_cannot_read_cade_state(tmp_path: Path, tool_name: str) -> None:
-    (tmp_path / ".cade/snapshots/blobs").mkdir(parents=True)
-    (tmp_path / ".cade/snapshots/blobs/secret.txt").write_text(
-        "private-marker", encoding="utf-8"
-    )
-    (tmp_path / "visible.txt").write_text("public-marker", encoding="utf-8")
-    tool = next(tool for tool in build_tools(tmp_path) if tool.name == tool_name)
-    args = (
-        {"pattern": "marker"}
-        if tool_name == "grep"
-        else {"pattern": "*"}
-        if tool_name == "find"
-        else {}
-    )
-    result = await execute_tool(
-        ToolCallBlock(id="s", name=tool_name, args=args),
-        {tool_name: tool},
-        policy=WorkspacePolicy(tmp_path),
-    )
-    assert not result.result.is_error
-    assert "private-marker" not in result.result.content
-    assert "secret.txt" not in result.result.content
-    assert ".cade" not in result.result.content
-    denied = await execute_tool(
-        ToolCallBlock(id="s", name=tool_name, args={**args, "path": ".cade"}),
-        {tool_name: tool},
-        policy=WorkspacePolicy(tmp_path),
-    )
-    assert denied.result.is_error
-    assert "Protected path" in denied.result.content
-
-
-async def test_grep_literal_context_ignore_and_limit(tmp_path: Path) -> None:
-    (tmp_path / ".gitignore").write_bytes(b"ignored.txt\n")
-    (tmp_path / "ignored.txt").write_bytes(b"Needle.*\n")
-    (tmp_path / "file.txt").write_bytes(b"before\nNeedle.*\nafter\n")
-    tool = next(tool for tool in build_tools(tmp_path) if tool.name == "grep")
-    result = await tool.execute(
-        ToolCallBlock(
-            id="s",
-            name="grep",
-            args={
-                "pattern": "needle.*",
-                "ignoreCase": True,
-                "literal": True,
-                "context": 1,
-                "limit": 1,
-            },
-        )
-    )
-    assert (
-        result.content
-        == "file.txt-1- before\nfile.txt:2: Needle.*\nfile.txt-3- after\n\n[1 matches limit reached. Use limit=2 for more, or refine pattern]"
-    )
-
-
 def test_image_survives_log_projection_and_responses_conversion(tmp_path: Path) -> None:
     image = io.BytesIO()
     Image.new("RGB", (2, 3), "red").save(image, format="PNG")
@@ -322,19 +264,6 @@ async def test_read_requires_positive_integer_paging(
         {"read": ReadTool(tmp_path)},
     )
     assert result.result.is_error
-
-
-async def test_search_explains_missing_native_dependency(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr("cade.coding.tools.native.shutil.which", lambda name: None)
-    tool = next(tool for tool in build_tools(tmp_path) if tool.name == "find")
-    result = await execute_tool(
-        ToolCallBlock(id="f", name="find", args={"pattern": "*"}), {"find": tool}
-    )
-    assert result.result.is_error
-    assert "fd is not installed" in result.result.content
-    assert "PATH" in result.result.content
 
 
 async def test_shell_retains_full_output_and_returns_a_bounded_tail(

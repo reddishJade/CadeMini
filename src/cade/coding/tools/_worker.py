@@ -26,7 +26,6 @@ def main() -> int:
         )
         with execution_scope(scope):
             tool = tools[payload["tool"]]
-            tool.native_binary = payload.get("native_binary")
             result = tool.run(payload["args"])
     except (OSError, ValueError, KeyError, TypeError) as exc:
         result = ToolResult(f"File operation failed: {exc}", is_error=True)

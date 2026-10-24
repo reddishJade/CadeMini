@@ -12,7 +12,6 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
-from cade.coding.tools.native import find_tool
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.cancellation import CancellationToken
 from cade.harness.execution.local.sandbox import PlatformSandbox
@@ -30,8 +29,6 @@ MAX_READ_LINES = 2_000
 MAX_LINE_CHARS = 2_000
 MAX_FILE_BYTES = 1_000_000
 MAX_TOOL_CHARS = 64_000
-MAX_GLOB_RESULTS = 1_000
-MAX_GREP_RESULTS = 500
 
 _BLOCKED_PARTS = frozenset({".cade"})
 
@@ -50,7 +47,6 @@ class WorkspaceTool:
         self.workspace = workspace.resolve()
         self.snapshots: SnapshotStore | None = None
         self.sandbox = sandbox
-        self.native_binary: str | None = None
         self.parameters = self._parameters()
 
     def _parameters(self) -> dict[str, Any]:
@@ -63,8 +59,6 @@ class WorkspaceTool:
     ) -> ToolResult:
         if signal is not None and signal.cancelled:
             raise ValueError("Operation aborted")
-        if self.name in {"find", "grep"}:
-            self.native_binary = find_tool("fd" if self.name == "find" else "rg")
         cancel = threading.Event()
         operation = self.run
         if (
@@ -113,7 +107,6 @@ class WorkspaceTool:
             "tool": self.name,
             "workspace": str(self.workspace),
             "args": args,
-            "native_binary": self.native_binary,
             "read_only": scope.read_only,
             "writable_paths": [str(path) for path in scope.writable_paths],
         }

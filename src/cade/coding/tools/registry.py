@@ -9,9 +9,7 @@ from cade.coding.tools.base import (
 )
 from cade.coding.tools.bash import BashTool, PowerShellTool
 from cade.coding.tools.edit import EditTool
-from cade.coding.tools.ls import LsTool
 from cade.coding.tools.read import ReadTool
-from cade.coding.tools.search import FindTool, GrepTool
 from cade.coding.tools.write import WriteTool
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.execution.local.sandbox import PlatformSandbox
@@ -28,9 +26,6 @@ def build_tools(
         ReadTool(workspace),
         WriteTool(workspace, snapshots),
         EditTool(workspace, snapshots),
-        FindTool(workspace),
-        LsTool(workspace),
-        GrepTool(workspace),
         BashTool(workspace, snapshots),
         PowerShellTool(workspace, snapshots),
     )

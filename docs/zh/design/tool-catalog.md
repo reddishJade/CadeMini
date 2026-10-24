@@ -7,9 +7,6 @@
 | `read` | `path`、`offset`、`limit` | 无 | 允许，受保护路径除外 |
 | `write` | `path`、`content` | 创建或替换文件；先做快照 | ask 模式下询问，build 模式下允许 |
 | `edit` | `path`、`edits: [{oldText, newText}]` | 对原始文件执行互不重叠的替换；先做快照 | ask 模式下询问，build 模式下允许 |
-| `find` | `pattern`、`path`、`limit` | 无 | 允许，受保护路径除外 |
-| `ls` | `path`、`limit` | 无 | 允许，受保护路径除外 |
-| `grep` | `pattern`、`path`、`glob`、`ignoreCase`、`literal`、`context`、`limit` | 无 | 允许，受保护路径除外 |
 | `bash`、`powershell` | `command`、`timeout`、`workdir`、`additional_write_paths` | 任意进程；对常见修改做快照 | build 模式下允许普通开发；检测到风险时询问 |
 | `question` | `questions: [{question, header, options, multiple?}]` | 收集用户答案；关闭问题时结束当前轮次 | 允许，包括计划模式 |
 | `websearch` | `query` | 通过 Exa 搜索网页 | 网络开启时允许 |
@@ -34,13 +31,11 @@
 
 工具默认值和 Cade 集成见[行为契约](../../decisions/0015-tool-behavior-parity.md)。
 `read` 返回不带行号前缀的文件内容，并支持图片附件。`offset` 和 `limit` 必须为正整数。
-编辑只支持精确匹配，每个替换都基于原始文件，命中位置必须唯一且互不重叠。列目录请用 `ls`。
+编辑只支持精确匹配，每个替换都基于原始文件，命中位置必须唯一且互不重叠。列目录、查找文件和搜索内容请使用 shell 命令。
 Shell 的 `timeout` 单位是秒，没有默认超时。Windows 上的 `bash` 使用 Bash；
 `powershell` 使用 PowerShell，仅支持 Windows。
 
-`find` 使用 fd，`grep` 使用 ripgrep。请将这两个程序安装到 PATH。
-Cade 会报告缺少的程序，不会自动下载。
-搜索排除 `.cade`，包括其中的快照和会话日志。
+不再提供独立的 `ls`、`find` 或 `grep` 工具。搜索命令遵守 shell 的输出限制、权限和沙箱策略。见[决策 0017](../../decisions/0017-shell-search.md)。
 
 ## 相关页面
 

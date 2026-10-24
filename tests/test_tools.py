@@ -40,16 +40,13 @@ async def test_read_file_with_offset_and_limit(tmp_path: Path) -> None:
     assert "offset=3" in result.content
 
 
-async def test_read_directory(tmp_path: Path) -> None:
-    root = _workspace(tmp_path)
-    (root / "a.txt").write_text("x", encoding="utf-8")
-    (root / "sub").mkdir()
-    listing = _tool(build_tools(root), "ls")
-
-    result = await listing.execute(_call("ls", {"path": "."}))
-
-    assert "a.txt" in result.content
-    assert "sub/" in result.content
+def test_workspace_tool_catalog_uses_shell_for_search(tmp_path: Path) -> None:
+    names = {tool.name for tool in build_tools(tmp_path)}
+    assert names == {"read", "write", "edit", "bash", "powershell"}
+    policy = WorkspacePolicy(tmp_path)
+    for name in ("ls", "find", "grep"):
+        assert policy.check(_call(name, {"path": "."})).decision == "deny"
+    assert policy.check(_call("bash", {"command": "ls"})).decision == "allow"
 
 
 async def test_read_decodes_bytes_as_utf8(tmp_path: Path) -> None:
@@ -112,33 +109,6 @@ async def test_edit_requires_unique_match(tmp_path: Path) -> None:
         )
 
 
-async def test_find_skips_git_directory(tmp_path: Path) -> None:
-    root = _workspace(tmp_path)
-    (root / "src").mkdir()
-    (root / "src/a.py").write_text("", encoding="utf-8")
-    (root / "src/b.txt").write_text("", encoding="utf-8")
-    (root / ".git").mkdir()
-    (root / ".git/hidden.py").write_text("", encoding="utf-8")
-    find = _tool(build_tools(root), "find")
-
-    result = await find.execute(_call("find", {"pattern": "**/*.py"}))
-
-    assert "src/a.py" in result.content
-    assert "hidden.py" not in result.content
-
-
-async def test_grep_finds_matching_lines(tmp_path: Path) -> None:
-    root = _workspace(tmp_path)
-    (root / "a.py").write_text("first\nneedle here\n", encoding="utf-8")
-    (root / "b.txt").write_text("needle too\n", encoding="utf-8")
-    grep = _tool(build_tools(root), "grep")
-
-    result = await grep.execute(_call("grep", {"pattern": "needle", "glob": "*.py"}))
-
-    assert "a.py:2: needle here" in result.content
-    assert "b.txt" not in result.content
-
-
 async def test_shell_runs_command_and_reports_exit(
     tmp_path: Path, shell_tool_class: type[BashTool]
 ) -> None:
@@ -171,7 +141,6 @@ def test_policy_decisions(tmp_path: Path) -> None:
     policy = WorkspacePolicy(root)
 
     assert policy.check(_call("read", {"path": "a.txt"})).decision == "allow"
-    assert policy.check(_call("find", {"pattern": "**/*"})).decision == "allow"
     assert policy.check(_call("write", {"path": "a.txt"})).decision == "allow"
     assert policy.check(_call("bash", {"command": "echo hi"})).decision == "allow"
     assert policy.check(_call("write", {"path": "../a.txt"})).decision == "ask"

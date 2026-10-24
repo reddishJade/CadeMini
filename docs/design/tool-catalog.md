@@ -8,9 +8,6 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `read` | `path`, `offset`, `limit` | None | Allow except protected paths |
 | `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in ask, allow in build |
 | `edit` | `path`, `edits: [{oldText, newText}]` | Applies disjoint replacements against the original file; snapshot first | Ask in ask, allow in build |
-| `find` | `pattern`, `path`, `limit` | None | Allow except protected paths |
-| `ls` | `path`, `limit` | None | Allow except protected paths |
-| `grep` | `pattern`, `path`, `glob`, `ignoreCase`, `literal`, `context`, `limit` | None | Allow except protected paths |
 | `bash`, `powershell` | `command`, `timeout`, `workdir`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
 | `question` | `questions: [{question, header, options, multiple?}]` | Collects user answers; dismissal ends the turn | Allow, including plan |
 | `websearch` | `query` | Searches through Exa | Allow when network access is enabled |
@@ -40,12 +37,13 @@ See [the behavior contract](../decisions/0015-tool-behavior-parity.md)
 for tool defaults and Cade integration. `read` returns file content without
 line-number prefixes and supports image attachments. `offset` and `limit`
 are positive integers. Editing uses exact text matching; all edits target the
-original file and must be unique and disjoint. Use `ls` for directories.
+original file and must be unique and disjoint. Use shell commands for directory
+listings, file discovery, and content search.
 Shell `timeout` is in seconds and has no default. `bash` uses Bash on Windows;
 `powershell` uses PowerShell and is available only on Windows.
 
-`find` uses fd and `grep` uses ripgrep. Install both on PATH. Cade reports
-missing programs without downloading binaries. Searches exclude `.cade`, including snapshots and session logs.
+There are no standalone `ls`, `find`, or `grep` tools. Search commands use the
+shell's output limits, permissions, and sandbox. See [decision 0017](../decisions/0017-shell-search.md).
 
 ## Related
 
