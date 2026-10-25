@@ -70,6 +70,7 @@ TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原�
 - `/model [PROVIDER/MODEL]`：切换到已认证的精确模型，或在模型选择器里按部分名称搜索。
 - `/effort [LEVEL]`：选择模型推理强度，或打开选择器。
 - `/thinking [LEVEL]`：选择推理强度。用 `Ctrl+T` 折叠推理输出，不改变强度。
+- `/verbose [auto|low|medium|high]`：调整交互式 TUI 的显示详细程度。默认 `auto`：任务执行期间逐条显示工具调用和折叠的 Thinking，不聚合连续的只读工具，也不显示工具输出正文；任务完成后自动将活动记录按用户轮次折叠为一行，Assistant 消息始终可见。完成后按 `Ctrl+O` 可以展开活动列表，`high` 可查看详细记录。`low` 隐藏工具和 Thinking，`medium` 显示折叠摘要，`high` 展开详情。不带参数时打开选择器。切换只影响显示，不改变工具执行、模型请求或持久化会话。折叠时 Inline TUI 可能清理并重放终端滚动历史。
 - `/rollover [--force]`：开启新的上下文窗口；`/new-context` 是别名。
 - `/new-context [--force]`：用 `NOTE.md` 作为交接，开启新的上下文窗口。先写好该文件，或用 `--force` 在没有它的情况下重置。
 - `/mode [MODE]`：显示或切换执行模式。
