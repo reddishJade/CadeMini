@@ -108,6 +108,14 @@ modes, configuration, and permissions.
 - `/effort [LEVEL]` chooses a model reasoning effort or opens its picker.
 - `/thinking [LEVEL]` selects reasoning effort. Use `Ctrl+T` to fold reasoning
   output without changing effort.
+- `/verbose [low|medium|high]` controls interactive TUI display detail. It
+  starts in `low`: assistant messages stay visible, while thinking and tool
+  transcripts are hidden. `medium` shows collapsed thinking and tool summaries;
+  `high` expands both. Without an argument, the command opens a picker. The
+  choice affects display only, including restored history; it does not change
+  requests, tool execution, or the saved session. `Ctrl+T` and `Ctrl+O` still
+  offer manual folding. The setting applies to the running TUI, not headless
+  execution.
 - `/rollover [--force]` starts a new context window; `/new-context` is an alias.
 - `/new-context [--force]` starts a new context window using `NOTE.md` as the
   handoff. Write that file first, or use `--force` to reset without it.
