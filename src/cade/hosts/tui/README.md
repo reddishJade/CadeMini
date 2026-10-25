@@ -32,12 +32,15 @@ terminal controls without opening nested terminal event loops.
 - API-key forms mask input and do not append secrets to input history.
 - Exit cancels active work; saved conversations show a standalone Cade resume command.
 
-Long transcripts enter terminal scrollback. Folding, changing `/verbose` or
-resizing may require clearing and replaying that scrollback, including content
-from before Cade started. `low` hides tool and reasoning transcripts only in
-the display: all events remain in the session log. Permission requests and
-notices remain visible. The TUI starts in `low`; `/verbose medium` restores
-compact activity summaries, and `/verbose high` shows full details.
+Long transcripts enter terminal scrollback. Folding, changing `/verbose`, or
+resizing may require clearing and replaying the scrollback, including content
+from before Cade started. The TUI defaults to `auto`: active turns show every
+tool call individually with collapsed thinking and tool output. Once the turn
+finishes, the activity becomes a single expandable line while assistant
+messages remain visible. `Ctrl+O` expands completed activity; `/verbose high`
+shows full details. `low` hides activity, `medium` restores compact output,
+and `high` expands details. All event data stays in the session log;
+permission requests and notices remain visible.
 Busy-input queues are process-local, not a durable inbox.
 
 See the [CLI reference](../../../../docs/cli.md) for supported commands.
