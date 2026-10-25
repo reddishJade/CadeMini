@@ -975,6 +975,27 @@ def test_login_method_selects_provider_and_masks_api_key(
     terminal_runner(scenario)
 
 
+def test_verbosity_switch_and_picker_do_not_change_model_effort(
+    terminal_runner: Runner,
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        assert term.tui._state.verbosity == "low"
+        effort = term.service.provider_config.reasoning_effort
+        await term.send("/verbose high")
+        assert term.tui._state.verbosity == "high"
+        assert not term.tui._state.thinking_collapsed
+        assert not term.tui._state.tool_collapsed
+        await term.send("/verbose")
+        assert term.tui._state.pending_command_choice is not None
+        await term.choose(0)
+        assert term.tui._state.verbosity == "low"
+        assert term.tui._state.thinking_collapsed
+        assert term.tui._state.tool_collapsed
+        assert term.service.provider_config.reasoning_effort == effort
+
+    terminal_runner(scenario)
+
+
 def test_thinking_picker_changes_reasoning_not_visibility(
     terminal_runner: Runner,
 ) -> None:
