@@ -39,8 +39,11 @@ leaving the application. Common keys:
 - `Ctrl+Q` exits.
 
 The TUI opens native selectors for models, modes, reasoning effort,
-configuration, and permissions. Press `?` or run `/help` for the key and
-command reference.
+configuration, and permissions. Under `/config`, choose **TUI Rendering**,
+then **Inline** or **Fullscreen**; the selected mode applies on the next start.
+Inline uses terminal scrollback. Fullscreen uses the alternate screen, with
+PageUp/PageDown for conversation history. Press `?` or run `/help` for the key
+and command reference.
 
 The TUI requires both stdin and stdout to be terminals. In a pipe or a
 non-interactive process, use `-p TASK` or `exec TASK`.
