@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from cade.hosts.tui.compat import AgentHarnessResult, FinalStructuredEvent
 from cade.hosts.tui.state import _LogEntry, _TuiState
 
 
@@ -140,3 +141,127 @@ def test_invalid_level_keeps_presentation_unchanged() -> None:
         state.set_verbosity("off")
     assert state.verbosity == "low"
     assert state.render() == before
+
+
+def _auto_live_state() -> _TuiState:
+    state = _TuiState()
+    state.set_verbosity("auto")
+    state.add_user("First task")
+    state.start_working()
+    state.thinking = "Secret reasoning body"
+    state._finish_thinking()
+    state._record_tool_use("read-a", "read", {"path": "alpha.py"})
+    state._record_tool_result("read-a", "ok", "read output alpha")
+    state._record_tool_use("read-b", "read", {"path": "beta.py"})
+    state._record_tool_result("read-b", "ok", "read output beta")
+    state.log.append(_LogEntry("cade", "Progress update", markdown=True))
+    state._record_tool_use("edit-a", "edit", {"path": "alpha.py"})
+    state._record_tool_result("edit-a", "ok", "edit output")
+    return state
+
+
+def test_auto_live_shows_individual_calls_with_folded_thinking() -> None:
+    state = _auto_live_state()
+    visible = state.render()
+
+    assert state.running
+    assert "Thinking" in visible
+    assert "Secret reasoning body" not in visible
+    assert visible.count("Read alpha.py") == 1
+    assert visible.count("Read beta.py") == 1
+    assert "Progress update" in visible
+    assert "Activity ·" not in visible
+    assert "Exploring" not in visible
+    assert "read output" not in visible
+    assert "edit output" not in visible
+    assert visible.index("Read alpha.py") < visible.index("Read beta.py")
+    assert visible.index("Read beta.py") < visible.index("Progress update")
+    assert visible.index("Progress update") < visible.index("Edit")
+
+
+def test_auto_completion_folds_entire_turn_but_keeps_messages() -> None:
+    state = _auto_live_state()
+    before = [(entry.role, entry.content()) for entry in state.log]
+    state.handle_event(
+        FinalStructuredEvent(AgentHarnessResult(answer="Finished result"))
+    )
+
+    visible = state.render()
+    assert not state.running
+    assert visible.count("Activity · 3 tools · 1 thoughts") == 1
+    assert "Progress update" in visible
+    assert "Finished result" in visible
+    assert "Read alpha.py" not in visible
+    assert "Read beta.py" not in visible
+    assert "Secret reasoning body" not in visible
+    assert [(entry.role, entry.content()) for entry in state.log[: len(before)]] == before
+
+    state.toggle_tools()
+    expanded = state.render()
+    assert state.verbosity == "auto"
+    assert "Activity ·" not in expanded
+    assert "Read alpha.py" in expanded
+    assert "Read beta.py" in expanded
+    assert "Secret reasoning body" not in expanded
+
+    state.set_verbosity("high")
+    assert "Secret reasoning body" in state.render()
+
+
+def test_auto_new_turn_keeps_previous_activity_folded() -> None:
+    state = _auto_live_state()
+    state.handle_event(FinalStructuredEvent(AgentHarnessResult(answer="First done")))
+    state.add_user("Second task")
+    state.start_working()
+    state._record_tool_use("second-read", "read", {"path": "second.py"})
+    state._record_tool_result("second-read", "ok", "second output")
+
+    during = state.render()
+    assert "Activity · 3 tools · 1 thoughts" in during
+    assert "Read second.py" in during
+    assert "Read alpha.py" not in during
+    assert "First done" in during
+
+    state.handle_event(FinalStructuredEvent(AgentHarnessResult(answer="Second done")))
+    after = state.render()
+    assert after.count("Activity ·") == 2
+    assert "Second done" in after
+    assert "Read second.py" not in after
+
+
+def test_auto_keeps_permission_notices_and_tool_failures_folded() -> None:
+    state = _TuiState()
+    state.set_verbosity("auto")
+    state.add_user("Check security")
+    state.start_working()
+    state._record_tool_use("read-a", "read", {"path": "guard.py"})
+    state._record_tool_result(
+        "read-a", "ok", "private content", permission_notice="Allowed by rule"
+    )
+    state._record_tool_use("bash-a", "bash", {"command": "false"})
+    state._record_tool_result("bash-a", "error", "secret failure detail")
+    visible = state.render()
+    assert "Allowed by rule" in visible
+    assert "✗ " in visible
+    assert "secret failure detail" not in visible
+
+    state.handle_event(
+        FinalStructuredEvent(AgentHarnessResult(answer="Tool failed", stop_reason="error"))
+    )
+    visible = state.render()
+    assert "Allowed by rule" in visible
+    assert "Activity · 2 tools · 0 thoughts" in visible
+    assert "Tool failed" in visible
+
+
+def test_auto_switching_modes_mid_run_does_not_change_tool_history() -> None:
+    state = _auto_live_state()
+    before = [(entry.role, entry.content()) for entry in state.log]
+    state.set_verbosity("low")
+    assert "Read alpha.py" not in state.render()
+    state.set_verbosity("auto")
+    assert "Read alpha.py" in state.render()
+    state.set_verbosity("high")
+    assert "read output alpha" not in state.render()
+    state.set_verbosity("auto")
+    assert [(entry.role, entry.content()) for entry in state.log] == before
