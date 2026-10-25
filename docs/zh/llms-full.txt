@@ -279,7 +279,7 @@ TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原�
 - `/connect`：选择 provider，认证后打开它的模型选择器。
 - `/skill [NAME]`：为下一个任务激活技能。
 - `/tool [list]`：查看可用工具及说明。
-- `/config [KEY[=VALUE]]`：浏览配置，或更新项目设置。
+- `/config [KEY[=VALUE]]`：浏览配置，或更新项目设置。其中 **TUI Rendering** 提供 Inline/Fullscreen 原生选择菜单，不需要填写文本；下次启动生效。Fullscreen 下可用 PageUp/PageDown 滚动对话历史。
 - `/memory`：显示工作区记忆文件的路径。
 - `/exit` 或 `/quit`：退出。
 
@@ -336,6 +336,8 @@ Cade 默认读取 `<project-root>/cade.json`。用 `--config PATH` 选择其他�
 配置是严格的：未知键和非法值会被拒绝，不会静默忽略。
 
 在 TUI 中，`/config` 打开设置浏览器。每个设置项都先展示方向键菜单，默认选中当前值。数值项提供预设值，可空项提供 **Use default**。选择 **Custom value...** 后，才能在预填表单中输入自定义数值、路径或模型名。按 Enter 保存，按 Esc 返回选项。保存的默认值在下次启动时生效。
+
+**TUI Rendering** 仅提供 **Inline** 和 **Fullscreen** 两个选项，无需手动输入。Inline（默认）保留终端原生滚动历史与文本选择；Fullscreen 使用备用屏幕，并通过 PageUp/PageDown 浏览对话。选择后重启 Cade 即可生效。
 
 ## 示例
 
@@ -923,6 +925,7 @@ Top-level fields. Nested types follow the table.
 | `mode` | `plan \| build \| ask` | `"build"` |
 | `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
 | `network` | `boolean` | `true` |
+| `tui_render_mode` | `inline \| fullscreen` | `"inline"` |
 | `rules` | `list[RuleConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
 | `trust_project_skills` | `boolean` | `false` |
@@ -1278,6 +1281,7 @@ flowchart LR
   hosts_cli --> harness_provider
   hosts_cli --> harness_session_log
   hosts_cli --> harness_session_types
+  hosts_tui_app --> app_config
   hosts_tui_app --> app_session
   hosts_tui_bridge --> ai_models
   hosts_tui_bridge --> app_session
@@ -2692,7 +2696,7 @@ TUI 把对话放在可滚动记录里，显示流式 assistant 文本和工具�
 - `Ctrl+O`：展开或折叠工具详情；`Ctrl+T`：展开或折叠推理输出。
 - `Ctrl+Q`：退出。
 
-TUI 为模型、模式、推理强度、配置和权限打开原生选择器。按 `?` 或运行 `/help` 查看按键和命令参考。
+TUI 为模型、模式、推理强度、配置和权限打开原生选择器。在 `/config` 中选 **TUI Rendering**，再选 **Inline** 或 **Fullscreen**，下次启动生效。Inline 使用终端原生滚动历史；Fullscreen 使用备用屏幕，按 PageUp/PageDown 浏览对话。按 `?` 或运行 `/help` 查看按键和命令参考。
 
 TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，使用 `-p TASK` 或 `exec TASK`。
 
