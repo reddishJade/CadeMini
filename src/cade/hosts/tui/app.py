@@ -133,7 +133,7 @@ _SHORTCUT_HELP = """Shortcuts
   Shift+Tab      cycle execution mode: ask → build → plan
   Ctrl+T         expand or collapse thinking
   Ctrl+O         expand or collapse tool details
-  /verbose       choose Low, Medium, or High display detail
+  /verbose       choose Auto, Low, Medium, or High display detail
   ! command      run a bash command
   $skill [task]  invoke a skill
   /command       run a slash command
@@ -223,7 +223,7 @@ class _CadeTui:
         self._state = _TuiState(
             mode=self._interaction_state.mode, project_root=project_root
         )
-        self._state.set_verbosity("low")
+        self._state.set_verbosity("auto")
         self._restore_startup_session(resume_latest, auto_continue, session_id)
         self._sync_mode_from_agent()
         self._workspace_branch = git_branch_name(project_root)
@@ -1141,20 +1141,24 @@ class _CadeTui:
                             else level,
                             level,
                         )
-                        for level in ("low", "medium", "high")
+                        for level in ("auto", "low", "medium", "high")
                     ],
                     lambda selected: self._set_verbosity(str(selected)),
                     describe=lambda level: {
+                        "auto": (
+                            "Show individual folded calls while running; "
+                            "collapse activity after the turn."
+                        ),
                         "low": "Show messages; hide thinking and tool transcripts.",
                         "medium": "Show compact thinking and tool summaries.",
                         "high": "Show expanded thinking and tool details.",
                     }[str(level)],
                 )
-            elif len(parts) == 2 and parts[1] in {"low", "medium", "high"}:
+            elif len(parts) == 2 and parts[1] in {"auto", "low", "medium", "high"}:
                 self._set_verbosity(parts[1])
             else:
                 self._state.log.append(
-                    _LogEntry("error", "Usage: /verbose [low|medium|high]")
+                    _LogEntry("error", "Usage: /verbose [auto|low|medium|high]")
                 )
                 self._refresh()
             return True
