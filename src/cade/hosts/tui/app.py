@@ -41,7 +41,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 from prompt_toolkit.widgets import CheckboxList, RadioList, TextArea
 
-from cade.app.config import CadeConfig, DEFAULT_CONFIG_NAME
+from cade.app.config import DEFAULT_CONFIG_NAME, CadeConfig
 from cade.app.session import ApplicationSession, UnavailableProvider
 
 from .approval import (
