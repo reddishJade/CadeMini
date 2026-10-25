@@ -236,6 +236,7 @@ class _TuiState:
     def start_working(self) -> None:
         """标记模型回合正在进行，但不表示已经收到 reasoning。"""
         self.auto_active_start = len(self.log)
+        self.auto_expanded = False
         self.running = True
         self.working = True
 
@@ -264,7 +265,8 @@ class _TuiState:
 
     def toggle_tools(self) -> None:
         if self.verbosity == "auto":
-            self.auto_expanded = not self.auto_expanded
+            if not self.running:
+                self.auto_expanded = not self.auto_expanded
             return
         self.verbosity = "medium"
         self.tool_collapsed = not self.tool_collapsed
