@@ -73,7 +73,7 @@ def test_switching_verbosity_reprojects_same_events() -> None:
     assert "Private reasoning marker" in high
     assert "Live reasoning marker" in high
     assert "Tool result marker" in high
-    assert "Read result marker" in high
+    assert "Read README.md" in high
 
     state.set_verbosity("low")
     assert "Tool result marker" not in state.render()
