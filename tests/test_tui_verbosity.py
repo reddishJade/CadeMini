@@ -194,7 +194,9 @@ def test_auto_completion_folds_entire_turn_but_keeps_messages() -> None:
     assert "Read alpha.py" not in visible
     assert "Read beta.py" not in visible
     assert "Secret reasoning body" not in visible
-    assert [(entry.role, entry.content()) for entry in state.log[: len(before)]] == before
+    assert [
+        (entry.role, entry.content()) for entry in state.log[: len(before)]
+    ] == before
 
     state.toggle_tools()
     expanded = state.render()
@@ -246,7 +248,9 @@ def test_auto_keeps_permission_notices_and_tool_failures_folded() -> None:
     assert "secret failure detail" not in visible
 
     state.handle_event(
-        FinalStructuredEvent(AgentHarnessResult(answer="Tool failed", stop_reason="error"))
+        FinalStructuredEvent(
+            AgentHarnessResult(answer="Tool failed", stop_reason="error")
+        )
     )
     visible = state.render()
     assert "Allowed by rule" in visible
