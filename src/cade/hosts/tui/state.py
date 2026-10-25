@@ -205,6 +205,8 @@ class _TuiState:
     thinking_collapsed: bool = False
     tool_collapsed: bool = False
     verbosity: str = "medium"
+    auto_expanded: bool = False
+    auto_active_start: int | None = None
     running: bool = False
     working: bool = False
     mode: object = "build"
@@ -233,12 +235,14 @@ class _TuiState:
 
     def start_working(self) -> None:
         """标记模型回合正在进行，但不表示已经收到 reasoning。"""
+        self.auto_active_start = len(self.log)
         self.running = True
         self.working = True
 
     def stop_working(self) -> None:
         """停止工作提示；真实 reasoning 仍由 thinking_core 单独记录。"""
         self.working = False
+        self.auto_active_start = None
 
     def add_command(self, text: str) -> None:
         """将已执行的 TUI 命令显示为命令消息，但不打断当前回合。"""
@@ -246,17 +250,22 @@ class _TuiState:
 
     def set_verbosity(self, level: str) -> None:
         """只改变显示层级，保留完整的事件记录和工具执行。"""
-        if level not in {"low", "medium", "high"}:
+        if level not in {"auto", "low", "medium", "high"}:
             raise ValueError(f"Unknown display verbosity: {level}")
         self.verbosity = level
         self.thinking_collapsed = level != "high"
         self.tool_collapsed = level != "high"
+        self.auto_expanded = False
 
     def toggle_thinking(self) -> None:
-        self.verbosity = "medium"
+        if self.verbosity != "auto":
+            self.verbosity = "medium"
         self.thinking_collapsed = not self.thinking_collapsed
 
     def toggle_tools(self) -> None:
+        if self.verbosity == "auto":
+            self.auto_expanded = not self.auto_expanded
+            return
         self.verbosity = "medium"
         self.tool_collapsed = not self.tool_collapsed
 
@@ -271,6 +280,8 @@ class _TuiState:
         self.pending_hitl = None
         self.running = False
         self.working = False
+        self.auto_active_start = None
+        self.auto_expanded = False
         for index, record in enumerate(records):
             if record.type == "user":
                 text = str(record.content).strip()
@@ -455,6 +466,9 @@ class _TuiState:
             return markdown_renderer(text, width)
 
         blocks: list[_DisplayBlock] = []
+        auto_summaries = (
+            self._auto_activity_summaries() if self.verbosity == "auto" else {}
+        )
         latest_tool_index = max(
             (
                 index
@@ -474,6 +488,46 @@ class _TuiState:
         )
 
         for index, entry in enumerate(self.log):
+            if self.verbosity == "auto":
+                active = (
+                    self.running
+                    and self.auto_active_start is not None
+                    and index >= self.auto_active_start
+                )
+                if entry.role in {
+                    "thinking",
+                    "tool",
+                    "tool-detail",
+                    "tool-error",
+                    "exploration",
+                    "response-metrics",
+                }:
+                    if not active and not self.auto_expanded:
+                        summary = auto_summaries.get(index)
+                        if summary:
+                            self._append_optional_block(
+                                blocks, _wrap_plain_lines([summary], width)
+                            )
+                        if entry.role == "exploration":
+                            notices = [
+                                f"  ⎿  {call.permission_notice}"
+                                for call in entry.exploration_calls
+                                if call.permission_notice
+                            ]
+                            self._append_optional_block(
+                                blocks, _wrap_plain_lines(notices, width)
+                            )
+                        continue
+                    if entry.role in {
+                        "tool-detail",
+                        "tool-error",
+                        "response-metrics",
+                    }:
+                        continue
+                    if entry.role in {"tool", "exploration"}:
+                        lines = self._auto_tool_lines(entry, width)
+                        self._append_optional_block(blocks, lines)
+                        continue
             if self.verbosity == "low":
                 if entry.role == "exploration":
                     notices = [
@@ -538,7 +592,10 @@ class _TuiState:
         if self.thinking.strip() and self.verbosity != "low":
             lines = self._thinking_lines(color=color, width=width)
             blocks.append(_DisplayBlock(lines, leading_blank=bool(blocks)))
-        if self.response_metrics is not None and self.verbosity != "low":
+        if self.response_metrics is not None and self.verbosity not in {
+            "low",
+            "auto",
+        }:
             lines = self._entry_block_lines(
                 self.response_metrics, md_fn, color, False, False, width
             )
@@ -550,6 +607,52 @@ class _TuiState:
             blocks, _wrap_plain_lines(self._hitl_lines(), width)
         )
         return blocks
+
+    def _auto_activity_summaries(self) -> dict[int, str]:
+        """按用户轮次定位折叠标记，保留交错出现的 Assistant 消息。"""
+        groups: dict[int, list[int]] = {}
+        first_indices: dict[int, int] = {}
+        turn = 0
+        for index, entry in enumerate(self.log):
+            if entry.role == "you":
+                turn += 1
+            if entry.role not in {"thinking", "tool", "exploration"}:
+                continue
+            if (
+                self.running
+                and self.auto_active_start is not None
+                and index >= self.auto_active_start
+            ):
+                continue
+            first_indices.setdefault(turn, index)
+            counts = groups.setdefault(turn, [0, 0])
+            if entry.role == "thinking":
+                counts[1] += 1
+            elif entry.role == "tool":
+                counts[0] += 1
+            else:
+                counts[0] += len(entry.exploration_calls)
+        return {
+            first_indices[turn]: (
+                f"▸ Activity · {counts[0]} tools · {counts[1]} thoughts "
+                "(Ctrl+O to expand)"
+            )
+            for turn, counts in groups.items()
+        }
+
+    @staticmethod
+    def _auto_tool_lines(entry: _LogEntry, width: int | None) -> list[str]:
+        """运行时每个调用单独占一行，跳过工具参数与结果。"""
+        if entry.role == "tool":
+            lines = [entry.text]
+        else:
+            lines = []
+            for call in entry.exploration_calls:
+                marker = "✗" if call.failed else "●"
+                lines.append(f"{marker} {call.label}")
+                if call.permission_notice:
+                    lines.append(f"  ⎿  {call.permission_notice}")
+        return _wrap_plain_lines(lines, width)
 
     @staticmethod
     def _append_optional_block(blocks: list[_DisplayBlock], lines: list[str]) -> None:
@@ -1002,6 +1105,7 @@ class _TuiState:
         self.thinking_core.reset()
         self.running = False
         self.working = False
+        self.auto_active_start = None
 
     def _finish_thinking(self) -> None:
         if self.thinking.strip():
