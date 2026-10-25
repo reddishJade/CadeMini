@@ -82,6 +82,12 @@ SETTING_SPECS: tuple[SettingSpec, ...] = (
     ),
     SettingSpec("sandbox", "Sandbox", "Filesystem policy", SettingKind.MENU),
     SettingSpec("network", "Network", "Allow tool network access", SettingKind.BOOL),
+    SettingSpec(
+        "tui_render_mode",
+        "TUI Rendering",
+        "Choose Inline or Fullscreen terminal rendering (restart required)",
+        SettingKind.MENU,
+    ),
 )
 
 
@@ -207,6 +213,19 @@ def _setting_options(spec: SettingSpec, config: CadeConfig) -> list[MenuItem]:
         return [MenuItem(level, level) for level in get_model_reasoning_efforts(model)]
     if spec.key == "mode":
         return [MenuItem(mode, mode) for mode in ("ask", "build", "plan")]
+    if spec.key == "tui_render_mode":
+        return [
+            MenuItem(
+                "Inline",
+                "inline",
+                "Use the terminal scrollback and native text selection",
+            ),
+            MenuItem(
+                "Fullscreen",
+                "fullscreen",
+                "Use the alternate screen with in-app transcript scrolling",
+            ),
+        ]
     if spec.key == "sandbox":
         return [
             MenuItem(mode, mode)

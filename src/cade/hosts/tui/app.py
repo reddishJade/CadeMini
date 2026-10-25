@@ -41,6 +41,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 from prompt_toolkit.widgets import CheckboxList, RadioList, TextArea
 
+from cade.app.config import DEFAULT_CONFIG_NAME, CadeConfig
 from cade.app.session import ApplicationSession, UnavailableProvider
 
 from .approval import (
@@ -75,6 +76,7 @@ from .config_registry import SettingSpec
 from .context_stats import compute_context_summary
 from .exit_keys import ExitKeyKind, exit_confirm_hint, exit_confirmed
 from .exit_summary import print_exit_summary
+from .fullscreen_renderer import FullscreenTranscript
 from .inline_renderer import InlineRenderer
 from .interaction_compat import (
     CUSTOM_OPTION_LABEL,
@@ -145,7 +147,8 @@ _SHORTCUT_HELP = """Shortcuts
   Alt+Enter      steer the current task while running (alias for Alt+S)
   Ctrl+J         insert a newline (Shift+Enter where supported)
   Esc Enter      newline when idle; steer while running
-  Mouse wheel    browse terminal history (Shift+PageUp/Down where supported)"""
+  PageUp/Down    browse transcript in Fullscreen mode
+  Mouse wheel    browse terminal history in Inline mode"""
 
 if TYPE_CHECKING:
     from prompt_toolkit.history import History
@@ -205,6 +208,8 @@ class _CadeTui:
         self._agent_app = app
         self._project_root = project_root
         self._config_path = config_path
+        self._render_mode = CadeConfig.load(project_root, config_path).tui_render_mode
+        self._fullscreen_transcript = FullscreenTranscript()
         self._store = app.session_store
         self._welcome_version = installed_version()
         self._welcome_tools = tuple(tool.name for tool in app.registry)
@@ -458,9 +463,9 @@ class _CadeTui:
                 ),
             ),
             key_bindings=self._bindings(),
-            full_screen=False,
+            full_screen=self._render_mode == "fullscreen",
             erase_when_done=True,
-            # 终端拥有历史滚动、鼠标选择、复制和右键行为。
+            # Inline 保留终端原生滚动；Fullscreen 使用备用屏幕。
             mouse_support=False,
             enable_page_navigation_bindings=False,
             before_render=lambda _app: self._prepare_frame(),
@@ -471,8 +476,10 @@ class _CadeTui:
 
         self._application.timeoutlen = 0.5
         self._application.ttimeoutlen = 0.1
-        self._inline_renderer = InlineRenderer(self._application.renderer)
-        self._application.renderer = self._inline_renderer
+        self._inline_renderer: InlineRenderer | None = None
+        if self._render_mode == "inline":
+            self._inline_renderer = InlineRenderer(self._application.renderer)
+            self._application.renderer = self._inline_renderer
 
         # ── 连接 Agent 钩子 ──
         agent = getattr(self._agent_app, "agent", None)
@@ -630,6 +637,18 @@ class _CadeTui:
         # 折叠快捷键必须是应用级绑定：焦点可能在授权列表等非输入控件。
         bindings.add("c-t", eager=True)(self._toggle_thinking_key)
         bindings.add("c-o", eager=True)(self._toggle_tools_key)
+        full_screen_history = Condition(
+            lambda: (
+                self._render_mode == "fullscreen"
+                and not self._has_pending_interaction()
+            )
+        )
+        bindings.add("pageup", eager=True, filter=full_screen_history)(
+            self._scroll_transcript_up
+        )
+        bindings.add("pagedown", eager=True, filter=full_screen_history)(
+            self._scroll_transcript_down
+        )
         bindings.add("c-q")(self._quit_key)
         bindings.add("c-c", eager=True)(self._cancel_key)
         interrupting = Condition(
@@ -831,6 +850,22 @@ class _CadeTui:
 
     def _toggle_tools_key(self, _event: object) -> None:
         self._state.toggle_tools()
+        self._refresh()
+
+    def _scroll_transcript_up(self, _event: object) -> None:
+        """全屏视图按页向上查看会话历史。"""
+        self._scroll_transcript(max(1, self._output_height() - 2))
+
+    def _scroll_transcript_down(self, _event: object) -> None:
+        """全屏视图按页向下查看会话历史。"""
+        self._scroll_transcript(-max(1, self._output_height() - 2))
+
+    def _scroll_transcript(self, delta: int) -> None:
+        self._fullscreen_transcript.scroll(
+            delta,
+            self._state.line_count(self._output_width()),
+            self._output_height(),
+        )
         self._refresh()
 
     def _escape_key(self, _event: object) -> None:
@@ -1768,9 +1803,10 @@ class _CadeTui:
             load_effective_config,
             matching_settings,
         )
-        from .setup_wizard import CONFIG_FILENAME
 
-        config_path = self._project_root / CONFIG_FILENAME
+        config_path = self._config_path or Path(DEFAULT_CONFIG_NAME)
+        if not config_path.is_absolute():
+            config_path = self._project_root / config_path
         config = load_effective_config(config_path)
 
         def choose(selection: object) -> None:
@@ -2424,6 +2460,8 @@ class _CadeTui:
             - question_height
             - self._completion_height(),
         )
+        if self._render_mode == "fullscreen":
+            return available
         return min(available, self._state.line_count(self._output_width()) + 1)
 
     def _input_height(self) -> int:
@@ -2486,11 +2524,17 @@ class _CadeTui:
         """在 UI 线程生成完整文档，屏幕之外的内容由渲染器写入历史。"""
         if self._state.log and self._state.log[0].role == "welcome":
             self._state.log[0].text = self._welcome_text()
-        self._output_control.text = self._inline_renderer.prepare(
-            self._state.ansi_lines(self._output_width()), self._output_height()
-        )
-        if self._application.is_done:
-            self._inline_renderer.finish()
+        lines = self._state.ansi_lines(self._output_width())
+        if self._inline_renderer is not None:
+            self._output_control.text = self._inline_renderer.prepare(
+                lines, self._output_height()
+            )
+            if self._application.is_done:
+                self._inline_renderer.finish()
+        else:
+            self._output_control.text = self._fullscreen_transcript.prepare(
+                lines, self._output_height()
+            )
 
     def _refresh_streaming(self) -> None:
         """限制流式输出重绘频率，避免每个 delta 都触发完整布局。"""
