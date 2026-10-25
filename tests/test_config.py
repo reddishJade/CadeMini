@@ -119,7 +119,9 @@ def test_tui_render_mode_has_only_preset_choices(tmp_path: Path) -> None:
     ok, message = save_setting_text(path, spec, "fullscreen")
     assert ok, message
     assert load_effective_config(path).tui_render_mode == "fullscreen"
-    assert json.loads(path.read_text(encoding="utf-8"))["tui_render_mode"] == "fullscreen"
+    assert (
+        json.loads(path.read_text(encoding="utf-8"))["tui_render_mode"] == "fullscreen"
+    )
 
 
 def test_unknown_tui_render_mode_is_rejected(tmp_path: Path) -> None:
