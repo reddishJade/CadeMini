@@ -8,6 +8,12 @@ from pathlib import Path
 import pytest
 
 from cade.app.config import CadeConfig
+from cade.hosts.tui.config_registry import (
+    find_setting,
+    load_effective_config,
+    save_setting_text,
+    setting_menu,
+)
 
 
 def test_defaults_when_config_is_missing(tmp_path: Path) -> None:
@@ -21,6 +27,7 @@ def test_defaults_when_config_is_missing(tmp_path: Path) -> None:
     assert config.mode == "build"
     assert config.sandbox == "workspace-write"
     assert config.network is True
+    assert config.tui_render_mode == "inline"
 
 
 def test_loads_values(tmp_path: Path) -> None:
@@ -94,5 +101,32 @@ def test_invalid_value_is_rejected(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
+    with pytest.raises(ValueError, match="invalid config"):
+        CadeConfig.load(tmp_path)
+
+
+def test_tui_render_mode_has_only_preset_choices(tmp_path: Path) -> None:
+    spec = find_setting("tui_render_mode")
+    assert spec is not None
+    items = setting_menu(spec, CadeConfig())
+    assert [(item.title, item.value) for item in items] == [
+        ("Inline", "inline"),
+        ("Fullscreen", "fullscreen"),
+    ]
+    assert not any(item.custom for item in items)
+
+    path = tmp_path / "cade.json"
+    ok, message = save_setting_text(path, spec, "fullscreen")
+    assert ok, message
+    assert load_effective_config(path).tui_render_mode == "fullscreen"
+    assert (
+        json.loads(path.read_text(encoding="utf-8"))["tui_render_mode"] == "fullscreen"
+    )
+
+
+def test_unknown_tui_render_mode_is_rejected(tmp_path: Path) -> None:
+    (tmp_path / "cade.json").write_text(
+        '{"tui_render_mode": "overlay"}', encoding="utf-8"
+    )
     with pytest.raises(ValueError, match="invalid config"):
         CadeConfig.load(tmp_path)
