@@ -1,8 +1,11 @@
 # Terminal workspace
 
-The prompt-toolkit host uses an inline transcript (`full_screen=False`). It does
-not capture mouse scrolling or use the alternate screen. Pickers, input forms,
-permissions and streaming output share one application event loop.
+The prompt-toolkit host supports inline and fullscreen rendering. Inline is the
+default and retains terminal scrollback and native selection; fullscreen uses
+the alternate screen and PageUp/PageDown for the conversation viewport.
+Select **TUI Rendering** under `/config` to change the mode on the next start.
+Pickers, input forms, permissions, and streaming output share one application
+event loop in either mode.
 
 ## Responsibilities
 
