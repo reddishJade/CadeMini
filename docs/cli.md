@@ -145,6 +145,9 @@ modes, configuration, and permissions.
 - `/skill [NAME]` activates a skill for the next task.
 - `/tool [list]` shows available tools and their descriptions.
 - `/config [KEY[=VALUE]]` browses settings or updates a project setting.
+  **TUI Rendering** opens an Inline/Fullscreen selector with no text entry;
+  the chosen mode applies on the next start. In Fullscreen, PageUp/PageDown
+  scrolls the conversation history.
 - `/memory` shows the workspace memory file path.
 - `/exit` or `/quit` exits.
 
