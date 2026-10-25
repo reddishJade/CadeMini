@@ -367,6 +367,9 @@ modes, configuration, and permissions.
 - `/skill [NAME]` activates a skill for the next task.
 - `/tool [list]` shows available tools and their descriptions.
 - `/config [KEY[=VALUE]]` browses settings or updates a project setting.
+  **TUI Rendering** opens an Inline/Fullscreen selector with no text entry;
+  the chosen mode applies on the next start. In Fullscreen, PageUp/PageDown
+  scrolls the conversation history.
 - `/memory` shows the workspace memory file path.
 - `/exit` or `/quit` exits.
 
@@ -442,6 +445,11 @@ menu with the current value selected. Numeric settings offer presets; nullable
 settings offer **Use default**. Choose **Custom value...** to enter an arbitrary
 number, path, or model name in a prefilled form. Press Enter to save or Esc to
 return to the choices. Saved defaults take effect on the next start.
+
+**TUI Rendering** is a two-option menu: **Inline** (default) keeps terminal
+scrollback and native text selection, while **Fullscreen** uses the alternate
+screen and in-app PageUp/PageDown scrolling. This option has no custom text
+input; choose a mode and restart Cade to apply it.
 
 ## Example
 
@@ -1255,6 +1263,7 @@ Top-level fields. Nested types follow the table.
 | `mode` | `plan \| build \| ask` | `"build"` |
 | `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
 | `network` | `boolean` | `true` |
+| `tui_render_mode` | `inline \| fullscreen` | `"inline"` |
 | `rules` | `list[RuleConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
 | `trust_project_skills` | `boolean` | `false` |
@@ -3490,8 +3499,11 @@ leaving the application. Common keys:
 - `Ctrl+Q` exits.
 
 The TUI opens native selectors for models, modes, reasoning effort,
-configuration, and permissions. Press `?` or run `/help` for the key and
-command reference.
+configuration, and permissions. Under `/config`, choose **TUI Rendering**,
+then **Inline** or **Fullscreen**; the selected mode applies on the next start.
+Inline uses terminal scrollback. Fullscreen uses the alternate screen, with
+PageUp/PageDown for conversation history. Press `?` or run `/help` for the key
+and command reference.
 
 The TUI requires both stdin and stdout to be terminals. In a pipe or a
 non-interactive process, use `-p TASK` or `exec TASK`.
