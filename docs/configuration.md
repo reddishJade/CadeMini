@@ -13,6 +13,11 @@ settings offer **Use default**. Choose **Custom value...** to enter an arbitrary
 number, path, or model name in a prefilled form. Press Enter to save or Esc to
 return to the choices. Saved defaults take effect on the next start.
 
+**TUI Rendering** is a two-option menu: **Inline** (default) keeps terminal
+scrollback and native text selection, while **Fullscreen** uses the alternate
+screen and in-app PageUp/PageDown scrolling. This option has no custom text
+input; choose a mode and restart Cade to apply it.
+
 ## Example
 
 ```json

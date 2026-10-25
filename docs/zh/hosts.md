@@ -26,7 +26,7 @@ TUI 把对话放在可滚动记录里，显示流式 assistant 文本和工具�
 - `Ctrl+O`：展开或折叠工具详情；`Ctrl+T`：展开或折叠推理输出。
 - `Ctrl+Q`：退出。
 
-TUI 为模型、模式、推理强度、配置和权限打开原生选择器。按 `?` 或运行 `/help` 查看按键和命令参考。
+TUI 为模型、模式、推理强度、配置和权限打开原生选择器。在 `/config` 中选 **TUI Rendering**，再选 **Inline** 或 **Fullscreen**，下次启动生效。Inline 使用终端原生滚动历史；Fullscreen 使用备用屏幕，按 PageUp/PageDown 浏览对话。按 `?` 或运行 `/help` 查看按键和命令参考。
 
 TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，使用 `-p TASK` 或 `exec TASK`。
 

@@ -21,6 +21,7 @@ Top-level fields. Nested types follow the table.
 | `mode` | `plan \| build \| ask` | `"build"` |
 | `sandbox` | `read-only \| workspace-write \| danger-full-access` | `"workspace-write"` |
 | `network` | `boolean` | `true` |
+| `tui_render_mode` | `inline \| fullscreen` | `"inline"` |
 | `rules` | `list[RuleConfig]` | `required` |
 | `mcp_servers` | `dict[str, McpServerConfig]` | `required` |
 | `trust_project_skills` | `boolean` | `false` |

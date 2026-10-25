@@ -6,6 +6,8 @@ Cade 默认读取 `<project-root>/cade.json`。用 `--config PATH` 选择其他�
 
 在 TUI 中，`/config` 打开设置浏览器。每个设置项都先展示方向键菜单，默认选中当前值。数值项提供预设值，可空项提供 **Use default**。选择 **Custom value...** 后，才能在预填表单中输入自定义数值、路径或模型名。按 Enter 保存，按 Esc 返回选项。保存的默认值在下次启动时生效。
 
+**TUI Rendering** 仅提供 **Inline** 和 **Fullscreen** 两个选项，无需手动输入。Inline（默认）保留终端原生滚动历史与文本选择；Fullscreen 使用备用屏幕，并通过 PageUp/PageDown 浏览对话。选择后重启 Cade 即可生效。
+
 ## 示例
 
 ```json
