@@ -19,6 +19,7 @@ from cade.ai.events import (
     ToolCallEvent,
     UsageUpdate,
 )
+from cade.ai.providers.base import SessionProvider
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.harness.cancellation import CancellationToken
 from cade.harness.events import (
@@ -59,11 +60,18 @@ def _exclusive_session[**P](
     @wraps(operation)
     async def locked(log: SessionLog, *args: P.args, **kwargs: P.kwargs) -> RunResult:
         lifecycle = cast(TurnLifecycle | None, kwargs.get("lifecycle"))
+        provider = kwargs.get("provider")
+        scope = (
+            provider.session()
+            if isinstance(provider, SessionProvider)
+            else nullcontext()
+        )
         with (
             log.run_lock(),
             lifecycle.record(log) if lifecycle is not None else nullcontext(),
         ):
-            return await operation(log, *args, **kwargs)
+            async with scope:
+                return await operation(log, *args, **kwargs)
 
     return locked
 

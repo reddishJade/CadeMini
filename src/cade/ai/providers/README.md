@@ -24,6 +24,14 @@ ModelProfileConfig
 
 Keep transport-specific parameters inside adapters, passing them through `extra` rather than adding vendor fields to generic configuration. Providers own client configuration and model metadata, not product state. Upper-layer tests should use protocol-compatible streams; do not retain obsolete test stubs in production packages.
 
+## Client lifetime
+
+The harness opens the optional `SessionProvider.session()` scope for each run.
+Responses adapters reuse one client across that run, including nested subagent
+runs, and close it before the owning event loop exits. Nested scopes do not
+close the outer scope's client. Injected clients remain caller-owned.
+Standalone streaming and token-count calls still clean up their own clients.
+
 ## SIWC cache affinity
 
 The ChatGPT adapter sends the same stable value in `prompt_cache_key`,

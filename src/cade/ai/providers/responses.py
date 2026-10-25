@@ -13,6 +13,7 @@ import logging
 import uuid
 from collections import defaultdict
 from collections.abc import AsyncIterator, Iterator, Mapping
+from contextlib import asynccontextmanager
 from inspect import isawaitable
 from typing import Any, cast
 
@@ -708,6 +709,21 @@ class OpenAIResponsesProvider:
     @property
     def cache_hit_rate(self) -> float | None:
         return self._usage.cache_hit_rate
+
+    @asynccontextmanager
+    async def session(self) -> AsyncIterator[None]:
+        """在当前事件循环内复用客户端，由最外层作用域关闭自建客户端。"""
+        if self._client is not None:
+            yield
+            return
+
+        client, _headers = self._get_client_and_headers()
+        self._client = client
+        try:
+            yield
+        finally:
+            self._client = None
+            await client.close()
 
     def _get_client_and_headers(self) -> tuple[Any, dict[str, str]]:
         """构建或复用 OpenAI SDK 客户端。"""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager
 from typing import Protocol, runtime_checkable
 
 from cade.ai.events import Message, ProviderEvent
@@ -22,6 +23,13 @@ class StreamProvider(Protocol):
         options: StreamOptions | None = None,
         **kwargs: object,
     ) -> AsyncIterator[ProviderEvent]: ...
+
+
+@runtime_checkable
+class SessionProvider(Protocol):
+    """在一次运行内复用客户端，并在退出时清理自有资源。"""
+
+    def session(self) -> AbstractAsyncContextManager[None]: ...
 
 
 @runtime_checkable

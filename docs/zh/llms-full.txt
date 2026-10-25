@@ -1239,6 +1239,7 @@ flowchart LR
   harness_lifecycle --> harness_session_log
   harness_lifecycle --> harness_session_types
   harness_loop --> ai_events
+  harness_loop --> ai_providers_base
   harness_loop --> ai_types
   harness_loop --> harness_cancellation
   harness_loop --> harness_events
