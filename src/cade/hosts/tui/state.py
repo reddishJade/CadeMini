@@ -204,6 +204,7 @@ class _TuiState:
     pending_question_choice: _QuestionChoiceRequest | None = None
     thinking_collapsed: bool = False
     tool_collapsed: bool = False
+    verbosity: str = "medium"
     running: bool = False
     working: bool = False
     mode: object = "build"
@@ -243,10 +244,20 @@ class _TuiState:
         """将已执行的 TUI 命令显示为命令消息，但不打断当前回合。"""
         self.log.append(_LogEntry("command", text))
 
+    def set_verbosity(self, level: str) -> None:
+        """只改变显示层级，保留完整的事件记录和工具执行。"""
+        if level not in {"low", "medium", "high"}:
+            raise ValueError(f"Unknown display verbosity: {level}")
+        self.verbosity = level
+        self.thinking_collapsed = level != "high"
+        self.tool_collapsed = level != "high"
+
     def toggle_thinking(self) -> None:
+        self.verbosity = "medium"
         self.thinking_collapsed = not self.thinking_collapsed
 
     def toggle_tools(self) -> None:
+        self.verbosity = "medium"
         self.tool_collapsed = not self.tool_collapsed
 
     def restore_history(self, records: list[SessionEntry]) -> None:
@@ -463,6 +474,25 @@ class _TuiState:
         )
 
         for index, entry in enumerate(self.log):
+            if self.verbosity == "low":
+                if entry.role == "exploration":
+                    notices = [
+                        f"  ⎿  {call.permission_notice}"
+                        for call in entry.exploration_calls
+                        if call.permission_notice
+                    ]
+                    self._append_optional_block(
+                        blocks, _wrap_plain_lines(notices, width)
+                    )
+                    continue
+                if entry.role in {
+                    "tool",
+                    "tool-detail",
+                    "tool-error",
+                    "thinking",
+                    "response-metrics",
+                }:
+                    continue
             show_tool_expand = self.tool_collapsed and index == latest_tool_index
             show_tool_collapse = not self.tool_collapsed and (
                 index == latest_detail_index
@@ -505,10 +535,10 @@ class _TuiState:
             if lines:
                 blocks.append(_DisplayBlock(lines, leading_blank=bool(blocks)))
 
-        if self.thinking.strip():
+        if self.thinking.strip() and self.verbosity != "low":
             lines = self._thinking_lines(color=color, width=width)
             blocks.append(_DisplayBlock(lines, leading_blank=bool(blocks)))
-        if self.response_metrics is not None:
+        if self.response_metrics is not None and self.verbosity != "low":
             lines = self._entry_block_lines(
                 self.response_metrics, md_fn, color, False, False, width
             )
