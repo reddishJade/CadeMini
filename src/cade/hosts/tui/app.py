@@ -208,9 +208,7 @@ class _CadeTui:
         self._agent_app = app
         self._project_root = project_root
         self._config_path = config_path
-        self._render_mode = CadeConfig.load(
-            project_root, config_path
-        ).tui_render_mode
+        self._render_mode = CadeConfig.load(project_root, config_path).tui_render_mode
         self._fullscreen_transcript = FullscreenTranscript()
         self._store = app.session_store
         self._welcome_version = installed_version()
