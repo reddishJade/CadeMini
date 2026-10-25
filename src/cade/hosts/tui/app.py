@@ -1803,6 +1803,7 @@ class _CadeTui:
             load_effective_config,
             matching_settings,
         )
+
         config_path = self._config_path or Path(DEFAULT_CONFIG_NAME)
         if not config_path.is_absolute():
             config_path = self._project_root / config_path
