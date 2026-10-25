@@ -172,10 +172,12 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
         render_mode: str = "inline",
     ) -> None:
         (workspace / "cade.json").write_text(
-            json.dumps({
-                "trust_project_skills": True,
-                "tui_render_mode": render_mode,
-            }),
+            json.dumps(
+                {
+                    "trust_project_skills": True,
+                    "tui_render_mode": render_mode,
+                }
+            ),
             encoding="utf-8",
         )
 
