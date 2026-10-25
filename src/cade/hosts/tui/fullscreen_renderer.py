@@ -16,9 +16,7 @@ class FullscreenTranscript:
     def scroll(self, delta: int, total_lines: int, height: int) -> None:
         """delta 为正时向上浏览；为负时返回最新消息。"""
         maximum = max(0, total_lines - max(1, height))
-        self.scroll_from_bottom = max(
-            0, min(maximum, self.scroll_from_bottom + delta)
-        )
+        self.scroll_from_bottom = max(0, min(maximum, self.scroll_from_bottom + delta))
 
     def prepare(self, lines: list[str], height: int) -> StyleAndTextTuples:
         """提供完整文档的可见尾部，始终保留在全屏渲染器内。"""
