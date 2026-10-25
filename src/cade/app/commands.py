@@ -72,6 +72,7 @@ SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("/model", "Choose provider and model", "Model", "[provider/]model"),
     CommandSpec("/effort", "Select reasoning effort", "Model", "[level]"),
     CommandSpec("/thinking", "Select reasoning level", "Model", "[level]"),
+    CommandSpec("/verbose", "Set TUI display detail", "Settings", "[low|medium|high]"),
     CommandSpec(
         "/context-window", "Set maximum context size", "Model", "[size|default]"
     ),
