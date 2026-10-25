@@ -301,6 +301,7 @@ COMMAND_CASES = [
     ("/model openai/gpt-5.5", "Model:"),
     ("/effort low", "Model:"),
     ("/thinking off", "Thinking level: off"),
+    ("/verbose auto", "Display verbosity: auto"),
     ("/context-window 200k", "200,000"),
     ("/context", "GPT-5.5"),
     ("/mode ask", "Mode: ask"),
@@ -970,6 +971,27 @@ def test_login_method_selects_provider_and_masks_api_key(
         assert term.tui._input.text == "unsent while disconnected"
         assert "Missing openai login" in term.transcript
         assert len(provider.requests) == before
+
+    terminal_runner(scenario)
+
+
+def test_verbosity_switch_and_picker_do_not_change_model_effort(
+    terminal_runner: Runner,
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        assert term.tui._state.verbosity == "auto"
+        effort = term.service.provider_config.reasoning_effort
+        await term.send("/verbose high")
+        assert term.tui._state.verbosity == "high"
+        assert not term.tui._state.thinking_collapsed
+        assert not term.tui._state.tool_collapsed
+        await term.send("/verbose")
+        assert term.tui._state.pending_command_choice is not None
+        await term.choose(0)
+        assert term.tui._state.verbosity == "auto"
+        assert term.tui._state.thinking_collapsed
+        assert term.tui._state.tool_collapsed
+        assert term.service.provider_config.reasoning_effort == effort
 
     terminal_runner(scenario)
 
