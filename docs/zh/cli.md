@@ -88,7 +88,7 @@ TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原�
 - `/connect`：选择 provider，认证后打开它的模型选择器。
 - `/skill [NAME]`：为下一个任务激活技能。
 - `/tool [list]`：查看可用工具及说明。
-- `/config [KEY[=VALUE]]`：浏览配置，或更新项目设置。
+- `/config [KEY[=VALUE]]`：浏览配置，或更新项目设置。其中 **TUI Rendering** 提供 Inline/Fullscreen 原生选择菜单，不需要填写文本；下次启动生效。Fullscreen 下可用 PageUp/PageDown 滚动对话历史。
 - `/memory`：显示工作区记忆文件的路径。
 - `/exit` 或 `/quit`：退出。
 
