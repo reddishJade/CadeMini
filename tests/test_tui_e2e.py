@@ -27,6 +27,7 @@ from cade.ai.events import (
 from cade.ai.types import StreamOptions, ToolDefinition
 from cade.app import auth
 from cade.app.commands import SPECS
+from cade.app.config import CadeConfig
 from cade.app.session import ApplicationSession
 from cade.harness.cancellation import CancellationToken
 from cade.harness.session.log import SessionLog
@@ -129,6 +130,7 @@ class Runner(Protocol):
         *,
         resume: str | None = None,
         initial_prompt: str | None = None,
+        render_mode: str = "inline",
     ) -> None: ...
 
 
@@ -167,7 +169,16 @@ def terminal_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Runner:
         *,
         resume: str | None = None,
         initial_prompt: str | None = None,
+        render_mode: str = "inline",
     ) -> None:
+        (workspace / "cade.json").write_text(
+            json.dumps({
+                "trust_project_skills": True,
+                "tui_render_mode": render_mode,
+            }),
+            encoding="utf-8",
+        )
+
         def launch(service: ApplicationSession, root: Path, **kwargs: Any) -> int:
             assert [s.name for s in service.skills] == ["e2e-skill"]
             with create_pipe_input() as pipe:
@@ -973,6 +984,53 @@ def test_login_method_selects_provider_and_masks_api_key(
         assert len(provider.requests) == before
 
     terminal_runner(scenario)
+
+
+def test_config_renderer_picker_has_only_options(
+    terminal_runner: Runner,
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        assert term.tui._render_mode == "inline"
+        await term.send("/config tui_render_mode")
+        request = term.tui._state.pending_command_choice
+        assert request is not None
+        choices = [item[0] for item in request.choices]
+        assert choices == ["Inline (current)", "Fullscreen"]
+        assert term.tui._state.pending_command_text is None
+        await term.choose(1)
+        assert CadeConfig.load(term.service.workspace).tui_render_mode == "fullscreen"
+        assert term.tui._render_mode == "inline"
+        assert term.tui._state.pending_command_text is None
+
+    terminal_runner(scenario)
+
+
+def test_fullscreen_renders_in_alternate_screen_and_scrolls_history(
+    terminal_runner: Runner,
+) -> None:
+    async def scenario(term: Terminal) -> None:
+        assert term.tui._render_mode == "fullscreen"
+        assert term.tui._application.full_screen
+        assert term.tui._inline_renderer is None
+        for index in range(100):
+            term.tui._state.log.append(
+                tui_module._LogEntry("system", f"History line {index:03d}")
+            )
+        term.tui._refresh()
+        await term.send("hello from fullscreen")
+        assert "E2E answer" in term.tui._state.render()
+        term.pipe.send_text("\x1b[5~")
+        await term.until(
+            lambda: term.tui._fullscreen_transcript.scroll_from_bottom > 0,
+            "PageUp scrolls fullscreen history",
+        )
+        term.pipe.send_text("\x1b[6~")
+        await term.until(
+            lambda: term.tui._fullscreen_transcript.scroll_from_bottom == 0,
+            "PageDown returns to latest messages",
+        )
+
+    terminal_runner(scenario, render_mode="fullscreen")
 
 
 def test_verbosity_switch_and_picker_do_not_change_model_effort(
