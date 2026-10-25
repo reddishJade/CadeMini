@@ -36,6 +36,7 @@ class CadeConfig(BaseModel):
         "workspace-write"
     )
     network: bool = True
+    tui_render_mode: Literal["inline", "fullscreen"] = "inline"
     rules: list[RuleConfig] = Field(default_factory=list)
     mcp_servers: dict[str, McpServerConfig] = Field(default_factory=dict)
     trust_project_skills: bool = False
