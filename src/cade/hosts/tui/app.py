@@ -133,6 +133,7 @@ _SHORTCUT_HELP = """Shortcuts
   Shift+Tab      cycle execution mode: ask → build → plan
   Ctrl+T         expand or collapse thinking
   Ctrl+O         expand or collapse tool details
+  /verbose       choose Low, Medium, or High display detail
   ! command      run a bash command
   $skill [task]  invoke a skill
   /command       run a slash command
@@ -222,8 +223,7 @@ class _CadeTui:
         self._state = _TuiState(
             mode=self._interaction_state.mode, project_root=project_root
         )
-        self._state.thinking_collapsed = True
-        self._state.tool_collapsed = True
+        self._state.set_verbosity("low")
         self._restore_startup_session(resume_latest, auto_continue, session_id)
         self._sync_mode_from_agent()
         self._workspace_branch = git_branch_name(project_root)
@@ -1121,9 +1121,43 @@ class _CadeTui:
         """显示命令输入；需要恢复的输入、状态和结果由各自处理器持久化。"""
         self._state.add_command(text)
 
+    def _set_verbosity(self, level: str) -> None:
+        """切换当前终端的显示层级，不修改会话事件。"""
+        self._state.set_verbosity(level)
+        self._state.log.append(_LogEntry("system", f"Display verbosity: {level}"))
+        self._refresh()
+
     def _show_native_command_choice(self, text: str) -> bool:
         """为需要选择或输入的命令打开 TUI 原生菜单。"""
         command = text.split(maxsplit=1)[0]
+        if command == "/verbose":
+            parts = text.split()
+            if len(parts) == 1:
+                self._open_command_choices(
+                    [
+                        (
+                            f"{level} (current)"
+                            if level == self._state.verbosity
+                            else level,
+                            level,
+                        )
+                        for level in ("low", "medium", "high")
+                    ],
+                    lambda selected: self._set_verbosity(str(selected)),
+                    describe=lambda level: {
+                        "low": "Show messages; hide thinking and tool transcripts.",
+                        "medium": "Show compact thinking and tool summaries.",
+                        "high": "Show expanded thinking and tool details.",
+                    }[str(level)],
+                )
+            elif len(parts) == 2 and parts[1] in {"low", "medium", "high"}:
+                self._set_verbosity(parts[1])
+            else:
+                self._state.log.append(
+                    _LogEntry("error", "Usage: /verbose [low|medium|high]")
+                )
+                self._refresh()
+            return True
         if command in {"/quit", "/exit"}:
             self._quit_key(None)
             return True
@@ -2551,6 +2585,7 @@ def _is_live_command(text: str) -> bool:
         "/queue",
         "/goal",
         "/btw",
+        "/verbose",
         "/stop",
         "/quit",
         "/exit",
