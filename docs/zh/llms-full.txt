@@ -1280,6 +1280,7 @@ flowchart LR
   hosts_cli --> harness_provider
   hosts_cli --> harness_session_log
   hosts_cli --> harness_session_types
+  hosts_tui_app --> app_config
   hosts_tui_app --> app_session
   hosts_tui_bridge --> ai_models
   hosts_tui_bridge --> app_session
