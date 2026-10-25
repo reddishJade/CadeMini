@@ -301,7 +301,7 @@ COMMAND_CASES = [
     ("/model openai/gpt-5.5", "Model:"),
     ("/effort low", "Model:"),
     ("/thinking off", "Thinking level: off"),
-    ("/verbose low", "Display verbosity: low"),
+    ("/verbose auto", "Display verbosity: auto"),
     ("/context-window 200k", "200,000"),
     ("/context", "GPT-5.5"),
     ("/mode ask", "Mode: ask"),
