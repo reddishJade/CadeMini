@@ -20,7 +20,8 @@ from ._process import close_pipes, kill_process
 from .sandbox import PlatformSandbox
 
 _MAX_FRAME_BYTES = 1024 * 1024
-_MAX_OUTPUT_BYTES = 50 * 1024
+_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
+_MAX_RESULT_FRAME_BYTES = _MAX_OUTPUT_BYTES + 1024
 
 
 @dataclass(frozen=True)
@@ -98,11 +99,13 @@ async def run_python(
     async def exchange() -> dict[str, Any]:
         await asyncio.to_thread(send, {"code": code, "tools": list(names)})
         while True:
-            raw = await asyncio.to_thread(incoming.readline, _MAX_FRAME_BYTES + 1)
+            raw = await asyncio.to_thread(
+                incoming.readline, _MAX_RESULT_FRAME_BYTES + 1
+            )
             if not raw:
                 raise ValueError("Python process exited without a result")
-            if len(raw) > _MAX_FRAME_BYTES:
-                raise ValueError("Python control message exceeds 1 MiB")
+            if len(raw) > _MAX_RESULT_FRAME_BYTES:
+                raise ValueError("Python output exceeds the hard limit of 16 MiB")
             frame = json.loads(raw, parse_constant=_reject_constant)
             if not isinstance(frame, dict):
                 raise TypeError("Invalid Python control message")
@@ -110,6 +113,8 @@ async def run_python(
                 if "error" in frame and not isinstance(frame["error"], str):
                     raise ValueError("Invalid Python error result")
                 return frame
+            if len(raw) > _MAX_FRAME_BYTES:
+                raise ValueError("Python control message exceeds 1 MiB")
             name, args = frame.get("name"), frame.get("args")
             if (
                 frame.get("type") != "call"
@@ -138,7 +143,7 @@ async def run_python(
             (conversation, captured), return_when=asyncio.FIRST_COMPLETED
         )
         if captured in done and not captured.result():
-            raise ValueError("Python output exceeds 50 KiB")
+            raise ValueError("Python output exceeds the hard limit of 16 MiB")
         frame = await conversation
     except (OSError, ValueError, TypeError, RecursionError) as exc:
         error = str(exc)
@@ -152,7 +157,7 @@ async def run_python(
             try:
                 complete = await asyncio.wait_for(asyncio.shield(captured), timeout=2)
                 if not complete:
-                    error = "Python output exceeds 50 KiB"
+                    error = "Python output exceeds the hard limit of 16 MiB"
             except TimeoutError:
                 error = "Python output pipe did not close after process termination"
             outgoing.close()
@@ -161,7 +166,7 @@ async def run_python(
                 violation = command.finalize()
                 if violation:
                     error = violation
-    if frame.get("error"):
+    if error is None and frame.get("error"):
         error = frame["error"]
     value = frame.get("value")
     if (
@@ -169,6 +174,6 @@ async def run_python(
         and len(json.dumps(value, ensure_ascii=False).encode()) + len(output)
         > _MAX_OUTPUT_BYTES
     ):
-        error = "Python output and return value exceed 50 KiB"
+        error = "Python output and return value exceed the hard limit of 16 MiB"
         value = None
     return PythonResult(output.decode("utf-8", "replace"), value, error)

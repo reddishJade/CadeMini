@@ -22,7 +22,7 @@ async def main() -> None:
         if value.get("type") == "done":
             sys.stdout.flush()
             sys.stderr.flush()
-        outgoing.write(json.dumps(value, ensure_ascii=True, allow_nan=False) + "\n")
+        outgoing.write(json.dumps(value, ensure_ascii=False, allow_nan=False) + "\n")
         outgoing.flush()
 
     class Tools:

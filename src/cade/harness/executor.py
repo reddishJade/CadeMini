@@ -172,7 +172,9 @@ async def execute_tool(
         # 第三方工具可能抛出任意库异常，执行边界将异常转换为工具结果。
         except Exception as exc:  # noqa: BLE001
             result = ToolResult(str(exc), is_error=True)
-    if len(result.content) > _MAX_TOOL_RESULT_CHARS:
+    if len(result.content) > _MAX_TOOL_RESULT_CHARS and not getattr(
+        tool, "manages_output", False
+    ):
         result = ToolResult(
             result.content[:_MAX_TOOL_RESULT_CHARS] + "\n[truncated]",
             result.is_error,
