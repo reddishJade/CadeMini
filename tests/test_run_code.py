@@ -38,12 +38,16 @@ async def execute(
     *,
     timeout: float = 5,
     cancel: CancellationToken | None = None,
+    max_output_tokens: int | None = None,
 ) -> ToolResult:
+    args: dict[str, JsonValue] = {"code": code, "description": "Run test program"}
+    if max_output_tokens is not None:
+        args["max_output_tokens"] = max_output_tokens
     result = await execute_tool(
         ToolCallBlock(
             id="script",
             name="run_code",
-            args={"code": code, "description": "Run test program"},
+            args=args,
         ),
         index_tools(build_tools(root)),
         timeout_seconds=timeout,
@@ -123,12 +127,134 @@ async def test_rejects_recursive_or_invalid_protocol_calls(
     assert result.is_error
 
 
-@pytest.mark.parametrize("code", ["print('x' * 60000)", "return 'x' * 60000"])
-async def test_output_limits_are_explicit_errors(tmp_path: Path, code: str) -> None:
-    result = await execute(tmp_path, code)
+@pytest.fixture
+def output_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setattr("cade.coding.tools.run_code.tempfile.tempdir", str(tmp_path))
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    "code",
+    ["print('START' + 'x' * 60000 + 'END')", "return 'START' + 'x' * 60000 + 'END'"],
+)
+async def test_default_output_budget_keeps_head_tail_and_full_text(
+    output_directory: Path,
+    code: str,
+) -> None:
+    result = await execute(output_directory, code)
+    assert not result.is_error, result.content[-500:]
+    assert "START" in result.content and "END" in result.content
+    assert "Output truncated" in result.content
+    assert len(result.content) < 41000
+    assert result.metadata is not None
+    path = Path(result.metadata["fullOutputPath"])
+    assert path.parent == output_directory
+    full = path.read_text(encoding="utf-8")
+    expected = "START" + "x" * 60000 + "END"
+    assert full == (
+        expected + "\n" if code.startswith("print") else json.dumps(expected)
+    )
+
+
+@pytest.mark.parametrize("budget", [0, 1, 100])
+async def test_custom_budget_handles_unicode_and_zero(
+    output_directory: Path,
+    budget: int,
+) -> None:
+    result = await execute(
+        output_directory,
+        "return '头' + '中' * 1000 + '尾'",
+        max_output_tokens=budget,
+    )
+    assert not result.is_error
+    assert result.metadata is not None
+    assert Path(result.metadata["fullOutputPath"]).read_text(
+        encoding="utf-8"
+    ) == json.dumps("头" + "中" * 1000 + "尾", ensure_ascii=False)
+    if budget:
+        assert '"头' in result.content and '尾"' in result.content
+    else:
+        assert "头" not in result.content and "尾" not in result.content
+
+
+async def test_budget_override_is_not_clipped_by_generic_executor(
+    output_directory: Path,
+) -> None:
+    result = await execute(
+        output_directory, "return 'x' * 70000", max_output_tokens=20000
+    )
+    assert not result.is_error
+    assert result.content == json.dumps("x" * 70000)
+    assert result.metadata is None
+
+
+async def test_large_return_can_spill_beyond_control_call_limit(
+    output_directory: Path,
+) -> None:
+    result = await execute(output_directory, "return 'x' * (2 * 1024 * 1024)")
+    assert not result.is_error, result.content[-500:]
+    assert result.metadata is not None
+    assert Path(result.metadata["fullOutputPath"]).stat().st_size == 2 * 1024 * 1024 + 2
+
+
+async def test_truncated_script_error_keeps_error_and_full_output(
+    output_directory: Path,
+) -> None:
+    result = await execute(
+        output_directory,
+        "print('START' + 'x' * 60000)\nraise ValueError('TAIL ERROR')",
+        max_output_tokens=100,
+    )
     assert result.is_error
-    assert "50 KiB" in result.content
-    assert len(result.content) < 64000
+    assert "START" in result.content and "TAIL ERROR" in result.content
+    assert result.metadata is not None
+    assert "x" * 60000 in Path(result.metadata["fullOutputPath"]).read_text()
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "print('x' * (17 * 1024 * 1024))",
+        "return 'x' * (17 * 1024 * 1024)",
+        "print('x' * (8 * 1024 * 1024))\nreturn 'y' * (9 * 1024 * 1024)",
+    ],
+)
+async def test_hard_output_limit_cannot_be_raised_by_token_budget(
+    tmp_path: Path, code: str
+) -> None:
+    result = await execute(tmp_path, code, max_output_tokens=100000000, timeout=10)
+    assert result.is_error
+    assert "hard limit of 16 MiB" in result.content
+
+
+@pytest.mark.parametrize("budget", [-1, 1.5, True, "many"])
+async def test_invalid_output_budget_does_not_start_program(
+    tmp_path: Path, budget: Any
+) -> None:
+    result = await execute_tool(
+        ToolCallBlock(
+            id="p",
+            name="run_code",
+            args={
+                "code": "from pathlib import Path\nPath('started').touch()",
+                "description": "Validate output budget",
+                "max_output_tokens": budget,
+            },
+        ),
+        {"run_code": RunCodeTool(tmp_path)},
+    )
+    assert result.result.is_error
+    assert not (tmp_path / "started").exists()
+
+
+async def test_large_tool_call_still_obeys_control_message_limit(
+    tmp_path: Path,
+) -> None:
+    result = await execute(
+        tmp_path, "await tools.read({'path': 'x' * (2 * 1024 * 1024)})"
+    )
+    assert result.is_error
+    assert "control message exceeds 1 MiB" in result.content
 
 
 @pytest.mark.parametrize("mode", ["plan", "ask", "build"])
