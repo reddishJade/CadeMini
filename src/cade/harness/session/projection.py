@@ -24,7 +24,16 @@ _CONVERSATION_TYPES: frozenset[EventType] = frozenset(
     {"system", "user", "assistant", "tool_result", "compaction", "window"}
 )
 _LOG_ONLY_TYPES: frozenset[EventType] = frozenset(
-    {"meta", "request", "run", "attempt", "branch", "checkpoint", "restore"}
+    {
+        "meta",
+        "request",
+        "run",
+        "attempt",
+        "branch",
+        "checkpoint",
+        "restore",
+        "tool_execution",
+    }
 )
 _TOOL_RESULT_STATUSES = frozenset({"ok", "error", "interrupted"})
 

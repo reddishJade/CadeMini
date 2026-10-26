@@ -611,6 +611,7 @@ class ApplicationSession:
                     messages=messages,
                     cancel=self.cancel,
                     on_event=on_event,
+                    on_nested=lambda data: self.log.append("tool_execution", data),
                 )
                 result = execution.result
                 authorization = execution.authorization

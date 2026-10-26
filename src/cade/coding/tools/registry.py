@@ -10,6 +10,7 @@ from cade.coding.tools.base import (
 from cade.coding.tools.bash import BashTool, PowerShellTool
 from cade.coding.tools.edit import EditTool
 from cade.coding.tools.read import ReadTool
+from cade.coding.tools.run_code import RunCodeTool
 from cade.coding.tools.write import WriteTool
 from cade.coding.workspace.snapshots import SnapshotStore
 from cade.harness.execution.local.sandbox import PlatformSandbox
@@ -28,6 +29,7 @@ def build_tools(
         EditTool(workspace, snapshots),
         BashTool(workspace, snapshots),
         PowerShellTool(workspace, snapshots),
+        RunCodeTool(workspace),
     )
     for tool in tools:
         tool.sandbox = sandbox

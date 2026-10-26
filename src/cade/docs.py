@@ -351,6 +351,7 @@ def render_event_catalog() -> str:
         "user": ("Yes", "Task or steering input"),
         "assistant": ("Yes", "Model text and tool calls"),
         "tool_result": ("Yes", "Tool output paired by call ID"),
+        "tool_execution": ("No", "Nested tool dispatch and outcome"),
         "compaction": ("Yes", "Summary and first kept entry"),
         "window": ("Yes", "Context start and optional handoff"),
         "request": ("No", "Provider request audit"),

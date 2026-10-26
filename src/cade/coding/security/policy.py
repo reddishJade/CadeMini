@@ -106,11 +106,15 @@ class WorkspacePolicy:
                 workdir = resolve_path(self.workspace, call.args.get("workdir", "."))
         except ValueError as exc:
             return PermissionCheck("deny", str(exc), scope)
-        if name not in _PLAN_TOOLS | {"goal", "memory"} and not name.startswith(
-            "mcp__"
-        ):
+        if name not in _PLAN_TOOLS | {
+            "goal",
+            "memory",
+            "run_code",
+        } and not name.startswith("mcp__"):
             return PermissionCheck("deny", f"Unknown tool: {name}", scope)
-        mutating = name in {"write", "edit", "memory"} or name.startswith("mcp__")
+        mutating = name in {"write", "edit", "memory", "run_code"} or name.startswith(
+            "mcp__"
+        )
         mutating |= name == "goal" and call.args.get("action", "get") != "get"
         if self.read_only and mutating:
             return PermissionCheck("deny", "The session is read-only.", scope)
