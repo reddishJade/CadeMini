@@ -23,6 +23,7 @@ class RunCodeTool(WorkspaceTool):
     manages_timeout = True
     description = (
         "Run an async Python function body to chain tools and filter intermediate results. "
+        "Provide code and a short description of the operation, shown in the UI. "
         "Top-level await and return work; asyncio is available. "
         "Call await tools.name({...}) or await tools['name']({...}) using the other "
         "tools' declared arguments. Calls run serially, including asyncio.gather. "
@@ -40,6 +41,12 @@ class RunCodeTool(WorkspaceTool):
             "type": "object",
             "properties": {
                 "code": {"type": "string", "minLength": 1},
+                "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": r"\S",
+                    "description": "Short, active-voice summary of what the program does, shown in the UI.",
+                },
                 "timeout": {
                     "type": "number",
                     "exclusiveMinimum": 0,
@@ -49,7 +56,7 @@ class RunCodeTool(WorkspaceTool):
                     ),
                 },
             },
-            "required": ["code"],
+            "required": ["code", "description"],
             "additionalProperties": False,
         }
 

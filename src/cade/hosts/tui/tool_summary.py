@@ -54,6 +54,10 @@ def brief_input(name: str, raw_input: ToolInput | str) -> str:
         return single_line_preview(f"{name}: {raw_input}") if raw_input else name
 
     # ── 各工具类型特化格式化 ──
+    if name == "run_code":
+        description = raw_input.get("description", "")
+        return single_line_preview(f"run_code: {description}") if description else name
+
     if name in {"bash", "powershell"}:
         cmd = raw_input.get("command") or raw_input.get("input") or ""
         return single_line_preview(f"$ {cmd}") if cmd else name
