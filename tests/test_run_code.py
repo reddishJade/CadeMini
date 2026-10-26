@@ -40,7 +40,11 @@ async def execute(
     cancel: CancellationToken | None = None,
 ) -> ToolResult:
     result = await execute_tool(
-        ToolCallBlock(id="script", name="run_code", args={"code": code}),
+        ToolCallBlock(
+            id="script",
+            name="run_code",
+            args={"code": code, "description": "Run test program"},
+        ),
         index_tools(build_tools(root)),
         timeout_seconds=timeout,
         cancel=cancel,
@@ -132,7 +136,11 @@ async def test_output_limits_are_explicit_errors(tmp_path: Path, code: str) -> N
 def test_program_permissions(tmp_path: Path, mode: Mode, read_only: bool) -> None:
     policy = WorkspacePolicy(tmp_path, mode=mode, read_only=read_only)
     check = policy.check(
-        ToolCallBlock(id="p", name="run_code", args={"code": "return 1"})
+        ToolCallBlock(
+            id="p",
+            name="run_code",
+            args={"code": "return 1", "description": "Return a number"},
+        )
     )
     expected = (
         "deny" if read_only or mode == "plan" else "ask" if mode == "ask" else "allow"
@@ -155,13 +163,14 @@ async def test_nested_denial_and_invalid_arguments_are_catchable(
             id="p",
             name="run_code",
             args={
+                "description": "Handle rejected tool calls",
                 "code": (
                     "try:\n    await tools.write({'path': 'denied', 'content': 'x'})\n"
                     "except RuntimeError as error:\n    print(str(error))\n"
                     "try:\n    await tools.read({'path': 'missing', 'offset': 'bad'})\n"
                     "except RuntimeError as error:\n    print(str(error))\n"
                     "return 'recovered'"
-                )
+                ),
             },
         ),
         index_tools(build_tools(tmp_path)),
@@ -231,6 +240,7 @@ async def test_cancellation_drains_nested_tool_and_records_interruption(
                 id="p",
                 name="run_code",
                 args={
+                    "description": "Wait for a tool",
                     "code": "await tools.wait({})",
                     "timeout": 1 if trigger == "timeout" else 600,
                 },
@@ -264,7 +274,8 @@ async def test_loop_logs_nested_calls_without_projecting_them(tmp_path: Path) ->
                             id="p",
                             name="run_code",
                             input={
-                                "code": "result = await tools.read({'path': 'a.txt'})\nreturn len(result['content'])"
+                                "description": "Count file characters",
+                                "code": "result = await tools.read({'path': 'a.txt'})\nreturn len(result['content'])",
                             },
                         )
                     ]
@@ -303,7 +314,10 @@ async def test_nested_approval_uses_parent_context(tmp_path: Path) -> None:
         ToolCallBlock(
             id="p",
             name="run_code",
-            args={"code": "await tools.write({'path': 'approved', 'content': 'ok'})"},
+            args={
+                "code": "await tools.write({'path': 'approved', 'content': 'ok'})",
+                "description": "Write an approved file",
+            },
         ),
         index_tools(build_tools(tmp_path)),
         policy=Policy(),
@@ -332,7 +346,8 @@ async def test_direct_python_io_uses_real_sandbox(tmp_path: Path) -> None:
             id="inside",
             name="run_code",
             args={
-                "code": "from pathlib import Path\nPath('inside').write_text('ok')\nreturn 'done'"
+                "description": "Write inside the workspace",
+                "code": "from pathlib import Path\nPath('inside').write_text('ok')\nreturn 'done'",
             },
         ),
         tools,
@@ -345,7 +360,8 @@ async def test_direct_python_io_uses_real_sandbox(tmp_path: Path) -> None:
             id="outside",
             name="run_code",
             args={
-                "code": f"from pathlib import Path\nPath({str(target)!r}).write_text('denied')"
+                "description": "Attempt an outside write",
+                "code": f"from pathlib import Path\nPath({str(target)!r}).write_text('denied')",
             },
         ),
         tools,
@@ -367,7 +383,8 @@ async def test_nested_write_participates_in_undo(tmp_path: Path) -> None:
                             id="p",
                             name="run_code",
                             input={
-                                "code": "await tools.write({'path': 'tracked', 'content': 'changed'})"
+                                "description": "Write a tracked file",
+                                "code": "await tools.write({'path': 'tracked', 'content': 'changed'})",
                             },
                         )
                     ]
@@ -403,7 +420,13 @@ async def test_timeout_default_and_override_are_applied(
     monkeypatch.setattr("cade.coding.tools.run_code.run_python", report_timeout)
     result = await execute_tool(
         ToolCallBlock(
-            id="p", name="run_code", args={"code": "return 1", "timeout": override}
+            id="p",
+            name="run_code",
+            args={
+                "code": "return 1",
+                "description": "Report the timeout",
+                "timeout": override,
+            },
         ),
         {"run_code": RunCodeTool(tmp_path)},
     )
@@ -430,6 +453,7 @@ async def test_override_extends_program_and_nested_tool_deadlines(
             id="p",
             name="run_code",
             args={
+                "description": "Run a slow tool",
                 "code": "await asyncio.sleep(0.05)\nreturn (await tools.slow({}))['content']",
                 "timeout": 2,
             },
@@ -450,6 +474,7 @@ async def test_invalid_timeout_never_starts_program(
             id="p",
             name="run_code",
             args={
+                "description": "Test timeout validation",
                 "code": "from pathlib import Path\nPath('started').touch()",
                 "timeout": timeout,
             },
@@ -481,6 +506,7 @@ async def test_explicit_timeout_includes_nested_approval_wait(tmp_path: Path) ->
                 id="p",
                 name="run_code",
                 args={
+                    "description": "Wait for write approval",
                     "code": "await tools.write({'path': 'late', 'content': 'x'})",
                     "timeout": 1,
                 },
@@ -496,3 +522,21 @@ async def test_explicit_timeout_includes_nested_approval_wait(tmp_path: Path) ->
     assert "timed out after 1s" in result.result.content
     assert stopped.is_set()
     assert not (tmp_path / "late").exists()
+
+
+@pytest.mark.parametrize("description", [None, "", "   ", 42])
+async def test_description_is_required_and_nonblank(
+    tmp_path: Path, description: Any
+) -> None:
+    args: dict[str, JsonValue] = {
+        "code": "from pathlib import Path\nPath('started').touch()",
+    }
+    if description is not None:
+        args["description"] = description
+    result = await execute_tool(
+        ToolCallBlock(id="p", name="run_code", args=args),
+        {"run_code": RunCodeTool(tmp_path)},
+    )
+    assert result.result.is_error
+    assert "schema error" in result.result.content
+    assert not (tmp_path / "started").exists()
