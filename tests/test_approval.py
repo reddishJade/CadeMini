@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
+import pytest
+
 from cade.coding.security.approval import SessionApprover
 from cade.harness.permissions import ApprovalRequest
-from cade.harness.session.types import ToolCallBlock
+from cade.harness.session.types import JsonValue, ToolCallBlock
+from cade.hosts.tui.approval import full_edit_preview_lines
 
 
 def _call(name: str = "write") -> ApprovalRequest:
@@ -55,3 +58,18 @@ def test_yes_no_and_always_decisions() -> None:
 
     assert approver(_call("bash")).allowed is False
     assert len(prompts) == 4
+
+
+@pytest.mark.parametrize("invalid", [None, 42, "bad", []])
+def test_full_edit_preview_skips_invalid_items(invalid: JsonValue) -> None:
+    lines = full_edit_preview_lines(
+        {
+            "path": "a.txt",
+            "edits": [invalid, {"oldText": "原文", "newText": "新文"}],
+        }
+    )
+    text = "\n".join(lines)
+    assert "Edit 1" not in text
+    assert "Edit 2" in text
+    assert '"原文"' in text
+    assert '"新文"' in text

@@ -119,3 +119,26 @@ async def test_schema_references_do_not_fetch_untrusted_urls(
     assert result.result.is_error
     assert "schema" in result.result.content
     assert tool.scopes == []
+
+
+@pytest.mark.parametrize("allowed", [True, False])
+async def test_boolean_item_schemas_reach_validation(allowed: bool) -> None:
+    class BooleanItemsTool(ScopeTool):
+        parameters: ClassVar[dict[str, Any]] = {
+            "type": "object",
+            "properties": {"values": {"type": "array", "items": allowed}},
+            "required": ["values"],
+        }
+
+    tool = BooleanItemsTool()
+    result = await execute_tool(
+        ToolCallBlock(id="boolean", name="scope", args={"values": [{"keep": None}]}),
+        {"scope": tool},
+    )
+    if allowed:
+        assert not result.result.is_error
+        assert len(tool.scopes) == 1
+    else:
+        assert result.result.is_error
+        assert "schema error" in result.result.content
+        assert tool.scopes == []
