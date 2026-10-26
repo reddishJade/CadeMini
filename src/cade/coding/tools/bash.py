@@ -119,8 +119,6 @@ class BashTool(WorkspaceTool):
             output += f"\n\nCommand timed out after {timeout:g} seconds"
         elif result.cancelled:
             output += "\n\nCommand aborted"
-        elif result.returncode is None:
-            output += "\n\nCommand terminated without an exit code"
         elif result.returncode != 0:
             output += f"\n\nCommand exited with code {result.returncode}"
         if result.timed_out or result.cancelled:

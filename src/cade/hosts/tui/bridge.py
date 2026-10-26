@@ -24,7 +24,6 @@ from cade.harness.events import (
     TextDeltaEvent,
     ToolEndEvent,
     ToolStartEvent,
-    ToolUpdateEvent,
     UsageEvent,
 )
 from cade.harness.permissions import ApprovalResult
@@ -507,7 +506,7 @@ class CadeInteractionApp:
                         )
                     )
                 )
-            elif isinstance(event, ToolUpdateEvent):
+            else:
                 events.put(
                     ToolUpdateStructuredEvent(ToolUpdateData(event.name, event.content))
                 )

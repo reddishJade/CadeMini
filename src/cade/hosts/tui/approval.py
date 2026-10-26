@@ -119,8 +119,11 @@ def full_edit_preview_lines(action_input: ToolInput) -> list[str]:
         "Full edit text (JSON-escaped strings, including newlines and controls).",
         "Press Ctrl+O to collapse tool details.",
     ]
-    edits = action_input.get("edits")
-    if not isinstance(edits, list):
+    raw_edits = action_input.get("edits")
+    edits: list[object]
+    if isinstance(raw_edits, list):
+        edits = raw_edits
+    else:
         edits = [
             {
                 "oldText": action_input.get("oldText", ""),

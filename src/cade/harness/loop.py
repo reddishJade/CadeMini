@@ -487,7 +487,7 @@ async def _consume_provider(
                 if not text_parts and event.content:
                     text_parts.append(event.content)
                     _emit(on_event, TextDeltaEvent(event.content))
-            elif isinstance(event, ProviderFailure):
+            else:
                 failure = event
     except asyncio.CancelledError:
         if cancel is None or not cancel.cancelled:

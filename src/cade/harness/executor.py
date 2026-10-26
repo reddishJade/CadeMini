@@ -183,7 +183,7 @@ async def execute_tool(
     return ToolExecution(result, authorization)
 
 
-def _optional_arguments(value: JsonValue, schema: dict[str, Any]) -> JsonValue:
+def _optional_arguments(value: JsonValue, schema: object) -> JsonValue:
     """把 strict Responses 用 null 表达的省略值还原为可选参数。"""
     if not isinstance(schema, dict):
         return value
