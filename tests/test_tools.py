@@ -42,7 +42,7 @@ async def test_read_file_with_offset_and_limit(tmp_path: Path) -> None:
 
 def test_workspace_tool_catalog_uses_shell_for_search(tmp_path: Path) -> None:
     names = {tool.name for tool in build_tools(tmp_path)}
-    assert names == {"read", "write", "edit", "bash", "powershell"}
+    assert names == {"read", "write", "edit", "bash", "powershell", "run_code"}
     policy = WorkspacePolicy(tmp_path)
     for name in ("ls", "find", "grep"):
         assert policy.check(_call(name, {"path": "."})).decision == "deny"
