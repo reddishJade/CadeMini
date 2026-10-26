@@ -15,6 +15,7 @@
   ],
 
   "pythonVersion": "3.12",
+  "pythonPlatform": "All",
 
   "typeCheckingMode": "standard",
 
