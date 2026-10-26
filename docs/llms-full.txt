@@ -595,6 +595,8 @@ their headings.
 
 ## Write a program
 
+Provide both `code` and `description`. The description is a short, active-voice
+summary shown on the tool card, such as "Count file lines". It must not be blank.
 The `code` argument is the body of an async Python function. Top-level `await`
 and `return` work. Call tools with the same arguments as direct calls:
 
@@ -621,7 +623,7 @@ nested tool execution and approval waits. It must be a positive finite number,
 with no fixed maximum. Omit it to use the default 120 seconds. For example:
 
 ```json
-{"code": "await asyncio.sleep(180)\nreturn 'done'", "timeout": 300}
+{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "Wait for a long operation", "timeout": 300}
 ```
 
 Nested tools inherit the selected timeout as their default; the whole program
@@ -1736,7 +1738,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in ask, allow in build |
 | `edit` | `path`, `edits: [{oldText, newText}]` | Applies disjoint replacements against the original file; snapshot first | Ask in ask, allow in build |
 | `bash`, `powershell` | `command`, `timeout`, `workdir`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
-| `run_code` | `code`, `timeout` | Runs Python and calls session tools; direct I/O follows the OS sandbox | Allow in build; ask in ask; denied plan and read-only |
+| `run_code` | `code`, `description`, `timeout` | Runs Python and calls session tools; direct I/O follows the OS sandbox | Allow in build; ask in ask; denied plan and read-only |
 | `question` | `questions: [{question, header, options, multiple?}]` | Collects user answers; dismissal ends the turn | Allow, including plan |
 | `websearch` | `query` | Searches through Exa | Allow when network access is enabled |
 | `webfetch` | `url`, `format`, `timeout` | Fetches text, Markdown, or HTML | Allow when network access is enabled |

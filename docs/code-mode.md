@@ -7,6 +7,8 @@ their headings.
 
 ## Write a program
 
+Provide both `code` and `description`. The description is a short, active-voice
+summary shown on the tool card, such as "Count file lines". It must not be blank.
 The `code` argument is the body of an async Python function. Top-level `await`
 and `return` work. Call tools with the same arguments as direct calls:
 
@@ -33,7 +35,7 @@ nested tool execution and approval waits. It must be a positive finite number,
 with no fixed maximum. Omit it to use the default 120 seconds. For example:
 
 ```json
-{"code": "await asyncio.sleep(180)\nreturn 'done'", "timeout": 300}
+{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "Wait for a long operation", "timeout": 300}
 ```
 
 Nested tools inherit the selected timeout as their default; the whole program

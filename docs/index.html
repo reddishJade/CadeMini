@@ -631,7 +631,9 @@ program. It is available alongside direct tools without additional configuration
 For example, ask Cade to use <code>run_code</code> to read several files and return only
 their headings.</p>
 <h2>Write a program</h2>
-<p>The <code>code</code> argument is the body of an async Python function. Top-level <code>await</code>
+<p>Provide both <code>code</code> and <code>description</code>. The description is a short, active-voice
+summary shown on the tool card, such as &quot;Count file lines&quot;. It must not be blank.
+The <code>code</code> argument is the body of an async Python function. Top-level <code>await</code>
 and <code>return</code> work. Call tools with the same arguments as direct calls:</p>
 <pre><code class="language-python">result = await tools.read({&quot;path&quot;: &quot;README.md&quot;})
 return [line for line in result[&quot;content&quot;].splitlines() if line.startswith(&quot;#&quot;)]
@@ -649,7 +651,7 @@ cannot call <code>run_code</code> recursively.</p>
 <p>The optional <code>timeout</code> argument sets the total deadline in seconds, including
 nested tool execution and approval waits. It must be a positive finite number,
 with no fixed maximum. Omit it to use the default 120 seconds. For example:</p>
-<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;timeout&quot;: 300}
+<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;description&quot;: &quot;Wait for a long operation&quot;, &quot;timeout&quot;: 300}
 </code></pre>
 <p>Nested tools inherit the selected timeout as their default; the whole program
 still shares one total deadline. You can cancel the program before it expires.
@@ -1973,7 +1975,7 @@ and window fallback.</li>
 </tr>
 <tr>
 <td><code>run_code</code></td>
-<td><code>code</code>, <code>timeout</code></td>
+<td><code>code</code>, <code>description</code>, <code>timeout</code></td>
 <td>Runs Python and calls session tools; direct I/O follows the OS sandbox</td>
 <td>Allow in build; ask in ask; denied plan and read-only</td>
 </tr>

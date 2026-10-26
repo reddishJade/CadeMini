@@ -453,6 +453,8 @@ MCP 服务器支持 stdio 和 Streamable HTTP，每个服务器保持一条连�
 
 ## 编写程序
 
+`code` 和 `description` 都是必填参数。
+`description` 是工具卡片显示的简短操作说明，例如“统计文件行数”，不能留空。
 `code` 参数是异步 Python 函数体，支持顶层 `await` 和 `return`。
 工具参数与直接调用一致：
 
@@ -476,7 +478,7 @@ return [line for line in result["content"].splitlines() if line.startswith("#")]
 它必须是正的有限数值，没有固定最大值；省略时默认使用 120 秒。例如：
 
 ```json
-{"code": "await asyncio.sleep(180)\nreturn 'done'", "timeout": 300}
+{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "等待耗时操作", "timeout": 300}
 ```
 
 嵌套工具继承所选时限作为默认超时，整段程序仍受同一个总时限约束。
@@ -1387,7 +1389,7 @@ flowchart LR
 | `write` | `path`、`content` | 创建或替换文件；先做快照 | ask 模式下询问，build 模式下允许 |
 | `edit` | `path`、`edits: [{oldText, newText}]` | 对原始文件执行互不重叠的替换；先做快照 | ask 模式下询问，build 模式下允许 |
 | `bash`、`powershell` | `command`、`timeout`、`workdir`、`additional_write_paths` | 任意进程；对常见修改做快照 | build 模式下允许普通开发；检测到风险时询问 |
-| `run_code` | `code`、`timeout` | 运行 Python 并调用会话工具；直接 I/O 遵守操作系统沙箱 | build 模式允许，ask 模式询问；计划和只读模式拒绝 |
+| `run_code` | `code`、`description`、`timeout` | 运行 Python 并调用会话工具；直接 I/O 遵守操作系统沙箱 | build 模式允许，ask 模式询问；计划和只读模式拒绝 |
 | `question` | `questions: [{question, header, options, multiple?}]` | 收集用户答案；关闭问题时结束当前轮次 | 允许，包括计划模式 |
 | `websearch` | `query` | 通过 Exa 搜索网页 | 网络开启时允许 |
 | `webfetch` | `url`、`format`、`timeout` | 获取文本、Markdown 或 HTML | 网络开启时允许 |

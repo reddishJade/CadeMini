@@ -6,6 +6,8 @@
 
 ## 编写程序
 
+`code` 和 `description` 都是必填参数。
+`description` 是工具卡片显示的简短操作说明，例如“统计文件行数”，不能留空。
 `code` 参数是异步 Python 函数体，支持顶层 `await` 和 `return`。
 工具参数与直接调用一致：
 
@@ -29,7 +31,7 @@ return [line for line in result["content"].splitlines() if line.startswith("#")]
 它必须是正的有限数值，没有固定最大值；省略时默认使用 120 秒。例如：
 
 ```json
-{"code": "await asyncio.sleep(180)\nreturn 'done'", "timeout": 300}
+{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "等待耗时操作", "timeout": 300}
 ```
 
 嵌套工具继承所选时限作为默认超时，整段程序仍受同一个总时限约束。

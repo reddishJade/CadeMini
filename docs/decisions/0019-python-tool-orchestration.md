@@ -11,7 +11,9 @@ without a current requirement for tool-only access to external resources.
 
 ## Decision
 
-Expose `run_code` beside existing tools. Each call executes an async Python
+Expose `run_code` beside existing tools. Require `code` and a nonblank
+`description`; tool cards display the description instead of the program body.
+Each call executes an async Python
 function body in a fresh process under the shell's OS sandbox. Tool proxies use
 the shared executor and return `{content, metadata}`; failures raise
 `RuntimeError`. Nested calls execute serially. The worker retains no state.

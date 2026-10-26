@@ -474,7 +474,9 @@ cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
 它与直接工具调用同时可用，无需额外配置。
 例如，可以要求 Cade 使用 <code>run_code</code> 读取多个文件，只返回其中的标题。</p>
 <h2>编写程序</h2>
-<p><code>code</code> 参数是异步 Python 函数体，支持顶层 <code>await</code> 和 <code>return</code>。
+<p><code>code</code> 和 <code>description</code> 都是必填参数。
+<code>description</code> 是工具卡片显示的简短操作说明，例如“统计文件行数”，不能留空。
+<code>code</code> 参数是异步 Python 函数体，支持顶层 <code>await</code> 和 <code>return</code>。
 工具参数与直接调用一致：</p>
 <pre><code class="language-python">result = await tools.read({&quot;path&quot;: &quot;README.md&quot;})
 return [line for line in result[&quot;content&quot;].splitlines() if line.startswith(&quot;#&quot;)]
@@ -489,7 +491,7 @@ return [line for line in result[&quot;content&quot;].splitlines() if line.starts
 <h2>结果与限制</h2>
 <p>可选参数 <code>timeout</code> 指定整段程序的时限，单位为秒，包含嵌套工具执行和审批等待。
 它必须是正的有限数值，没有固定最大值；省略时默认使用 120 秒。例如：</p>
-<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;timeout&quot;: 300}
+<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;description&quot;: &quot;等待耗时操作&quot;, &quot;timeout&quot;: 300}
 </code></pre>
 <p>嵌套工具继承所选时限作为默认超时，整段程序仍受同一个总时限约束。
 你可以在超时前随时取消程序。
@@ -1603,7 +1605,7 @@ uv run --locked cade login
 </tr>
 <tr>
 <td><code>run_code</code></td>
-<td><code>code</code>、<code>timeout</code></td>
+<td><code>code</code>、<code>description</code>、<code>timeout</code></td>
 <td>运行 Python 并调用会话工具；直接 I/O 遵守操作系统沙箱</td>
 <td>build 模式允许，ask 模式询问；计划和只读模式拒绝</td>
 </tr>

@@ -9,7 +9,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in ask, allow in build |
 | `edit` | `path`, `edits: [{oldText, newText}]` | Applies disjoint replacements against the original file; snapshot first | Ask in ask, allow in build |
 | `bash`, `powershell` | `command`, `timeout`, `workdir`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
-| `run_code` | `code`, `timeout` | Runs Python and calls session tools; direct I/O follows the OS sandbox | Allow in build; ask in ask; denied plan and read-only |
+| `run_code` | `code`, `description`, `timeout` | Runs Python and calls session tools; direct I/O follows the OS sandbox | Allow in build; ask in ask; denied plan and read-only |
 | `question` | `questions: [{question, header, options, multiple?}]` | Collects user answers; dismissal ends the turn | Allow, including plan |
 | `websearch` | `query` | Searches through Exa | Allow when network access is enabled |
 | `webfetch` | `url`, `format`, `timeout` | Fetches text, Markdown, or HTML | Allow when network access is enabled |
