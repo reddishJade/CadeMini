@@ -491,11 +491,18 @@ return [line for line in result[&quot;content&quot;].splitlines() if line.starts
 <h2>结果与限制</h2>
 <p>可选参数 <code>timeout</code> 指定整段程序的时限，单位为秒，包含嵌套工具执行和审批等待。
 它必须是正的有限数值，没有固定最大值；省略时默认使用 120 秒。例如：</p>
-<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;description&quot;: &quot;等待耗时操作&quot;, &quot;timeout&quot;: 300}
+<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;description&quot;: &quot;等待耗时操作&quot;, &quot;timeout&quot;: 300, &quot;max_output_tokens&quot;: 2000}
 </code></pre>
 <p>嵌套工具继承所选时限作为默认超时，整段程序仍受同一个总时限约束。
-你可以在超时前随时取消程序。
-打印文本和返回值共享 50 KiB 预算，控制消息上限为 1 MiB，超出大小限制时返回错误。</p>
+你可以在超时前随时取消程序。</p>
+<p>可选参数 <code>max_output_tokens</code> 是非负整数，默认值为 10,000，按每 4 个字符估算 1 个 token。
+渲染后的文本超过预算时，Cade 保留首尾，并把完整文本保存到临时文件。
+结果中会显示文件路径，<code>metadata.fullOutputPath</code> 也保存该路径。
+设为 <code>0</code> 时，只返回截断提示和文件路径。
+可用 <code>read</code> 的 <code>offset</code> 和 <code>limit</code> 分段查看文件。会话历史保留预览和路径，不保存临时文件的持久副本。</p>
+<p>打印内容和 JSON 返回值另有固定的 16 MiB 硬上限，超限会使脚本失败并停止执行，超出部分不保留。
+调大 <code>max_output_tokens</code> 不能提高硬上限。
+工具调用控制消息仍限制为 1 MiB；完成消息可以传递硬输出上限以内的返回值。</p>
 <p>脚本报错时返回已捕获的输出和错误。
 失败不撤销已完成操作，也不自动重跑程序。
 取消或超时会终止 Python，并等待已启动的嵌套调用结束。</p>
@@ -1605,7 +1612,7 @@ uv run --locked cade login
 </tr>
 <tr>
 <td><code>run_code</code></td>
-<td><code>code</code>、<code>description</code>、<code>timeout</code></td>
+<td><code>code</code>、<code>description</code>、<code>timeout</code>、<code>max_output_tokens</code></td>
 <td>运行 Python 并调用会话工具；直接 I/O 遵守操作系统沙箱</td>
 <td>build 模式允许，ask 模式询问；计划和只读模式拒绝</td>
 </tr>

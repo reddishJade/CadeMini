@@ -623,13 +623,25 @@ nested tool execution and approval waits. It must be a positive finite number,
 with no fixed maximum. Omit it to use the default 120 seconds. For example:
 
 ```json
-{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "Wait for a long operation", "timeout": 300}
+{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "Wait for a long operation", "timeout": 300, "max_output_tokens": 2000}
 ```
 
 Nested tools inherit the selected timeout as their default; the whole program
 still shares one total deadline. You can cancel the program before it expires.
-Captured text and the return value share a 50 KiB budget; control messages have
-a 1 MiB limit. Exceeding either size limit returns an error.
+
+`max_output_tokens` is an optional non-negative integer, defaulting to 10,000.
+The budget estimates one token per four characters. If the rendered text exceeds
+it, Cade keeps the start and end and saves the complete text to a temporary file.
+The result reports the path, also available as `metadata.fullOutputPath`.
+Set the budget to `0` to receive only the truncation notice and file path.
+Use `read` with `offset` and `limit` to inspect the saved text. Session history
+retains the preview and path, not a durable copy of the temporary file.
+
+Printed output and the JSON return value also share a fixed 16 MiB hard limit.
+Exceeding it fails the script and stops execution; output beyond that limit is
+not retained. Increasing `max_output_tokens` cannot raise this limit. Tool-call
+control messages remain limited to 1 MiB; completion messages can carry a return
+value up to the hard output limit.
 
 A script error returns the captured output and error. Failure does not undo
 completed actions or automatically retry the program. Cancellation and timeouts
@@ -1738,7 +1750,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in ask, allow in build |
 | `edit` | `path`, `edits: [{oldText, newText}]` | Applies disjoint replacements against the original file; snapshot first | Ask in ask, allow in build |
 | `bash`, `powershell` | `command`, `timeout`, `workdir`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
-| `run_code` | `code`, `description`, `timeout` | Runs Python and calls session tools; direct I/O follows the OS sandbox | Allow in build; ask in ask; denied plan and read-only |
+| `run_code` | `code`, `description`, `timeout`, `max_output_tokens` | Runs Python and calls session tools; direct I/O follows the OS sandbox | Allow in build; ask in ask; denied plan and read-only |
 | `question` | `questions: [{question, header, options, multiple?}]` | Collects user answers; dismissal ends the turn | Allow, including plan |
 | `websearch` | `query` | Searches through Exa | Allow when network access is enabled |
 | `webfetch` | `url`, `format`, `timeout` | Fetches text, Markdown, or HTML | Allow when network access is enabled |

@@ -651,12 +651,22 @@ cannot call <code>run_code</code> recursively.</p>
 <p>The optional <code>timeout</code> argument sets the total deadline in seconds, including
 nested tool execution and approval waits. It must be a positive finite number,
 with no fixed maximum. Omit it to use the default 120 seconds. For example:</p>
-<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;description&quot;: &quot;Wait for a long operation&quot;, &quot;timeout&quot;: 300}
+<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;description&quot;: &quot;Wait for a long operation&quot;, &quot;timeout&quot;: 300, &quot;max_output_tokens&quot;: 2000}
 </code></pre>
 <p>Nested tools inherit the selected timeout as their default; the whole program
-still shares one total deadline. You can cancel the program before it expires.
-Captured text and the return value share a 50 KiB budget; control messages have
-a 1 MiB limit. Exceeding either size limit returns an error.</p>
+still shares one total deadline. You can cancel the program before it expires.</p>
+<p><code>max_output_tokens</code> is an optional non-negative integer, defaulting to 10,000.
+The budget estimates one token per four characters. If the rendered text exceeds
+it, Cade keeps the start and end and saves the complete text to a temporary file.
+The result reports the path, also available as <code>metadata.fullOutputPath</code>.
+Set the budget to <code>0</code> to receive only the truncation notice and file path.
+Use <code>read</code> with <code>offset</code> and <code>limit</code> to inspect the saved text. Session history
+retains the preview and path, not a durable copy of the temporary file.</p>
+<p>Printed output and the JSON return value also share a fixed 16 MiB hard limit.
+Exceeding it fails the script and stops execution; output beyond that limit is
+not retained. Increasing <code>max_output_tokens</code> cannot raise this limit. Tool-call
+control messages remain limited to 1 MiB; completion messages can carry a return
+value up to the hard output limit.</p>
 <p>A script error returns the captured output and error. Failure does not undo
 completed actions or automatically retry the program. Cancellation and timeouts
 terminate the Python process and wait for started nested calls to settle.</p>
@@ -1975,7 +1985,7 @@ and window fallback.</li>
 </tr>
 <tr>
 <td><code>run_code</code></td>
-<td><code>code</code>, <code>description</code>, <code>timeout</code></td>
+<td><code>code</code>, <code>description</code>, <code>timeout</code>, <code>max_output_tokens</code></td>
 <td>Runs Python and calls session tools; direct I/O follows the OS sandbox</td>
 <td>Allow in build; ask in ask; denied plan and read-only</td>
 </tr>

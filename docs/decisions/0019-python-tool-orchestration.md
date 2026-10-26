@@ -18,9 +18,16 @@ function body in a fresh process under the shell's OS sandbox. Tool proxies use
 the shared executor and return `{content, metadata}`; failures raise
 `RuntimeError`. Nested calls execute serially. The worker retains no state.
 
-Keep credentials out of the inherited environment. Bound control messages to
-1 MiB and combined captured text and return data to 50 KiB. The optional `timeout`
-argument accepts positive finite seconds without a fixed maximum. Omission uses
+Keep credentials out of the inherited environment. Bound tool-call control
+messages to 1 MiB. Printed output and the JSON completion share a fixed 16 MiB
+hard limit; completion frames have a separate bound that admits this result size.
+The optional `max_output_tokens` defaults to 10,000, estimated at four characters
+per token. Above the budget, keep the head and tail and save complete rendered
+text to a user-private temporary file. Return its path in the text and metadata.
+The executor leaves this tool-owned preview intact rather than truncating it a
+second time. A larger budget cannot bypass the hard output limit.
+
+The optional `timeout` argument accepts positive finite seconds without a fixed maximum. Omission uses
 the executor's default 120 seconds. The tool owns the whole-program timer and
 passes the selected timeout to nested tools as their default. Tool execution and
 nested approval waits count toward the total deadline. Reuse shell process
@@ -46,4 +53,5 @@ platform limitations; this is not a tool-only or multi-tenant sandbox.
 
 `tests/test_run_code.py` covers real tool chaining, selective model output,
 permission and schema failures, nested audit, fresh state, environment filtering,
-output bounds, cancellation, native sandbox scope, and tracked-write undo.
+output budgets, head/tail retention, spill files, hard limits, cancellation,
+native sandbox scope, and tracked-write undo.

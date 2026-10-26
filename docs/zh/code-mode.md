@@ -31,12 +31,21 @@ return [line for line in result["content"].splitlines() if line.startswith("#")]
 它必须是正的有限数值，没有固定最大值；省略时默认使用 120 秒。例如：
 
 ```json
-{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "等待耗时操作", "timeout": 300}
+{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "等待耗时操作", "timeout": 300, "max_output_tokens": 2000}
 ```
 
 嵌套工具继承所选时限作为默认超时，整段程序仍受同一个总时限约束。
 你可以在超时前随时取消程序。
-打印文本和返回值共享 50 KiB 预算，控制消息上限为 1 MiB，超出大小限制时返回错误。
+
+可选参数 `max_output_tokens` 是非负整数，默认值为 10,000，按每 4 个字符估算 1 个 token。
+渲染后的文本超过预算时，Cade 保留首尾，并把完整文本保存到临时文件。
+结果中会显示文件路径，`metadata.fullOutputPath` 也保存该路径。
+设为 `0` 时，只返回截断提示和文件路径。
+可用 `read` 的 `offset` 和 `limit` 分段查看文件。会话历史保留预览和路径，不保存临时文件的持久副本。
+
+打印内容和 JSON 返回值另有固定的 16 MiB 硬上限，超限会使脚本失败并停止执行，超出部分不保留。
+调大 `max_output_tokens` 不能提高硬上限。
+工具调用控制消息仍限制为 1 MiB；完成消息可以传递硬输出上限以内的返回值。
 
 脚本报错时返回已捕获的输出和错误。
 失败不撤销已完成操作，也不自动重跑程序。

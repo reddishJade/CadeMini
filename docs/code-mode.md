@@ -35,13 +35,25 @@ nested tool execution and approval waits. It must be a positive finite number,
 with no fixed maximum. Omit it to use the default 120 seconds. For example:
 
 ```json
-{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "Wait for a long operation", "timeout": 300}
+{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "Wait for a long operation", "timeout": 300, "max_output_tokens": 2000}
 ```
 
 Nested tools inherit the selected timeout as their default; the whole program
 still shares one total deadline. You can cancel the program before it expires.
-Captured text and the return value share a 50 KiB budget; control messages have
-a 1 MiB limit. Exceeding either size limit returns an error.
+
+`max_output_tokens` is an optional non-negative integer, defaulting to 10,000.
+The budget estimates one token per four characters. If the rendered text exceeds
+it, Cade keeps the start and end and saves the complete text to a temporary file.
+The result reports the path, also available as `metadata.fullOutputPath`.
+Set the budget to `0` to receive only the truncation notice and file path.
+Use `read` with `offset` and `limit` to inspect the saved text. Session history
+retains the preview and path, not a durable copy of the temporary file.
+
+Printed output and the JSON return value also share a fixed 16 MiB hard limit.
+Exceeding it fails the script and stops execution; output beyond that limit is
+not retained. Increasing `max_output_tokens` cannot raise this limit. Tool-call
+control messages remain limited to 1 MiB; completion messages can carry a return
+value up to the hard output limit.
 
 A script error returns the captured output and error. Failure does not undo
 completed actions or automatically retry the program. Cancellation and timeouts
