@@ -78,8 +78,8 @@ tracked file mutations, not arbitrary shell or external side effects.
 - [User and developer guides](docs/README.md)
 - [CLI](docs/cli.md) · [Configuration](docs/configuration.md)
 - [Architecture](docs/architecture.md) · [Development](docs/development.md)
-- [Generated docs site](docs/index.html)
-- [中文文档](docs/zh/README.md) · [中文站点](docs/zh/index.html)
+- [Homepage](docs/index.html) · [Documentation](docs/docs.html)
+- [中文文档](docs/zh/README.md) · [中文主页](docs/zh/index.html) · [中文文档页](docs/zh/docs.html)
 
 ## Development
 

@@ -102,4 +102,5 @@ uv run --locked python -m cade.docs check
 uv run --locked python -m cade.docs build
 ```
 
-Open `docs/index.html`. The docs source is under `docs/`.
+Open `docs/index.html` for the homepage and `docs/docs.html` for the
+complete documentation. The docs source is under `docs/`.

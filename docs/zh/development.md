@@ -44,7 +44,7 @@ uv run --locked python -m cade.docs build
 uv run --locked python -m cade.docs check
 ```
 
-`check` 校验清单、页面文件、相对链接、锚点和生成的目录。它只依赖标准库，在 CI 中运行。`build` 渲染 `docs/index.html`，需要 `docs` 附加依赖。
+`check` 校验清单、页面文件、相对链接、锚点和生成的目录。它只依赖标准库，在 CI 中运行。`build` 渲染 `docs/docs.html`，需要 `docs` 附加依赖。`docs/index.html` 主页手工维护，不会被文档构建覆盖。
 
 `llms --write` 更新 `docs/llms.txt` 和 `docs/llms-full.txt`。`catalogs --write` 更新 `docs/design/` 下的配置、事件和模块参考。不要手工编辑生成的文件。
 
@@ -62,7 +62,7 @@ uv run --locked python -m cade.docs check
 ```bash
 uv run --locked python -m cade.docs --root docs/zh catalogs --write
 uv run --locked python -m cade.docs --root docs/zh llms --write
-uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html
+uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html
 ```
 
 `check` 会自动检查根目录下带独立清单的子目录，因此一次 `uv run --locked python -m cade.docs check` 会同时校验中英文文档。

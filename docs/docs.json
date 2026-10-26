@@ -1,4 +1,5 @@
 {
+  "brand": "CadeMini",
   "title": "Cade",
   "description": "A small, durable coding agent built on one append-only session log.",
   "lang": "en",

@@ -1,7 +1,8 @@
 # Documentation guide
 
-The published Cade docs live in `docs/`. The site is generated
-from Markdown and `docs.json`; do not edit `docs/index.html` by hand.
+The published Cade docs live in `docs/`. The homepage at `docs/index.html`
+is hand-maintained. The documentation page is generated from Markdown and
+`docs.json`; do not edit `docs/docs.html` by hand.
 
 ## Rules
 
@@ -48,7 +49,7 @@ uv run --locked --extra docs python -m cade.docs build
 uv run --locked python -m cade.docs llms --write
 uv run --locked python -m cade.docs catalogs --write
 uv run --locked python -m cade.docs --root docs/zh llms --write
-uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html
+uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html
 ```
 
 `check` validates the manifest, page existence, relative links, anchors,

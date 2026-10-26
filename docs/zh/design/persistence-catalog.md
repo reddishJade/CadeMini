@@ -15,7 +15,8 @@ Cade 把持久历史和宿主状态分开。会话日志是模型看到什么、
 | 配置 | `cade.json` | `CadeConfig` | 项目 | Pydantic，严格校验 |
 | 凭据 | `~/.cade/auth.json` | `JsonCredentialStore` | 用户 | provider 凭据 |
 | SIWC 宿主 ID | `~/.cade/host.json` | `load_or_create_host_id` | 用户 | 稳定的代理宿主标识 |
-| 文档站点 | `docs/index.html` | 文档工具 | 仓库 | 生成 |
+| 文档主页 | `docs/index.html` | 仓库 | 仓库 | 手工维护的 HTML |
+| 文档页 | `docs/docs.html` | 文档工具 | 仓库 | 生成 |
 | LLM 目录 | `docs/llms*.txt` | 文档工具 | 仓库 | 生成 |
 
 ## 会话日志

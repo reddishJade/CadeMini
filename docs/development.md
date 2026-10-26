@@ -93,7 +93,8 @@ uv run --locked python -m cade.docs check
 
 `check` validates the manifest, page files, relative links, anchors, and generated
 catalogs. It uses only the standard library and runs in CI. `build` renders
-`docs/index.html` and needs the `docs` extra.
+`docs/docs.html` and needs the `docs` extra. The homepage at `docs/index.html`
+is hand-maintained and is not rewritten by the docs build.
 
 `llms --write` updates `docs/llms.txt` and `docs/llms-full.txt`. `catalogs --write`
 updates the config, event, and module references under `docs/design/`.

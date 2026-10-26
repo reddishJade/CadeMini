@@ -10,12 +10,14 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, get_args
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DOCS_ROOT = _REPO_ROOT / "docs"
-_SITE_OUT = _REPO_ROOT / "docs" / "index.html"
+_HOME_NAME = "index.html"
+_DOCS_NAME = "docs.html"
+_DOCS_OUT = _DOCS_ROOT / _DOCS_NAME
 _LLMS_NAME = "llms.txt"
 _LLMS_FULL_NAME = "llms-full.txt"
 _LINK = re.compile(r"\[[^\]]+\]\(([^)\s]+)")
@@ -458,8 +460,8 @@ def _cell(value: str) -> str:
     return value.replace("|", "\\|")
 
 
-def _alternate_link(manifest: dict[str, Any]) -> str:
-    """生成页头中指向另一语言版本的链接。"""
+def _alternate_link(manifest: dict[str, Any], page_name: str) -> str:
+    """生成页头中指向另一语言对应页面的链接。"""
     alternate = manifest.get("alternate")
     if not isinstance(alternate, dict):
         return ""
@@ -469,14 +471,31 @@ def _alternate_link(manifest: dict[str, Any]) -> str:
         return ""
     if not label or not href:
         return ""
+    try:
+        target = PurePosixPath(href).with_name(page_name)
+    except ValueError:
+        return ""
     return (
-        f'<a class="lang" href="{html.escape(href, quote=True)}">'
+        f'<a class="lang" href="{html.escape(str(target), quote=True)}">'
         f"{html.escape(label)}</a>"
     )
 
 
-def build(root: Path = _DOCS_ROOT, out: Path = _SITE_OUT) -> Path:
-    """把清单中的页面渲染成一个单页站点。"""
+def _brand(manifest: dict[str, Any]) -> str:
+    """返回站点品牌名，未设置时使用标题。"""
+    brand = manifest.get("brand")
+    if isinstance(brand, str) and brand.strip():
+        return brand
+    return str(manifest.get("title", "Cade"))
+
+
+def _relative_link(target: Path, start: Path) -> str:
+    """返回两个站内路径之间的 POSIX 相对链接。"""
+    return Path(os.path.relpath(target, start)).as_posix()
+
+
+def _render_docs(root: Path, out: Path) -> Path:
+    """把清单中的页面渲染到独立文档页。"""
     try:
         from markdown_it import MarkdownIt
     except ImportError as exc:
@@ -511,19 +530,37 @@ def build(root: Path = _DOCS_ROOT, out: Path = _SITE_OUT) -> Path:
         )
     if current_section:
         sidebar.append("</div>")
-    manifest, _ = load_manifest(root)
-    title = str(manifest.get("title", "Cade"))
-    description = str(manifest.get("description", ""))
-    lang = str(manifest.get("lang") or "en")
-    document = _TEMPLATE.replace("__LANG__", html.escape(lang))
-    document = document.replace("__TITLE__", html.escape(title))
-    document = document.replace("__DESCRIPTION__", html.escape(description))
-    document = document.replace("__ALTERNATE__", _alternate_link(manifest))
+    manifest, manifest_errors = load_manifest(root)
+    if manifest_errors:
+        raise DocsError("; ".join(manifest_errors))
+    home_out = out.with_name(_HOME_NAME)
+    document = _DOCS_TEMPLATE.replace("__STYLE__", _STYLE)
+    document = document.replace("__THEME_BOOT__", _THEME_BOOT)
+    document = document.replace(
+        "__LANG__", html.escape(str(manifest.get("lang") or "en"))
+    )
+    document = document.replace(
+        "__TITLE__", html.escape(str(manifest.get("title", "Cade")))
+    )
+    document = document.replace(
+        "__DESCRIPTION__", html.escape(str(manifest.get("description", "")))
+    )
+    document = document.replace("__BRAND__", html.escape(_brand(manifest)))
+    document = document.replace(
+        "__HOME_HREF__", html.escape(_relative_link(home_out, out.parent), quote=True)
+    )
+    document = document.replace("__ALTERNATE__", _alternate_link(manifest, out.name))
     document = document.replace("__NAV__", "\n".join(sidebar))
     document = document.replace("__CONTENT__", "\n".join(sections))
+    document = document.replace("__SCRIPTS__", f"{_COMMON_SCRIPT}\n{_DOCS_SCRIPT}")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(document, encoding="utf-8")
     return out
+
+
+def build(root: Path = _DOCS_ROOT, out: Path = _DOCS_OUT) -> Path:
+    """渲染独立文档页；主页由仓库中的静态页面维护。"""
+    return _render_docs(root, out)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -531,8 +568,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=_DOCS_ROOT)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("check", help="Validate manifest, links, and llms.txt")
-    build_parser = sub.add_parser("build", help="Render the docs site")
-    build_parser.add_argument("--out", type=Path, default=_SITE_OUT)
+    build_parser = sub.add_parser("build", help="Render the documentation page")
+    build_parser.add_argument("--out", type=Path, default=_DOCS_OUT)
     llms_parser = sub.add_parser("llms", help="Print or write llms.txt")
     llms_parser.add_argument("--write", action="store_true")
     catalogs_parser = sub.add_parser(
@@ -712,78 +749,477 @@ def _inside(path: Path, root: Path) -> bool:
     return True
 
 
-_TEMPLATE = """<!doctype html>
-<html lang="__LANG__">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>__TITLE__</title>
-<meta name="description" content="__DESCRIPTION__">
-<style>
-:root { --ink:#1d1c19; --paper:#faf9f5; --muted:#6b6961; --line:#ddd9ce; --accent:#b85c3d; --code:#f1efe8; }
-html[data-theme="dark"] { --ink:#ece9df; --paper:#171613; --muted:#aaa69a; --line:#35322b; --accent:#e08a6d; --code:#211f1a; }
-* { box-sizing: border-box; }
-body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
-header { position:sticky; top:0; z-index:2; display:flex; gap:1rem; align-items:center; padding:.8rem 1.2rem; border-bottom:1px solid var(--line); background:var(--paper); }
-header strong { font-size:1rem; }
-header input { flex:1; max-width:28rem; padding:.45rem .7rem; border:1px solid var(--line); border-radius:.4rem; background:transparent; color:var(--ink); }
-header button { padding:.4rem .7rem; border:1px solid var(--line); border-radius:.4rem; background:transparent; color:var(--ink); cursor:pointer; }
-header .lang { padding:.4rem .7rem; border:1px solid var(--line); border-radius:.4rem; color:var(--ink); text-decoration:none; white-space:nowrap; }
-main { display:grid; grid-template-columns:18rem minmax(0,1fr); gap:2rem; max-width:76rem; margin:0 auto; padding:1.5rem; }
-nav { position:sticky; top:4rem; align-self:start; max-height:calc(100vh - 5rem); overflow:auto; font-size:.92rem; }
-nav p { margin:1rem 0 .3rem; color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.08em; }
-nav a { display:block; padding:.18rem 0; color:var(--ink); text-decoration:none; }
-nav a:hover { color:var(--accent); }
-.page { padding-bottom:3rem; border-bottom:1px solid var(--line); }
-.page:last-child { border-bottom:0; }
-h1,h2,h3 { line-height:1.2; }
-h1 { font-size:2rem; margin-top:0; }
-h2 { margin-top:2rem; font-size:1.35rem; }
-a { color:var(--accent); }
-pre { background:var(--code); padding:1rem; overflow:auto; border-radius:.4rem; }
-code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9em; }
-pre code { padding:0; }
-.mermaid { background:var(--code); padding:1rem; overflow:auto; border-radius:.4rem; }
-blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line); color:var(--muted); }
-@media (max-width: 760px) { main { grid-template-columns:1fr; } nav { position:static; max-height:none; order:2; } }
-</style>
-</head>
-<body>
-<header><strong>__TITLE__</strong><input id="search" placeholder="Search docs" aria-label="Search docs"><button id="theme" type="button">Theme</button>__ALTERNATE__</header>
-<main><nav>__NAV__</nav><article>__CONTENT__</article></main>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-const search = document.getElementById('search');
-search.addEventListener('input', () => {
-  const q = search.value.toLowerCase();
-  document.querySelectorAll('.page').forEach((page) => {
-    page.style.display = page.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-  document.querySelectorAll('nav a').forEach((link) => {
-    link.style.display = link.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-});
-const theme = document.getElementById('theme');
-theme.addEventListener('click', () => {
-  const root = document.documentElement;
-  const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
-  root.dataset.theme = next;
-  try { localStorage.setItem('cade-theme', next); } catch (e) {}
-});
+_STYLE = """<style>
+:root {
+  --paper:#e7ece5;
+  --paper-raised:#eef2ec;
+  --ink:#18221c;
+  --muted:#59665d;
+  --rule:#bbc5ba;
+  --rule-strong:#7b8a7d;
+  --pine:#245443;
+  --pine-ink:#f4f7f2;
+  --signal:#b84b2e;
+  --code:#17241e;
+  --code-ink:#e8ede6;
+  --focus:#0b6d5b;
+  color-scheme:light;
+}
+html[data-theme="dark"] {
+  --paper:#111814;
+  --paper-raised:#16201a;
+  --ink:#e5ebe4;
+  --muted:#a2afa5;
+  --rule:#334238;
+  --rule-strong:#6f8173;
+  --pine:#9bc6aa;
+  --pine-ink:#102018;
+  --signal:#e88463;
+  --code:#090f0c;
+  --code-ink:#e8ede6;
+  --focus:#7fd1b6;
+  color-scheme:dark;
+}
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; scroll-padding-top:5.5rem; }
+body {
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font:17px/1.65 "Charter","Iowan Old Style","Sitka Text","Palatino Linotype",Georgia,serif;
+  text-rendering:optimizeLegibility;
+}
+::selection { background:var(--pine); color:var(--pine-ink); }
+h1,h2,h3 { margin:0; font-weight:600; line-height:1.05; letter-spacing:-.025em; }
+h1 { font-size:clamp(3.3rem,7.2vw,6.8rem); }
+h2 { font-size:clamp(2rem,4vw,3.35rem); }
+h3 { font-size:1.22rem; line-height:1.25; letter-spacing:-.012em; }
+p { margin:0; }
+a { color:var(--pine); text-decoration-thickness:1px; text-underline-offset:.2em; }
+button,input { font:inherit; }
+button { color:inherit; }
+:focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+.skip-link {
+  position:fixed; left:1rem; top:1rem; z-index:100;
+  padding:.65rem .9rem; background:var(--ink); color:var(--paper);
+  text-decoration:none; transform:translateY(-180%);
+}
+.skip-link:focus { transform:translateY(0); }
+
+.site-header {
+  position:sticky; top:0; z-index:20;
+  border-bottom:1px solid var(--rule);
+  background:color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter:blur(12px);
+}
+.header-inner {
+  display:flex; align-items:center; gap:2rem;
+  max-width:84rem; min-height:3.8rem; margin:0 auto; padding:.65rem 1.6rem;
+}
+.brand {
+  display:inline-flex; align-items:center; gap:.7rem;
+  margin-right:auto; color:var(--ink); text-decoration:none;
+}
+.brand-mark {
+  display:grid; align-content:space-between; width:1.35rem; height:1.05rem;
+  padding-left:.3rem; border-left:2px solid var(--ink);
+}
+.brand-mark span { display:block; height:2px; background:var(--ink); }
+.brand-mark span:nth-child(2) { width:68%; background:var(--signal); }
+.brand-name {
+  font-family:"Aptos","Segoe UI",sans-serif;
+  font-size:1rem; font-weight:750; letter-spacing:-.035em;
+}
+.brand-note {
+  padding-left:.7rem; border-left:1px solid var(--rule);
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif;
+  font-size:.72rem; letter-spacing:.01em;
+}
+.site-nav {
+  display:flex; gap:1.4rem;
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.83rem;
+}
+.site-nav a { color:var(--muted); text-decoration:none; }
+.site-nav a:hover { color:var(--ink); text-decoration:underline; }
+.header-tools {
+  display:flex; align-items:center; gap:.5rem;
+  font-family:"Aptos","Segoe UI",sans-serif;
+}
+.icon-button,.lang {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-height:2.2rem; padding:0 .72rem;
+  border:1px solid var(--rule); background:transparent; color:var(--ink);
+  font-size:.78rem; line-height:1; text-decoration:none; cursor:pointer;
+}
+.icon-button:hover,.lang:hover { border-color:var(--rule-strong); background:var(--paper-raised); }
+
+.hero {
+  display:grid; grid-template-columns:minmax(0,1.06fr) minmax(22rem,.82fr);
+  gap:clamp(2rem,6vw,6rem); align-items:center;
+  max-width:84rem; margin:0 auto;
+  padding:clamp(4.2rem,9vw,8rem) 1.6rem clamp(4.5rem,8vw,7rem);
+}
+.hero-copy { max-width:51rem; }
+.hero-kicker {
+  display:flex; align-items:center; gap:.7rem; margin-bottom:1.3rem;
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif; font-size:.79rem;
+}
+.hero-kicker::before { content:""; width:2rem; height:1px; background:var(--rule-strong); }
+.hero h1 { max-width:10ch; text-wrap:balance; }
+.hero-summary {
+  max-width:36rem; margin-top:1.55rem;
+  color:var(--muted); font-size:clamp(1.04rem,1.5vw,1.2rem); line-height:1.62;
+}
+.hero-actions {
+  display:flex; flex-wrap:wrap; align-items:center; gap:.85rem 1.2rem;
+  margin-top:2rem; font-family:"Aptos","Segoe UI",sans-serif;
+}
+.button-primary {
+  display:inline-flex; align-items:center; min-height:2.8rem; padding:0 1.15rem;
+  border:1px solid var(--pine); background:var(--pine); color:var(--pine-ink);
+  font-size:.87rem; font-weight:700; text-decoration:none;
+}
+.button-primary:hover { border-color:var(--ink); background:var(--ink); color:var(--paper); }
+.text-link { color:var(--ink); font-size:.86rem; text-decoration-color:var(--rule-strong); }
+.text-link:hover { color:var(--pine); text-decoration-color:currentColor; }
+.install {
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center;
+  gap:.65rem; max-width:31rem; margin-top:2.25rem; padding:.75rem 0;
+  border-top:1px solid var(--rule); border-bottom:1px solid var(--rule);
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+}
+.install-prompt { color:var(--signal); font-size:.84rem; }
+.install code { overflow:auto; white-space:nowrap; font-size:.83rem; }
+.copy-button {
+  padding:.28rem .5rem; border:1px solid var(--rule);
+  background:transparent; color:var(--muted);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.66rem; cursor:pointer;
+}
+.copy-button:hover { border-color:var(--rule-strong); color:var(--ink); }
+.install-note {
+  grid-column:1/-1; color:var(--muted);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.73rem;
+}
+.hero-facts {
+  display:flex; flex-wrap:wrap; gap:.35rem 1.15rem;
+  margin:1.55rem 0 0; padding:0; list-style:none;
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif; font-size:.73rem;
+}
+.hero-facts li::before { content:"■"; margin-right:.42rem; color:var(--signal); font-size:.42rem; vertical-align:.16em; }
+
+.trace {
+  position:relative; margin:0;
+  border:1px solid var(--rule-strong); background:var(--paper-raised);
+  box-shadow:0 1.6rem 4.5rem rgba(24,34,28,.11);
+}
+.trace::after {
+  content:""; position:absolute; z-index:-1; inset:.42rem -.42rem -.42rem .42rem;
+  border:1px solid var(--rule);
+}
+.trace-head {
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+  padding:.85rem 1.05rem; border-bottom:1px solid var(--rule);
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif; font-size:.68rem;
+}
+.trace-head strong { color:var(--ink); font-size:.73rem; font-weight:650; }
+.live { display:inline-flex; align-items:center; gap:.45rem; }
+.live::before {
+  content:""; width:.42rem; height:.42rem; border-radius:50%;
+  background:var(--signal); box-shadow:0 0 0 .22rem color-mix(in srgb, var(--signal) 18%, transparent);
+}
+.trace-body { padding:.7rem 0; }
+.trace-entry {
+  position:relative; display:grid; grid-template-columns:4.4rem minmax(0,1fr);
+  gap:.75rem; margin-left:1.15rem; padding:.78rem 1.05rem .78rem 1.15rem;
+  border-left:2px solid var(--rule);
+  animation:trace-in .5s both cubic-bezier(.22,.7,.2,1);
+  animation-delay:calc(var(--i) * 85ms + 100ms);
+}
+.trace-entry::before {
+  content:""; position:absolute; left:-.39rem; top:1.16rem;
+  width:.45rem; height:.45rem; border:2px solid var(--paper-raised); border-radius:50%;
+  background:var(--rule-strong);
+}
+.trace-entry.is-signal { border-left-color:var(--signal); }
+.trace-entry.is-signal::before { background:var(--signal); }
+.trace-kind {
+  padding-top:.1rem; color:var(--muted);
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+  font-size:.66rem; letter-spacing:.01em;
+}
+.trace-entry p { font-size:.9rem; line-height:1.45; }
+.trace-command {
+  margin-top:.32rem !important; color:var(--muted);
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+  font-size:.68rem !important; overflow-wrap:anywhere;
+}
+.trace-result {
+  margin-top:.2rem !important; color:var(--pine);
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+  font-size:.68rem !important;
+}
+.trace-foot {
+  padding:.8rem 1.05rem; border-top:1px solid var(--rule);
+  color:var(--muted); font-size:.75rem; font-style:italic; line-height:1.45;
+}
+
+.tenets {
+  border-top:1px solid var(--rule); border-bottom:1px solid var(--rule);
+  background:var(--paper-raised);
+}
+.tenets-inner {
+  display:grid; grid-template-columns:minmax(15rem,.8fr) minmax(0,2.2fr);
+  gap:clamp(2rem,6vw,6rem); max-width:84rem; margin:0 auto;
+  padding:clamp(3.2rem,6vw,5.4rem) 1.6rem;
+}
+.section-head h2 { max-width:10ch; text-wrap:balance; }
+.section-head p {
+  max-width:25rem; margin-top:1rem; color:var(--muted); font-size:.95rem;
+}
+.tenet-list {
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+  border-left:1px solid var(--rule);
+}
+.tenet { padding:0 clamp(1rem,2.4vw,2rem); border-right:1px solid var(--rule); }
+.tenet-term {
+  margin-bottom:1.05rem; color:var(--signal);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.7rem; font-weight:650;
+}
+.tenet p:last-child { margin-top:.7rem; color:var(--muted); font-size:.9rem; line-height:1.55; }
+
+.docs {
+  max-width:84rem; margin:0 auto;
+  padding:clamp(4.2rem,8vw,7rem) 1.6rem 2rem;
+}
+.docs-header {
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(18rem,25rem);
+  gap:2rem; align-items:end; padding-top:1rem; border-top:3px solid var(--ink);
+}
+.docs-header h1 { font-size:clamp(2rem,4vw,3.2rem); line-height:1; letter-spacing:-.04em; }
+.docs-header p { max-width:34rem; margin-top:.8rem; color:var(--muted); font-size:.95rem; }
+.docs-tools {
+  display:flex; align-items:center; gap:.6rem;
+  font-family:"Aptos","Segoe UI",sans-serif;
+}
+.search-wrap { flex:1; }
+.search-wrap label {
+  position:absolute; width:1px; height:1px; overflow:hidden;
+  clip:rect(0 0 0 0); white-space:nowrap;
+}
+.search-wrap input {
+  width:100%; min-height:2.55rem; padding:.55rem .75rem;
+  border:1px solid var(--rule-strong); border-radius:0;
+  background:var(--paper); color:var(--ink); font-size:.84rem;
+}
+.search-wrap input::placeholder { color:var(--muted); }
+.search-status {
+  min-height:1.3rem; margin-top:.45rem; color:var(--muted);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.72rem;
+}
+.docs-layout {
+  display:grid; grid-template-columns:17rem minmax(0,1fr);
+  gap:clamp(2rem,5vw,5rem); align-items:start; margin-top:2.1rem;
+}
+.doc-nav {
+  position:sticky; top:5.2rem; max-height:calc(100vh - 6.4rem);
+  overflow:auto; padding-right:1rem; border-right:1px solid var(--rule);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.82rem;
+  scrollbar-width:thin;
+}
+.nav-group { padding:.7rem 0; border-bottom:1px solid color-mix(in srgb, var(--rule) 62%, transparent); }
+.nav-group:last-child { border-bottom:0; }
+.nav-group p {
+  margin:0 0 .4rem; color:var(--muted); font-size:.68rem; font-weight:650;
+}
+.doc-nav a { display:block; padding:.18rem 0; color:var(--ink); line-height:1.42; text-decoration:none; }
+.doc-nav a:hover { color:var(--pine); text-decoration:underline; }
+.doc-content { min-width:0; }
+.page {
+  max-width:72ch; margin:0 0 3.5rem; padding:0 0 3.5rem;
+  border-bottom:1px solid var(--rule);
+}
+.page:last-child { margin-bottom:0; border-bottom:0; }
+.page h1 { margin-bottom:1.15rem; font-size:clamp(2.25rem,4vw,3.4rem); line-height:1.05; }
+.page h2 { margin:2.8rem 0 .8rem; font-size:1.55rem; letter-spacing:-.018em; }
+.page h3 { margin:2rem 0 .55rem; font-size:1.12rem; }
+.page p,.page ul,.page ol,.page blockquote,.page table,.page pre { margin:1rem 0; }
+.page ul,.page ol { padding-left:1.3rem; }
+.page li + li { margin-top:.28rem; }
+.page a { color:var(--pine); }
+.page strong { font-weight:650; }
+.page hr { margin:2rem 0; border:0; border-top:1px solid var(--rule); }
+.page blockquote {
+  padding:.25rem 0 .25rem 1.15rem; border-left:2px solid var(--signal);
+  color:var(--muted);
+}
+.page blockquote p { margin:.45rem 0; }
+.page table {
+  width:100%; border-collapse:collapse;
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.85rem; line-height:1.45;
+}
+.page th,.page td { padding:.55rem .65rem; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top; }
+.page th { color:var(--muted); font-size:.72rem; font-weight:650; }
+.page code {
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+  font-size:.86em;
+}
+.page :not(pre) > code {
+  padding:.12em .34em; background:color-mix(in srgb, var(--rule) 34%, transparent);
+  overflow-wrap:anywhere;
+}
+.page pre {
+  position:relative; overflow:auto; padding:1rem 1.1rem;
+  border-left:3px solid var(--signal); background:var(--code); color:var(--code-ink);
+  font-size:.8rem; line-height:1.55;
+}
+.page pre code { color:inherit; background:none; padding:0; }
+.page pre .copy-button {
+  float:right; margin:-.2rem 0 .55rem .75rem;
+  border-color:color-mix(in srgb, var(--code-ink) 30%, transparent);
+  color:var(--code-ink);
+}
+.page pre .copy-button:hover { border-color:var(--code-ink); }
+.mermaid {
+  overflow:auto; padding:1rem; background:var(--code); color:var(--code-ink);
+}
+.is-hidden { display:none !important; }
+.site-footer {
+  max-width:84rem; margin:0 auto; padding:1.6rem;
+  border-top:1px solid var(--rule);
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif; font-size:.74rem;
+}
+.site-footer a { color:var(--ink); }
+
+@keyframes trace-in {
+  from { opacity:0; transform:translateY(.55rem); }
+  to { opacity:1; transform:translateY(0); }
+}
+
+@media (max-width:1080px) {
+  .hero { grid-template-columns:minmax(0,1fr) minmax(20rem,.78fr); gap:2.5rem; }
+  .tenets-inner { grid-template-columns:1fr; }
+  .section-head h2 { max-width:16ch; }
+}
+@media (max-width:860px) {
+  .brand-note,.site-nav { display:none; }
+  .hero { grid-template-columns:1fr; padding-top:3.6rem; }
+  .hero h1 { max-width:11ch; }
+  .trace { max-width:38rem; }
+  .tenet-list { grid-template-columns:1fr; border-left:0; }
+  .tenet { padding:1.3rem 0; border-top:1px solid var(--rule); border-right:0; }
+  .docs-header { grid-template-columns:1fr; align-items:start; }
+  .docs-tools { max-width:34rem; }
+  .docs-layout { grid-template-columns:1fr; }
+  .doc-nav {
+    position:static; max-height:none; padding:0 0 1.2rem;
+    border-right:0; border-bottom:1px solid var(--rule);
+  }
+  .nav-group { display:inline-block; min-width:13rem; padding:.55rem 1.2rem .55rem 0; border-bottom:0; vertical-align:top; }
+}
+@media (max-width:560px) {
+  body { font-size:16px; }
+  .header-inner { gap:.8rem; padding-inline:1rem; }
+  .hero,.tenets-inner,.docs,.site-footer { padding-inline:1rem; }
+  .hero { padding-top:2.8rem; padding-bottom:4rem; }
+  .hero h1 { font-size:clamp(3.1rem,16vw,4.5rem); }
+  .trace-head { align-items:flex-start; flex-direction:column; gap:.35rem; }
+  .trace-entry { grid-template-columns:3.7rem minmax(0,1fr); padding-right:.8rem; }
+  .docs-header { gap:1.3rem; }
+  .docs-tools { align-items:stretch; flex-direction:column; }
+  .page h1 { font-size:2.15rem; }
+  .page table { display:block; overflow:auto; }
+}
+@media (prefers-reduced-motion:reduce) {
+  html { scroll-behavior:auto; }
+  *,*::before,*::after { animation-duration:.01ms !important; animation-delay:0ms !important; }
+}
+</style>"""
+
+_THEME_BOOT = """<script>
 try {
   const saved = localStorage.getItem('cade-theme');
   if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved;
 } catch (e) {}
+</script>"""
+
+_COMMON_SCRIPT = """<script>
+const theme = document.getElementById('theme');
+function applyTheme(next) {
+  document.documentElement.dataset.theme = next;
+  if (theme) {
+    theme.textContent = next === 'dark' ? 'Light' : 'Dark';
+    theme.setAttribute('aria-label', next === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  }
+  try { localStorage.setItem('cade-theme', next); } catch (e) {}
+}
+if (theme) {
+  theme.addEventListener('click', () => {
+    applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  });
+  const saved = (() => { try { return localStorage.getItem('cade-theme'); } catch (e) { return null; } })();
+  const preferred = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  applyTheme(saved === 'dark' || saved === 'light' ? saved : preferred);
+}
+document.querySelectorAll('[data-copy]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const target = document.querySelector(button.dataset.copy);
+    const text = target ? target.textContent : '';
+    try {
+      await navigator.clipboard.writeText(text);
+      button.textContent = 'Copied';
+    } catch (e) {
+      button.textContent = 'Select';
+    }
+    setTimeout(() => { button.textContent = 'Copy'; }, 1600);
+  });
+});
 document.querySelectorAll('pre').forEach((pre) => {
   const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'copy-button';
   button.textContent = 'Copy';
-  button.style.cssText = 'float:right;font:inherit;font-size:.75rem;cursor:pointer';
   button.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(pre.innerText); button.textContent = 'Copied'; }
-    catch (e) { button.textContent = 'Failed'; }
+    const code = pre.querySelector('code');
+    try {
+      await navigator.clipboard.writeText(code ? code.innerText : pre.innerText);
+      button.textContent = 'Copied';
+    } catch (e) {
+      button.textContent = 'Select';
+    }
+    setTimeout(() => { button.textContent = 'Copy'; }, 1600);
   });
   pre.prepend(button);
 });
+</script>"""
+
+_DOCS_SCRIPT = """<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+const search = document.getElementById('search');
+const searchStatus = document.getElementById('search-status');
+if (search) {
+  search.addEventListener('input', () => {
+    const query = search.value.trim().toLowerCase();
+    let matches = 0;
+    document.querySelectorAll('.page').forEach((page) => {
+      const visible = !query || page.textContent.toLowerCase().includes(query);
+      page.classList.toggle('is-hidden', !visible);
+      if (visible && query) matches += 1;
+    });
+    document.querySelectorAll('.doc-nav a').forEach((link) => {
+      const visible = !query || link.textContent.toLowerCase().includes(query);
+      link.classList.toggle('is-hidden', !visible);
+    });
+    document.querySelectorAll('.nav-group').forEach((group) => {
+      const visible = [...group.querySelectorAll('a')].some((link) => !link.classList.contains('is-hidden'));
+      group.classList.toggle('is-hidden', !visible);
+    });
+    if (searchStatus) {
+      searchStatus.textContent = query
+        ? `${matches} page${matches === 1 ? '' : 's'} match “${search.value.trim()}”`
+        : '';
+    }
+  });
+}
 if (window.mermaid) {
   document.querySelectorAll('pre > code.language-mermaid').forEach((code) => {
     const pre = code.parentElement;
@@ -798,11 +1234,68 @@ if (window.mermaid) {
   });
   mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
 }
-</script>
+</script>"""
+
+_DOCS_TEMPLATE = """<!doctype html>
+<html lang="__LANG__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<meta name="description" content="__DESCRIPTION__">
+__STYLE__
+__THEME_BOOT__
+</head>
+<body class="docs-page" id="top">
+<a class="skip-link" href="#docs">Skip to documentation</a>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="__HOME_HREF__" aria-label="__BRAND__ home">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+      <span class="brand-name">__BRAND__</span>
+      <span class="brand-note">durable coding agent</span>
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      <a href="__HOME_HREF__">Home</a>
+      <a href="__HOME_HREF__#principles">Why the log matters</a>
+      <a href="https://github.com/reddishJade/CadeMini">GitHub</a>
+    </nav>
+    <div class="header-tools">
+      <button class="icon-button" id="theme" type="button" aria-label="Switch to dark theme">Dark</button>
+      __ALTERNATE__
+    </div>
+  </div>
+</header>
+<main>
+  <section class="docs" id="docs" aria-labelledby="docs-title">
+    <div class="docs-header">
+      <div>
+        <h1 id="docs-title">Documentation</h1>
+        <p>Start with installation, then follow the session log through architecture, tools, safety, extensions, and recovery.</p>
+      </div>
+      <div>
+        <div class="docs-tools">
+          <div class="search-wrap">
+            <label for="search">Search documentation</label>
+            <input id="search" type="search" placeholder="Search documentation" autocomplete="off">
+          </div>
+        </div>
+        <p class="search-status" id="search-status" aria-live="polite"></p>
+      </div>
+    </div>
+    <div class="docs-layout">
+      <nav class="doc-nav" aria-label="Documentation">__NAV__</nav>
+      <article class="doc-content">__CONTENT__</article>
+    </div>
+  </section>
+</main>
+<footer class="site-footer">
+  <p><a href="__HOME_HREF__">Back to the homepage</a>. Built from the <a href="https://github.com/reddishJade/CadeMini">__BRAND__ repository</a>.</p>
+</footer>
+__SCRIPTS__
 </body>
 </html>
 """
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

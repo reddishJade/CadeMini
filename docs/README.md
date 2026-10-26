@@ -85,8 +85,9 @@ it became independent:
 
 ## Built docs
 
-The docs are Markdown-first. A small tool validates links and anchors, builds a
-single-page site, and generates an `llms.txt` catalog for agents:
+The docs are Markdown-first. A small tool validates links and anchors, builds
+the independent documentation page, and generates an `llms.txt` catalog for
+agents:
 
 ```bash
 uv run --locked python -m cade.docs check
@@ -95,6 +96,7 @@ uv run --locked python -m cade.docs llms --write
 uv run --locked python -m cade.docs catalogs --write
 ```
 
-The generated site is [docs/index.html](index.html); the generated
-catalogs are `docs/llms.txt`, `docs/llms-full.txt`, and the
-config, event, and module pages under `design/`.
+The hand-maintained homepage is [docs/index.html](index.html). The generated
+documentation page is [docs/docs.html](docs.html). The generated catalogs are
+`docs/llms.txt`, `docs/llms-full.txt`, and the config, event, and module pages
+under `design/`.

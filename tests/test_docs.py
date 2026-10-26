@@ -145,13 +145,16 @@ def test_build_renders_site(tmp_path: Path) -> None:
             "quickstart.md": "# Quickstart\n\nGo.\n",
         },
     )
-    out = tmp_path / "site" / "index.html"
+    out = tmp_path / "site" / "docs.html"
+    docs_path = docs.build(tmp_path, out)
 
-    path = docs.build(tmp_path, out)
-
-    text = path.read_text(encoding="utf-8")
+    assert docs_path == out
+    text = docs_path.read_text(encoding="utf-8")
     assert "<title>Test Docs</title>" in text
     assert "Hello docs." in text
+    assert 'id="docs"' in text
+    assert 'href="index.html"' in text
+    assert 'id="hero-title"' not in text
     assert "page-readme" in text
     assert 'href="#page-quickstart"' in text
     assert "<table>" in text
@@ -171,9 +174,10 @@ def test_build_resolves_nested_and_external_doc_links(tmp_path: Path) -> None:
             ),
         },
     )
-    out = tmp_path / "site" / "index.html"
+    out = tmp_path / "site" / "docs.html"
 
-    text = docs.build(root, out).read_text(encoding="utf-8")
+    docs_path = docs.build(root, out)
+    text = docs_path.read_text(encoding="utf-8")
 
     assert 'href="#page-guide"' in text
     assert 'href="#page-readme"' in text
@@ -202,12 +206,13 @@ def test_build_renders_alternate_language_link(tmp_path: Path) -> None:
     manifest["lang"] = "zh-CN"
     manifest["alternate"] = {"label": "English", "href": "../index.html"}
     (tmp_path / "docs.json").write_text(json.dumps(manifest), encoding="utf-8")
-    out = tmp_path / "zh" / "index.html"
+    out = tmp_path / "zh" / "docs.html"
 
-    text = docs.build(tmp_path, out).read_text(encoding="utf-8")
+    docs_path = docs.build(tmp_path, out)
+    text = docs_path.read_text(encoding="utf-8")
 
     assert '<html lang="zh-CN">' in text
-    assert '<a class="lang" href="../index.html">English</a>' in text
+    assert '<a class="lang" href="../docs.html">English</a>' in text
 
 
 def test_cli_check_and_llms(tmp_path: Path) -> None:

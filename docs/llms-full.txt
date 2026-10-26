@@ -93,8 +93,9 @@ it became independent:
 
 ## Built docs
 
-The docs are Markdown-first. A small tool validates links and anchors, builds a
-single-page site, and generates an `llms.txt` catalog for agents:
+The docs are Markdown-first. A small tool validates links and anchors, builds
+the independent documentation page, and generates an `llms.txt` catalog for
+agents:
 
 ```bash
 uv run --locked python -m cade.docs check
@@ -103,9 +104,10 @@ uv run --locked python -m cade.docs llms --write
 uv run --locked python -m cade.docs catalogs --write
 ```
 
-The generated site is [docs/index.html](index.html); the generated
-catalogs are `docs/llms.txt`, `docs/llms-full.txt`, and the
-config, event, and module pages under `design/`.
+The hand-maintained homepage is [docs/index.html](index.html). The generated
+documentation page is [docs/docs.html](docs.html). The generated catalogs are
+`docs/llms.txt`, `docs/llms-full.txt`, and the config, event, and module pages
+under `design/`.
 
 # Quickstart
 
@@ -215,7 +217,8 @@ uv run --locked python -m cade.docs check
 uv run --locked python -m cade.docs build
 ```
 
-Open `docs/index.html`. The docs source is under `docs/`.
+Open `docs/index.html` for the homepage and `docs/docs.html` for the
+complete documentation. The docs source is under `docs/`.
 
 # CLI
 
@@ -1982,7 +1985,8 @@ narrower jobs.
 | Config | `cade.json` | `CadeConfig` | Project | Pydantic, strict |
 | Credentials | `~/.cade/auth.json` | `JsonCredentialStore` | User | Provider credentials |
 | SIWC host ID | `~/.cade/host.json` | `load_or_create_host_id` | User | Stable agent host identifier |
-| Docs site | `docs/index.html` | Docs tool | Repository | Generated |
+| Docs homepage | `docs/index.html` | Repository | Repository | Hand-maintained HTML |
+| Docs page | `docs/docs.html` | Docs tool | Repository | Generated |
 | LLM catalogs | `docs/llms*.txt` | Docs tool | Repository | Generated |
 
 ## The session log
@@ -3739,7 +3743,8 @@ uv run --locked python -m cade.docs check
 
 `check` validates the manifest, page files, relative links, anchors, and generated
 catalogs. It uses only the standard library and runs in CI. `build` renders
-`docs/index.html` and needs the `docs` extra.
+`docs/docs.html` and needs the `docs` extra. The homepage at `docs/index.html`
+is hand-maintained and is not rewritten by the docs build.
 
 `llms --write` updates `docs/llms.txt` and `docs/llms-full.txt`. `catalogs --write`
 updates the config, event, and module references under `docs/design/`.

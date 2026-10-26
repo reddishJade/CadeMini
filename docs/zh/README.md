@@ -70,7 +70,7 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 
 ## 构建文档
 
-文档以 Markdown 为准。一个小工具校验链接和锚点，生成单页站点，并为代理生成 `llms.txt` 目录：
+文档以 Markdown 为准。一个小工具校验链接和锚点，生成独立文档页，并为代理生成 `llms.txt` 目录：
 
 ```bash
 uv run --locked python -m cade.docs check
@@ -79,10 +79,10 @@ uv run --locked python -m cade.docs llms --write
 uv run --locked python -m cade.docs catalogs --write
 ```
 
-英文站点是 [docs/index.html](../index.html)。本目录的中文站点是 [index.html](index.html)，构建命令：
+英文主页是手工维护的 [docs/index.html](../index.html)，文档页是生成的 [docs/docs.html](../docs.html)。本目录的中文主页是 [index.html](index.html)，文档页是 [docs.html](docs.html)，构建命令：
 
 ```bash
-uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html
+uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html
 ```
 
 生成的目录是 `docs/llms.txt`、`docs/llms-full.txt`，以及 `design/` 下的配置、事件和模块图页面。

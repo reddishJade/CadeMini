@@ -1,0 +1,3724 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cade 中文文档</title>
+<meta name="description" content="基于单一追加式会话日志的持久编码代理。">
+<style>
+:root {
+  --paper:#e7ece5;
+  --paper-raised:#eef2ec;
+  --ink:#18221c;
+  --muted:#59665d;
+  --rule:#bbc5ba;
+  --rule-strong:#7b8a7d;
+  --pine:#245443;
+  --pine-ink:#f4f7f2;
+  --signal:#b84b2e;
+  --code:#17241e;
+  --code-ink:#e8ede6;
+  --focus:#0b6d5b;
+  color-scheme:light;
+}
+html[data-theme="dark"] {
+  --paper:#111814;
+  --paper-raised:#16201a;
+  --ink:#e5ebe4;
+  --muted:#a2afa5;
+  --rule:#334238;
+  --rule-strong:#6f8173;
+  --pine:#9bc6aa;
+  --pine-ink:#102018;
+  --signal:#e88463;
+  --code:#090f0c;
+  --code-ink:#e8ede6;
+  --focus:#7fd1b6;
+  color-scheme:dark;
+}
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; scroll-padding-top:5.5rem; }
+body {
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font:17px/1.65 "Charter","Iowan Old Style","Sitka Text","Palatino Linotype",Georgia,serif;
+  text-rendering:optimizeLegibility;
+}
+::selection { background:var(--pine); color:var(--pine-ink); }
+h1,h2,h3 { margin:0; font-weight:600; line-height:1.05; letter-spacing:-.025em; }
+h1 { font-size:clamp(3.3rem,7.2vw,6.8rem); }
+h2 { font-size:clamp(2rem,4vw,3.35rem); }
+h3 { font-size:1.22rem; line-height:1.25; letter-spacing:-.012em; }
+p { margin:0; }
+a { color:var(--pine); text-decoration-thickness:1px; text-underline-offset:.2em; }
+button,input { font:inherit; }
+button { color:inherit; }
+:focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+.skip-link {
+  position:fixed; left:1rem; top:1rem; z-index:100;
+  padding:.65rem .9rem; background:var(--ink); color:var(--paper);
+  text-decoration:none; transform:translateY(-180%);
+}
+.skip-link:focus { transform:translateY(0); }
+
+.site-header {
+  position:sticky; top:0; z-index:20;
+  border-bottom:1px solid var(--rule);
+  background:color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter:blur(12px);
+}
+.header-inner {
+  display:flex; align-items:center; gap:2rem;
+  max-width:84rem; min-height:3.8rem; margin:0 auto; padding:.65rem 1.6rem;
+}
+.brand {
+  display:inline-flex; align-items:center; gap:.7rem;
+  margin-right:auto; color:var(--ink); text-decoration:none;
+}
+.brand-mark {
+  display:grid; align-content:space-between; width:1.35rem; height:1.05rem;
+  padding-left:.3rem; border-left:2px solid var(--ink);
+}
+.brand-mark span { display:block; height:2px; background:var(--ink); }
+.brand-mark span:nth-child(2) { width:68%; background:var(--signal); }
+.brand-name {
+  font-family:"Aptos","Segoe UI",sans-serif;
+  font-size:1rem; font-weight:750; letter-spacing:-.035em;
+}
+.brand-note {
+  padding-left:.7rem; border-left:1px solid var(--rule);
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif;
+  font-size:.72rem; letter-spacing:.01em;
+}
+.site-nav {
+  display:flex; gap:1.4rem;
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.83rem;
+}
+.site-nav a { color:var(--muted); text-decoration:none; }
+.site-nav a:hover { color:var(--ink); text-decoration:underline; }
+.header-tools {
+  display:flex; align-items:center; gap:.5rem;
+  font-family:"Aptos","Segoe UI",sans-serif;
+}
+.icon-button,.lang {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-height:2.2rem; padding:0 .72rem;
+  border:1px solid var(--rule); background:transparent; color:var(--ink);
+  font-size:.78rem; line-height:1; text-decoration:none; cursor:pointer;
+}
+.icon-button:hover,.lang:hover { border-color:var(--rule-strong); background:var(--paper-raised); }
+
+.hero {
+  display:grid; grid-template-columns:minmax(0,1.06fr) minmax(22rem,.82fr);
+  gap:clamp(2rem,6vw,6rem); align-items:center;
+  max-width:84rem; margin:0 auto;
+  padding:clamp(4.2rem,9vw,8rem) 1.6rem clamp(4.5rem,8vw,7rem);
+}
+.hero-copy { max-width:51rem; }
+.hero-kicker {
+  display:flex; align-items:center; gap:.7rem; margin-bottom:1.3rem;
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif; font-size:.79rem;
+}
+.hero-kicker::before { content:""; width:2rem; height:1px; background:var(--rule-strong); }
+.hero h1 { max-width:10ch; text-wrap:balance; }
+.hero-summary {
+  max-width:36rem; margin-top:1.55rem;
+  color:var(--muted); font-size:clamp(1.04rem,1.5vw,1.2rem); line-height:1.62;
+}
+.hero-actions {
+  display:flex; flex-wrap:wrap; align-items:center; gap:.85rem 1.2rem;
+  margin-top:2rem; font-family:"Aptos","Segoe UI",sans-serif;
+}
+.button-primary {
+  display:inline-flex; align-items:center; min-height:2.8rem; padding:0 1.15rem;
+  border:1px solid var(--pine); background:var(--pine); color:var(--pine-ink);
+  font-size:.87rem; font-weight:700; text-decoration:none;
+}
+.button-primary:hover { border-color:var(--ink); background:var(--ink); color:var(--paper); }
+.text-link { color:var(--ink); font-size:.86rem; text-decoration-color:var(--rule-strong); }
+.text-link:hover { color:var(--pine); text-decoration-color:currentColor; }
+.install {
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center;
+  gap:.65rem; max-width:31rem; margin-top:2.25rem; padding:.75rem 0;
+  border-top:1px solid var(--rule); border-bottom:1px solid var(--rule);
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+}
+.install-prompt { color:var(--signal); font-size:.84rem; }
+.install code { overflow:auto; white-space:nowrap; font-size:.83rem; }
+.copy-button {
+  padding:.28rem .5rem; border:1px solid var(--rule);
+  background:transparent; color:var(--muted);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.66rem; cursor:pointer;
+}
+.copy-button:hover { border-color:var(--rule-strong); color:var(--ink); }
+.install-note {
+  grid-column:1/-1; color:var(--muted);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.73rem;
+}
+.hero-facts {
+  display:flex; flex-wrap:wrap; gap:.35rem 1.15rem;
+  margin:1.55rem 0 0; padding:0; list-style:none;
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif; font-size:.73rem;
+}
+.hero-facts li::before { content:"■"; margin-right:.42rem; color:var(--signal); font-size:.42rem; vertical-align:.16em; }
+
+.trace {
+  position:relative; margin:0;
+  border:1px solid var(--rule-strong); background:var(--paper-raised);
+  box-shadow:0 1.6rem 4.5rem rgba(24,34,28,.11);
+}
+.trace::after {
+  content:""; position:absolute; z-index:-1; inset:.42rem -.42rem -.42rem .42rem;
+  border:1px solid var(--rule);
+}
+.trace-head {
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+  padding:.85rem 1.05rem; border-bottom:1px solid var(--rule);
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif; font-size:.68rem;
+}
+.trace-head strong { color:var(--ink); font-size:.73rem; font-weight:650; }
+.live { display:inline-flex; align-items:center; gap:.45rem; }
+.live::before {
+  content:""; width:.42rem; height:.42rem; border-radius:50%;
+  background:var(--signal); box-shadow:0 0 0 .22rem color-mix(in srgb, var(--signal) 18%, transparent);
+}
+.trace-body { padding:.7rem 0; }
+.trace-entry {
+  position:relative; display:grid; grid-template-columns:4.4rem minmax(0,1fr);
+  gap:.75rem; margin-left:1.15rem; padding:.78rem 1.05rem .78rem 1.15rem;
+  border-left:2px solid var(--rule);
+  animation:trace-in .5s both cubic-bezier(.22,.7,.2,1);
+  animation-delay:calc(var(--i) * 85ms + 100ms);
+}
+.trace-entry::before {
+  content:""; position:absolute; left:-.39rem; top:1.16rem;
+  width:.45rem; height:.45rem; border:2px solid var(--paper-raised); border-radius:50%;
+  background:var(--rule-strong);
+}
+.trace-entry.is-signal { border-left-color:var(--signal); }
+.trace-entry.is-signal::before { background:var(--signal); }
+.trace-kind {
+  padding-top:.1rem; color:var(--muted);
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+  font-size:.66rem; letter-spacing:.01em;
+}
+.trace-entry p { font-size:.9rem; line-height:1.45; }
+.trace-command {
+  margin-top:.32rem !important; color:var(--muted);
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+  font-size:.68rem !important; overflow-wrap:anywhere;
+}
+.trace-result {
+  margin-top:.2rem !important; color:var(--pine);
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+  font-size:.68rem !important;
+}
+.trace-foot {
+  padding:.8rem 1.05rem; border-top:1px solid var(--rule);
+  color:var(--muted); font-size:.75rem; font-style:italic; line-height:1.45;
+}
+
+.tenets {
+  border-top:1px solid var(--rule); border-bottom:1px solid var(--rule);
+  background:var(--paper-raised);
+}
+.tenets-inner {
+  display:grid; grid-template-columns:minmax(15rem,.8fr) minmax(0,2.2fr);
+  gap:clamp(2rem,6vw,6rem); max-width:84rem; margin:0 auto;
+  padding:clamp(3.2rem,6vw,5.4rem) 1.6rem;
+}
+.section-head h2 { max-width:10ch; text-wrap:balance; }
+.section-head p {
+  max-width:25rem; margin-top:1rem; color:var(--muted); font-size:.95rem;
+}
+.tenet-list {
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+  border-left:1px solid var(--rule);
+}
+.tenet { padding:0 clamp(1rem,2.4vw,2rem); border-right:1px solid var(--rule); }
+.tenet-term {
+  margin-bottom:1.05rem; color:var(--signal);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.7rem; font-weight:650;
+}
+.tenet p:last-child { margin-top:.7rem; color:var(--muted); font-size:.9rem; line-height:1.55; }
+
+.docs {
+  max-width:84rem; margin:0 auto;
+  padding:clamp(4.2rem,8vw,7rem) 1.6rem 2rem;
+}
+.docs-header {
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(18rem,25rem);
+  gap:2rem; align-items:end; padding-top:1rem; border-top:3px solid var(--ink);
+}
+.docs-header h1 { font-size:clamp(2rem,4vw,3.2rem); line-height:1; letter-spacing:-.04em; }
+.docs-header p { max-width:34rem; margin-top:.8rem; color:var(--muted); font-size:.95rem; }
+.docs-tools {
+  display:flex; align-items:center; gap:.6rem;
+  font-family:"Aptos","Segoe UI",sans-serif;
+}
+.search-wrap { flex:1; }
+.search-wrap label {
+  position:absolute; width:1px; height:1px; overflow:hidden;
+  clip:rect(0 0 0 0); white-space:nowrap;
+}
+.search-wrap input {
+  width:100%; min-height:2.55rem; padding:.55rem .75rem;
+  border:1px solid var(--rule-strong); border-radius:0;
+  background:var(--paper); color:var(--ink); font-size:.84rem;
+}
+.search-wrap input::placeholder { color:var(--muted); }
+.search-status {
+  min-height:1.3rem; margin-top:.45rem; color:var(--muted);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.72rem;
+}
+.docs-layout {
+  display:grid; grid-template-columns:17rem minmax(0,1fr);
+  gap:clamp(2rem,5vw,5rem); align-items:start; margin-top:2.1rem;
+}
+.doc-nav {
+  position:sticky; top:5.2rem; max-height:calc(100vh - 6.4rem);
+  overflow:auto; padding-right:1rem; border-right:1px solid var(--rule);
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.82rem;
+  scrollbar-width:thin;
+}
+.nav-group { padding:.7rem 0; border-bottom:1px solid color-mix(in srgb, var(--rule) 62%, transparent); }
+.nav-group:last-child { border-bottom:0; }
+.nav-group p {
+  margin:0 0 .4rem; color:var(--muted); font-size:.68rem; font-weight:650;
+}
+.doc-nav a { display:block; padding:.18rem 0; color:var(--ink); line-height:1.42; text-decoration:none; }
+.doc-nav a:hover { color:var(--pine); text-decoration:underline; }
+.doc-content { min-width:0; }
+.page {
+  max-width:72ch; margin:0 0 3.5rem; padding:0 0 3.5rem;
+  border-bottom:1px solid var(--rule);
+}
+.page:last-child { margin-bottom:0; border-bottom:0; }
+.page h1 { margin-bottom:1.15rem; font-size:clamp(2.25rem,4vw,3.4rem); line-height:1.05; }
+.page h2 { margin:2.8rem 0 .8rem; font-size:1.55rem; letter-spacing:-.018em; }
+.page h3 { margin:2rem 0 .55rem; font-size:1.12rem; }
+.page p,.page ul,.page ol,.page blockquote,.page table,.page pre { margin:1rem 0; }
+.page ul,.page ol { padding-left:1.3rem; }
+.page li + li { margin-top:.28rem; }
+.page a { color:var(--pine); }
+.page strong { font-weight:650; }
+.page hr { margin:2rem 0; border:0; border-top:1px solid var(--rule); }
+.page blockquote {
+  padding:.25rem 0 .25rem 1.15rem; border-left:2px solid var(--signal);
+  color:var(--muted);
+}
+.page blockquote p { margin:.45rem 0; }
+.page table {
+  width:100%; border-collapse:collapse;
+  font-family:"Aptos","Segoe UI",sans-serif; font-size:.85rem; line-height:1.45;
+}
+.page th,.page td { padding:.55rem .65rem; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top; }
+.page th { color:var(--muted); font-size:.72rem; font-weight:650; }
+.page code {
+  font-family:"SFMono-Regular","Cascadia Code",Consolas,monospace;
+  font-size:.86em;
+}
+.page :not(pre) > code {
+  padding:.12em .34em; background:color-mix(in srgb, var(--rule) 34%, transparent);
+  overflow-wrap:anywhere;
+}
+.page pre {
+  position:relative; overflow:auto; padding:1rem 1.1rem;
+  border-left:3px solid var(--signal); background:var(--code); color:var(--code-ink);
+  font-size:.8rem; line-height:1.55;
+}
+.page pre code { color:inherit; background:none; padding:0; }
+.page pre .copy-button {
+  float:right; margin:-.2rem 0 .55rem .75rem;
+  border-color:color-mix(in srgb, var(--code-ink) 30%, transparent);
+  color:var(--code-ink);
+}
+.page pre .copy-button:hover { border-color:var(--code-ink); }
+.mermaid {
+  overflow:auto; padding:1rem; background:var(--code); color:var(--code-ink);
+}
+.is-hidden { display:none !important; }
+.site-footer {
+  max-width:84rem; margin:0 auto; padding:1.6rem;
+  border-top:1px solid var(--rule);
+  color:var(--muted); font-family:"Aptos","Segoe UI",sans-serif; font-size:.74rem;
+}
+.site-footer a { color:var(--ink); }
+
+@keyframes trace-in {
+  from { opacity:0; transform:translateY(.55rem); }
+  to { opacity:1; transform:translateY(0); }
+}
+
+@media (max-width:1080px) {
+  .hero { grid-template-columns:minmax(0,1fr) minmax(20rem,.78fr); gap:2.5rem; }
+  .tenets-inner { grid-template-columns:1fr; }
+  .section-head h2 { max-width:16ch; }
+}
+@media (max-width:860px) {
+  .brand-note,.site-nav { display:none; }
+  .hero { grid-template-columns:1fr; padding-top:3.6rem; }
+  .hero h1 { max-width:11ch; }
+  .trace { max-width:38rem; }
+  .tenet-list { grid-template-columns:1fr; border-left:0; }
+  .tenet { padding:1.3rem 0; border-top:1px solid var(--rule); border-right:0; }
+  .docs-header { grid-template-columns:1fr; align-items:start; }
+  .docs-tools { max-width:34rem; }
+  .docs-layout { grid-template-columns:1fr; }
+  .doc-nav {
+    position:static; max-height:none; padding:0 0 1.2rem;
+    border-right:0; border-bottom:1px solid var(--rule);
+  }
+  .nav-group { display:inline-block; min-width:13rem; padding:.55rem 1.2rem .55rem 0; border-bottom:0; vertical-align:top; }
+}
+@media (max-width:560px) {
+  body { font-size:16px; }
+  .header-inner { gap:.8rem; padding-inline:1rem; }
+  .hero,.tenets-inner,.docs,.site-footer { padding-inline:1rem; }
+  .hero { padding-top:2.8rem; padding-bottom:4rem; }
+  .hero h1 { font-size:clamp(3.1rem,16vw,4.5rem); }
+  .trace-head { align-items:flex-start; flex-direction:column; gap:.35rem; }
+  .trace-entry { grid-template-columns:3.7rem minmax(0,1fr); padding-right:.8rem; }
+  .docs-header { gap:1.3rem; }
+  .docs-tools { align-items:stretch; flex-direction:column; }
+  .page h1 { font-size:2.15rem; }
+  .page table { display:block; overflow:auto; }
+}
+@media (prefers-reduced-motion:reduce) {
+  html { scroll-behavior:auto; }
+  *,*::before,*::after { animation-duration:.01ms !important; animation-delay:0ms !important; }
+}
+</style>
+<script>
+try {
+  const saved = localStorage.getItem('cade-theme');
+  if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved;
+} catch (e) {}
+</script>
+</head>
+<body class="docs-page" id="top">
+<a class="skip-link" href="#docs">Skip to documentation</a>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html" aria-label="CadeMini home">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+      <span class="brand-name">CadeMini</span>
+      <span class="brand-note">durable coding agent</span>
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="index.html#principles">Why the log matters</a>
+      <a href="https://github.com/reddishJade/CadeMini">GitHub</a>
+    </nav>
+    <div class="header-tools">
+      <button class="icon-button" id="theme" type="button" aria-label="Switch to dark theme">Dark</button>
+      <a class="lang" href="../docs.html">English</a>
+    </div>
+  </div>
+</header>
+<main>
+  <section class="docs" id="docs" aria-labelledby="docs-title">
+    <div class="docs-header">
+      <div>
+        <h1 id="docs-title">Documentation</h1>
+        <p>Start with installation, then follow the session log through architecture, tools, safety, extensions, and recovery.</p>
+      </div>
+      <div>
+        <div class="docs-tools">
+          <div class="search-wrap">
+            <label for="search">Search documentation</label>
+            <input id="search" type="search" placeholder="Search documentation" autocomplete="off">
+          </div>
+        </div>
+        <p class="search-status" id="search-status" aria-live="polite"></p>
+      </div>
+    </div>
+    <div class="docs-layout">
+      <nav class="doc-nav" aria-label="Documentation"><div class="nav-group"><p>概览</p>
+<a href="#page-readme">Cade</a>
+</div>
+<div class="nav-group"><p>开始使用</p>
+<a href="#page-quickstart">快速上手</a>
+<a href="#page-cli">CLI</a>
+<a href="#page-configuration">配置</a>
+<a href="#page-code-mode">Code mode</a>
+</div>
+<div class="nav-group"><p>核心概念</p>
+<a href="#page-architecture">架构</a>
+<a href="#page-sessions-context">会话与上下文</a>
+<a href="#page-how-it-works">Cade 如何工作</a>
+</div>
+<div class="nav-group"><p>设计</p>
+<a href="#page-code-map">代码地图</a>
+<a href="#page-cade-comparison">与早期 Cade 项目的关系</a>
+<a href="#page-capability-seams">能力接缝</a>
+<a href="#page-event-model">事件模型</a>
+<a href="#page-tool-execution">工具执行</a>
+<a href="#page-config-catalog">Configuration catalog</a>
+<a href="#page-event-catalog">Event catalog</a>
+<a href="#page-module-graph">Module graph</a>
+<a href="#page-tool-catalog">工具目录</a>
+<a href="#page-mcp-reference">MCP 参考服务器</a>
+<a href="#page-steering-queue">引导与排队</a>
+<a href="#page-persistence-catalog">持久化目录</a>
+<a href="#page-glossary">术语表</a>
+<a href="#page-testing">测试</a>
+</div>
+<div class="nav-group"><p>参考</p>
+<a href="#page-session-schema">Cade 会话格式</a>
+</div>
+<div class="nav-group"><p>子系统</p>
+<a href="#page-readme">子系统</a>
+<a href="#page-log">日志</a>
+<a href="#page-projection-request">投影与请求</a>
+<a href="#page-loop">循环</a>
+<a href="#page-tools-policy">工具与策略</a>
+<a href="#page-context-compaction">上下文与压缩</a>
+<a href="#page-extensions">扩展</a>
+</div>
+<div class="nav-group"><p>安全</p>
+<a href="#page-tools-security">工具与安全</a>
+<a href="#page-snapshots-goals">快照与目标</a>
+</div>
+<div class="nav-group"><p>扩展</p>
+<a href="#page-skills-memory">技能与记忆</a>
+<a href="#page-mcp">MCP</a>
+<a href="#page-subagents">子代理</a>
+</div>
+<div class="nav-group"><p>操作指南</p>
+<a href="#page-readme">操作指南</a>
+<a href="#page-fix-a-bug">修一个 bug</a>
+<a href="#page-add-a-feature">添加功能</a>
+<a href="#page-review-only">只读评审</a>
+<a href="#page-long-session">运行长会话</a>
+<a href="#page-custom-mcp">连接自定义 MCP 服务器</a>
+</div>
+<div class="nav-group"><p>运维</p>
+<a href="#page-hosts">宿主</a>
+<a href="#page-development">开发</a>
+<a href="#page-testing">验证指南</a>
+<a href="#page-review-standards">Cade 评审标准</a>
+<a href="#page-parity">对齐验收</a>
+</div></nav>
+      <article class="doc-content"><section class="page" id="page-readme" data-title="Cade">
+<h1>Cade</h1>
+<p>Cade 是一个独立运行的编码代理。整个设计围绕一条规则：</p>
+<blockquote>
+<p>会话日志是唯一事实来源。模型可见的历史是确定性的投影。请求构造只产生当前请求。</p>
+</blockquote>
+<p>这样得到的代理体积小，能在压缩、上下文窗口切换和进程重启后继续工作，不会编造历史。</p>
+<h2>从这里开始</h2>
+<ul>
+<li><a href="#page-quickstart">快速上手</a>：安装并跑通第一个任务。</li>
+<li><a href="#page-cli">CLI</a>：一次性任务、TUI、会话和恢复命令。</li>
+<li><a href="#page-configuration">配置</a>：<code>cade.json</code> 的字段。</li>
+<li><a href="#page-code-mode">Code mode</a>：使用 <code>run_code</code> 编排工具。</li>
+<li><a href="#page-architecture">架构</a>：日志、投影、请求和执行流水线。</li>
+<li><a href="#page-sessions-context">会话与上下文</a>：恢复、压缩、换窗和历史检索。</li>
+<li><a href="#page-tools-security">工具与安全</a>：模式、规则、授权和 shell 分析。</li>
+<li><a href="#page-snapshots-goals">快照与目标</a>：撤销和持久目标。</li>
+<li><a href="#page-skills-memory">技能与记忆</a>：<code>SKILL.md</code> 和 <code>MEMORY.md</code>。</li>
+<li><a href="#page-mcp">MCP</a>：外部工具、资源和提示词。</li>
+<li><a href="#page-subagents">子代理</a>：子会话和任务委派。</li>
+<li><a href="#page-hosts">宿主</a>：终端 TUI 和一次性执行。</li>
+<li><a href="#page-development">开发</a>：检查、测试和文档流水线。</li>
+<li><a href="#page-parity">对齐验收</a>：与早期 Cade 的验收对照。</li>
+</ul>
+<h2>设计</h2>
+<ul>
+<li><a href="#page-how-it-works">Cade 如何工作</a>：端到端模型的简版。</li>
+<li><a href="#page-code-map">代码地图</a>：包边界和入口。</li>
+<li><a href="#page-cade-comparison">与早期 Cade 的关系</a>：独立维护的边界。</li>
+<li><a href="#page-capability-seams">能力接缝</a>：可替换的契约。</li>
+<li><a href="#page-event-model">事件模型</a>：事实与审计记录的区分。</li>
+<li><a href="#page-tool-execution">工具执行</a>：从策略到结果的流水线。</li>
+<li><a href="#page-config-catalog">配置目录</a>和<a href="#page-event-catalog">事件目录</a>：生成的参考页。</li>
+<li><a href="#page-tool-catalog">工具目录</a>：内置工具清单。</li>
+<li><a href="#page-mcp-reference">MCP 参考服务器</a>：支持的服务器模式。</li>
+<li><a href="#page-steering-queue">引导与排队</a>：TUI 中的并发输入。</li>
+<li><a href="#page-module-graph">模块图</a>：由导入关系生成。</li>
+<li><a href="#page-persistence-catalog">持久化目录</a>：所有产物的位置。</li>
+<li><a href="#page-glossary">术语表</a>：统一用词。</li>
+<li><a href="#page-testing">测试</a>：测试与层次对应关系。</li>
+</ul>
+<p>生成的参考页保留英文标题和字段名，因为内容直接来自代码标识符。</p>
+<h2>子系统</h2>
+<p><a href="#page-readme">子系统</a>是日志、投影与请求、执行循环、工具与策略、上下文与压缩、扩展的实现参考。</p>
+<h2>操作指南</h2>
+<p><a href="#page-readme">操作指南</a>包含修 bug、加功能、只读评审、长会话和自定义 MCP 服务器的步骤。</p>
+<h2>历史记录</h2>
+<p>以下页面保留英文，记录项目过去的状态：</p>
+<ul>
+<li><a href="../postmortem/README.md">事故复盘</a>：事故和修复。</li>
+<li><a href="../persistence/README.md">持久化</a>：当前格式和变更策略。</li>
+<li><a href="../upgrade/README.md">升级指南</a>：破坏性变更。</li>
+<li><a href="../decisions/README.md">决策记录</a>：长期设计选择。</li>
+</ul>
+<h2>设计与参考</h2>
+<p><a href="#page-session-schema">会话格式</a>定义持久化契约。历史研究和验收记录描述项目独立之前的状态：</p>
+<ul>
+<li><a href="../history/design-proposal.md">Cade 设计</a></li>
+<li><a href="#page-session-schema">会话日志格式</a></li>
+<li><a href="../history/harvest-audit.md">Harvest 记录</a></li>
+<li><a href="../history/parity-acceptance.md">对齐验收</a></li>
+</ul>
+<h2>构建文档</h2>
+<p>文档以 Markdown 为准。一个小工具校验链接和锚点，生成独立文档页，并为代理生成 <code>llms.txt</code> 目录：</p>
+<pre><code class="language-bash">uv run --locked python -m cade.docs check
+uv run --locked --extra docs python -m cade.docs build
+uv run --locked python -m cade.docs llms --write
+uv run --locked python -m cade.docs catalogs --write
+</code></pre>
+<p>英文主页是手工维护的 <a href="../index.html">docs/index.html</a>，文档页是生成的 <a href="../docs.html">docs/docs.html</a>。本目录的中文主页是 <a href="index.html">index.html</a>，文档页是 <a href="docs.html">docs.html</a>，构建命令：</p>
+<pre><code class="language-bash">uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html
+</code></pre>
+<p>生成的目录是 <code>docs/llms.txt</code>、<code>docs/llms-full.txt</code>，以及 <code>design/</code> 下的配置、事件和模块图页面。</p>
+
+</section>
+<section class="page" id="page-quickstart" data-title="快速上手">
+<h1>快速上手</h1>
+<p>Cade 需要 Python 3.12 或更新版本。仓库用 <code>uv</code> 做开发，并提供 <code>cade</code> 入口。</p>
+<h2>安装并登录</h2>
+<p>在仓库根目录执行：</p>
+<pre><code class="language-bash">uv sync --locked
+</code></pre>
+<p>Cade 自己管理凭据，位置是 <code>~/.cade/auth.json</code>。用浏览器里的 Sign in with ChatGPT（SIWC）登录：</p>
+<pre><code class="language-bash">uv run --locked cade login
+</code></pre>
+<p>浏览器流程会在首次使用时注册 Cade，后续登录复用这份注册信息。稳定的宿主 ID 保存在 <code>~/.cade/host.json</code>。SIWC 没有设备码流程。在无图形界面的主机上，先在本地完成登录，复制 <code>auth.json</code>，让远端主机在下次登录时创建自己的宿主 ID。也可以改用 API key。</p>
+<p>使用 OpenAI API key 时，用隐藏输入提示，或设置环境变量：</p>
+<pre><code class="language-bash">uv run --locked cade login --provider openai
+export OPENAI_API_KEY=...
+uv run --locked cade --provider openai --model gpt-5.5 -p &quot;Review this project.&quot;
+</code></pre>
+<p>DeepSeek 使用同样的 Responses 协议，但用自己的 API key：</p>
+<pre><code class="language-bash">uv run --locked cade login --provider deepseek
+export DEEPSEEK_API_KEY=...
+uv run --locked cade --provider deepseek --model deepseek-flash -p &quot;Review this project.&quot;
+</code></pre>
+<p>默认 provider 是 <code>chatgpt</code>。在 <code>cade.json</code> 里设置 <code>provider</code> 和 <code>model</code>，可以改启动默认值。Cade 只支持 Responses 协议：<code>chatgpt</code> 用于 ChatGPT 套餐，<code>openai</code> 用于 OpenAI API key，<code>deepseek</code> 用于 DeepSeek API key。旧 Cade 项目的状态不兼容；请使用干净的 <code>~/.cade/</code> 和工作区 <code>.cade/</code> 目录。</p>
+<h2>运行一个任务</h2>
+<pre><code class="language-bash">uv run --locked cade -p &quot;Read README.md and explain the entry point in three bullets.&quot;
+</code></pre>
+<p>也可以显式写出命令：</p>
+<pre><code class="language-bash">uv run --locked cade exec &quot;Read README.md and explain the entry point.&quot;
+</code></pre>
+<p>Cade 默认在当前目录运行。用 <code>--project-root</code> 指向其他工作区。</p>
+<h2>选择模式</h2>
+<ul>
+<li><code>build</code> 是默认模式。普通编辑、测试、构建和 shell 流水线自动运行；检测到风险时询问。</li>
+<li><code>ask</code> 允许已归类的只读操作，在修改或未归类的 shell 命令之前询问。</li>
+<li><code>plan</code> 隐藏写入和编辑工具，拒绝修改。只读 shell 命令允许执行。</li>
+</ul>
+<pre><code class="language-bash">uv run --locked cade --mode plan -p &quot;Propose a fix for the failing test.&quot;
+uv run --locked cade --mode build -p &quot;Fix the bug and run the test.&quot;
+</code></pre>
+<p>非交互自动化可用 <code>--yes</code> 批准确认，用 <code>--read-only</code> 拒绝修改，但仍允许已归类的只读 shell 命令。在共享仓库里优先使用规则授权，而不是 <code>--yes</code>；见<a href="#page-configuration">配置</a>。</p>
+<h2>继续之前的工作</h2>
+<p>会话默认保存在 <code>.cade/sessions</code>。</p>
+<pre><code class="language-bash">uv run --locked cade --list-sessions
+uv run --locked cade --continue -p &quot;What did you change?&quot;
+uv run --locked cade --resume SESSION_ID -p &quot;Continue the task.&quot;
+</code></pre>
+<p>运行 <code>cade</code> 启动行内 TUI。<code>cade &quot;Review this project.&quot;</code> 会启动 TUI 并发送首条消息，任务结束后保持打开。交互命令见 <a href="#page-cli">CLI</a>，按键绑定见<a href="#page-hosts">宿主</a>。</p>
+<h2>构建文档</h2>
+<pre><code class="language-bash">uv sync --locked --extra docs
+uv run --locked python -m cade.docs check
+uv run --locked python -m cade.docs build
+</code></pre>
+<p>打开 <code>docs/index.html</code> 查看主页，打开 <code>docs/docs.html</code> 查看完整文档。文档源文件在 <code>docs/</code> 下。中文文档在 <code>docs/zh/</code> 下，构建命令是 <code>uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html</code>。</p>
+
+</section>
+<section class="page" id="page-cli" data-title="CLI">
+<h1>CLI</h1>
+<p><code>cade</code> 入口可以运行单个任务、启动交互式终端宿主，或管理会话。</p>
+<pre><code class="language-bash">cade [TASK] [options]
+cade -p TASK [options]
+cade exec TASK [options]
+</code></pre>
+<p><code>cade</code> 在交互式终端里启动 TUI。可选的位置参数会作为第一条消息发送，任务结束后 TUI 保持打开。用 <code>-p TASK</code>（或 <code>--prompt TASK</code>）或 <code>exec TASK</code> 运行一次后退出。TUI 的位置参数与 <code>-p</code> 不能同时使用。</p>
+<h2>登录</h2>
+<pre><code class="language-bash">cade login
+cade login --provider openai
+cade login --provider deepseek
+</code></pre>
+<p><code>--provider</code> 默认是 <code>chatgpt</code>，使用浏览器里的 Sign in with ChatGPT（SIWC）。<code>openai</code> 和 <code>deepseek</code> 使用 <code>api_key</code>，通过隐藏输入提示填写。凭据保存在 <code>~/.cade/auth.json</code>，稳定的 SIWC 宿主 ID 保存在 <code>~/.cade/host.json</code>。登录不会修改项目的 provider 或模型设置。Cade 只支持 Responses 协议。ChatGPT 登录和 OpenAI API key 是两条独立的认证路径，都暴露已注册的 OpenAI 聊天模型池。可刷新的 OAuth token 仍然让模型可选；provider 在需要时刷新它。</p>
+<h2>一次性任务选项</h2>
+<ul>
+<li>
+<p><code>-p TASK</code> / <code>--prompt TASK</code>：运行一次后退出，与 <code>cade exec TASK</code> 相同。</p>
+</li>
+<li>
+<p><code>--project-root PATH</code>：设置工作区。默认是当前目录。</p>
+</li>
+<li>
+<p><code>--config PATH</code>：选择配置文件。默认是 <code>&lt;project-root&gt;/cade.json</code>。</p>
+</li>
+<li>
+<p><code>--provider NAME</code>、<code>--model NAME</code> 和 <code>--effort EFFORT</code>：覆盖 provider 默认值。</p>
+</li>
+<li>
+<p><code>--mode plan|build|ask</code>：选择工作模式。默认是 <code>build</code>。</p>
+</li>
+<li>
+<p><code>--sandbox read-only|workspace-write|danger-full-access</code>：选择文件系统范围。默认是 <code>workspace-write</code>；Windows 跳过操作系统隔离。</p>
+</li>
+<li>
+<p><code>--network</code> / <code>--no-network</code>：控制沙箱网络。默认允许。</p>
+</li>
+<li>
+<p><code>--read-only</code> / <code>--no-read-only</code>：控制是否拒绝修改。只读 shell 命令仍然可用。</p>
+</li>
+<li>
+<p><code>--yes</code>：批准确认。只在可信的非交互环境里使用。</p>
+</li>
+<li>
+<p><code>--auto-review</code> / <code>--no-auto-review</code>：让模型复核 ask 级别的调用。</p>
+</li>
+<li>
+<p><code>--max-steps N</code>：限制模型步骤数。</p>
+</li>
+<li>
+<p><code>--context-window N</code>：覆盖模型上下文窗口。内置注册表之外的模型必须提供。</p>
+</li>
+<li>
+<p><code>--json</code>：为一次性任务输出 JSONL 事件。</p>
+</li>
+<li>
+<p><code>--steer TEXT</code>：在一次性任务的下一个模型步骤注入指导；可以重复。</p>
+</li>
+</ul>
+<h2>会话</h2>
+<ul>
+<li><code>--list-sessions</code>：打印 ID、更新时间和标题后退出。</li>
+<li><code>--continue</code>：恢复项目里最新的会话。</li>
+<li><code>--resume</code>：恢复最新会话；<code>--resume ID</code> 恢复指定会话。</li>
+<li><code>--sessions-dir PATH</code>：修改会话目录。相对路径按项目根目录解析。</li>
+<li><code>--undo</code>：撤销最新会话的一次检查点操作后退出，不联系 provider，也不启动 MCP。用 <code>--resume ID --undo</code> 指定会话。它与 TUI <code>/undo</code> 共用对话和文件恢复协议。</li>
+</ul>
+<p><code>--continue</code> 和 <code>--resume</code> 不能同时使用。会话列表和自动续接会跳过没有非空用户消息的对话。新的交互式会话在收到第一条用户或助手消息之前，只把初始化记录留在内存里；只打开 TUI 或只运行 <code>/new</code> 不会创建会话文件。已有文件不会被自动删除。</p>
+<h2>目标</h2>
+<ul>
+<li><code>--goal TEXT</code>：运行前设置工作区目标。</li>
+</ul>
+<h2>交互命令</h2>
+<p>TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原生选择器。</p>
+<ul>
+<li><code>/new</code>：新建会话。<code>/clear</code> 是别名，会保留已保存的对话。</li>
+<li><code>/continue</code>：打开与 <code>/sessions</code> 相同的已保存对话选择器。</li>
+<li><code>/resume</code>：打开已保存对话选择器；<code>/resume ID</code> 恢复该会话。</li>
+<li><code>/sessions</code>：打开与 <code>/resume</code> 相同的选择器。</li>
+<li><code>/tree [ENTRY]</code>：在同一个会话内浏览完整历史树。选中一条用户输入会把它放回编辑器；选中其他条目则从该点继续。位置在重启后保留，旧分支仍然存在。</li>
+<li><code>/fork [N|ENTRY]</code>：把某条用户输入之前的历史复制到新会话，并把该输入放进编辑器。可以选择非活动分支；<code>N=1</code> 选中最近记录的输入。工作区文件不变。</li>
+<li><code>/clone</code>：只把活动路径复制到新会话，并清空编辑器。</li>
+<li><code>/undo</code>：撤销一轮用户输入或一次显式恢复操作。<code>/redo</code> 重新应用一次已撤销的操作，不联系模型，也不重跑工具。</li>
+<li><code>/rewind</code>：在活动路径上选择一条用户输入，然后选择恢复对话、代码或两者。<code>/rewind ENTRY conversation|code|both</code> 直接指定范围，再打开确认预览。</li>
+<li><code>/revert</code>：选择一段轮次和一个或全部已跟踪文件，不裁剪对话。<code>/revert START [END] -- PATH ...</code> 选择多个文件；含空格的路径要加引号，并使用正斜杠。END 包含在内；省略时包含最新操作。后续编辑如果冲突，会阻止恢复。</li>
+<li><code>/compact [INSTRUCTIONS]</code>：总结较早的轮次，并应用可选指导。</li>
+<li><code>/model [PROVIDER/MODEL]</code>：切换到已认证的精确模型，或在模型选择器里按部分名称搜索。</li>
+<li><code>/effort [LEVEL]</code>：选择模型推理强度，或打开选择器。</li>
+<li><code>/thinking [LEVEL]</code>：选择推理强度。用 <code>Ctrl+T</code> 折叠推理输出，不改变强度。</li>
+<li><code>/verbose [auto|low|medium|high]</code>：调整交互式 TUI 的显示详细程度。默认 <code>auto</code>：任务执行期间逐条显示工具调用和折叠的 Thinking，不聚合连续的只读工具，也不显示工具输出正文；任务完成后自动将活动记录按用户轮次折叠为一行，Assistant 消息始终可见。完成后按 <code>Ctrl+O</code> 可以展开活动列表，<code>high</code> 可查看详细记录。<code>low</code> 隐藏工具和 Thinking，<code>medium</code> 显示折叠摘要，<code>high</code> 展开详情。不带参数时打开选择器。切换只影响显示，不改变工具执行、模型请求或持久化会话。折叠时 Inline TUI 可能清理并重放终端滚动历史。</li>
+<li><code>/rollover [--force]</code>：开启新的上下文窗口；<code>/new-context</code> 是别名。</li>
+<li><code>/new-context [--force]</code>：用 <code>NOTE.md</code> 作为交接，开启新的上下文窗口。先写好该文件，或用 <code>--force</code> 在没有它的情况下重置。</li>
+<li><code>/mode [MODE]</code>：显示或切换执行模式。</li>
+<li><code>/permissions [list|clear]</code>：列出或清除会话授权；不带参数时打开选择器。</li>
+<li><code>/goal [TEXT|done|clear]</code>：显示、设置、完成或清除目标。</li>
+<li><code>/context-window [SIZE|default]</code>：显示或调整当前上下文窗口。</li>
+<li><code>/context</code>：显示按来源分类的用量和剩余输入空间，包括指令文件、技能、MCP schema 和已加载的 MCP 内容。OpenAI API key 模式使用输入计数接口；ChatGPT 套餐模式使用本地估算，因为 SIWC 未公开输入计数端点。DeepSeek 使用官方 V4 文本分词器并估算请求开销。最近一次请求的 provider 用量单独显示。</li>
+<li><code>/btw QUESTION</code>：提出一个独立的旁路问题。</li>
+<li><code>/steer TEXT</code>：为下一个模型步骤排队指导。</li>
+<li><code>/queue [followup|steer|interrupt|TEXT]</code>：设置忙碌时 <code>Enter</code> 的行为，或将 TEXT 排到下一轮。</li>
+<li><code>/stop</code>：中断等待中的模型请求，包括等待首个输出的阶段。工具会在自己的取消检查点停止。</li>
+<li><code>/help</code>：打印命令列表。</li>
+<li><code>/auth [status|login|logout]</code>：查看认证状态，或转到登录和登出。</li>
+<li><code>/login</code>：选择认证方式和 provider。<code>/logout</code> 只删除选中的已保存凭据，不删除环境变量。</li>
+<li><code>/connect</code>：选择 provider，认证后打开它的模型选择器。</li>
+<li><code>/skill [NAME]</code>：为下一个任务激活技能。</li>
+<li><code>/tool [list]</code>：查看可用工具及说明。</li>
+<li><code>/config [KEY[=VALUE]]</code>：浏览配置，或更新项目设置。其中 <strong>TUI Rendering</strong> 提供 Inline/Fullscreen 原生选择菜单，不需要填写文本；下次启动生效。Fullscreen 下可用 PageUp/PageDown 滚动对话历史。</li>
+<li><code>/memory</code>：显示工作区记忆文件的路径。</li>
+<li><code>/exit</code> 或 <code>/quit</code>：退出。</li>
+</ul>
+<p>TUI 不注册 <code>/rename</code> 和 <code>/mcp</code>。恢复操作只改已跟踪文件，不处理任意 shell 副作用、外部服务或用户的 Git 索引。参见<a href="#page-snapshots-goals">恢复范围和冲突</a>。<code>--undo</code> 不能与任务同时使用；两个撤销入口共用同一份持久操作历史。</p>
+<h2>交互输入</h2>
+<ul>
+<li><code>@path</code>：把工作区文件附加到任务。</li>
+<li><code>$skill</code>：把技能正文加载到任务。</li>
+<li><code>!command</code>：不联系模型，直接运行 shell 命令。权限检查仍然生效。</li>
+</ul>
+<pre><code class="language-text">Review @src/cade/harness/loop.py and use $review-only
+!git status
+</code></pre>
+<p>任务执行期间，TUI 会继续读取输入：</p>
+<ul>
+<li><code>/steer TEXT</code>：在下一个模型步骤追加指导。</li>
+<li><code>/queue TEXT</code>：在当前任务结束后运行 TEXT。</li>
+<li><code>/stop</code> 或 <code>Esc</code>：中断任务，不等待下一次模型输出。未送达的排队输入会和当前草稿一起回到编辑器。</li>
+<li><code>Ctrl+C</code>：清空编辑器，不中断任务。500 ms 内再按一次退出。</li>
+<li>其他文本：作为后续任务排队。</li>
+</ul>
+<p>空闲且输入为空时，500 ms 内按两次 <code>Esc</code> 打开 <code>/rewind</code>。树导航、fork 和 clone 不会恢复工作区文件。在选择器或表单里，<code>Esc</code> 改为关闭当前交互。用 <code>Ctrl+C</code> 清空输入与用 <code>Esc</code> 取消任务是两回事。</p>
+<p>指导在步骤之间生效，不会进入 provider 数据流或正在运行的工具。参见<a href="#page-steering-queue">引导与排队</a>。</p>
+<h2>退出码</h2>
+<ul>
+<li><code>0</code>：运行完成。</li>
+<li><code>1</code>：运行未完成，或 <code>--undo</code> 没有找到会话或可撤销操作，或恢复失败。</li>
+<li><code>2</code>：参数、配置或启动错误。</li>
+<li><code>130</code>：登录被取消。</li>
+</ul>
+<h2>示例</h2>
+<pre><code class="language-bash">cade --list-sessions
+cade --continue -p &quot;Summarize the current state.&quot;
+cade --undo
+cade --mode plan -p &quot;Find the smallest fix for the failing test.&quot;
+cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
+</code></pre>
+
+</section>
+<section class="page" id="page-configuration" data-title="配置">
+<h1>配置</h1>
+<p>Cade 默认读取 <code>&lt;project-root&gt;/cade.json</code>。用 <code>--config PATH</code> 选择其他文件。命令行选项覆盖文件，文件覆盖内置默认值。</p>
+<p>配置是严格的：未知键和非法值会被拒绝，不会静默忽略。</p>
+<p>在 TUI 中，<code>/config</code> 打开设置浏览器。每个设置项都先展示方向键菜单，默认选中当前值。数值项提供预设值，可空项提供 <strong>Use default</strong>。选择 <strong>Custom value...</strong> 后，才能在预填表单中输入自定义数值、路径或模型名。按 Enter 保存，按 Esc 返回选项。保存的默认值在下次启动时生效。</p>
+<p><strong>TUI Rendering</strong> 仅提供 <strong>Inline</strong> 和 <strong>Fullscreen</strong> 两个选项，无需手动输入。Inline（默认）保留终端原生滚动历史与文本选择；Fullscreen 使用备用屏幕，并通过 PageUp/PageDown 浏览对话。选择后重启 Cade 即可生效。</p>
+<h2>示例</h2>
+<pre><code class="language-json">{
+  &quot;provider&quot;: &quot;chatgpt&quot;,
+  &quot;model&quot;: &quot;gpt-5.6-luna&quot;,
+  &quot;reasoning_effort&quot;: &quot;high&quot;,
+  &quot;context_window&quot;: 128000,
+  &quot;max_steps&quot;: 30,
+  &quot;sessions_dir&quot;: &quot;.cade/sessions&quot;,
+  &quot;mode&quot;: &quot;build&quot;,
+  &quot;sandbox&quot;: &quot;workspace-write&quot;,
+  &quot;network&quot;: true,
+  &quot;read_only&quot;: false,
+  &quot;instructions&quot;: true,
+  &quot;note&quot;: true,
+  &quot;memory&quot;: true,
+  &quot;auto_review&quot;: false,
+  &quot;prompt_modules&quot;: [&quot;identity&quot;, &quot;tool_discipline&quot;, &quot;working_note&quot;, &quot;environment&quot;],
+  &quot;rules&quot;: [
+    {
+      &quot;tool&quot;: &quot;bash&quot;,
+      &quot;command_prefix&quot;: &quot;git status&quot;,
+      &quot;decision&quot;: &quot;allow&quot;
+    }
+  ]
+}
+</code></pre>
+<h2>字段</h2>
+<ul>
+<li><code>provider</code>、<code>model</code>：provider 名称和模型标识。<code>chatgpt</code> 用于 ChatGPT 套餐（Sign in with ChatGPT），<code>openai</code> 用于 OpenAI API key，<code>deepseek</code> 用于 DeepSeek API key。CLI 参数会覆盖这两个字段。</li>
+<li><code>reasoning_effort</code>：provider 的推理强度。CLI 参数是 <code>--effort</code>。</li>
+<li><code>context_window</code>：模型的上下文窗口，单位是 token。默认值来自已注册的模型元数据。未注册的模型必须提供这个字段或 <code>--context-window</code>，否则 Cade 会拒绝启动。</li>
+<li><code>max_steps</code>：单次运行中最多执行多少模型步骤。</li>
+<li><code>sessions_dir</code>：会话目录。相对路径按项目根目录解析。</li>
+<li><code>mode</code>：<code>plan</code>、<code>build</code> 或 <code>ask</code>。默认是 <code>build</code>；旧的 <code>act</code> 值请改成 <code>ask</code>。</li>
+<li><code>sandbox</code>：<code>read-only</code>、<code>workspace-write</code>（默认）或 <code>danger-full-access</code>。Windows 会跳过操作系统隔离，与这里的设置无关。</li>
+<li><code>network</code>：允许工具访问网络，默认是 true。设为 false 时，所有平台都会拒绝网页工具调用。Shell 的网络隔离仍依赖 Linux 和 macOS 的沙箱。</li>
+<li>网页搜索使用 Exa，可通过 <code>EXA_API_KEY</code> 提供自己的密钥。已有 <code>cade.json</code> 需要移除 <code>websearch_provider</code> 字段。</li>
+<li><code>read_only</code>：拒绝修改，只允许已归类的只读 shell 命令。</li>
+<li><code>instructions</code>：把 <code>AGENTS.md</code> 或 <code>CLAUDE.md</code> 加载到请求上下文。</li>
+<li><code>note</code>：加载 <code>NOTE.md</code> 工作状态。</li>
+<li><code>memory</code>：加载 <code>MEMORY.md</code> 中的长期事实。</li>
+<li><code>auto_review</code>：让模型复核 ask 级别的工具调用。默认是 false。</li>
+<li><code>prompt_modules</code>：系统提示模块。可用名称是 <code>identity</code>、<code>tool_discipline</code>、<code>working_note</code> 和 <code>environment</code>。</li>
+</ul>
+<h2>规则</h2>
+<p>规则匹配工具名或 <code>*</code>，可选匹配归一化后的路径子树或命令前缀。所有命中的规则都参与决策：<code>deny</code> 优先于 <code>ask</code>，<code>ask</code> 优先于 <code>allow</code>。顺序不影响结果。<code>allow</code> 覆盖模式默认值，但不能覆盖生效的显式 <code>deny</code>。</p>
+<pre><code class="language-json">{
+  &quot;rules&quot;: [
+    {&quot;tool&quot;: &quot;bash&quot;, &quot;command_prefix&quot;: &quot;git&quot;, &quot;decision&quot;: &quot;deny&quot;},
+    {&quot;tool&quot;: &quot;bash&quot;, &quot;command_prefix&quot;: &quot;git status&quot;, &quot;decision&quot;: &quot;allow&quot;},
+    {&quot;tool&quot;: &quot;write&quot;, &quot;path_prefix&quot;: &quot;docs/&quot;, &quot;decision&quot;: &quot;allow&quot;}
+  ]
+}
+</code></pre>
+<p>这个例子里 <code>git status</code> 仍会被拒绝，因为更宽的 deny 也匹配。要放行，就删除或收窄那条 deny。计划模式约束、受保护路径和 <code>read_only</code> 优先于授权和规则。工作区外的写入会申请额外权限，不会被无条件拒绝。作用范围和审批行为见<a href="#page-tools-security">工具与安全</a>。</p>
+<h2>MCP 服务器</h2>
+<p>MCP 服务器支持 stdio 和 Streamable HTTP，每个服务器保持一条连接。</p>
+<pre><code class="language-json">{
+  &quot;mcp_servers&quot;: {
+    &quot;files&quot;: {
+      &quot;command&quot;: &quot;python&quot;,
+      &quot;args&quot;: [&quot;mcp_server.py&quot;],
+      &quot;cwd&quot;: &quot;.&quot;,
+      &quot;timeout_ms&quot;: 30000,
+      &quot;env&quot;: {&quot;LOG_LEVEL&quot;: &quot;warn&quot;}
+    }
+  }
+}
+</code></pre>
+<p>发现的工具以 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code> 命名。它们默认需要确认，在计划模式和只读模式下被拒绝，也可以由规则放行。</p>
+<p><code>env</code> 用于普通进程设置；<code>env_from</code> 将指定宿主环境变量传给 stdio 服务器。默认只继承 SDK 的基础进程环境，不会自动复制其余宿主凭据。HTTP 请求头通过 <code>headers_from</code> 从环境变量读取：</p>
+<pre><code class="language-json">{
+  &quot;mcp_servers&quot;: {
+    &quot;remote&quot;: {
+      &quot;transport&quot;: &quot;streamable-http&quot;,
+      &quot;url&quot;: &quot;https://mcp.example.com/mcp&quot;,
+      &quot;headers_from&quot;: {&quot;Authorization&quot;: &quot;EXAMPLE_MCP_AUTH&quot;}
+    }
+  }
+}
+</code></pre>
+<p>在 Cade 外设置 <code>EXAMPLE_MCP_AUTH</code>，值为完整的授权请求头。凭据应存放在环境变量或外部密钥管理器中，不要写入项目配置、URL、命令参数或技能文件。Cade 不保存凭据缓存，显式传入的凭据值会从 MCP 结果和诊断中脱敏。MCP 服务进程运行在工作区工具沙箱之外，只配置可信服务。</p>
+<p>设置 <code>trust_project_skills: true</code> 后才会发现项目技能。<code>skills_dir</code> 可指定额外的可信目录，支持相对项目根目录的路径或绝对路径。详见<a href="#page-skills-memory">技能与记忆</a>。</p>
+
+</section>
+<section class="page" id="page-code-mode" data-title="Code mode">
+<h1>Code mode</h1>
+<p>使用 <code>run_code</code>，让一段 Python 程序串联工具并筛选中间结果。
+它与直接工具调用同时可用，无需额外配置。
+例如，可以要求 Cade 使用 <code>run_code</code> 读取多个文件，只返回其中的标题。</p>
+<h2>编写程序</h2>
+<p><code>code</code> 和 <code>description</code> 都是必填参数。
+<code>description</code> 是工具卡片显示的简短操作说明，例如“统计文件行数”，不能留空。
+<code>code</code> 参数是异步 Python 函数体，支持顶层 <code>await</code> 和 <code>return</code>。
+工具参数与直接调用一致：</p>
+<pre><code class="language-python">result = await tools.read({&quot;path&quot;: &quot;README.md&quot;})
+return [line for line in result[&quot;content&quot;].splitlines() if line.startswith(&quot;#&quot;)]
+</code></pre>
+<p>使用 <code>await tools.name({...})</code> 或 <code>await tools[&quot;name&quot;]({...})</code> 调用工具。
+成功返回 <code>{content, metadata}</code>。metadata 保留工具已有的结构化数据，例如 MCP 的 <code>mcp_result</code>。
+工具失败或被拒绝时抛出 <code>RuntimeError</code>，程序可以捕获。</p>
+<p>只有打印的文本和 JSON 返回值进入模型历史，其他工具结果留在程序内部。
+每次执行使用新 Python 进程，变量不跨调用保留。
+脚本可使用 <code>asyncio</code>，但工具调用按顺序执行，<code>asyncio.gather</code> 提交的调用也不例外。
+脚本不能递归调用 <code>run_code</code>。</p>
+<h2>结果与限制</h2>
+<p>可选参数 <code>timeout</code> 指定整段程序的时限，单位为秒，包含嵌套工具执行和审批等待。
+它必须是正的有限数值，没有固定最大值；省略时默认使用 120 秒。例如：</p>
+<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;description&quot;: &quot;等待耗时操作&quot;, &quot;timeout&quot;: 300, &quot;max_output_tokens&quot;: 2000}
+</code></pre>
+<p>嵌套工具继承所选时限作为默认超时，整段程序仍受同一个总时限约束。
+你可以在超时前随时取消程序。</p>
+<p>可选参数 <code>max_output_tokens</code> 是非负整数，默认值为 10,000，按每 4 个字符估算 1 个 token。
+渲染后的文本超过预算时，Cade 保留首尾，并把完整文本保存到临时文件。
+结果中会显示文件路径，<code>metadata.fullOutputPath</code> 也保存该路径。
+设为 <code>0</code> 时，只返回截断提示和文件路径。
+可用 <code>read</code> 的 <code>offset</code> 和 <code>limit</code> 分段查看文件。会话历史保留预览和路径，不保存临时文件的持久副本。</p>
+<p>打印内容和 JSON 返回值另有固定的 16 MiB 硬上限，超限会使脚本失败并停止执行，超出部分不保留。
+调大 <code>max_output_tokens</code> 不能提高硬上限。
+工具调用控制消息仍限制为 1 MiB；完成消息可以传递硬输出上限以内的返回值。</p>
+<p>脚本报错时返回已捕获的输出和错误。
+失败不撤销已完成操作，也不自动重跑程序。
+取消或超时会终止 Python，并等待已启动的嵌套调用结束。</p>
+<p>嵌套调用的 <code>tool_execution</code> 审计记录不进入模型历史，可通过 <code>history</code> 检索。
+通过 <code>tools.write</code> 和 <code>tools.edit</code> 写入的文件保留已有的恢复能力。</p>
+<p>执行权限和 Python 直接 I/O 见<a href="#page-tools-security">工具与安全</a>。
+设计依据见<a href="../decisions/0019-python-tool-orchestration.md">决策 0019</a>。</p>
+
+</section>
+<section class="page" id="page-architecture" data-title="架构">
+<h1>架构</h1>
+<p>Cade 是 <code>src/cade/</code> 下的独立编码代理。它使用四段流水线，每段只有一个所有者，数据只朝一个方向流动。</p>
+<pre><code class="language-text">会话日志 -&gt; 对话投影 -&gt; 请求 -&gt; 运行
+</code></pre>
+<h2>会话日志</h2>
+<p><code>SessionLog</code> 是追加式 JSONL 文件。每条记录包含 ID、时间戳、类型、父 ID 和数据。活动分支结束于最新记录。<code>/tree</code> 追加一条导航事件，用父 ID 指明续接点；其他分支仍留在同一个文件里。执行循环只沿活动路径工作。</p>
+<p>日志保存事实：</p>
+<ul>
+<li><code>system</code>、<code>user</code>、<code>assistant</code> 和 <code>tool_result</code> 是模型可见的事实。</li>
+<li><code>compaction</code> 记录摘要和 <code>first_kept_id</code>。</li>
+<li><code>window</code> 记录新的上下文起点和可选的交接。</li>
+<li><code>request</code>、<code>run</code>、<code>attempt</code>、<code>branch</code>、<code>checkpoint</code>、<code>restore</code> 和 <code>tool_execution</code> 是审计事实。它们永远不会变成对话消息。branch 事件还会保留选中的输入，供重启后编辑。</li>
+</ul>
+<p>格式是封闭的。见<a href="#page-session-schema">会话日志格式</a>。</p>
+<h2>投影</h2>
+<p><code>project(entries)</code> 是纯函数。它读取分支，产生确定性的对话投影：</p>
+<ol>
+<li>取最新的 system 消息。</li>
+<li>应用最新的 window 起点。</li>
+<li>应用最新的 compaction 摘要。</li>
+<li>保留未被裁掉的 user、assistant 和 tool-result 消息。</li>
+<li>配对工具调用和结果；日志在调用中途结束时，在尾部插入一条合成的“已中断”结果。</li>
+</ol>
+<p>投影不写日志。重放相同记录总是得到相同对话。</p>
+<h2>请求</h2>
+<p><code>build(conversation, tools, budget, context)</code> 把消息纳入当前模型窗口。它：</p>
+<ul>
+<li>拼接只属于请求的上下文，例如指令、技能目录、NOTE、记忆和目标；</li>
+<li>保留每条投影消息和工具结果；</li>
+<li>用输入预算检查完整请求；</li>
+<li>把结果转换成 provider 的线上格式；</li>
+<li>返回带 <code>BuildReport</code> 的 <code>Request</code>。</li>
+</ul>
+<p>准入不修改对话，也不写事实。只有 compaction 和 window 事件会改变可见历史。超出预算的请求会被拒绝，不会静默截断。</p>
+<h2>运行</h2>
+<p>在追加新的 user 事实之前，<code>run()</code> 会为未完成的工具调用保存“已中断”结果。它不会重跑结果未知的工具。随后它调用 provider，追加 assistant 和 tool-result 事实，并执行工具。它是回合内唯一写日志的阶段。压缩和窗口回退都是决策，最终以新的日志事实表示。</p>
+<h2>包边界</h2>
+<p>Cade 有五个运行时包：</p>
+<ul>
+<li><code>ai</code>：模型协议、provider、模型元数据和认证协议。</li>
+<li><code>harness</code>：日志驱动的代理循环、会话事实与投影、请求准入、工具执行契约和内部执行后端。</li>
+<li><code>coding</code>：编程工具、项目上下文、工作区策略、子代理、MCP 集成、快照和工作区恢复。</li>
+<li><code>app</code>：配置、凭据、provider 装配、应用会话、设置和命令。</li>
+<li><code>hosts</code>：CLI 参数、终端输入输出和 TUI 展示。</li>
+</ul>
+<p>依赖从 hosts 指向 app、coding、harness 和 ai。每层可以使用下层，下层不导入上层。harness 包含代理运行时，不再设置平级的 agent 包。</p>
+<p>本地进程与沙箱实现放在 <code>harness/execution/local</code>，不作为顶层包暴露。执行范围契约不导入平台后端。<code>tests/test_architecture.py</code> 检查这些边界。</p>
+<p><code>app/bootstrap.py</code> 为一次性执行和 TUI 创建同一种 <code>ApplicationSession</code>。<code>app/session.py</code> 管理活动会话，不导入终端模块。<code>harness/executor.py</code> 为模型调用和应用直接调用统一处理授权、逐调用执行范围、超时和工具错误。循环仍负责记录模型回合事实，在结果写入后发出工具完成事件。</p>
+<p><code>coding/tools/run_code.py</code> 提供一次性 Python 工具编排。executor 注入当前工具集合和嵌套执行回调，调用方记录嵌套调用的提交和结果，不把中间结果投影给模型。
+<code>harness/execution/local/python.py</code> 管理新解释器、控制消息上限、输出和进程清理。
+Python 直接 I/O 使用 shell 沙箱，嵌套工具写入继承当前回合的恢复所有权。</p>
+<p>实现位置见<a href="#page-code-map">代码地图</a>。Cade 不依赖早期的 Cade 项目，也不提供兼容导入路径。类型和函数直接从所属模块导入。</p>
+<h2>恢复</h2>
+<p>应用装配时把 <code>TurnLifecycle</code> 注入 harness 循环。它在 user 事实之前创建根回合检查点，在该事实之后建立关联，并在执行结束后关闭检查点。工具工作线程和同步子代理继承捕获所有权。harness 不导入工作区存储。恢复除了会话运行锁，还用工作区锁串行化协作写入者。</p>
+<p>原生快照存储保留前后两份文件镜像。追加式工作区操作日志驱动逐步撤销和重做；会话日志仍是对话血统的权威来源。持久化的待处理计划协调文件与对话提交。中断后恢复可以幂等续作，遇到未知的外部编辑就停止。见<a href="#page-snapshots-goals">快照与目标</a>。</p>
+<h2>下层模块与状态</h2>
+<p><code>ai/</code> 负责 provider 协议、流式适配器、模型元数据和 OAuth。<code>harness/execution/</code> 负责本地进程执行和输出捕获。这两层都不导入应用或宿主模块。AI 层只支持 Responses 协议，记录在<a href="../decisions/0007-responses-only-provider.md">决策 0007</a>；套餐用量使用 Sign in with ChatGPT，记录在<a href="../decisions/0008-siwc-login.md">决策 0008</a>。DeepSeek 使用独立传输，但流格式同样是 Responses，端点由自己提供。<code>harness/execution/local/sandbox.py</code> 负责 bubblewrap 和 Seatbelt 的进程包装。<code>harness/permissions.py</code> 承载结构化审批结果和每次调用的范围。CLI 在 Linux 和 macOS 上隔离 shell 与文件工作进程；Windows 直接运行。边界和可信扩展见<a href="#page-tools-security">工具与安全</a>。</p>
+<p>凭据和用户级技能放在 <code>~/.cade/</code>。SIWC 宿主 ID 在 <code>~/.cade/host.json</code>。会话、快照、目标和项目技能放在 <code>&lt;workspace&gt;/.cade/</code>。项目设置放在 <code>cade.json</code>。早期 Cade 项目的状态格式与本项目不兼容；请从干净的 <code>~/.cade/</code> 和工作区 <code>.cade/</code> 目录开始。</p>
+<p>实现位置和持久状态归属见<a href="#page-code-map">代码地图</a>和<a href="#page-persistence-catalog">持久化目录</a>。</p>
+<h2>为什么这样拆分</h2>
+<p>这种拆分避免一个常见故障：请求构造器开始隐藏消息，随后历史改写成了唯一的事件副本。Cade 保留原始事实，让投影和准入可以被替换，而不丢失历史。</p>
+
+</section>
+<section class="page" id="page-sessions-context" data-title="会话与上下文">
+<h1>会话与上下文</h1>
+<p>会话默认是 <code>.cade/sessions</code> 下的追加式 JSONL 文件，文件名是 <code>session-&lt;id&gt;.jsonl</code>。标题取自第一条用户消息，不需要额外的事件类型。</p>
+<p>在 POSIX 系统上，新会话目录使用 <code>0700</code> 权限，日志文件使用 <code>0600</code>。打开已有日志时，会把文件权限收紧为 <code>0600</code>，保留已有目录的权限。Windows 继承目录的访问控制列表（ACL）。日志包含完整请求输入，自定义会话目录应只允许当前用户访问。</p>
+<h2>恢复会话</h2>
+<pre><code class="language-bash">cade --list-sessions
+cade --continue &quot;Continue where we stopped.&quot;
+cade --resume SESSION_ID &quot;Explain the current state.&quot;
+</code></pre>
+<p><code>--continue</code> 和 <code>--resume</code> 打开最新会话或指定会话。已有会话保留原来的 system 事实；新的 <code>cade.json</code> 不会改写历史。如果恢复的会话没有 system 记录，就补上当前提示。</p>
+<h2>树、fork 和 clone</h2>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/tree [ENTRY]</code></td>
+<td>在同一个会话内切换位置，保留所有分支</td>
+</tr>
+<tr>
+<td><code>/fork [N|ENTRY]</code></td>
+<td>把选中用户输入之前的历史复制到新会话</td>
+</tr>
+<tr>
+<td><code>/clone</code></td>
+<td>把当前活动路径完整复制到新会话</td>
+</tr>
+</tbody>
+</table>
+<p><code>/tree</code> 显示完整历史树。选中一条用户输入会把文本放回编辑器，并从它的父节点继续。选中其他条目则在该条目之后继续，编辑器为空。导航位置和待处理的输入在重启后保留。下一次模型请求只包含选中的路径。空闲且输入为空时，连按两次 Esc 会打开独立的 <code>/rewind</code> 检查点选择器。</p>
+<p><code>/fork</code> 可以选择活动分支和非活动分支里的用户输入。<code>/fork N</code> 选中第 N 条最近记录的输入；<code>/fork ENTRY</code> 直接选中条目。精确条目 ID 优先于数字轮次选择器。选中的输入会回到新会话的编辑器。<code>/clone</code> 清空编辑器，只复制活动路径，不复制其他分支。副本获得新的条目 ID，保留时间戳，并重映射 compaction/window 引用。导航和检查点控制不会复制。副本不继承源会话的工作区撤销栈。</p>
+<p>这三种操作都不改工作区文件。fork 和 clone 不改源会话。它们不实现对话或文件撤销，也不会为被放弃的分支生成自动摘要。没有活动任务时，运行历史才会变化。</p>
+<p>持久字段见<a href="#page-session-schema">会话格式</a>，文件恢复边界见<a href="#page-snapshots-goals">恢复</a>。</p>
+<h2>检查点恢复</h2>
+<p><code>/undo</code> 和 <code>/redo</code> 撤销或重应用一个操作。一轮根用户输入算一个操作，包括同步子代理的编辑。显式 rewind 和 revert 也是单个可逆操作。新操作会丢弃当前的重做链；原有对话分支仍然保留。在操作链之外导航会阻止过期的撤销/重做，用 <code>/rewind</code> 选择想要的位置。</p>
+<p><code>/rewind</code> 恢复到选中活动路径用户输入之前的位置，并询问恢复对话、已跟踪代码或两者。<code>/revert</code> 只选择一段轮次和文件子集里的代码变更。只恢复代码会保留对话消息，并追加一条有审计记录的请求上下文通知。它不回退 provider 设置、权限、凭据或其他宿主状态。</p>
+<p>没有自有检查点的旧轮次或复制轮次只能恢复对话。文件覆盖范围、冲突和中断事务见<a href="#page-snapshots-goals">快照与目标</a>。</p>
+<h2>压缩</h2>
+<p>完整对话超出输入预算时，<code>Compactor</code> 会：</p>
+<ol>
+<li>在可见的用户边界选择切点。</li>
+<li>把较早的消息发给 provider 生成摘要。</li>
+<li>追加一条 <code>compaction</code> 事实，包含摘要和 <code>first_kept_id</code>。</li>
+<li>把对话重新投影为最新 system、摘要和保留的尾部。</li>
+</ol>
+<p>压缩是迭代的：之前的摘要会序列化为 <code>PRIOR SUMMARY</code>，可以再次总结。原始 user、assistant 和 tool-result 事实仍留在日志里。</p>
+<h2>请求准入</h2>
+<p>请求构造保留整个投影，包括工具输出。只有记录在案的 compaction 和 window 事件会缩减可见历史。如果这些步骤之后请求仍超出预算，循环返回 <code>context_error</code>，不发给 provider。用 <code>history</code> 工具检索当前上下文之外的证据。</p>
+<h2>上下文窗口</h2>
+<p><code>window</code> 事实在某个用户条目处开启新上下文，可以附带交接。TUI 可以用 <code>/new-context</code> 显式开启。如果压缩仍无法把请求带入预算，循环可以追加自动 window，附带指向 <code>NOTE.md</code> 和 history 工具的固定交接。</p>
+<h2>History 工具</h2>
+<p><code>history</code> 接受以下参数之一：</p>
+<ul>
+<li><code>query</code>：在分支上做不区分大小写的搜索，返回条目 ID 和片段。</li>
+<li><code>entry_id</code>：某条日志记录的完整内容。</li>
+<li><code>call_id</code>：某次调用的完整工具结果。</li>
+</ul>
+<p>完整内容有上限。搜索结果也有上限，并指回条目 ID。</p>
+<h2>请求上下文顺序</h2>
+<p>每个任务的请求依次包含：</p>
+<ol>
+<li>system 消息。</li>
+<li>来自 <code>AGENTS.md</code>、<code>CLAUDE.md</code> 或其变体的项目指令。</li>
+<li>技能目录。</li>
+<li><code>NOTE.md</code> 工作状态。</li>
+<li><code>MEMORY.md</code> 长期事实。</li>
+<li>活动目标。</li>
+</ol>
+<p>第 2 到 6 项只属于请求上下文。它们记入请求审计，但不会变成对话事实。参见<a href="#page-architecture">架构</a>和<a href="../history/design-proposal.md">设计</a>。</p>
+
+</section>
+<section class="page" id="page-how-it-works" data-title="Cade 如何工作">
+<h1>Cade 如何工作</h1>
+<p>Cade 一次协调一个模型请求，执行请求中指定的工具，并把每条持久事实写进会话日志。</p>
+<h2>一次运行</h2>
+<p>提交的任务作为 <code>user</code> 事实追加到日志。Cade 投影活动分支，按当前预算构造请求，发给 provider。provider 流式返回文本和工具调用。循环记录 assistant 消息，执行每个工具调用，并记录工具结果。模型需要继续请求时，循环进入下一步；否则运行结束。</p>
+<p>一个步骤是一次请求，加上这次响应引发的工具。一次运行可以包含多个步骤。循环在以下情况停止：任务完成、达到步骤上限、上下文耗尽、取消或 provider 出错。</p>
+<h2>上下文</h2>
+<p>投影提供对话历史。只属于请求的上下文提供项目指令、技能目录、<code>NOTE.md</code>、<code>MEMORY.md</code> 和活动目标。工具结果放不下时会被裁剪；history 工具仍能读取原始事实。</p>
+<p>压缩追加一条摘要事实，保留最近的尾部。window 把上下文起点前移，可以附带交接。这两种操作都不改写原始消息。</p>
+<h2>会话</h2>
+<p>会话是 <code>.cade/sessions</code> 下的 JSONL 文件。记录带 ID 和父 ID，因此会话可以形成树；活动分支结束于最新记录。恢复会话就是打开同一个文件，继续追加新事实。</p>
+<h2>接口</h2>
+<p>终端宿主运行单个任务或 TUI。这些接口调用同一个循环，并与其他所有入口共用策略、工具和会话存储。</p>
+<h2>扩展</h2>
+<p>技能按需补充指令。记忆补充长期事实。MCP 增加远程工具。子代理运行独立的子会话。每个扩展都是循环之上的窄适配器，不改变会话格式。</p>
+<h2>信任与权限</h2>
+<p>每次工具调用都要经过策略。模式、静态规则、会话授权、shell 分类和审批共同决定调用是否执行。Linux 和 macOS 上的 shell 与文件工具还会使用操作系统隔离；Windows 直接运行。作用范围和限制见<a href="#page-tools-security">工具与安全</a>。</p>
+<p>不变式见<a href="#page-architecture">架构</a>，契约见<a href="#page-capability-seams">能力接缝</a>。</p>
+
+</section>
+<section class="page" id="page-code-map" data-title="代码地图">
+<h1>代码地图</h1>
+<p>Cade 是独立项目。<code>cade</code> 发行包安装 <code>cade</code> 包和 <code>cade</code> 命令，不安装也不依赖早期的 Cade 项目。</p>
+<h2>包结构</h2>
+<pre><code class="language-text">src/cade/
+  ai/                       provider、模型协议和认证
+  harness/
+    session/                事实、格式、日志、投影和历史
+    execution/              执行范围契约和本地执行后端
+    loop.py                 日志驱动的回合与 provider 重试
+    executor.py             共享工具授权与执行
+    tools.py, provider.py   运行时契约
+    request.py              请求准入与线上格式转换
+    compaction.py           基于摘要的上下文缩减
+    window.py               显式上下文窗口重置
+  coding/
+    tools/                  读写、编辑、搜索、shell、历史和提问工具
+    context/                提示词、指令、笔记和记忆
+    security/               工作区策略、规则、授权、审批和复核
+    workspace/              快照和协调恢复
+    subagents.py            编程子会话和委派工具
+    mcp/, mcp_config.py      MCP 连接、工具、结果和配置
+    skills/                 技能发现、加载、资源和上下文恢复
+    goal.py                 工作区目标状态和工具
+  app/                      装配、活动会话、配置、认证和命令
+  hosts/                    CLI 和 TUI 展示
+  docs.py
+  __main__.py
+tests/                      回归和集成测试
+</code></pre>
+<p>provider 和执行模块源自早期的 Cade 项目，现在由本项目拥有和维护。Cade 只包含自己使用的进程执行代码，不包含早期项目的文件系统或 Linux 沙箱实现。自己的进程包装器在 Linux 上使用已安装的 bubblewrap，在 macOS 上使用 Seatbelt；Windows 直接运行。</p>
+<h2>入口</h2>
+<pre><code class="language-bash">uv run --locked cade
+uv run --locked cade exec &quot;Fix the failing test.&quot;
+uv run --locked python -m cade
+uv run --locked cade login
+</code></pre>
+<p>控制台脚本和 Python 模块都调用 <code>cade.hosts.cli:main</code>。登录由 <code>cade.hosts.auth</code> 处理。凭据和用户级技能放在 <code>~/.cade/</code>。项目会话和其他状态放在 <code>.cade/</code>。早期 Cade 项目的状态不兼容。</p>
+<h2>导入方向</h2>
+<ul>
+<li><code>ai</code> 不导入其他 Cade 层。</li>
+<li><code>harness</code> 只导入自身和 <code>ai</code>，本地执行是它的内部实现。</li>
+<li><code>coding</code> 导入自身、<code>harness</code> 和 <code>ai</code>。</li>
+<li><code>app</code> 装配这些下层模块，管理产品级会话操作。</li>
+<li><code>hosts</code> 调用应用操作，把下层契约适配为输入输出。</li>
+</ul>
+<p><code>app.bootstrap.create_session()</code> 是共享装配入口。它接收配置和调用方管理的资源，不导入终端模块。<code>ApplicationSession.run_task()</code> 同时用于一次性执行和 TUI。<code>harness.executor.execute_tool()</code> 是统一的工具执行边界。</p>
+<p>配置类型由对应能力拥有：权限规则放在 <code>coding/security/rules.py</code>，MCP 连接设置放在 <code>coding/mcp_config.py</code>。<code>CadeConfig</code> 组合这些类型，能力模块不反向导入应用配置。</p>
+<p><code>tests/test_architecture.py</code> 检查包依赖和执行契约隔离。Cade 根目录不再保留旧的 <code>core</code>、<code>execution_env</code>、<code>extensions</code>、<code>safety</code> 或 <code>tools</code> 包。</p>
+<p>包根目录没有公开再导出；直接导入所属子模块。</p>
+<p>运行时契约见<a href="#page-architecture">架构</a>、<a href="#page-how-it-works">Cade 如何工作</a>和<a href="#page-capability-seams">能力接缝</a>。</p>
+
+</section>
+<section class="page" id="page-cade-comparison" data-title="与早期 Cade 项目的关系">
+<h1>与早期 Cade 项目的关系</h1>
+<p>本仓库以前叫 Cade Mini，与早期的 Cade 实现相互独立。这里只开发、测试和发布本项目，不提供对早期项目 Python 包、命令、设置、凭据或会话格式的兼容。</p>
+<p>项目最初作为日志优先的实现，与早期 Cade 并行存在。独立之后，provider 适配器和进程执行代码并入 <code>cade</code> 包，不再是共享的运行时依赖。</p>
+<h2>产品边界</h2>
+<p>Cade 提供终端 TUI 和一次性执行。核心把追加式会话事实、确定性投影、请求准入和运行循环分开。</p>
+<p>有意保留的限制包括：</p>
+<ul>
+<li>没有插件运行时、RPC 或 SDK。</li>
+<li>没有产物存储或并行工具调度器。</li>
+<li>没有永久审批授权；长期规则写在项目配置里。</li>
+<li>没有 Windows 操作系统沙箱；Linux 使用 bubblewrap，macOS 使用 Seatbelt。</li>
+</ul>
+<p><a href="#page-parity">历史对齐验收</a>记录的是拆分之前测试过的工作流，不是对未来功能对齐的承诺。当前包和所有权边界见<a href="#page-code-map">代码地图</a>。</p>
+
+</section>
+<section class="page" id="page-capability-seams" data-title="能力接缝">
+<h1>能力接缝</h1>
+<p>Cade 保留少量显式契约。接缝是实现可以被替换的地方，替换时不改会话格式，也不改循环。</p>
+<table>
+<thead>
+<tr>
+<th>接缝</th>
+<th>契约</th>
+<th>实现</th>
+<th>主要使用方</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Provider</td>
+<td><code>harness.provider.Provider</code> 流式事件</td>
+<td>OpenAI Responses、ChatGPT 套餐（SIWC）、DeepSeek Responses</td>
+<td>循环、压缩、自动复核</td>
+</tr>
+<tr>
+<td>Tool</td>
+<td><code>harness.tools.Tool</code> 的名称、描述、参数、execute</td>
+<td>工作区工具、history、skill、memory、goal、delegate、MCP</td>
+<td>循环</td>
+</tr>
+<tr>
+<td>Policy</td>
+<td><code>permissions.Policy.check</code> 返回决策、原因和范围</td>
+<td><code>WorkspacePolicy</code></td>
+<td>循环、CLI shell</td>
+</tr>
+<tr>
+<td>Approval</td>
+<td><code>ApprovalRequest</code> 到 <code>ApprovalResult</code>，可选异步</td>
+<td><code>SessionApprover</code>、<code>AutoReviewer</code></td>
+<td>授权</td>
+</tr>
+<tr>
+<td>执行范围</td>
+<td><code>ExecutionScope</code> 和 <code>PlatformSandbox.wrap</code></td>
+<td>bubblewrap、Seatbelt、Windows 直接运行</td>
+<td>工作区工具</td>
+</tr>
+<tr>
+<td>压缩</td>
+<td><code>Compactor(log, budget)</code></td>
+<td>LLM 摘要压缩器</td>
+<td>循环</td>
+</tr>
+<tr>
+<td>会话存储</td>
+<td><code>SessionLog</code> 的追加、分支、打开</td>
+<td>文件支持的 JSONL 日志</td>
+<td>其上所有层</td>
+</tr>
+<tr>
+<td>恢复</td>
+<td><code>WorkspaceRecovery.step</code> 和自有检查点</td>
+<td>按内容寻址的文件快照和操作历史</td>
+<td>应用、CLI、TUI</td>
+</tr>
+<tr>
+<td>宿主</td>
+<td>循环之上的任务运行器</td>
+<td>CLI</td>
+<td>用户</td>
+</tr>
+</tbody>
+</table>
+<h2>Provider</h2>
+<p>循环需要一个流式事件源：文本增量、工具调用、最终消息、用量和失败。provider 负责线上格式转换和重放状态。在这个接缝之上，Cade 不依赖 provider 专有的消息类型。</p>
+<h2>工具</h2>
+<p>工具声明 JSON schema 和异步 <code>execute</code>。工具结果是内容、错误标志和可选元数据。工具不写会话日志；循环记录它们的结果。</p>
+<h2>策略与审批</h2>
+<p>策略返回决策，不执行操作。只有 <code>ask</code> 才会咨询审批。拒绝会变成工具错误事实，模型可以据此恢复。把两者分开，宿主就能选择 TTY 提示、模型复核或非交互拒绝。</p>
+<h2>存储</h2>
+<p><code>SessionLog</code> 是持久历史。<code>SnapshotStore</code>、<code>GoalStore</code> 以及记忆和 NOTE 文件是宿主状态，不是会话事实。把它们当作独立存储，可以在保持格式封闭的同时支持恢复和长期状态。</p>
+<h2>宿主</h2>
+<p>宿主负责展示、输入和事件循环边界。它不拥有代理循环或格式。CLI 渲染事件并运行任务，两者都不改。</p>
+<h2>测试即契约</h2>
+<p>每个接缝都有专门的测试模块，避免它悄悄变成隐藏依赖。</p>
+
+</section>
+<section class="page" id="page-event-model" data-title="事件模型">
+<h1>事件模型</h1>
+<p>会话是条目树，不是消息数组。条目类型分为两组。</p>
+<h2>模型可见事实</h2>
+<p>这些条目会投影进对话：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system</code></td>
+<td>基础系统提示；最新的生效</td>
+</tr>
+<tr>
+<td><code>user</code></td>
+<td>用户任务或引导输入</td>
+</tr>
+<tr>
+<td><code>assistant</code></td>
+<td>一次模型响应产生的文本和工具调用</td>
+</tr>
+<tr>
+<td><code>tool_result</code></td>
+<td>与工具调用配对的结果</td>
+</tr>
+<tr>
+<td><code>compaction</code></td>
+<td>摘要加 <code>first_kept_id</code>；遮蔽较早的条目</td>
+</tr>
+<tr>
+<td><code>window</code></td>
+<td>新的上下文起点，可附带交接</td>
+</tr>
+</tbody>
+</table>
+<p><code>compaction</code> 和 <code>window</code> 也携带自己的投影：一条摘要消息。原始条目仍可由 history 工具读取。</p>
+<h2>审计事实</h2>
+<p>这些条目不会投影：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>meta</code></td>
+<td>会话创建元数据</td>
+</tr>
+<tr>
+<td><code>request</code></td>
+<td>provider、模型、上下文、摘要哈希、估算 token、被丢弃的证据</td>
+</tr>
+<tr>
+<td><code>attempt</code></td>
+<td>一次 provider 尝试，包括失败和重试</td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td>终止原因、步骤数、用量、错误</td>
+</tr>
+</tbody>
+</table>
+<p>审计事实让请求可以复现，同时不把诊断信息变成对话。因此失败的运行不会伪造 assistant 消息。</p>
+<h2>流程</h2>
+<pre><code class="language-mermaid">flowchart LR
+  log[Session log] --&gt; project[Projection]
+  project --&gt; conversation[Conversation]
+  conversation --&gt; request[Request build]
+  request --&gt; provider[Provider stream]
+  provider --&gt; facts[Assistant and tool-result facts]
+  facts --&gt; log
+  request --&gt; audit[request fact]
+  provider --&gt; attempts[attempt facts]
+  facts --&gt; run[run fact]
+</code></pre>
+<p>循环在第一次请求之前追加 user 事实。每个步骤追加一条 assistant 事实和零条或多条 tool-result 事实。一次运行恰好追加一条 <code>run</code> 事实。</p>
+<h2>顺序与配对</h2>
+<p>工具结果跟在其 assistant 工具调用之后。投影拒绝孤立结果或重复结果。如果分支在工具调用之后结束且没有结果，投影会在尾部插入一条合成的“已中断”结果，让请求保持协议有效。</p>
+<h2>压缩与窗口</h2>
+<p>压缩在用户边界切分。摘要消息出现在保留上下文的最前面。window 丢弃较早的条目，可以插入交接。只有最新的切点生效。优先使用压缩；摘要仍放不下时，window 是回退方案。</p>
+<h2>格式权威</h2>
+<p>封闭格式定义在<a href="#page-session-schema">会话日志格式</a>。生成的<a href="#page-event-catalog">事件目录</a>列出代码中的当前事件类型。</p>
+
+</section>
+<section class="page" id="page-tool-execution" data-title="工具执行">
+<h1>工具执行</h1>
+<p>每次工具调用都走同一条流水线。策略和审批决定调用能否执行；循环负责执行和记录。</p>
+<pre><code class="language-mermaid">flowchart LR
+  call[Tool call] --&gt; policy[Policy decision]
+  policy --&gt;|deny| denied[Denied tool result]
+  policy --&gt;|ask| approval[Approval]
+  approval --&gt;|deny| denied
+  approval --&gt;|allow| execute[Execute tool]
+  policy --&gt;|allow| execute
+  execute --&gt; result[Tool result]
+  result --&gt; log[Append fact]
+  denied --&gt; log
+</code></pre>
+<h2>顺序</h2>
+<ol>
+<li>模型返回带 ID 和参数的工具调用。</li>
+<li>策略检查工具名、路径、模式、规则、授权和 shell 分类。</li>
+<li><code>ask</code> 决策由宿主解决：TTY 提示、<code>--yes</code>、自动复核或拒绝。</li>
+<li>工具在批准的本次调用范围内执行，带超时和取消令牌。Linux 和 macOS 的工作区工具使用操作系统隔离。</li>
+<li>结果被截断，作为 <code>tool_result</code> 事实追加并渲染。它的 <code>artifact.authorization</code> 记录决策、原因和范围，但不把这些元数据加入模型对话记录。</li>
+</ol>
+<h2>拒绝与错误</h2>
+<p>被拒绝的调用不是异常。它会变成错误工具结果，模型可以据此调整。未知工具、格式错误的参数、超时和抛出的异常也会变成错误结果。取消时，运行终止之前会为所有剩余调用追加“已中断”结果。</p>
+<h2>证据保留</h2>
+<p>工具结果是事实。请求准入可以用指向 <code>call_id</code> 的引用替换旧正文。history 工具从分支读取精确结果，因此裁剪不会毁掉证据。</p>
+<h2>测试</h2>
+<ul>
+<li><code>test_loop.py</code> 覆盖审批、错误、超时、取消、重试和窗口回退。</li>
+<li><code>test_policy.py</code> 覆盖模式、规则、授权和边界。</li>
+</ul>
+<p>面向用户的行为见<a href="#page-tools-security">工具与安全</a>。</p>
+
+</section>
+<section class="page" id="page-config-catalog" data-title="Configuration catalog">
+<p>&lt;!-- Generated by <code>uv run --locked python -m cade.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
+<h1>Configuration catalog</h1>
+<p>Top-level fields. Nested types follow the table.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>provider</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>model</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>reasoning_effort</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>context_window</code></td>
+<td><code>integer | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>max_steps</code></td>
+<td><code>integer | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>sessions_dir</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>read_only</code></td>
+<td><code>boolean</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>instructions</code></td>
+<td><code>boolean</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td><code>boolean</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>memory</code></td>
+<td><code>boolean</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>auto_review</code></td>
+<td><code>boolean</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>prompt_modules</code></td>
+<td><code>list[string] | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td><code>plan | build | ask</code></td>
+<td><code>&quot;build&quot;</code></td>
+</tr>
+<tr>
+<td><code>sandbox</code></td>
+<td><code>read-only | workspace-write | danger-full-access</code></td>
+<td><code>&quot;workspace-write&quot;</code></td>
+</tr>
+<tr>
+<td><code>network</code></td>
+<td><code>boolean</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>tui_render_mode</code></td>
+<td><code>inline | fullscreen</code></td>
+<td><code>&quot;inline&quot;</code></td>
+</tr>
+<tr>
+<td><code>rules</code></td>
+<td><code>list[RuleConfig]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>mcp_servers</code></td>
+<td><code>dict[str, McpServerConfig]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>trust_project_skills</code></td>
+<td><code>boolean</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>skills_dir</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+</tbody>
+</table>
+<h2>McpServerConfig</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>transport</code></td>
+<td><code>stdio | streamable-http</code></td>
+<td><code>&quot;stdio&quot;</code></td>
+</tr>
+<tr>
+<td><code>command</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>args</code></td>
+<td><code>list[string]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>env</code></td>
+<td><code>dict[str, string] | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>env_from</code></td>
+<td><code>dict[str, string]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>url</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>headers_from</code></td>
+<td><code>dict[str, string]</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>protocol</code></td>
+<td><code>auto | legacy</code></td>
+<td><code>&quot;auto&quot;</code></td>
+</tr>
+<tr>
+<td><code>cwd</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>timeout_ms</code></td>
+<td><code>integer</code></td>
+<td><code>30000</code></td>
+</tr>
+</tbody>
+</table>
+<h2>RuleConfig</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tool</code></td>
+<td><code>string</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>decision</code></td>
+<td><code>allow | deny | ask</code></td>
+<td><code>required</code></td>
+</tr>
+<tr>
+<td><code>path_prefix</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+<tr>
+<td><code>command_prefix</code></td>
+<td><code>string | null</code></td>
+<td><code>null</code></td>
+</tr>
+</tbody>
+</table>
+
+</section>
+<section class="page" id="page-event-catalog" data-title="Event catalog">
+<p>&lt;!-- Generated by <code>uv run --locked python -m cade.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
+<h1>Event catalog</h1>
+<p>Session entry types from <code>EventType</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Projects</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>meta</code></td>
+<td>No</td>
+<td>Session creation</td>
+</tr>
+<tr>
+<td><code>system</code></td>
+<td>Yes</td>
+<td>Base system prompt; latest wins</td>
+</tr>
+<tr>
+<td><code>user</code></td>
+<td>Yes</td>
+<td>Task or steering input</td>
+</tr>
+<tr>
+<td><code>assistant</code></td>
+<td>Yes</td>
+<td>Model text and tool calls</td>
+</tr>
+<tr>
+<td><code>tool_result</code></td>
+<td>Yes</td>
+<td>Tool output paired by call ID</td>
+</tr>
+<tr>
+<td><code>tool_execution</code></td>
+<td>No</td>
+<td>Nested tool dispatch and outcome</td>
+</tr>
+<tr>
+<td><code>compaction</code></td>
+<td>Yes</td>
+<td>Summary and first kept entry</td>
+</tr>
+<tr>
+<td><code>window</code></td>
+<td>Yes</td>
+<td>Context start and optional handoff</td>
+</tr>
+<tr>
+<td><code>request</code></td>
+<td>No</td>
+<td>Provider request audit</td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td>No</td>
+<td>Run termination, steps, and usage</td>
+</tr>
+<tr>
+<td><code>attempt</code></td>
+<td>No</td>
+<td>Provider attempt, retry, or failure</td>
+</tr>
+<tr>
+<td><code>branch</code></td>
+<td>No</td>
+<td>Unclassified</td>
+</tr>
+<tr>
+<td><code>checkpoint</code></td>
+<td>No</td>
+<td>Unclassified</td>
+</tr>
+<tr>
+<td><code>restore</code></td>
+<td>No</td>
+<td>Unclassified</td>
+</tr>
+</tbody>
+</table>
+
+</section>
+<section class="page" id="page-module-graph" data-title="Module graph">
+<p>&lt;!-- Generated by <code>uv run --locked python -m cade.docs catalogs --write</code>. Do not edit by hand. --&gt;</p>
+<h1>Module graph</h1>
+<p>Absolute imports inside <code>src/cade/</code>.</p>
+<pre><code class="language-mermaid">flowchart LR
+  ai_events --&gt; ai_types
+  ai_models --&gt; ai_types
+  ai_providers__codec --&gt; ai_types
+  ai_providers_base --&gt; ai_events
+  ai_providers_base --&gt; ai_tokenization
+  ai_providers_base --&gt; ai_types
+  ai_providers_base --&gt; ai_usage
+  ai_providers_registry --&gt; ai_providers_base
+  ai_providers_registry --&gt; ai_resolver
+  ai_providers_registry --&gt; ai_types
+  ai_providers_responses --&gt; ai_cache
+  ai_providers_responses --&gt; ai_events
+  ai_providers_responses --&gt; ai_tokenization
+  ai_providers_responses --&gt; ai_types
+  ai_providers_responses --&gt; ai_usage
+  ai_resolver --&gt; ai_models
+  ai_usage --&gt; ai_cache
+  ai_usage --&gt; ai_models
+  app_auth --&gt; ai_auth
+  app_bootstrap --&gt; app_config
+  app_bootstrap --&gt; app_provider
+  app_bootstrap --&gt; app_session
+  app_bootstrap --&gt; coding_context_instructions
+  app_bootstrap --&gt; coding_context_memory
+  app_bootstrap --&gt; coding_context_note
+  app_bootstrap --&gt; coding_context_prompts
+  app_bootstrap --&gt; coding_goal
+  app_bootstrap --&gt; coding_mcp_tools
+  app_bootstrap --&gt; coding_security_approval
+  app_bootstrap --&gt; coding_security_grants
+  app_bootstrap --&gt; coding_security_policy
+  app_bootstrap --&gt; coding_security_review
+  app_bootstrap --&gt; coding_skills_tools
+  app_bootstrap --&gt; coding_subagents
+  app_bootstrap --&gt; coding_tools_question
+  app_bootstrap --&gt; coding_tools_registry
+  app_bootstrap --&gt; coding_tools_webfetch
+  app_bootstrap --&gt; coding_tools_websearch
+  app_bootstrap --&gt; coding_workspace_recovery_coordinator
+  app_bootstrap --&gt; coding_workspace_snapshots
+  app_bootstrap --&gt; harness_compaction
+  app_bootstrap --&gt; harness_execution_local_sandbox
+  app_bootstrap --&gt; harness_permissions
+  app_bootstrap --&gt; harness_provider
+  app_bootstrap --&gt; harness_request
+  app_bootstrap --&gt; harness_session_log
+  app_bootstrap --&gt; harness_tools
+  app_bootstrap --&gt; harness_window
+  app_config --&gt; coding_mcp_config
+  app_config --&gt; coding_security_rules
+  app_context_report --&gt; ai_models
+  app_context_report --&gt; ai_providers_base
+  app_context_report --&gt; ai_tokenization
+  app_context_report --&gt; ai_types
+  app_context_report --&gt; coding_mcp_tools
+  app_context_report --&gt; coding_security_policy
+  app_context_report --&gt; harness_request
+  app_context_report --&gt; harness_session_projection
+  app_context_report --&gt; harness_session_types
+  app_context_report --&gt; harness_tools
+  app_provider --&gt; ai_models
+  app_provider --&gt; ai_providers_base
+  app_provider --&gt; ai_providers_registry
+  app_provider --&gt; ai_resolver
+  app_provider --&gt; app_auth
+  app_session --&gt; ai_events
+  app_session --&gt; ai_models
+  app_session --&gt; app_commands
+  app_session --&gt; app_context_report
+  app_session --&gt; app_provider
+  app_session --&gt; app_settings
+  app_session --&gt; coding_goal
+  app_session --&gt; coding_mcp_tools
+  app_session --&gt; coding_security_policy
+  app_session --&gt; coding_security_review
+  app_session --&gt; coding_skills_context
+  app_session --&gt; coding_skills_models
+  app_session --&gt; coding_skills_tools
+  app_session --&gt; coding_subagents
+  app_session --&gt; coding_tools_base
+  app_session --&gt; coding_tools_history
+  app_session --&gt; coding_tools_question
+  app_session --&gt; coding_workspace_recovery_coordinator
+  app_session --&gt; coding_workspace_recovery_store
+  app_session --&gt; coding_workspace_snapshots
+  app_session --&gt; harness_cancellation
+  app_session --&gt; harness_compaction
+  app_session --&gt; harness_events
+  app_session --&gt; harness_executor
+  app_session --&gt; harness_loop
+  app_session --&gt; harness_permissions
+  app_session --&gt; harness_provider
+  app_session --&gt; harness_request
+  app_session --&gt; harness_session_history
+  app_session --&gt; harness_session_log
+  app_session --&gt; harness_session_projection
+  app_session --&gt; harness_session_types
+  app_session --&gt; harness_tools
+  app_session --&gt; harness_window
+  app_settings --&gt; ai_auth
+  app_settings --&gt; ai_models
+  app_settings --&gt; ai_providers_registry
+  app_settings --&gt; app_auth
+  app_settings --&gt; app_config
+  app_settings --&gt; app_provider
+  coding_context_memory --&gt; coding_tools_base
+  coding_context_memory --&gt; harness_cancellation
+  coding_context_memory --&gt; harness_session_types
+  coding_context_memory --&gt; harness_tools
+  coding_goal --&gt; coding_tools_base
+  coding_goal --&gt; harness_cancellation
+  coding_goal --&gt; harness_session_types
+  coding_goal --&gt; harness_tools
+  coding_mcp_client --&gt; coding_mcp_config
+  coding_mcp_client --&gt; harness_async_worker
+  coding_mcp_results --&gt; harness_tools
+  coding_mcp_tools --&gt; coding_mcp_client
+  coding_mcp_tools --&gt; coding_mcp_results
+  coding_mcp_tools --&gt; coding_mcp_config
+  coding_mcp_tools --&gt; harness_cancellation
+  coding_mcp_tools --&gt; harness_session_types
+  coding_mcp_tools --&gt; harness_tools
+  coding_security_approval --&gt; coding_security_grants
+  coding_security_approval --&gt; coding_security_sensitive
+  coding_security_approval --&gt; harness_permissions
+  coding_security_grants --&gt; harness_session_types
+  coding_security_policy --&gt; coding_security_grants
+  coding_security_policy --&gt; coding_security_rules
+  coding_security_policy --&gt; coding_security_sensitive
+  coding_security_policy --&gt; coding_security_shell
+  coding_security_policy --&gt; harness_execution_paths
+  coding_security_policy --&gt; harness_execution_scope
+  coding_security_policy --&gt; harness_permissions
+  coding_security_policy --&gt; harness_session_types
+  coding_security_policy --&gt; harness_tools
+  coding_security_review --&gt; ai_events
+  coding_security_review --&gt; harness_permissions
+  coding_security_review --&gt; harness_provider
+  coding_security_review --&gt; harness_request
+  coding_security_review --&gt; harness_session_types
+  coding_security_shell --&gt; coding_security_sensitive
+  coding_skills_context --&gt; coding_skills_registry
+  coding_skills_context --&gt; coding_skills_tools
+  coding_skills_context --&gt; harness_session_types
+  coding_skills_discovery --&gt; coding_skills_models
+  coding_skills_registry --&gt; coding_skills_discovery
+  coding_skills_registry --&gt; coding_skills_models
+  coding_skills_registry --&gt; coding_skills_parsing
+  coding_skills_rendering --&gt; coding_skills_models
+  coding_skills_tools --&gt; coding_skills_discovery
+  coding_skills_tools --&gt; coding_skills_models
+  coding_skills_tools --&gt; coding_skills_registry
+  coding_skills_tools --&gt; coding_skills_rendering
+  coding_skills_tools --&gt; coding_tools_base
+  coding_skills_tools --&gt; harness_session_types
+  coding_skills_tools --&gt; harness_tools
+  coding_subagents --&gt; coding_security_policy
+  coding_subagents --&gt; coding_tools_history
+  coding_subagents --&gt; harness_cancellation
+  coding_subagents --&gt; harness_events
+  coding_subagents --&gt; harness_lifecycle
+  coding_subagents --&gt; harness_loop
+  coding_subagents --&gt; harness_permissions
+  coding_subagents --&gt; harness_provider
+  coding_subagents --&gt; harness_request
+  coding_subagents --&gt; harness_session_log
+  coding_subagents --&gt; harness_session_types
+  coding_subagents --&gt; harness_tools
+  coding_tools__worker --&gt; coding_tools_registry
+  coding_tools__worker --&gt; harness_execution_scope
+  coding_tools__worker --&gt; harness_tools
+  coding_tools_base --&gt; coding_workspace_snapshots
+  coding_tools_base --&gt; harness_cancellation
+  coding_tools_base --&gt; harness_execution_local_sandbox
+  coding_tools_base --&gt; harness_execution_local_subprocess
+  coding_tools_base --&gt; harness_execution_paths
+  coding_tools_base --&gt; harness_execution_scope
+  coding_tools_base --&gt; harness_session_types
+  coding_tools_base --&gt; harness_tools
+  coding_tools_bash --&gt; coding_security_shell
+  coding_tools_bash --&gt; coding_tools_base
+  coding_tools_bash --&gt; coding_workspace_snapshots
+  coding_tools_bash --&gt; harness_execution_local_subprocess
+  coding_tools_bash --&gt; harness_execution_paths
+  coding_tools_bash --&gt; harness_session_types
+  coding_tools_bash --&gt; harness_tools
+  coding_tools_edit --&gt; coding_tools_base
+  coding_tools_edit --&gt; coding_tools_edit_diff
+  coding_tools_edit --&gt; coding_tools_mutation
+  coding_tools_edit --&gt; coding_workspace_snapshots
+  coding_tools_edit --&gt; harness_session_types
+  coding_tools_edit --&gt; harness_tools
+  coding_tools_history --&gt; coding_tools_base
+  coding_tools_history --&gt; harness_session_log
+  coding_tools_history --&gt; harness_session_types
+  coding_tools_history --&gt; harness_tools
+  coding_tools_images --&gt; harness_tools
+  coding_tools_question --&gt; harness_cancellation
+  coding_tools_question --&gt; harness_session_types
+  coding_tools_question --&gt; harness_tools
+  coding_tools_read --&gt; coding_tools_base
+  coding_tools_read --&gt; coding_tools_images
+  coding_tools_read --&gt; coding_tools_truncate
+  coding_tools_read --&gt; harness_session_types
+  coding_tools_read --&gt; harness_tools
+  coding_tools_registry --&gt; coding_tools_base
+  coding_tools_registry --&gt; coding_tools_bash
+  coding_tools_registry --&gt; coding_tools_edit
+  coding_tools_registry --&gt; coding_tools_read
+  coding_tools_registry --&gt; coding_tools_run_code
+  coding_tools_registry --&gt; coding_tools_write
+  coding_tools_registry --&gt; coding_workspace_snapshots
+  coding_tools_registry --&gt; harness_execution_local_sandbox
+  coding_tools_run_code --&gt; coding_tools_base
+  coding_tools_run_code --&gt; harness_cancellation
+  coding_tools_run_code --&gt; harness_execution_local_python
+  coding_tools_run_code --&gt; harness_session_types
+  coding_tools_run_code --&gt; harness_tools
+  coding_tools_webfetch --&gt; coding_tools_base
+  coding_tools_webfetch --&gt; coding_tools_html_markdown
+  coding_tools_webfetch --&gt; coding_tools_truncate
+  coding_tools_webfetch --&gt; harness_cancellation
+  coding_tools_webfetch --&gt; harness_session_types
+  coding_tools_webfetch --&gt; harness_tools
+  coding_tools_websearch --&gt; coding_tools_webfetch
+  coding_tools_websearch --&gt; harness_cancellation
+  coding_tools_websearch --&gt; harness_session_types
+  coding_tools_websearch --&gt; harness_tools
+  coding_tools_write --&gt; coding_tools_base
+  coding_tools_write --&gt; coding_tools_mutation
+  coding_tools_write --&gt; coding_workspace_snapshots
+  coding_tools_write --&gt; harness_session_types
+  coding_tools_write --&gt; harness_tools
+  coding_workspace_recovery_coordinator --&gt; coding_workspace_recovery_store
+  coding_workspace_recovery_coordinator --&gt; coding_workspace_snapshots
+  coding_workspace_recovery_coordinator --&gt; harness_session_log
+  coding_workspace_recovery_coordinator --&gt; harness_session_types
+  coding_workspace_recovery_store --&gt; coding_workspace_snapshots
+  harness_compaction --&gt; ai_events
+  harness_compaction --&gt; harness_provider
+  harness_compaction --&gt; harness_request
+  harness_compaction --&gt; harness_session_log
+  harness_compaction --&gt; harness_session_projection
+  harness_compaction --&gt; harness_session_types
+  harness_events --&gt; harness_session_types
+  harness_execution_local_python --&gt; harness_session_types
+  harness_execution_local_python --&gt; harness_tools
+  harness_execution_local_sandbox --&gt; harness_execution_scope
+  harness_execution_local_subprocess --&gt; harness_execution_result
+  harness_executor --&gt; harness_cancellation
+  harness_executor --&gt; harness_events
+  harness_executor --&gt; harness_execution_scope
+  harness_executor --&gt; harness_permissions
+  harness_executor --&gt; harness_session_types
+  harness_executor --&gt; harness_tools
+  harness_lifecycle --&gt; harness_session_log
+  harness_lifecycle --&gt; harness_session_types
+  harness_loop --&gt; ai_events
+  harness_loop --&gt; ai_providers_base
+  harness_loop --&gt; ai_types
+  harness_loop --&gt; harness_cancellation
+  harness_loop --&gt; harness_events
+  harness_loop --&gt; harness_executor
+  harness_loop --&gt; harness_lifecycle
+  harness_loop --&gt; harness_permissions
+  harness_loop --&gt; harness_provider
+  harness_loop --&gt; harness_request
+  harness_loop --&gt; harness_session_log
+  harness_loop --&gt; harness_session_projection
+  harness_loop --&gt; harness_session_types
+  harness_loop --&gt; harness_tools
+  harness_permissions --&gt; harness_execution_scope
+  harness_permissions --&gt; harness_session_types
+  harness_provider --&gt; ai_events
+  harness_provider --&gt; ai_types
+  harness_request --&gt; ai_types
+  harness_request --&gt; harness_session_types
+  harness_session_history --&gt; harness_session_types
+  harness_session_log --&gt; harness_session_schema
+  harness_session_log --&gt; harness_session_types
+  harness_session_projection --&gt; harness_session_types
+  harness_session_schema --&gt; ai_types
+  harness_session_schema --&gt; harness_session_types
+  harness_tools --&gt; harness_cancellation
+  harness_tools --&gt; harness_session_types
+  harness_window --&gt; harness_session_log
+  hosts_auth --&gt; ai_auth
+  hosts_auth --&gt; app_auth
+  hosts_cli --&gt; app_bootstrap
+  hosts_cli --&gt; app_config
+  hosts_cli --&gt; coding_goal
+  hosts_cli --&gt; coding_tools_question
+  hosts_cli --&gt; harness_events
+  hosts_cli --&gt; harness_provider
+  hosts_cli --&gt; harness_session_log
+  hosts_cli --&gt; harness_session_types
+  hosts_tui_app --&gt; app_config
+  hosts_tui_app --&gt; app_session
+  hosts_tui_bridge --&gt; ai_models
+  hosts_tui_bridge --&gt; app_session
+  hosts_tui_bridge --&gt; coding_security_sensitive
+  hosts_tui_bridge --&gt; harness_cancellation
+  hosts_tui_bridge --&gt; harness_events
+  hosts_tui_bridge --&gt; harness_permissions
+  hosts_tui_bridge --&gt; harness_session_log
+  hosts_tui_bridge --&gt; harness_session_types
+  hosts_tui_command_handlers --&gt; app_commands
+  hosts_tui_compat --&gt; harness_events
+  hosts_tui_config_registry --&gt; ai_models
+  hosts_tui_config_registry --&gt; app_config
+  hosts_tui_config_registry --&gt; app_settings
+  hosts_tui_context_stats --&gt; harness_request
+  hosts_tui_context_stats --&gt; harness_session_projection
+  hosts_tui_context_usage --&gt; app_context_report
+  hosts_tui_login_flow --&gt; ai_auth
+  hosts_tui_settings --&gt; ai_models
+  hosts_tui_setup_wizard --&gt; ai_models
+  hosts_tui_setup_wizard --&gt; ai_providers_registry
+  hosts_tui_setup_wizard --&gt; ai_resolver
+  hosts_tui_setup_wizard --&gt; app_settings
+</code></pre>
+
+</section>
+<section class="page" id="page-tool-catalog" data-title="工具目录">
+<h1>工具目录</h1>
+<p>内置工具面。MCP 工具在启动时发现，命名为 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>；参数由服务器提供。</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>参数</th>
+<th>副作用</th>
+<th>默认策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read</code></td>
+<td><code>path</code>、<code>offset</code>、<code>limit</code></td>
+<td>无</td>
+<td>允许，受保护路径除外</td>
+</tr>
+<tr>
+<td><code>write</code></td>
+<td><code>path</code>、<code>content</code></td>
+<td>创建或替换文件；先做快照</td>
+<td>ask 模式下询问，build 模式下允许</td>
+</tr>
+<tr>
+<td><code>edit</code></td>
+<td><code>path</code>、<code>edits: [{oldText, newText}]</code></td>
+<td>对原始文件执行互不重叠的替换；先做快照</td>
+<td>ask 模式下询问，build 模式下允许</td>
+</tr>
+<tr>
+<td><code>bash</code>、<code>powershell</code></td>
+<td><code>command</code>、<code>timeout</code>、<code>workdir</code>、<code>additional_write_paths</code></td>
+<td>任意进程；对常见修改做快照</td>
+<td>build 模式下允许普通开发；检测到风险时询问</td>
+</tr>
+<tr>
+<td><code>run_code</code></td>
+<td><code>code</code>、<code>description</code>、<code>timeout</code>、<code>max_output_tokens</code></td>
+<td>运行 Python 并调用会话工具；直接 I/O 遵守操作系统沙箱</td>
+<td>build 模式允许，ask 模式询问；计划和只读模式拒绝</td>
+</tr>
+<tr>
+<td><code>question</code></td>
+<td><code>questions: [{question, header, options, multiple?}]</code></td>
+<td>收集用户答案；关闭问题时结束当前轮次</td>
+<td>允许，包括计划模式</td>
+</tr>
+<tr>
+<td><code>websearch</code></td>
+<td><code>query</code></td>
+<td>通过 Exa 搜索网页</td>
+<td>网络开启时允许</td>
+</tr>
+<tr>
+<td><code>webfetch</code></td>
+<td><code>url</code>、<code>format</code>、<code>timeout</code></td>
+<td>获取文本、Markdown 或 HTML</td>
+<td>网络开启时允许</td>
+</tr>
+<tr>
+<td><code>history</code></td>
+<td><code>query</code>、<code>entry_id</code>、<code>call_id</code>、<code>limit</code></td>
+<td>无</td>
+<td>允许</td>
+</tr>
+<tr>
+<td><code>skill</code></td>
+<td><code>name</code></td>
+<td>无；加载技能正文</td>
+<td>允许</td>
+</tr>
+<tr>
+<td><code>memory</code></td>
+<td><code>text</code></td>
+<td>追加到 <code>MEMORY.md</code></td>
+<td>允许；只读模式拒绝</td>
+</tr>
+<tr>
+<td><code>goal</code></td>
+<td><code>action</code>、<code>objective</code></td>
+<td>更新 <code>.cade/goal.json</code></td>
+<td>允许</td>
+</tr>
+<tr>
+<td><code>delegate</code></td>
+<td><code>prompt</code> 或 <code>tasks</code>、<code>mode</code>、<code>description</code></td>
+<td>创建一个或多个子会话</td>
+<td>允许</td>
+</tr>
+<tr>
+<td><code>mcp__*</code></td>
+<td>由服务器定义</td>
+<td>远程副作用</td>
+<td>询问；计划模式和只读模式拒绝</td>
+</tr>
+</tbody>
+</table>
+<h2>如何阅读这张表</h2>
+<ul>
+<li>“副作用”指工具可能改变什么，不是每次都会改变。</li>
+<li>工作区的 <code>write</code> 和 <code>edit</code> 在无法取得快照时按失败关闭。外部写入需要权限，并且没有工作区快照。</li>
+<li><code>bash</code> 的只读分类是保守的；未知命令在 ask 模式下询问，在计划模式下拒绝。build 模式允许普通开发命令。</li>
+<li>MCP 工具是动态的。规则可以放行特定工具；默认是询问。</li>
+</ul>
+<h2>参数</h2>
+<p>权威 JSON schema 内建于每个工具。这张表只用于导航；与工具 schema 不一致时，以 schema 为准。</p>
+<p>工具默认值和 Cade 集成见<a href="../decisions/0015-tool-behavior-parity.md">行为契约</a>。
+<code>read</code> 返回不带行号前缀的文件内容，并支持图片附件。<code>offset</code> 和 <code>limit</code> 必须为正整数。
+编辑只支持精确匹配，每个替换都基于原始文件，命中位置必须唯一且互不重叠。列目录、查找文件和搜索内容请使用 shell 命令。
+Shell 的 <code>timeout</code> 单位是秒，没有默认超时。Windows 上的 <code>bash</code> 使用 Bash；
+<code>powershell</code> 使用 PowerShell，仅支持 Windows。</p>
+<p>不再提供独立的 <code>ls</code>、<code>find</code> 或 <code>grep</code> 工具。搜索命令遵守 shell 的输出限制、权限和沙箱策略。见<a href="../decisions/0017-shell-search.md">决策 0017</a>。</p>
+<h2>相关页面</h2>
+<ul>
+<li><a href="#page-tools-security">工具与安全</a></li>
+<li><a href="#page-tool-execution">工具执行</a></li>
+<li><a href="#page-config-catalog">配置目录</a></li>
+</ul>
+
+</section>
+<section class="page" id="page-mcp-reference" data-title="MCP 参考服务器">
+<h1>MCP 参考服务器</h1>
+<p>Cade 使用官方 SDK 支持 stdio 和 Streamable HTTP。支持的版本与能力见 <a href="#page-mcp">MCP</a>。下面的外部参考服务器在本次 SDK 迁移前已验证，迁移后尚未重新运行。</p>
+<h2>已验证的服务器</h2>
+<table>
+<thead>
+<tr>
+<th>服务器</th>
+<th>命令</th>
+<th>验证内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Filesystem</td>
+<td><code>npx -y @modelcontextprotocol/server-filesystem &lt;dir&gt;</code></td>
+<td>发现工具和 <code>read_text_file</code></td>
+</tr>
+<tr>
+<td>Memory</td>
+<td><code>npx -y @modelcontextprotocol/server-memory</code></td>
+<td>发现实体相关工具</td>
+</tr>
+<tr>
+<td>Sequential Thinking</td>
+<td><code>npx -y @modelcontextprotocol/server-sequential-thinking</code></td>
+<td>发现 <code>sequentialthinking</code></td>
+</tr>
+<tr>
+<td>Time</td>
+<td><code>uvx mcp-server-time</code></td>
+<td>发现工具和 <code>get_current_time</code></td>
+</tr>
+<tr>
+<td>Fetch</td>
+<td><code>uvx mcp-server-fetch</code></td>
+<td>服务器启动并列出工具</td>
+</tr>
+</tbody>
+</table>
+<p>在 Windows 上，通过 <code>cmd /c</code> 运行 npm 服务器：</p>
+<pre><code class="language-json">{
+  &quot;mcp_servers&quot;: {
+    &quot;time&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [&quot;mcp-server-time&quot;]
+    },
+    &quot;fs&quot;: {
+      &quot;command&quot;: &quot;cmd&quot;,
+      &quot;args&quot;: [
+        &quot;/c&quot;, &quot;npx&quot;, &quot;-y&quot;,
+        &quot;@modelcontextprotocol/server-filesystem&quot;,
+        &quot;C:/path/to/workspace&quot;
+      ]
+    }
+  }
+}
+</code></pre>
+<p>在 POSIX 系统上直接使用 <code>npx</code>。Git 服务器需要仓库参数，例如 <code>--repository &lt;path&gt;</code>；按服务器要求传入精确参数。</p>
+<h2>能力边界</h2>
+<p>本地 SDK 集成测试覆盖工具、资源、提示词、取消和凭据处理。当前未启用采样、信息征询和可选扩展。</p>
+<h2>策略</h2>
+<p>MCP 工具命名为 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>。它们默认询问，在计划模式和 <code>--read-only</code> 下被拒绝，可以由规则放行：</p>
+<pre><code class="language-json">{
+  &quot;rules&quot;: [
+    {&quot;tool&quot;: &quot;mcp__time__get_current_time&quot;, &quot;decision&quot;: &quot;allow&quot;}
+  ]
+}
+</code></pre>
+<h2>验证</h2>
+<pre><code class="language-bash">cade --mode build -p &quot;Use the time MCP tool to get the current time in Asia/Singapore.&quot;
+</code></pre>
+<p>日志会记录一条 <code>tool_result</code>，内容来自服务器返回的文本。Cade 退出时关闭服务器进程。</p>
+<h2>相关页面</h2>
+<ul>
+<li><a href="#page-configuration">配置</a></li>
+<li><a href="#page-mcp">MCP</a></li>
+<li><a href="#page-custom-mcp">自定义 MCP 服务器</a></li>
+</ul>
+
+</section>
+<section class="page" id="page-steering-queue" data-title="引导与排队">
+<h1>引导与排队</h1>
+<p>任务运行时，TUI 继续接受输入。UI 线程渲染事件、处理按键；bridge 在带独立 <code>asyncio</code> 事件循环的工作线程里运行任务。</p>
+<h2>当前设计</h2>
+<pre><code class="language-text">prompt_toolkit UI 线程
+  |  Enter / Alt+S / Alt+Q / Alt+Enter / 斜杠命令
+  v
+ApplicationSession
+  |  steering、pending、cancel
+  v
+工作线程  --  asyncio.run(run_task)
+  |
+  v
+结构化事件队列  --&gt;  UI 线程
+</code></pre>
+<ul>
+<li><code>ApplicationSession.run_task</code> 调用与一次性模式相同的 <code>run</code> 循环。</li>
+<li><code>service.steering</code> 保存下一个模型步骤的指导。</li>
+<li><code>service.pending</code> 保存下一轮的后续任务。</li>
+<li><code>service.cancel</code> 立即唤醒等待中的 provider 流，即使它还没有输出。工具在安全点检查同一个取消令牌。</li>
+<li>bridge 把循环事件转换成结构化事件，排队交给 UI 线程。provider 流从不阻塞按键处理。</li>
+</ul>
+<h2>运行中的命令</h2>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Enter</code></td>
+<td>使用当前的忙时输入模式：排队、引导或替换</td>
+</tr>
+<tr>
+<td><code>Alt+Enter</code></td>
+<td>在下一个模型步骤追加指导</td>
+</tr>
+<tr>
+<td><code>Alt+S</code></td>
+<td>在下一个模型步骤追加指导，不受 <code>Enter</code> 模式影响</td>
+</tr>
+<tr>
+<td><code>Alt+Q</code></td>
+<td>排队后续任务，不受 <code>Enter</code> 模式影响</td>
+</tr>
+<tr>
+<td><code>/steer TEXT</code></td>
+<td>在下一个模型步骤追加指导</td>
+</tr>
+<tr>
+<td><code>/queue TEXT</code></td>
+<td>把 TEXT 排为后续任务</td>
+</tr>
+<tr>
+<td><code>/queue followup</code></td>
+<td>让 <code>Enter</code> 排队后续任务</td>
+</tr>
+<tr>
+<td><code>/queue steer</code></td>
+<td>让 <code>Enter</code> 追加指导</td>
+</tr>
+<tr>
+<td><code>/queue interrupt</code></td>
+<td>让 <code>Enter</code> 停止任务并立即运行该消息</td>
+</tr>
+<tr>
+<td><code>/stop</code> 或 <code>Esc</code></td>
+<td>中断工作，把未送达的排队输入放回编辑器</td>
+</tr>
+<tr>
+<td><code>Ctrl+C</code></td>
+<td>清空编辑器，不取消工作；500 ms 内再按一次退出</td>
+</tr>
+<tr>
+<td><code>/exit</code> 或 <code>/quit</code></td>
+<td>退出 TUI</td>
+</tr>
+</tbody>
+</table>
+<p>当前任务进入终止状态时，后续任务自动运行。队列按先进先出，排队的任务留在同一个会话。显式按 Esc 或用 <code>/stop</code> 取消时，未送达的输入会回到编辑器，不会立刻开始另一次运行。</p>
+<p><code>Alt+S</code> 和 <code>Alt+Q</code> 在任务运行时提交编辑器中的普通文本。输入为空时不执行操作。以 <code>/</code>、<code>!</code> 或 <code>$</code> 开头的输入保留在编辑器中，不会作为消息提交。菜单、表单和审批请求优先于消息快捷键。按 <code>?</code> 查看按键说明；运行期间的输入提示也会显示这两个快捷键。</p>
+<p><code>/steer</code> 不是向正在运行的 provider 请求注入提示。循环在每个步骤之前检查引导队列，追加一条带 <code>source: runtime</code> 的 <code>user</code> 事实，再从投影构造下一次请求。这样会话日志仍是唯一事实来源。</p>
+<h2>会话命令</h2>
+<p><code>/new</code>、<code>/resume</code>、<code>/fork</code>、<code>/clone</code>、<code>/compact</code> 和 <code>/new-context</code> 会改变会话状态。在没有活动任务时运行它们。运行期间，普通文本改为排队。</p>
+<h2>限制</h2>
+<ul>
+<li>文件工作进程会先完成当前操作，再响应取消。Shell 工作进程会向子进程发信号。两者都不回滚文件修改；需要恢复时用快照。</li>
+<li>引导在步骤之间生效，不会进入 provider 数据流或正在运行的工具。</li>
+<li>一次性任务的 <code>--steer</code> 参数在第一步之前预置指导，不能替代运行期间的 <code>/steer</code>。</li>
+</ul>
+<h2>测试</h2>
+<p><code>test_mid_run_steer_reaches_the_next_provider_request</code> 会阻塞一个工具，直到宿主送达指导，然后检查下一次 provider 请求包含引导事实。</p>
+
+</section>
+<section class="page" id="page-persistence-catalog" data-title="持久化目录">
+<h1>持久化目录</h1>
+<p>Cade 把持久历史和宿主状态分开。会话日志是模型看到什么、发生过什么的权威来源；其他存储职责更窄。</p>
+<table>
+<thead>
+<tr>
+<th>产物</th>
+<th>默认位置</th>
+<th>所有者</th>
+<th>生命周期</th>
+<th>格式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>会话日志</td>
+<td><code>.cade/sessions/session-*.jsonl</code></td>
+<td><code>SessionLog</code></td>
+<td>项目</td>
+<td>当前封闭结构</td>
+</tr>
+<tr>
+<td>快照</td>
+<td><code>.cade/snapshots/</code></td>
+<td><code>SnapshotStore</code></td>
+<td>项目</td>
+<td>本地索引</td>
+</tr>
+<tr>
+<td>恢复</td>
+<td><code>.cade/recovery/</code></td>
+<td>恢复协调器</td>
+<td>工作区</td>
+<td>封闭记录；操作日志和待处理计划</td>
+</tr>
+<tr>
+<td>目标</td>
+<td><code>.cade/goal.json</code></td>
+<td><code>GoalStore</code></td>
+<td>项目</td>
+<td>单个对象</td>
+</tr>
+<tr>
+<td>工作笔记</td>
+<td><code>NOTE.md</code></td>
+<td>项目</td>
+<td>项目</td>
+<td>Markdown</td>
+</tr>
+<tr>
+<td>记忆</td>
+<td><code>MEMORY.md</code></td>
+<td><code>MemoryTool</code></td>
+<td>项目</td>
+<td>Markdown</td>
+</tr>
+<tr>
+<td>指令</td>
+<td><code>AGENTS.md</code>、<code>CLAUDE.md</code>、覆盖文件</td>
+<td>项目</td>
+<td>项目</td>
+<td>Markdown</td>
+</tr>
+<tr>
+<td>技能</td>
+<td><code>~/.cade/skills</code>、<code>.cade/skills</code></td>
+<td>发现逻辑</td>
+<td>用户或项目</td>
+<td><code>SKILL.md</code></td>
+</tr>
+<tr>
+<td>配置</td>
+<td><code>cade.json</code></td>
+<td><code>CadeConfig</code></td>
+<td>项目</td>
+<td>Pydantic，严格校验</td>
+</tr>
+<tr>
+<td>凭据</td>
+<td><code>~/.cade/auth.json</code></td>
+<td><code>JsonCredentialStore</code></td>
+<td>用户</td>
+<td>provider 凭据</td>
+</tr>
+<tr>
+<td>SIWC 宿主 ID</td>
+<td><code>~/.cade/host.json</code></td>
+<td><code>load_or_create_host_id</code></td>
+<td>用户</td>
+<td>稳定的代理宿主标识</td>
+</tr>
+<tr>
+<td>文档主页</td>
+<td><code>docs/index.html</code></td>
+<td>仓库</td>
+<td>仓库</td>
+<td>手工维护的 HTML</td>
+</tr>
+<tr>
+<td>文档页</td>
+<td><code>docs/docs.html</code></td>
+<td>文档工具</td>
+<td>仓库</td>
+<td>生成</td>
+</tr>
+<tr>
+<td>LLM 目录</td>
+<td><code>docs/llms*.txt</code></td>
+<td>文档工具</td>
+<td>仓库</td>
+<td>生成</td>
+</tr>
+</tbody>
+</table>
+<h2>会话日志</h2>
+<p>日志是追加式的。它把模型可见事实和审计事实存放在同一棵树里。重建对话和当前历史位置只需要这一个产物。压缩、窗口和分支导航都是日志记录，不是改写。</p>
+<h2>快照</h2>
+<p>快照是文件变更的撤销日志，覆盖 <code>write</code>、<code>edit</code> 和常见的单命令 shell 修改。捕获操作向 JSONL 索引追加一条以换行结尾的记录，并同步文件。读取会忽略残缺尾部，下次追加前修复；完整记录损坏时仍会报错。独立的快照撤销方法仍以原子替换方式缩短索引。前后记录和按内容寻址的内容块保持不可变。冲突和旧版行为见<a href="#page-snapshots-goals">快照与目标</a>。快照不属于会话分支。</p>
+<h2>目标与笔记</h2>
+<p>目标是一个带 active 或 done 状态的对象。<code>NOTE.md</code> 是工作状态，会进入每次请求，并在压缩时被总结。<code>MEMORY.md</code> 是长期项目知识。这些文件刻意保持朴素：可以手工编辑，也可以用普通工具查看。</p>
+<h2>生成的产物</h2>
+<p>文档站点、<code>llms.txt</code> 和 <code>llms-full.txt</code> 由 Markdown 和 <code>docs.json</code> 生成。它们会检查是否最新；不要手工编辑 HTML。</p>
+<h2>不持久化的内容</h2>
+<ul>
+<li>请求专属上下文记录在请求审计里，不作为消息。</li>
+<li>授权只在进程内有效；长期策略属于配置规则。</li>
+<li>审批提示和 TUI 状态属于宿主状态。</li>
+<li>provider 重放载荷保存在产生它的 assistant 事实里。</li>
+</ul>
+<p>字段级细节见<a href="#page-session-schema">会话日志格式</a>，格式变更见<a href="../persistence/change-policy.md">变更策略</a>。</p>
+
+</section>
+<section class="page" id="page-glossary" data-title="术语表">
+<h1>术语表</h1>
+<p>每个概念只用一个规范术语。链接指向负责说明它的页面。</p>
+<h2>会话日志（session log）</h2>
+<p>记录事实的追加式 JSONL 文件，是活动分支的事实来源。见<a href="#page-log">日志</a>。</p>
+<h2>分支（branch）</h2>
+<p>条目树中的一条路径。活动分支结束于最新记录，供投影使用。</p>
+<h2>投影（projection）</h2>
+<p>由分支生成的确定性对话。它应用最新的 system、compaction 和 window 切点，然后配对工具调用和结果。见<a href="#page-projection-request">投影与请求</a>。</p>
+<h2>请求（request）</h2>
+<p>一次模型调用中，对话经过准入后的 provider 就绪形式。它包含工具、预算和请求专属上下文。请求不是事实，永远不会被投影。</p>
+<h2>运行（run）</h2>
+<p>循环针对一个任务的一次调用。一次运行包含一个或多个步骤，以 <code>run</code> 事实结束。</p>
+<h2>步骤（step）</h2>
+<p>一次模型请求，加上这次响应引发的工具调用。</p>
+<h2>工具结果（tool result）</h2>
+<p>一次工具调用的记录输出，按调用 ID 配对。它属于事实。</p>
+<h2>压缩（compaction）</h2>
+<p>追加摘要和 <code>first_kept_id</code> 的事实。它在后续投影中遮蔽较早的消息，但不删除它们。</p>
+<h2>窗口（window）</h2>
+<p>把上下文起点前移的事实，可附带交接。压缩放不下时用作回退。</p>
+<h2>历史（history）</h2>
+<p>在压缩或裁剪之后，按条目 ID 或调用 ID 检索精确证据的工具。</p>
+<h2>模式（mode）</h2>
+<p><code>plan</code>、<code>build</code> 或 <code>ask</code>。模式选择工具和 shell 命令的默认策略。</p>
+<h2>规则（rule）</h2>
+<p>配置中的静态策略条目。规则可以匹配工具、路径前缀和命令前缀，返回 allow、deny 或 ask。</p>
+<h2>授权（grant）</h2>
+<p>回答 <code>a</code> 时创建的进程内审批。它匹配相同的工具和路径或命令。</p>
+<h2>技能（skill）</h2>
+<p>按需加载的 <code>SKILL.md</code> 正文。请求携带技能目录；<code>skill</code> 工具加载正文。</p>
+<h2>MCP</h2>
+<p>Model Context Protocol。Cade 运行 stdio MCP 服务器，并把它们的工具暴露为 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>。</p>
+<h2>子代理（subagent）</h2>
+<p>拥有独立会话和受限工具集的子运行。它不能再生子代理。</p>
+<h2>快照（snapshot）</h2>
+<p>工作区恢复存储保留的文件镜像。检查点操作引用修改前后的镜像，用于撤销和重做。</p>
+<h2>目标（goal）</h2>
+<p><code>.cade/goal.json</code> 中的持久目标，与会话格式分离。</p>
+
+</section>
+<section class="page" id="page-testing" data-title="测试">
+<h1>测试</h1>
+<p>测试按所保护的层次分组。修改后先跑覆盖该改动的最小分组，发布前再跑完整套件。</p>
+<h2>命令</h2>
+<pre><code class="language-bash">mkdir -p e2e-results
+uv run --locked pytest -q tests --basetemp=e2e-results/pytest
+uv run --locked pytest -q tests/test_loop.py --basetemp=e2e-results/pytest
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
+uv run --locked python -m cade.docs check
+</code></pre>
+<h2>覆盖地图</h2>
+<table>
+<thead>
+<tr>
+<th>领域</th>
+<th>测试</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>会话</td>
+<td><code>test_log.py</code></td>
+</tr>
+<tr>
+<td>投影与配对</td>
+<td><code>test_projection.py</code></td>
+</tr>
+<tr>
+<td>预算、裁剪、线上格式</td>
+<td><code>test_request.py</code></td>
+</tr>
+<tr>
+<td>循环、审批、重试、窗口</td>
+<td><code>test_loop.py</code></td>
+</tr>
+<tr>
+<td>Provider 与认证</td>
+<td><code>test_provider.py</code>、<code>test_auth.py</code>、<code>test_siwc_auth.py</code>、<code>test_responses_siwc_contract.py</code></td>
+</tr>
+<tr>
+<td>工作区工具</td>
+<td><code>test_tools.py</code></td>
+</tr>
+<tr>
+<td>压缩与窗口</td>
+<td><code>test_compaction.py</code>、<code>test_window.py</code></td>
+</tr>
+<tr>
+<td>CLI 与配置</td>
+<td><code>test_cli.py</code>、<code>test_config.py</code></td>
+</tr>
+<tr>
+<td>指令、技能、记忆、NOTE</td>
+<td><code>test_instructions.py</code>、<code>test_skills.py</code>、<code>test_memory.py</code>、<code>test_note.py</code></td>
+</tr>
+<tr>
+<td>安全与模式</td>
+<td><code>test_policy.py</code>、<code>test_shell.py</code>、<code>test_grants.py</code></td>
+</tr>
+<tr>
+<td>扩展</td>
+<td><code>test_mcp.py</code>、<code>test_subagents.py</code></td>
+</tr>
+<tr>
+<td>恢复</td>
+<td><code>test_snapshots.py</code>、<code>test_goal.py</code></td>
+</tr>
+<tr>
+<td>文档</td>
+<td><code>test_docs.py</code></td>
+</tr>
+</tbody>
+</table>
+<h2>真实 provider 检查</h2>
+<p>验收运行使用 OpenAI Responses，可以走 API key 或 ChatGPT 套餐，不属于默认测试套件。它们覆盖工具使用、恢复、压缩、技能、build 模式和读写。新增验收时，在对应改动里记录命令和观察到的结果。</p>
+<h2>文档检查</h2>
+<p><code>test_docs.py</code> 和 <code>uv run --locked python -m cade.docs check</code> 校验清单、链接、锚点和生成的目录。CI 会运行文档任务。</p>
+<h2>独立发行</h2>
+<p>用 <code>uv build --no-sources</code> 构建 wheel 和源码归档。在干净的虚拟环境里安装 wheel，并在源码树之外检查 <code>cade --help</code> 和 <code>python -m cade --help</code>。安装后的环境只能包含本发行包的模块和命令。见<a href="#page-testing">验证指南</a>。</p>
+
+</section>
+<section class="page" id="page-session-schema" data-title="Cade 会话格式">
+<h1>Cade 会话格式</h1>
+<blockquote>
+<p>这是当前的持久结构和投影契约。记录没有格式版本字段。</p>
+</blockquote>
+<h2>信封</h2>
+<p><code>session-&lt;id&gt;.jsonl</code> 每行一个 JSON 对象：</p>
+<pre><code class="language-json">{&quot;id&quot;:&quot;e2&quot;,&quot;parent&quot;:&quot;e1&quot;,&quot;ts&quot;:&quot;2026-10-18T03:00:00+00:00&quot;,&quot;type&quot;:&quot;user&quot;,&quot;data&quot;:{&quot;text&quot;:&quot;Fix the test&quot;,&quot;source&quot;:&quot;user&quot;}}
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>契约</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>文件内唯一；12 个小写十六进制字符</td>
+</tr>
+<tr>
+<td><code>parent</code></td>
+<td>string 或 null</td>
+<td>通常是前一个头部；导航时是选中的续接点；根记录为 null</td>
+</tr>
+<tr>
+<td><code>ts</code></td>
+<td>string</td>
+<td>ISO 8601 UTC 时间戳</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>string</td>
+<td>下方事件类型之一</td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>object</td>
+<td>类型专属载荷</td>
+</tr>
+</tbody>
+</table>
+<p>头部是最后一条物理记录。普通记录指向前一个头部。<code>branch</code> 记录则指向选中的历史续接点。其他路径仍留在同一个文件里。非空父记录必须在子记录之前。</p>
+<p>未知事件类型非法，不要忽略。</p>
+<p>载荷在追加和读取时都会校验。未知字段、错误的原始类型、非法枚举和非有限数字都会被拒绝。缺失的可选字段允许存在，但默认值不会写进记录。<code>user.source</code> 默认是 <code>user</code>；assistant 的 model/provider/usage/replay 元数据以及可空的 artifact/handoff/usage/details 字段可以缺失。跨事件的调用配对和上下文切点引用由投影校验。</p>
+<h2>事件类型</h2>
+<p>图片工具把附件写入 <code>tool_result.artifact.tool_metadata.images</code>。
+每张图片包含 <code>data</code>（base64）和 <code>mimeType</code>。
+投影恢复文本和图片，请求快照把图片记录在工具消息的 <code>images</code> 字段。
+Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
+工具负责生成附件数据，数据随会话日志保留。</p>
+<h3>对话事件</h3>
+<p>这些事件产生模型可见的消息。</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>载荷</th>
+<th>投影</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system</code></td>
+<td><code>{&quot;text&quot;: str}</code></td>
+<td>最新一条最先输出；永不被遮蔽</td>
+</tr>
+<tr>
+<td><code>user</code></td>
+<td><code>{&quot;text&quot;: str, &quot;source&quot;: &quot;user&quot;|&quot;runtime&quot;}</code></td>
+<td>在所在位置输出用户消息</td>
+</tr>
+<tr>
+<td><code>assistant</code></td>
+<td><code>{&quot;blocks&quot;: [Block], &quot;model&quot;: str, &quot;provider&quot;: str, &quot;usage&quot;: object|null, &quot;provider_state&quot;: object|null, &quot;reasoning&quot;: str|null, &quot;response_metrics&quot;: object|null}</code></td>
+<td>助手消息；空 blocks 被跳过</td>
+</tr>
+<tr>
+<td><code>tool_result</code></td>
+<td><code>{&quot;call_id&quot;: str, &quot;status&quot;: &quot;ok&quot;|&quot;error&quot;|&quot;interrupted&quot;, &quot;content&quot;: str, &quot;artifact&quot;: object|null}</code></td>
+<td>工具消息；与对应调用配对</td>
+</tr>
+<tr>
+<td><code>compaction</code></td>
+<td><code>{&quot;summary&quot;: str, &quot;first_kept_id&quot;: str, &quot;tokens_before&quot;: int, &quot;model&quot;: str, &quot;provider&quot;: str, &quot;usage&quot;: object|null, &quot;details&quot;: object|null}</code></td>
+<td>先输出摘要消息，再从 <code>first_kept_id</code> 输出尾部</td>
+</tr>
+<tr>
+<td><code>window</code></td>
+<td><code>{&quot;start_id&quot;: str, &quot;reason&quot;: &quot;manual&quot;|&quot;fallback&quot;, &quot;handoff&quot;: str|null}</code></td>
+<td>从 <code>start_id</code> 开始投影；可选交接摘要</td>
+</tr>
+</tbody>
+</table>
+<p>block 是以下之一：</p>
+<pre><code class="language-json">{&quot;type&quot;:&quot;text&quot;,&quot;text&quot;:&quot;...&quot;}
+{&quot;type&quot;:&quot;tool_call&quot;,&quot;id&quot;:&quot;c1&quot;,&quot;name&quot;:&quot;bash&quot;,&quot;args&quot;:{&quot;command&quot;:&quot;pytest -q&quot;}}
+</code></pre>
+<p><code>assistant.blocks</code> 记录模型发出的工具调用，<code>tool_result.call_id</code> 与它配对。不要另外添加 <code>tool_use</code> 事件。脚本发出的嵌套调用使用仅日志事件 <code>tool_execution</code>。</p>
+<p><code>provider_state</code> 是 Responses 重放用的不透明适配器数据。它保存在 assistant 事实里，并传回同一个适配器。它永远不会进入对话词汇。</p>
+<p>harness 负责可选字段 <code>assistant.reasoning</code> 和 <code>assistant.response_metrics</code>。
+<code>reasoning</code> 保存 provider 流式输出的推理摘要。
+<code>response_metrics</code> 包含 <code>ttft_seconds</code> 和 <code>tokens_per_second</code>，值为非负有限数或 null。
+TTFT 包含等待首个非空文本或推理增量的时间。
+TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间。
+请求失败或取消时，TPS 为 null。
+这些字段随 assistant 记录保留，用于恢复宿主显示，不进入模型消息或 provider 重放数据。
+重试丢弃的失败尝试不会成为 assistant 记录。</p>
+<p>TUI 根据 <code>run.termination</code> 和 <code>run.error</code> 恢复停止提示，不保存格式化提示，也不重复保存回答。
+见<a href="../decisions/0016-durable-response-observations.md">决策 0016</a>。</p>
+<h3>仅日志事件</h3>
+<p>这些事件会被记录，但不会投影。</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>载荷</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>meta</code></td>
+<td><code>{&quot;session&quot;: str, &quot;project&quot;: str, &quot;created&quot;: str}</code></td>
+<td>第一条事件；标识会话</td>
+</tr>
+<tr>
+<td><code>tool_execution</code></td>
+<td><code>{&quot;parent_call_id&quot;: str, &quot;call&quot;: ToolCallBlock, &quot;status&quot;: &quot;started&quot;|&quot;ok&quot;|&quot;error&quot;|&quot;interrupted&quot;, &quot;content&quot;: str|null, &quot;authorization&quot;: object|null}</code></td>
+<td>嵌套工具的提交和结果，不进入模型消息</td>
+</tr>
+<tr>
+<td><code>request</code></td>
+<td><code>{&quot;model&quot;: str, &quot;provider&quot;: str, &quot;tools_digest&quot;: str, &quot;conversation_digest&quot;: str, &quot;context&quot;: [str], &quot;estimated_tokens&quot;: int, &quot;dropped&quot;: [str], &quot;snapshot&quot;: object}</code></td>
+<td>带归一化输入的请求审计</td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td><code>{&quot;termination&quot;: str, &quot;steps&quot;: int, &quot;usage&quot;: object|null, &quot;error&quot;: str|null}</code></td>
+<td>运行结果</td>
+</tr>
+<tr>
+<td><code>attempt</code></td>
+<td><code>{&quot;model&quot;: str, &quot;provider&quot;: str, &quot;error&quot;: str, &quot;usage&quot;: object|null}</code></td>
+<td>没有产生消息的失败模型尝试</td>
+</tr>
+<tr>
+<td><code>branch</code></td>
+<td><code>{&quot;selected_id&quot;: str}</code></td>
+<td>导航控制；永远不是模型消息</td>
+</tr>
+<tr>
+<td><code>checkpoint</code></td>
+<td><code>{&quot;checkpoint_id&quot;: str, &quot;user_id&quot;: str, &quot;anchor_id&quot;: str|null, &quot;phase&quot;: &quot;started&quot;|&quot;completed&quot;|&quot;incomplete&quot;}</code></td>
+<td>回合所有权和完成状态审计</td>
+</tr>
+<tr>
+<td><code>restore</code></td>
+<td><code>{&quot;operation_id&quot;: str, &quot;target_id&quot;: str|null, &quot;draft_id&quot;: str|null, &quot;scope&quot;: &quot;conversation&quot;|&quot;code&quot;|&quot;both&quot;, &quot;kind&quot;: &quot;undo&quot;|&quot;redo&quot;|&quot;rewind&quot;|&quot;revert&quot;}</code></td>
+<td>恢复提交和对话位置</td>
+</tr>
+</tbody>
+</table>
+<p>嵌套调用在授权前写入 <code>started</code>，在父调用返回前写入 <code>ok</code>、<code>error</code> 或 <code>interrupted</code>。
+子调用 ID 为 <code>&lt;parent-call-id&gt;/&lt;sequence&gt;</code>。完成记录保存文本，以及授权决策和理由。
+只有开始记录、没有结果时，执行结果未知，恢复会话不会重跑调用。模型只看到父脚本输出。</p>
+<p><code>request.snapshot</code> 包含 <code>messages</code>、<code>tools</code>、<code>options</code>、<code>budget</code> 和 <code>report</code>。<code>budget</code> 记录上下文窗口、输出预留和余量；<code>report</code> 记录准入结果。<code>options</code> 省略 API key、所有请求头、取消信号和回调。这是 provider 接口的输入，不是 HTTP 抓包。其余请求数据不做脱敏。</p>
+<p>失败的尝试不会变成 assistant 消息。运行结果不重复最终答案；答案就是最后一段 assistant 文本。</p>
+<h2>不变式</h2>
+<ol>
+<li><strong>一个事实一条记录。</strong> 模型调用记录在 assistant 事件里；嵌套调用分别保存提交和结果的审计记录。最终答案不会再次保存。</li>
+<li><strong>没有派生内容。</strong> 没有替换用的消息列表，没有把渲染预览当历史，没有展示摘要。</li>
+<li><strong>决策也是事实。</strong> 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。</li>
+<li><strong>请求上下文是审计，不是历史。</strong> 动态上下文和请求信封放在 <code>request</code> 里；只有对话事件参与投影。</li>
+<li><strong>压缩切点是用户轮次。</strong> <code>first_kept_id</code> 必须指向压缩之前的 <code>user</code> 事件。工具调用和结果不能跨越切点。</li>
+<li><strong>窗口起点是用户轮次。</strong> <code>start_id</code> 必须指向窗口之前的 <code>user</code> 事件。</li>
+<li><strong>最新 system 事件生效。</strong> 它最先投影，不会被压缩或窗口遮蔽。</li>
+</ol>
+<h2>分支导航</h2>
+<p><code>branch.selected_id</code> 必须引用同一个文件里更早的条目。该条目是用户输入时，导航事件的父节点必须等于该输入的父节点。否则父节点必须等于选中条目的 ID。选中旧版根用户时，可能产生父节点为 null 的导航事件。</p>
+<p>导航事件成为物理头部。<code>branch()</code> 沿父链重建活动路径。兄弟事实不会被删除或复制，<code>project()</code> 忽略导航记录。活动路径上最新的导航会在重启后恢复选中的用户文本，直到后续 user 或 assistant 条目消费它。选中非用户条目时恢复空草稿。没有可变的游标附属文件。</p>
+<p>导航和路径复制会获取整个会话的运行锁。非法目标在尾部修复或追加之前失败。Fork 和 clone 把一条连通路径复制到新文件，省略导航、检查点、恢复控制，保留时间戳，并重映射条目 ID 和上下文切点。</p>
+<h2>检查点与协调恢复</h2>
+<p>宿主生命周期在 user 事实之前创建 workspace 检查点。它的 <code>started</code> 事件把保存的检查点关联到较早的用户条目和回合前祖先 <code>anchor_id</code>。<code>completed</code> 或 <code>incomplete</code> 事件在执行后关闭回合。完成描述的是已跟踪的捕获，不是模型成功。核心校验用户和祖先引用；文件镜像和恢复操作历史属于工作区恢复存储。</p>
+<p>只有当待处理计划的文件写入成功后，才追加 restore 事件。它的父节点等于 <code>target_id</code>，必须是较早的条目或 null。只恢复代码时，目标必须是紧邻的前一个物理头部，以保留对话血统。<code>draft_id</code> 为 null，或指向一个较早的用户条目，其文本会回到编辑器。新的对话消息会消费历史草稿。旧版根恢复缺少 system 事实时，待处理计划会先提供一个当前系统提示作为新的显式事实，然后才确认操作。</p>
+<p>工作区操作日志和 <code>pending.json</code> 计划使用封闭模型。稳定的操作 ID 在中断后对会话提交和操作提交去重。遇到未知的外部文件状态时，恢复停止并阻止新写入。见<a href="#page-snapshots-goals">检查点恢复</a>。</p>
+<h2>投影</h2>
+<p><code>project(branch) -&gt; list[Message]</code> 是纯函数，结果确定。</p>
+<ol>
+<li>找到最新的 <code>system</code> 事件，最先输出。</li>
+<li>找到最新的 <code>window</code>。存在时，从它的 <code>start_id</code> 开始，并保留非空 <code>handoff</code> 作为摘要消息。</li>
+<li>找到窗口起点处或之后最新的 <code>compaction</code>。存在时，输出摘要，并从 <code>first_kept_id</code> 开始输出尾部。</li>
+<li>按顺序遍历保留的条目。输出 <code>user</code>、<code>assistant</code> 和 <code>tool_result</code> 消息。跳过 <code>system</code>、<code>meta</code>、<code>window</code>、<code>compaction</code>、<code>request</code>、<code>run</code>、<code>attempt</code>、<code>branch</code>、<code>checkpoint</code>、<code>restore</code> 和 <code>tool_execution</code>。</li>
+<li>按调用 ID 配对工具调用和结果。</li>
+<li>末尾存在未闭合调用时，合成一条“已中断”结果。不要写入日志。把它插在包含该调用的 assistant 消息之后。</li>
+<li>遇到孤立结果、重复结果、重复调用、错误切点或错误窗口时，用 <code>ProjectionError</code> 拒绝。</li>
+</ol>
+<p>摘要消息的输出顺序：system、window 交接、compaction 摘要、保留的尾部。</p>
+<p>线上格式适配器把 <code>SummaryMessage</code> 渲染成包裹在 <code>&lt;compaction-summary&gt;</code> 或 <code>&lt;window-handoff&gt;</code> 里的 user 角色消息。内部角色保持独立，宿主可以按不同方式渲染。</p>
+<h2>存储</h2>
+<ul>
+<li>目录：默认 <code>.cade/sessions/</code>。</li>
+<li>文件：<code>session-&lt;id&gt;.jsonl</code>。</li>
+<li>新的交互式会话把文件创建推迟到第一条 user 或 assistant 消息。初始化事件留在内存中，随该消息一起刷盘。第一次请求被取消时，user 消息仍会留在磁盘上。</li>
+<li>追加锁：<code>session-&lt;id&gt;.lock</code>。</li>
+<li>运行锁：<code>session-&lt;id&gt;.run.lock</code>；并发回合被拒绝。</li>
+<li>追加：一行，<code>flush</code>，<code>fsync</code>。</li>
+<li>追加前：截断崩溃留下的不完整尾行。</li>
+<li>读取时：忽略不完整的尾行；拒绝任何更早的非法行。</li>
+<li>拒绝重复 ID 和向前的父引用。</li>
+<li>不改写，不原地编辑。</li>
+</ul>
+<h2>压缩记录</h2>
+<pre><code class="language-json">{&quot;id&quot;:&quot;e80&quot;,&quot;parent&quot;:&quot;e79&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;compaction&quot;,
+ &quot;data&quot;:{&quot;summary&quot;:&quot;## Goal\n...&quot;,&quot;first_kept_id&quot;:&quot;e52&quot;,&quot;tokens_before&quot;:48210,
+         &quot;model&quot;:&quot;gpt-5.6-luna&quot;,&quot;provider&quot;:&quot;chatgpt&quot;,
+         &quot;usage&quot;:{&quot;input&quot;:43000,&quot;output&quot;:1200},&quot;details&quot;:null}}
+</code></pre>
+<p>摘要是模型生成的内容，必须记录在案。<code>first_kept_id</code> 之前的原始事件仍留在日志里。后续压缩从前一次之后开始，可以把前一次摘要纳入输入。</p>
+<h2>窗口记录</h2>
+<pre><code class="language-json">{&quot;id&quot;:&quot;e90&quot;,&quot;parent&quot;:&quot;e89&quot;,&quot;ts&quot;:&quot;...&quot;,&quot;type&quot;:&quot;window&quot;,
+ &quot;data&quot;:{&quot;start_id&quot;:&quot;e88&quot;,&quot;reason&quot;:&quot;manual&quot;,&quot;handoff&quot;:&quot;Optional note.&quot;}}
+</code></pre>
+<p>窗口是硬回退，压缩是默认方案。窗口可以由 <code>/new-context</code> 显式开启，也可以在压缩不足以缩减时自动开启。</p>
+<h2>开发中的变更</h2>
+<p>当前只有一种结构，没有格式版本字段、兼容读取器或迁移层。破坏性变更要同时更新生产者、读取器、测试和文档。见<a href="../persistence/change-policy.md">变更策略</a>。</p>
+
+</section>
+<section class="page" id="page-readme" data-title="子系统">
+<h1>子系统</h1>
+<p>每一页说明一个子系统的类型、行为和失败模式。<a href="#page-architecture">架构</a>是地图，这些页面是参考。</p>
+<ul>
+<li><a href="#page-log">日志</a>：追加、加锁、分支、列表和修复。</li>
+<li><a href="#page-projection-request">投影与请求</a>：确定性上下文和预算准入。</li>
+<li><a href="#page-loop">循环</a>：provider 调用、工具、审批、重试和事实。</li>
+<li><a href="#page-tools-policy">工具与策略</a>：工作区工具、模式、规则、授权、shell 分类和审批。</li>
+<li><a href="#page-context-compaction">上下文与压缩</a>：摘要、窗口、历史和请求上下文。</li>
+<li><a href="#page-extensions">扩展</a>：技能、记忆、MCP、子代理、快照、目标和宿主。</li>
+</ul>
+<p>子系统页面描述当前行为。历史决策写在<a href="../decisions/README.md">决策记录</a>，事故写在<a href="../postmortem/README.md">事故复盘</a>。</p>
+
+</section>
+<section class="page" id="page-log" data-title="日志">
+<h1>日志</h1>
+<p><code>SessionLog</code> 管理追加式 JSONL 文件。</p>
+<h2>创建与打开</h2>
+<ul>
+<li><code>SessionLog.create(directory, session_id=None)</code> 创建唯一文件，并写入一条 <code>meta</code> 记录。</li>
+<li><code>SessionLog.open(path)</code> 校验信封、载荷和导航引用。读取会忽略残缺的最后一行；下一次有效追加会截断该尾部。</li>
+<li>未提供会话 ID 时，从文件名推导。</li>
+</ul>
+<h2>追加</h2>
+<p><code>append(type, data)</code>：</p>
+<ol>
+<li>校验载荷，不改文件。</li>
+<li>获取排他文件锁。</li>
+<li>核对文件标识、大小和纳秒时间戳。文件状态未变时复用已校验记录；变化时重新读取并校验整个文件。</li>
+<li>构造记录，用已校验的 ID 索引检查父节点和引用，仅在验证成功后修复残缺尾部。</li>
+<li>追加一行 JSON，刷新并调用 <code>fsync</code>。</li>
+<li>释放锁。</li>
+</ol>
+<p><code>fsync</code> 是刻意保留的：返回的追加记录已经足够持久，可以据此恢复。写入失败会报错，不会返回伪造的记录。</p>
+<p>缓存只在内部使用，写入并同步成功后才更新。其他写入者、文件替换或截断导致文件元数据变化时，缓存会失效。<code>entries()</code> 和 <code>branch()</code> 返回独立副本，包括嵌套载荷。缓存不增加持久状态，也不改变请求审计。</p>
+<p><code>run_lock()</code> 单独保护整个回合，与单次追加的锁不同。它会立即用 <code>LogError</code> 拒绝竞争操作。<code>run()</code>、CLI 的手动上下文修改、导航和路径复制都会使用它；其他写入多个事件的存储客户端必须显式获取。</p>
+<h2>分支</h2>
+<p><code>branch()</code> 从最后一条记录沿父 ID 回溯到根，再反转列表。<code>branch(entry_id)</code> 读取以某条历史记录结尾的路径。读取会拒绝环、缺失的父节点、重复 ID 和非法导航目标。</p>
+<p><code>switch_branch(selected_id)</code> 在同一个文件里追加导航事件。选中用户输入时，从该输入之前继续，并通过 <code>navigation_draft</code> 暴露其文本；选中其他记录时，在该记录之后继续，草稿为空。随后的 user 或 assistant 记录会消费草稿。<code>history_tree()</code> 提供所有可见分支的纯视图，并标注深度。</p>
+<p><code>copy_branch()</code> 在源会话的运行锁下复制一条连通路径，包括为 fork 选中的非活动路径。它重映射 ID 和上下文切点，保留时间戳，省略导航、检查点、恢复控制和兄弟节点。副本作为一个快照写入；没有对话内容时保持延迟写入。</p>
+<p>只有日志层面的检查点和恢复事件参与协调恢复。检查点关联较早的 user 记录和回合前祖先。恢复记录的父节点标识已提交目标；只恢复代码时必须保留前一个头部。文件效果和后进先出状态属于工作区协调器，不属于对话投影。</p>
+<h2>列表与标题</h2>
+<p><code>list_sessions(directory)</code> 返回会话 ID、更新时间和标题。标题取自整个文件中的第一段用户文本，即使当前导航位置在该输入之前。损坏的文件会被跳过，单个坏会话不会破坏整个列表。更新时间和排序使用文件修改时间，因此复制的历史时间戳不会让新建会话显得很旧。</p>
+<h2>不变式</h2>
+<ul>
+<li>记录从不原地改写。</li>
+<li>同一个文件内 ID 唯一。</li>
+<li>父记录在子记录之前。</li>
+<li>文件以一个换行结尾。</li>
+<li>格式封闭；新增事件类型需要决策记录。</li>
+</ul>
+<h2>测试</h2>
+<p><code>test_log.py</code> 覆盖创建、追加、恢复、尾部修复、缓存隔离、外部变化、同步失败和列表。<code>test_session_history.py</code> 覆盖导航、旧格式恢复、非活动 fork 和独立复制。<code>test_projection.py</code> 覆盖格式错误的路径。<code>test_history_e2e.py</code> 通过真实 TUI 输入验证公开命令。</p>
+
+</section>
+<section class="page" id="page-projection-request" data-title="投影与请求">
+<h1>投影与请求</h1>
+<h2>投影</h2>
+<p><code>project(entries)</code> 是纯函数。它会：</p>
+<ol>
+<li>找到最新的 <code>system</code> 记录。</li>
+<li>应用最新的 <code>window</code> 起点。</li>
+<li>应用最新的 <code>compaction</code> 切点，并生成一条摘要消息。</li>
+<li>把 user、assistant 和 tool-result 事实转换成消息。</li>
+<li>按调用 ID 配对工具调用和结果。</li>
+<li>分支在调用中途结束时，插入一条合成的“已中断”结果。</li>
+</ol>
+<p>它拒绝孤立结果、重复结果和没有指向用户条目的切点。投影不调用 provider，也不写日志。</p>
+<h2>请求</h2>
+<p><code>build(conversation, tools, budget, context)</code>：</p>
+<ol>
+<li>拼接基础系统提示和请求专属上下文。</li>
+<li>估算 token。</li>
+<li>保留所有投影消息和工具正文。</li>
+<li>转换成 provider 消息和工具定义。</li>
+<li>返回 <code>Request</code> 和 <code>BuildReport</code>。</li>
+</ol>
+<p><code>BuildReport</code> 记录估算 token 和预算。旧的 dropped-call 和轮次计数器保持为空或零。完整请求放不下时，<code>require_sendable()</code> 抛出 <code>RequestTooLarge</code>。循环只通过记录在案的 compaction 和 window 决策缩减上下文，随后拒绝仍然溢出的请求。</p>
+<h2>上下文顺序</h2>
+<p>系统消息携带基础指令，并按顺序附加：指令、技能目录、NOTE、记忆和目标。这些输入只属于请求。请求审计记录它们的完整文本、准入的消息、工具定义、非认证选项和预算。会话文件可能包含敏感输入。</p>
+<h2>测试</h2>
+<p><code>test_projection.py</code>、<code>test_request.py</code> 和 <code>test_compaction.py</code> 覆盖切点、严格准入和线上格式契约。</p>
+
+</section>
+<section class="page" id="page-loop" data-title="循环">
+<h1>循环</h1>
+<p><code>run(log, text, ...)</code> 是回合内唯一写日志的阶段。</p>
+<h2>一次运行</h2>
+<ol>
+<li>追加 <code>user</code> 事实。</li>
+<li>对每个步骤：
+<ul>
+<li>投影分支。</li>
+<li>如果完整估算超出预算，调用压缩器。</li>
+<li>构造请求。</li>
+<li>如果仍然超出，调用窗口回退。</li>
+<li>追加一条 <code>request</code> 审计事实。</li>
+<li>流式调用 provider。</li>
+<li>追加 assistant 事实。</li>
+<li>解析并执行每个工具调用。</li>
+<li>追加 tool-result 事实。</li>
+</ul>
+</li>
+<li>追加一条 <code>run</code> 事实，包含终止原因、步骤数、用量和错误。</li>
+</ol>
+<h2>Provider 处理</h2>
+<p>循环收集文本增量、工具调用、用量和 provider 重放状态。失败会变成 <code>attempt</code> 事实。可重试的失败默认重试一次；重试延迟可配置。终止性失败以 <code>provider_error</code> 结束运行，并且不会创建 assistant 事实。</p>
+<h2>终止原因</h2>
+<ul>
+<li><code>completed</code>：provider 结束，没有工具调用。</li>
+<li><code>step_limit</code>：达到配置的步骤数。</li>
+<li><code>context_error</code>：压缩和窗口回退之后仍没有请求能放入预算。</li>
+<li><code>aborted</code>：请求了取消。</li>
+<li><code>provider_error</code>：provider 失败。</li>
+</ul>
+<h2>取消</h2>
+<p>循环在步骤和工具调用之间检查取消令牌。正在运行的工具会收到令牌；剩余调用收到“已中断”结果。运行在 <code>run</code> 事实中记录原因。</p>
+<h2>事件</h2>
+<p>宿主收到文本增量、工具开始、工具结束和最终输出。事件用于展示，事实才是持久的。宿主丢弃事件不会丢失历史。</p>
+<h2>测试</h2>
+<p><code>test_loop.py</code> 覆盖完成、工具使用、审批、重试、超时、取消、上下文错误和窗口回退。</p>
+
+</section>
+<section class="page" id="page-tools-policy" data-title="工具与策略">
+<h1>工具与策略</h1>
+<h2>契约</h2>
+<p>工具声明名称、描述、JSON schema 和异步 <code>execute</code>。循环记录内容和错误标志；工具不追加会话事实。</p>
+<p><code>harness.permissions.Policy.check</code> 返回 <code>PermissionCheck</code>，包含决策（<code>allow</code>、<code>deny</code> 或 <code>ask</code>）、原因和 <code>ExecutionScope</code>。<code>authorize</code> 只用 <code>ApprovalRequest</code> 和 <code>ApprovalResult</code> 处理 ask。循环和应用直接调用工具时，共用 <code>harness.executor.execute_tool</code>。</p>
+<p><code>WorkspacePolicy</code> 在显式规则、授权和模式默认值之前应用模式约束和受保护路径。匹配规则按 deny &gt; ask &gt; allow 生效。子代理模式不能扩大父级权限。面向用户的语义见<a href="#page-tools-security">工具与安全</a>。</p>
+<h2>执行</h2>
+<p>共享执行器只在特定工具运行期间，把授权范围放进上下文变量。该范围会跨异步任务和工作线程保留，之后重置。它从不改变默认工作区或授权。</p>
+<p>应用装配时用项目根目录、私有临时目录、网络设置和受保护路径构造 <code>PlatformSandbox</code>。<code>SubprocessShell</code> 在启动进程之前包装命令。文件工具通过 <code>coding.tools._worker</code> 使用同一个后端；快照存储与工作进程分开管理。外部文件修改没有工作区快照。取消信号会传到子进程启动器，工具在返回或清理请求文件之前等待进程终止。</p>
+<p>Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端错误会变成工具错误，不会退回到无沙箱重试。MCP 服务器进程是可信的宿主扩展，位于这个边界之外。</p>
+<h2>Reviewer</h2>
+<p><code>AutoReviewer</code> 收到授权原因、精确参数、保留的对话、祖先对话和上下文限制。它使用一次独立的无工具请求。过大的输入会被拒绝，不会静默截断。输出是严格对象，包含 <code>allowed: bool</code> 和 <code>reason: str</code>。拒绝和失败会把原因作为工具错误返回给模型。</p>
+<h2>测试</h2>
+<ul>
+<li><code>test_policy.py</code>：模式约束、优先级和写入范围。</li>
+<li><code>test_grants.py</code>：精确授权和作用域隔离。</li>
+<li><code>test_review.py</code>：严格响应和模型可见的拒绝原因。</li>
+<li><code>test_subagents.py</code>：子级权限上限。</li>
+<li><code>test_sandbox.py</code>：真实操作系统文件/网络隔离、工作进程集成、取消、Windows 绕过和后端缺失。</li>
+</ul>
+
+</section>
+<section class="page" id="page-context-compaction" data-title="上下文与压缩">
+<h1>上下文与压缩</h1>
+<h2>请求上下文</h2>
+<p>系统消息是基础提示加上请求专属上下文：</p>
+<ol>
+<li>来自 <code>AGENTS.md</code>、<code>CLAUDE.md</code> 或其变体的项目指令。</li>
+<li>技能目录的名称和描述。</li>
+<li><code>NOTE.md</code> 工作状态。</li>
+<li><code>MEMORY.md</code> 长期事实。</li>
+<li>活动目标。</li>
+</ol>
+<p>请求审计记录这份上下文和归一化请求；它不会把文本变成对话事实。</p>
+<p><code>/context</code> 按实际来源汇总当前请求快照：系统提示、项目指令、工作笔记、记忆、目标、技能目录、已加载技能、内置工具 schema、MCP schema、对话、工具结果和保留摘要。有内容的可选分类才会显示。委派工具的 schema 计入内置工具，子代理的完整对话不属于父会话上下文。每个 token 只归入一类。剩余输入空间已扣除输出预留和安全余量。</p>
+<p>文件来源包括已加载的 <code>AGENTS.md</code> 或替代文件、笔记、记忆、技能正文和引用、读取的文件及附件。MCP 来源逐个服务显示当前 schema 数量和 token 估算，并列出仍在活动对话中的资源、提示和工具结果。schema 刷新会更新目录；已加载内容在投影移除后才会消失。</p>
+<p>对于 OpenAI Responses，<code>/context</code> 调用<a href="https://developers.openai.com/api/docs/guides/token-counting">输入计数接口</a>，复用推理请求转换后的输入、指令、工具和输出格式。接口返回的总量显示为 <strong>Input (provider count)</strong>。这不会生成回复或追加会话事件。接口或账户错误会显示在明确标注的回退估算旁边。</p>
+<p>对于 <code>deepseek-flash</code> 和 <code>deepseek-v4-pro</code>，命令通过 <code>tokenizers</code> 使用<a href="https://api-docs.deepseek.com/quick_start/token_usage/">官方 V4 分词器</a>。首次使用时下载公开模型包，校验 JSON 后缓存到 <code>~/.cade/tokenizers/</code>，后续可离线使用。文本采用模型分词；消息包装、图片和服务端工具格式仍需估算。报告标明分词器来源，不把这个总量称为 provider 实测值。</p>
+<p>分项仍是估算，不是 provider 返回的逐文件计费数据。有模型分词器时使用模型分词，否则使用字符近似。剩余输入空间优先采用 provider 总量计算。最近一次请求上报的输入和输出用量单独显示，不与当前输入或整轮累计混用。检查不会访问 MCP 服务或修改对话。请求准入沿用原有离线估算，普通模型调用不会额外发起预计数请求。</p>
+<h2>压缩</h2>
+<p>完整投影超出输入预算时，<code>Compactor</code> 会运行。</p>
+<ol>
+<li>在用户边界选择切点，让最近的尾部落在配置目标之内。</li>
+<li>序列化较早的消息，包括之前的摘要。</li>
+<li>请求 provider 生成摘要，输出长度有上限。</li>
+<li>追加一条 <code>compaction</code> 事实，包含摘要和 <code>first_kept_id</code>。</li>
+<li>重新投影。</li>
+</ol>
+<p>摘要失败或切点没有消息时，追加一条 <code>attempt</code> 事实，对话保持不变。之前的摘要以 <code>PRIOR SUMMARY</code> 加入，因此压缩可以迭代。</p>
+<h2>窗口回退</h2>
+<p>压缩仍放不下时，循环可以调用窗口钩子。CLI 从最新的用户记录开始一个窗口，附带指向 <code>NOTE.md</code> 和 history 的固定交接。请求仍然放不下时，运行以 <code>context_error</code> 终止。</p>
+<h2>历史</h2>
+<p><code>history</code> 工具搜索分支，或读取精确记录和工具结果。它检索当前压缩或窗口边界之外的证据。完整内容有上限；搜索结果指回条目 ID。</p>
+<h2>请求准入</h2>
+<p>准入保留完整投影。溢出必须通过记录在案的上下文切换解决，否则以 <code>context_error</code> 失败。见<a href="#page-projection-request">投影与请求</a>。</p>
+<h2>测试</h2>
+<p><code>test_compaction.py</code>、<code>test_window.py</code>、<code>test_history.py</code> 和请求相关测试覆盖切点、摘要、回退和检索。</p>
+
+</section>
+<section class="page" id="page-extensions" data-title="扩展">
+<h1>扩展</h1>
+<p>扩展通过窄接缝增加行为，都不改变会话格式。</p>
+<h2>技能</h2>
+<p>发现过程只读取用户级和受信任项目目录中的技能元数据。请求携带技能目录；<code>skill</code> 工具按需加载正文和引用文件，并返回资源根目录。已加载说明在压缩或换窗后缺失时，会从活动分支恢复到请求上下文。配置与调用方式见<a href="#page-skills-memory">技能和记忆</a>。</p>
+<h2>记忆</h2>
+<p><code>MEMORY.md</code> 属于请求上下文。<code>memory</code> 工具追加一条列表项，不能写其他路径。文件有上限，以保护请求预算。</p>
+<h2>MCP</h2>
+<p>每个配置的 stdio 或 HTTP 服务器保持一条连接。发现过程读取 <code>tools/list</code>；调用通过串行队列使用 <code>tools/call</code>。工具带 <code>mcp__</code> 前缀，默认需要确认，在计划模式和只读模式下被拒绝。官方 SDK 负责协议协商；宿主处理动态工具目录、Schema 校验、取消和凭据隔离。协议版本和可选能力限制见 <a href="#page-mcp">MCP</a>。</p>
+<h2>子代理</h2>
+<p><code>SubagentRunner</code> 在 <code>&lt;sessions&gt;/subagents</code> 下创建子会话。子会话继承父级的 provider、预算、策略、审批者、上下文和基础工具，外加自己的 history。它不能再启动子代理，最多执行 20 个步骤。父会话只记录调用和摘要。<code>DelegateTool</code> 顺序运行一个或多个子任务，并可选应用更严格的子级模式。Reviewer 请求保留祖先对话，因此子提示不能替换人工限制。</p>
+<h2>快照</h2>
+<p><code>SnapshotStore</code> 捕获 <code>write</code>、<code>edit</code> 和常见的单命令 shell 修改。<code>WorkspaceRecovery</code> 为 CLI <code>--undo</code> 和 TUI <code>/undo</code>、<code>/redo</code> 协调检查点操作。快照是项目状态，不是会话事实。</p>
+<h2>目标</h2>
+<p><code>GoalStore</code> 在 <code>.cade/goal.json</code> 里持久保存一个目标。<code>goal</code> 工具和 <code>/goal</code> 命令负责管理。活动目标属于请求上下文。</p>
+<h2>宿主</h2>
+<p>终端宿主运行一次性任务和 TUI。它与其他所有入口共用同一个循环和策略。</p>
+<h2>限制</h2>
+<p>MCP 的协议版本与可选能力边界见 <a href="#page-mcp">MCP</a>。子会话权限和顺序执行方式见<a href="#page-subagents">子代理</a>。</p>
+<h2>测试</h2>
+<p><code>test_skills.py</code>、<code>test_memory.py</code>、<code>test_mcp.py</code>、<code>test_subagents.py</code>、<code>test_snapshots.py</code> 和 <code>test_goal.py</code>。</p>
+
+</section>
+<section class="page" id="page-tools-security" data-title="工具与安全">
+<h1>工具与安全</h1>
+<h2>工作区工具</h2>
+<ul>
+<li><code>read</code>：读取文件文本或附加图片。文本最多返回 2,000 行或 50 KB。</li>
+<li><code>write</code>：写入 UTF-8 文本，并创建父目录。</li>
+<li><code>edit</code>：对原始文件执行唯一且互不重叠的批量替换。</li>
+<li><code>bash</code>、<code>powershell</code>：运行 shell 命令，可选指定工作目录和 <code>additional_write_paths</code>，为本次调用申请额外权限。</li>
+<li><code>run_code</code>：运行独立 Python 程序，调用会话工具并筛选结果。</li>
+<li><code>question</code>：收集选项或自定义答案，关闭问题时结束当前轮次。</li>
+<li><code>websearch</code>、<code>webfetch</code>：搜索或获取网页内容。设置 <code>network=false</code> 时，这两个工具不会出现在工具目录和模型请求中，子代理也不例外。执行策略仍会在所有平台上拒绝旧请求。</li>
+</ul>
+<p>列目录、查找文件和搜索内容请使用 <code>bash</code> 或 <code>powershell</code>。这些命令遵守 shell 的权限和沙箱策略。
+上游行为和参数见<a href="#page-tool-catalog">工具目录</a>。</p>
+<p>工作区固定为项目根目录，不是 shell 的当前目录，也不是整个主目录的别名。读取可以使用外部路径，受保护文件除外。工作区内的写入有快照；外部写入没有。</p>
+<h2>Python 执行权限</h2>
+<p><code>run_code</code> 的语法、示例和结果处理见 <a href="#page-code-mode">Code mode</a>。</p>
+<p>Python 直接访问文件、网络和进程时遵守 shell 的操作系统沙箱范围，不经过 shell 命令风险分类或逐工具审批。
+解释器只接收最小环境，不继承凭据环境变量，但仍可能读取凭据文件。
+直接写入不经过文件工具的快照；需要跟踪的修改应使用 <code>tools.write</code> 和 <code>tools.edit</code>。
+build 模式默认允许脚本；ask 模式审批整段程序；计划和只读会话拒绝脚本。嵌套工具仍需各自的审批。
+不设置进程内存配额。进程清理继承 shell 后端的平台限制。</p>
+<h2>模式</h2>
+<ul>
+<li><code>build</code> 是默认模式。普通编辑、测试、构建和 shell 流水线自动运行。被判定为破坏性、提权、发布或对外发送的操作需要审批。</li>
+<li><code>ask</code> 允许已归类的只读操作，在修改或未归类的 shell 命令之前询问。</li>
+<li><code>plan</code> 支持探索和讨论，不支持实现。项目修改、记忆修改、目标修改和 MCP 调用都会被拒绝。只有在用户要求制定计划并审批后，文件工具才能写入 <code>&lt;workspace&gt;/.cade-plans/</code>。要实施改动，用户必须切换模式。</li>
+</ul>
+<p>子代理继承父级的限制。子级模式只能收窄限制。<code>--read-only</code> 和 <code>--sandbox read-only</code> 拒绝修改，同时允许已归类的只读 shell 命令。规则、授权、<code>--yes</code> 和 Reviewer 审批都不能覆盖这些限制。</p>
+<h2>规则与授权</h2>
+<p><code>cade.json</code> 里的规则匹配工具、归一化路径子树或命令前缀。所有命中的规则都参与决策：<code>deny</code> 优先于 <code>ask</code>，<code>ask</code> 优先于 <code>allow</code>。显式 allow 覆盖默认的 ask，但不覆盖生效的 deny。要撤销 deny，必须删除或修改规则；审批回答做不到。</p>
+<p>TTY 里回答 <code>a</code> 会创建进程内的会话授权。文件授权匹配相同的工具和路径。Shell 授权还匹配工作目录和额外写入路径；MCP 授权匹配完整参数。授权可以回答 ask，但不能绕过 deny。<code>/permissions</code> 列出授权；<code>/permissions clear</code> 清除授权。</p>
+<p>显式读写 <code>.env*</code> 文件（<code>.env.example</code> 除外）以及常见的主目录凭据路径，例如 <code>~/.ssh</code>、<code>~/.aws</code> 和 <code>~/.config/gh</code>，每次使用都需要审批。检测到的 shell 访问遵循同一规则，包括从 <code>workdir</code> 解析出的相对路径。敏感审批不会创建或复用会话授权，显式 deny 规则仍然生效。只读的外部 Git 命令仍然允许；检测到外部仓库的修改时需要审批。审批不会扩大操作系统沙箱的写入范围。</p>
+<h2>审批与 Reviewer</h2>
+<p>只有 <code>ask</code> 会进入审批：</p>
+<ul>
+<li><code>--yes</code> 批准确认，不批准拒绝。</li>
+<li><code>--auto-review</code> 把待处理操作、授权理由、保留的对话、父对话和上下文限制发给一次不带工具的 Reviewer 调用。响应必须包含严格的布尔字段 <code>allowed</code> 和非空 <code>reason</code>。</li>
+<li>否则，TTY 会提示输入 <code>y</code> 批准一次、<code>n</code> 拒绝或 <code>a</code> 始终允许。</li>
+<li>没有可用的审批者时，操作被拒绝。</li>
+</ul>
+<p>Reviewer 的拒绝、超时、provider 失败和格式错误的响应都会变成带原因的错误工具结果。这些结果返回给执行中的模型，不会自动转成人工提示。模型必须接受拒绝，并调整做法。Reviewer 不会审查每个普通的开发操作。</p>
+<p>Shell 分类和风险检测是保守的启发式判断，不是安全边界，也不是对任意脚本的完整分析。它们无法识别程序内部隐藏的每一种破坏性操作或外部影响。</p>
+<h2>操作系统沙箱</h2>
+<p>文件系统范围独立于模式和审批：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>workspace-write</code>（默认）</td>
+<td>可在项目内和会话私有临时目录写入</td>
+</tr>
+<tr>
+<td><code>read-only</code></td>
+<td>不写普通文件</td>
+</tr>
+<tr>
+<td><code>danger-full-access</code></td>
+<td>跳过操作系统隔离；显式 deny 规则仍然生效</td>
+</tr>
+</tbody>
+</table>
+<p>Linux 使用已安装的 <code>bwrap</code>（bubblewrap）。macOS 使用系统 <code>sandbox-exec</code>（Seatbelt）。缺少后端或启动失败会返回工具错误；两个平台都不会在没有隔离的情况下静默重试。Windows 跳过操作系统隔离，保留应用层策略和审批检查，不增加额外提示。</p>
+<p>CLI 让 shell 命令和文件工具走同一套执行策略。在 Linux 和 macOS 上，文件工具在固定操作集的沙箱 Python 工作进程中执行。批准外部文件写入只为本次调用授予目标路径。Shell 的 <code>additional_write_paths</code> 必须指向已存在的文件或目录；目录授权包含其子项。修改工作目录不会扩大写入权限。审批永远不会静默授予完整主机访问权限。</p>
+<p>网络访问是独立设置，默认启用。<code>--no-network</code> 关闭沙箱网络访问；批准网络访问不会授予外部文件写入。Windows 和 <code>danger-full-access</code> 不提供操作系统级网络限制。provider 连接在工具沙箱之外运行。</p>
+<p>在 Linux 和 macOS 上，CLI 会对沙箱命令隐藏已有的用户级和项目级 <code>.cade</code> 目录，并保护已有的 Git 钩子和 Git 配置不被写入。主目录默认不可写。私有临时目录和常见工具缓存会重定向到会话目录，退出时清理。除隐藏路径外，文件系统仍然可读；这不是完整的秘密隔离。请据此限制凭据和暴露的资源。</p>
+<p>MCP 服务器进程和宿主管理的状态在工具沙箱之外运行。把它们的配置和代码当作可信内容。沙箱不是容器或虚拟机，也不能让不可信的仓库变得安全。</p>
+<p>契约见<a href="../decisions/0009-execution-permissions.md">决策 0009</a>。</p>
+
+</section>
+<section class="page" id="page-snapshots-goals" data-title="快照与目标">
+<h1>快照与目标</h1>
+<h2>文件快照</h2>
+<p>文件工具修改文件之前，Cade 会记录快照。快照存放在 <code>.cade/snapshots</code> 下，包含一个 JSONL 索引，每个快照一个目录。捕获操作追加并同步一条索引记录。残缺的最后一行会被忽略，下次捕获前修复；完整记录损坏时会阻止捕获。参见<a href="../decisions/0014-storage-append-cost.md">决策 0014</a>。</p>
+<p>覆盖的变更：</p>
+<ul>
+<li><code>write</code> 和 <code>edit</code>。</li>
+<li>简单的字面文件 shell 修改：<code>rm</code>、文件到文件的 <code>mv</code>/<code>cp</code>、<code>touch</code>、<code>echo</code> 重定向和 <code>sed -i</code>。带引号的文件名可以含空格。目录操作数、展开和未知命令形式不会被捕获。</li>
+<li>创建文件时会记录“原本不存在”；撤销会删除该文件。</li>
+</ul>
+<p>不覆盖：</p>
+<ul>
+<li>复杂流水线、命令列表、未知脚本，以及不写明文件名却修改文件的命令。</li>
+<li>超过快照上限（5 MiB）的文件会被拒绝，不会静默跳过。</li>
+<li>不复制目录树；目录修改会被跳过。</li>
+</ul>
+<h2>撤销</h2>
+<pre><code class="language-bash">cade --undo
+</code></pre>
+<p>这个命令与 TUI <code>/undo</code> 共用检查点恢复协议。它撤销最新会话的一次操作，包括对话位置和已跟踪的文件变更。用 <code>cade --resume ID --undo</code> 指定会话，再在 TUI 中恢复该会话即可用 <code>/redo</code> 重做。命令不联系 provider，也不启动 MCP。参见<a href="../decisions/0013-unified-cli-undo.md">决策 0013</a>。</p>
+<p>恢复会先校验所有受影响文件，再开始写入。冲突、损坏的载荷和未知结果都会阻止恢复。执行恢复之前，先停止外部文件写入者。没有自有检查点的独立文件快照不会产生可撤销操作。</p>
+<p>快照是项目状态，不是会话事实。它们不属于 JSONL 会话分支。</p>
+<h2>检查点恢复</h2>
+<p>每轮根用户输入在执行前创建检查点。已登记的文件修改会保留修改前后内容、存在性和权限。同步子代理共享父级的捕获范围。排队输入在执行开始时获得检查点；引导仍属于当前回合。</p>
+<ul>
+<li><code>/undo</code> 撤销一轮或一次显式恢复操作；<code>/redo</code> 重新应用一次。两者都不重跑工具，也不联系 provider。历史在重启后保留。</li>
+<li><code>/rewind</code> 选择活动路径上的一条用户提示，再选择对话、代码或两者，随后显示预览并确认。它恢复到该提示之前的位置。</li>
+<li><code>/revert</code> 选择一段轮次和一个或全部已跟踪文件。显式路径参数可以选择多个文件。对话保持不变。</li>
+</ul>
+<p>新操作会丢弃当前重做链。旧对话分支仍然保留。树导航从不恢复文件；过期的撤销/重做不能跨过已变化的对话位置。Rewind 仍可使用自有检查点，并根据实际操作计算代码变更，包括期间发生的撤销、重做和 revert。复制的会话不继承工作区操作。没有自有检查点的历史提示只支持恢复对话。</p>
+<p>恢复在修改文件之前检查所有选中的文件和内容块。目标已变化、结果未知、内容块损坏、符号链接、硬链接或受保护的元数据路径都会阻止自动代码恢复。如果后续编辑冲突，恢复较旧的区间也会失败；没有自动反向补丁合并。文件上限对两份镜像都生效。事后镜像缺失时，该回合的代码检查点会被标记为不完整，不会假装恢复可用。未选中的文件和用户的 Git 索引保持不变。目录树、未跟踪的 shell 变更和外部副作用不会恢复。</p>
+<p>协作操作共用 <code>.cade/recovery/workspace.lock</code>。操作日志和检查点链接使用该目录下的封闭记录。<code>pending.json</code> 计划在恢复开始前保存两份镜像。文件按单个文件原子替换；多文件恢复不是整个文件系统层面的原子操作。中断后，恢复指定的会话即可幂等完成计划。如果出现第三个外部编辑过的状态，恢复会停止，不覆盖该编辑。解决报告的冲突后继续；不要删除待处理计划来绕过写入保护。在计划完成前，代理的新写入会一直被阻止。外部编辑器不遵守这把锁，恢复期间必须停止它们。只读模式会阻止代码恢复；仅恢复对话仍然可用。Esc 取消预览，不取消正在提交的文件恢复。正常退出 TUI 会等待恢复提交完成；进程被强制中断时使用待处理计划。</p>
+<p>只恢复代码时，模型可见的对话消息保持不变。下一次请求会收到一条有审计记录的通知，要求检查已恢复的文件，而不是相信旧工具的效果。设置、凭据、授权和外部服务不会随对话历史回退。</p>
+<h2>目标</h2>
+<p>目标是保存在 <code>.cade/goal.json</code> 里的一个持久目标，包含目标内容、状态（<code>active</code> 或 <code>done</code>）和更新时间。</p>
+<pre><code class="language-bash">cade --goal &quot;Add a regression test for the parser&quot; &quot;Start the task.&quot;
+</code></pre>
+<p>在 TUI 中：</p>
+<ul>
+<li><code>/goal</code> 显示当前目标。</li>
+<li><code>/goal TEXT</code> 设置活动目标。</li>
+<li><code>/goal done</code> 标记完成。</li>
+<li><code>/goal clear</code> 删除目标。</li>
+</ul>
+<p><code>goal</code> 工具为模型提供相同操作。活动目标会加入请求上下文，因此恢复或压缩后的会话仍然知道目标。目标是宿主状态，不改变会话格式。</p>
+<p>目标刻意保持简单。工作细节用 <code>NOTE.md</code>，比目标存活更久的事实用 <code>MEMORY.md</code>。</p>
+
+</section>
+<section class="page" id="page-skills-memory" data-title="技能与记忆">
+<h1>技能与记忆</h1>
+<h2>技能</h2>
+<p>Cade 从 <code>~/.cade/skills/</code> 和 <code>~/.agents/skills/</code> 发现用户级技能。将 <code>trust_project_skills</code> 设为 <code>true</code> 后，还会扫描项目内的对应目录。项目技能默认关闭。</p>
+<p>显式配置的 <code>skills_dir</code> 可信且优先级最高，其后是项目级和用户级目录。同一范围内，<code>.cade/skills</code> 优先于 <code>.agents/skills</code>。同名技能保留优先级较高的定义，并记录警告。</p>
+<p>每个技能目录必须包含带 YAML frontmatter 的 <code>SKILL.md</code>：</p>
+<pre><code class="language-markdown">---
+name: release-check
+description: Validate release metadata before tagging.
+---
+
+Run the release checklist...
+</code></pre>
+<p>加载器校验必填字段、名称规则、目录名是否一致、长度和元数据类型。无效定义会被跳过，并记录诊断。发现阶段只读取 frontmatter；激活时才读取正文并扫描 <code>references/</code>、<code>scripts/</code> 和 <code>assets/</code>。</p>
+<p>请求会收到一份紧凑的 <code>&lt;available-skills&gt;</code> 目录，包含名称和描述。模型按需用 <code>skill</code> 工具加载正文：</p>
+<pre><code class="language-json">{&quot;name&quot;: &quot;release-check&quot;}
+</code></pre>
+<p>结果包含技能根目录的绝对路径和资源清单。按需读取引用文件：</p>
+<pre><code class="language-json">{&quot;name&quot;: &quot;release-check&quot;, &quot;reference&quot;: &quot;checklist.md&quot;}
+</code></pre>
+<p>引用名相对于 <code>references/</code>。隐藏文件、符号链接、二进制引用和逃出技能根目录的路径会被拒绝。引用内容上限为 50 KiB，截断时会标明。脚本通过普通 <code>bash</code> 工具执行，沿用其权限策略。原生沙箱允许读取可信技能目录，但禁止写入；其余私有 <code>.cade/</code> 状态仍保持隐藏。</p>
+<p>用户也可以用 <code>$release-check</code> 或 <code>/skill release-check</code> 显式激活技能。<code>disable-model-invocation: true</code> 会从自动选择目录中隐藏技能，但保留显式激活入口。加载时会披露 <code>compatibility</code>；<code>allowed-tools</code> 仅作提示，不授予权限。</p>
+<p>技能正文是工具结果中的事实。压缩或换窗后，若已激活的说明不再可见，应用会从活动分支恢复到请求上下文。模型也可以重新加载技能，获取完整说明。</p>
+<h2>记忆</h2>
+<p>项目根目录的 <code>MEMORY.md</code> 存放长期事实。每个任务都会把它作为 <code>&lt;memory source=&quot;MEMORY.md&quot;&gt;</code> 加入请求上下文，上限 32 KiB。</p>
+<p>模型用 <code>memory</code> 工具追加事实：</p>
+<pre><code class="language-json">{&quot;text&quot;: &quot;Prefer pytest and keep changes minimal.&quot;}
+</code></pre>
+<p><code>memory</code> 只写 <code>MEMORY.md</code>，不能写任意路径。写入上限是 64 KiB。文件写满后，手动删除过期条目。</p>
+<p>记忆与其他状态文件的区别：</p>
+<ul>
+<li><code>AGENTS.md</code> 是项目指令，归项目所有。</li>
+<li><code>NOTE.md</code> 是短期工作状态，会随压缩一起总结。</li>
+<li><code>MEMORY.md</code> 是长期偏好或约定。</li>
+<li>会话日志记录发生过什么。</li>
+</ul>
+<h2>请求上下文</h2>
+<p>指令、技能目录、<code>NOTE.md</code>、<code>MEMORY.md</code> 和活动目标都只属于请求上下文。它们出现在每次请求审计里，但不会变成对话消息。见<a href="#page-sessions-context">会话与上下文</a>。</p>
+
+</section>
+<section class="page" id="page-mcp" data-title="MCP">
+<h1>MCP</h1>
+<h2>连接与工具</h2>
+<p>Cade 使用官方 Python MCP SDK，支持 stdio 和 Streamable HTTP。启动时发现工具，并为每个服务器保持一条连接：</p>
+<pre><code class="language-json">{
+  &quot;mcp_servers&quot;: {
+    &quot;files&quot;: {
+      &quot;command&quot;: &quot;python&quot;,
+      &quot;args&quot;: [&quot;mcp_server.py&quot;],
+      &quot;timeout_ms&quot;: 30000
+    }
+  }
+}
+</code></pre>
+<p>工具命名为 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>。输入格式来自服务器的 <code>tools/list</code> 响应。调用在连接上顺序执行，保留服务器状态。</p>
+<p>策略：</p>
+<ul>
+<li><code>plan</code> 模式隐藏 MCP 工具并拒绝调用。</li>
+<li><code>read_only</code> 拒绝 MCP 调用。</li>
+<li><code>build</code> 和 <code>ask</code> 默认询问；规则可以放行特定工具。</li>
+</ul>
+<p>启动失败的服务器会报告并跳过，后续请求可以重新连接。执行结果未知的调用不会自动重试。取消或超时会关闭连接，并等待 SDK 完成清理；这不保证回滚服务器已接受的动作。应用会话退出时也会关闭连接。</p>
+<p>默认的 <code>protocol: &quot;auto&quot;</code> 先探测 <code>2026-07-28</code> 无状态协议，再回退到旧版初始化握手。<code>protocol: &quot;legacy&quot;</code> 强制使用握手。当前 SDK 支持 <code>2024-11-05</code>、<code>2025-03-26</code>、<code>2025-06-18</code>、<code>2025-11-25</code> 和 <code>2026-07-28</code>。协商版本随工具结果记录；未知版本由 SDK 拒绝。</p>
+<p>工具发现会读取所有分页。旧版列表变化通知会在下次模型请求前刷新当前工具目录；无状态连接在每次模型请求前刷新目录。名称冲突或过长的工具会被排除并记录诊断。输入参数和结构化输出按 JSON Schema 校验，进度与结果元数据写入会话日志。</p>
+<p>服务器声明资源或提示词能力时，会在同一服务器前缀下提供 <code>resources_list</code>、<code>resources_read</code>、<code>prompts_list</code> 和 <code>prompts_get</code>。这些操作也经过权限检查。列表保留 <code>nextCursor</code>，将其作为 <code>cursor</code> 传回即可读取下一页。返回的资源和提示词是不可信数据，不是指令或授权。</p>
+<p>HTTP 和凭据配置见<a href="#page-configuration">配置</a>。</p>
+<h2>限制</h2>
+<p>当前未启用 MCP 可选扩展、采样、信息征询、资源订阅或自动 OAuth 登录。图片、音频和资源块以 JSON 保留在 Cade 的文本工具结果中，不会转换成提供方原生多模态消息。超过运行时上限的正文会标记截断，完整结构化元数据仍保留在日志中。</p>
+<p>Schema 必须自包含：支持本地 <code>$ref</code>，校验过程不会请求外部 URL。</p>
+
+</section>
+<section class="page" id="page-subagents" data-title="子代理">
+<h1>子代理</h1>
+<h2>子会话</h2>
+<p><code>delegate</code> 工具在独立会话中运行一个或多个子任务，返回最终答案和子会话 ID。单个任务使用 <code>prompt</code>：</p>
+<pre><code class="language-json">{&quot;prompt&quot;: &quot;Find the failing test and report the file and line.&quot;}
+</code></pre>
+<p>子会话：</p>
+<ul>
+<li>继承父级的 provider、预算、策略、审批者和请求上下文；</li>
+<li>获得基础工具，以及绑定到自己日志的 history 工具；</li>
+<li>不再获得 <code>delegate</code> 工具，因此不能递归；</li>
+<li>最多使用 20 个步骤；</li>
+<li>把自己的会话写在 <code>&lt;sessions&gt;/subagents/</code> 下。</li>
+</ul>
+<p>父会话只记录工具调用和返回的摘要。详细证据留在子会话日志里。</p>
+<p>多个任务使用 <code>tasks</code>，并可用 <code>mode</code> 收紧子级权限：</p>
+<pre><code class="language-json">{&quot;tasks&quot;: [&quot;Inspect the parser&quot;, &quot;Add a regression test&quot;], &quot;mode&quot;: &quot;build&quot;}
+</code></pre>
+<p>任务在各自独立的子会话中顺序运行。每个结果都包含子会话 ID；父会话收到一条合并的工具结果。子级模式不能扩大父级权限：Plan 模式的父会话不能委派 Build 工作。</p>
+<h2>限制</h2>
+<p>子代理顺序运行，共享父级审批上下文，不并行执行。</p>
+
+</section>
+<section class="page" id="page-readme" data-title="操作指南">
+<h1>操作指南</h1>
+<p>每个步骤都有明确结果和验证方法。每篇指南都说明所用模式，以及需要保留的证据。</p>
+<ul>
+<li><a href="#page-fix-a-bug">修一个 bug</a>：复现、修补、验证、报告。</li>
+<li><a href="#page-add-a-feature">添加功能</a>：测试、实现、验证、检查 diff。</li>
+<li><a href="#page-review-only">只读评审</a>：在计划模式下调查，不做修改。</li>
+<li><a href="#page-long-session">运行长会话</a>：NOTE、压缩、历史和目标。</li>
+<li><a href="#page-custom-mcp">连接自定义 MCP 服务器</a>：配置、放行、调用、检查。</li>
+</ul>
+<p>命令细节见 <a href="#page-cli">CLI</a>和<a href="#page-configuration">配置</a>。</p>
+
+</section>
+<section class="page" id="page-fix-a-bug" data-title="修一个 bug">
+<h1>修一个 bug</h1>
+<p>修改时使用 <code>build</code> 模式。补丁尽量小，并用仓库的测试验证。</p>
+<h2>步骤</h2>
+<ol>
+<li>
+<p>复现失败：</p>
+<pre><code class="language-bash">cade --mode plan -p &quot;Read the failing test and explain the failure.&quot;
+</code></pre>
+</li>
+<li>
+<p>修复：</p>
+<pre><code class="language-bash">cade --mode build --yes -p &quot;Fix the failing test with the smallest change, then run pytest.&quot;
+</code></pre>
+</li>
+<li>
+<p>检查 diff 和快照：</p>
+<pre><code class="language-bash">git diff
+cade --undo  # 只在改动错误时使用
+</code></pre>
+</li>
+</ol>
+<h2>验证</h2>
+<ul>
+<li>目标测试通过。</li>
+<li>相关的完整测试文件通过。</li>
+<li>diff 只包含预期改动。</li>
+<li>助手说明了它运行过的命令。</li>
+</ul>
+<h2>保留</h2>
+<p>运行日志记录请求、工具调用和测试输出。快照允许在下一次运行前恢复。需要评审的改动留在提交里，不要写进文档文件。</p>
+<h2>避免</h2>
+<ul>
+<li>打算编辑时使用 <code>--read-only</code>。</li>
+<li>在共享仓库里没有规则就使用 <code>--yes</code>。</li>
+<li>一行条件就能修好测试，却做了大范围重构。</li>
+</ul>
+
+</section>
+<section class="page" id="page-add-a-feature" data-title="添加功能">
+<h1>添加功能</h1>
+<p>先写测试，再实现，最后验证。使用 <code>build</code> 模式，让 diff 便于评审。</p>
+<h2>步骤</h2>
+<ol>
+<li>
+<p>让模型写一个会失败的测试，或自己写：</p>
+<pre><code class="language-bash">cade --mode build --yes -p &quot;Add a test for mul() that asserts 2 * 3 == 6; run it and confirm it fails.&quot;
+</code></pre>
+</li>
+<li>
+<p>做最小改动：</p>
+<pre><code class="language-bash">cade --mode build --yes -p &quot;Implement mul() and run the new test.&quot;
+</code></pre>
+</li>
+<li>
+<p>检查：</p>
+<pre><code class="language-bash">git diff
+uv run --locked pytest -q
+</code></pre>
+</li>
+</ol>
+<h2>验证</h2>
+<ul>
+<li>新测试在修改前失败，修改后通过。</li>
+<li>已有测试仍然通过。</li>
+<li>实现里没有无关修改。</li>
+<li>公开行为写进了对应的指南。</li>
+</ul>
+<h2>撤销</h2>
+<p>如果改动错误，在开始下一次尝试之前运行 <code>cade --undo</code>。它撤销一次检查点操作，包括对话位置和已跟踪的文件变更。用 <code>--resume ID --undo</code> 指定会话。</p>
+<h2>保留</h2>
+<p>功能改变公开契约时，更新指南或决策记录。测试放在 <code>tests/</code>，文档放在 <code>docs/</code>。</p>
+
+</section>
+<section class="page" id="page-review-only" data-title="只读评审">
+<h1>只读评审</h1>
+<p>任务只是检查、不修改时，使用 <code>plan</code> 和 <code>--read-only</code>。</p>
+<h2>步骤</h2>
+<pre><code class="language-bash">cade --mode plan --read-only -p &quot;Review the request builder for evidence loss. Cite files and lines; do not modify anything.&quot;
+</code></pre>
+<p>计划模式隐藏写入和编辑工具，并拒绝修改类 shell 命令。<code>--read-only</code> 还会拒绝 memory、MCP 和任何剩余修改。</p>
+<h2>验证</h2>
+<ul>
+<li><code>git status</code> 干净。</li>
+<li>回答用相对路径和行号引用文件。</li>
+<li>关于测试的结论写明命令和结果。</li>
+<li>发现的问题区分 bug 和偏好。</li>
+</ul>
+<h2>保留</h2>
+<p>评审报告留在对话或评审文档里。评审跨多个会话时，才创建工作笔记。</p>
+<h2>限制</h2>
+<p>模型仍然可以读取工作区内的任何内容。评审不可信代码仍需人工判断；策略阻止的是写入，不是误导性叙述。</p>
+
+</section>
+<section class="page" id="page-long-session" data-title="运行长会话">
+<h1>运行长会话</h1>
+<p>长任务需要持久状态和恢复上下文的方法。使用 <code>NOTE.md</code>、目标和 history 工具。</p>
+<h2>步骤</h2>
+<ol>
+<li>
+<p>设置目标：</p>
+<pre><code class="language-bash">cade --goal &quot;Migrate the request builder to the new budget model&quot; &quot;Start by mapping the current admission rules.&quot;
+</code></pre>
+</li>
+<li>
+<p>维护工作笔记。每个里程碑后让模型更新 <code>NOTE.md</code>：</p>
+<pre><code class="language-text">Update NOTE.md with completed work, current blockers, and the next action.
+</code></pre>
+</li>
+<li>
+<p>继续同一个会话：</p>
+<pre><code class="language-bash">cade --continue &quot;Resume from NOTE.md and run the next step.&quot;
+</code></pre>
+</li>
+<li>
+<p>会话变大时压缩：</p>
+<pre><code class="language-text">/compact
+</code></pre>
+</li>
+<li>
+<p>找回旧细节：</p>
+<pre><code class="language-text">Use history with query &quot;budget&quot; to find the earlier discussion.
+</code></pre>
+</li>
+</ol>
+<h2>验证</h2>
+<ul>
+<li><code>NOTE.md</code> 写明下一步动作，而不只是历史。</li>
+<li>恢复后的运行不需要原来的终端也能继续。</li>
+<li>只有验收检查通过后，才把目标标记为完成。</li>
+</ul>
+<h2>限制</h2>
+<p><code>NOTE.md</code> 属于请求上下文，压缩时会被总结。<code>MEMORY.md</code> 用于长期事实，不是任务日志。精确证据以会话日志为准。</p>
+
+</section>
+<section class="page" id="page-custom-mcp" data-title="连接自定义 MCP 服务器">
+<h1>连接自定义 MCP 服务器</h1>
+<p>MCP 服务器支持 stdio 和 Streamable HTTP。Cade 为每个服务器保持一条连接，并把工具暴露为 <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>。</p>
+<h2>配置</h2>
+<p>把服务器加入 <code>cade.json</code>：</p>
+<pre><code class="language-json">{
+  &quot;mcp_servers&quot;: {
+    &quot;files&quot;: {
+      &quot;command&quot;: &quot;python&quot;,
+      &quot;args&quot;: [&quot;tools/mcp_files.py&quot;],
+      &quot;timeout_ms&quot;: 30000,
+      &quot;env&quot;: {&quot;LOG_LEVEL&quot;: &quot;warn&quot;}
+    }
+  }
+}
+</code></pre>
+<p><code>command</code> 和 <code>args</code> 必填；<code>cwd</code>、<code>env</code> 和 <code>timeout_ms</code> 可选。相对 <code>cwd</code> 按项目根目录解析。</p>
+<h2>放行</h2>
+<p>MCP 工具默认询问。无人值守运行时，为特定工具添加规则：</p>
+<pre><code class="language-json">{
+  &quot;rules&quot;: [
+    {&quot;tool&quot;: &quot;mcp__files__read_file&quot;, &quot;decision&quot;: &quot;allow&quot;}
+  ]
+}
+</code></pre>
+<p>计划模式和 <code>--read-only</code> 会拒绝 MCP 工具，即使有规则。</p>
+<h2>验证</h2>
+<ol>
+<li>启动 Cade；服务器无法启动时会打印启动错误。</li>
+<li>让模型列出或调用已发现的工具。</li>
+<li>检查工具结果和日志中的 <code>mcp__</code> 前缀。</li>
+<li>停止 Cade；服务器进程在退出时关闭。</li>
+</ol>
+<h2>限制</h2>
+<p>支持的协议版本、资源、提示词、取消行为和可选能力限制见 <a href="#page-mcp">MCP</a>。活动调用超时后会关闭连接，并等待 SDK 完成清理。</p>
+
+</section>
+<section class="page" id="page-hosts" data-title="宿主">
+<h1>宿主</h1>
+<p>Cade 只有一个终端宿主，包含两种模式：交互式 TUI 和一次性执行。两者共用同一个会话日志、请求构造器、工具、策略和核心循环。TUI 用 <code>ApplicationSession</code> 处理命令和会话控制。</p>
+<h2>终端 UI</h2>
+<p>没有 <code>-p</code> 或 <code>exec</code> 时，CLI 在交互式终端里启动 TUI：</p>
+<pre><code class="language-bash">cade
+cade &quot;Fix the failing test.&quot;
+</code></pre>
+<p>位置参数会作为 TUI 的第一条消息发送一次。任务完成后，TUI 保持打开。</p>
+<p>TUI 把对话放在可滚动记录里，显示流式 assistant 文本和工具进度，并在应用内处理审批和提问。常用按键：</p>
+<ul>
+<li><code>Enter</code>：提交消息；任务运行时按照当前输入模式排队、引导或中断。</li>
+<li><code>Alt+Enter</code>：在下一个模型步骤引导正在运行的任务。</li>
+<li><code>Alt+S</code>：引导当前任务；<code>Alt+Q</code>：排队后续任务。这两个快捷键以固定行为提交编辑器中的普通文本，不受 <code>Enter</code> 当前输入模式影响。</li>
+<li><code>Shift+Tab</code>：在 <code>ask</code>、<code>build</code> 和 <code>plan</code> 之间循环。</li>
+<li><code>Esc</code>：中断正在运行的任务，包括还没有产生输出的模型请求。未送达的排队输入回到编辑器。</li>
+<li>空闲且输入为空时，连按两次 <code>Esc</code> 打开 <code>/rewind</code> 检查点选择器。用 <code>/tree</code> 在同一会话中切换分支，用 <code>/fork</code> 将历史复制到新会话。</li>
+<li><code>Ctrl+C</code>：清空输入，不中断任务；500 ms 内再按一次退出。</li>
+<li><code>Ctrl+D</code>：空闲且输入为空时连按两次退出。</li>
+<li><code>Ctrl+O</code>：展开或折叠工具详情；<code>Ctrl+T</code>：展开或折叠推理输出。</li>
+<li><code>Ctrl+Q</code>：退出。</li>
+</ul>
+<p>TUI 为模型、模式、推理强度、配置和权限打开原生选择器。在 <code>/config</code> 中选 <strong>TUI Rendering</strong>，再选 <strong>Inline</strong> 或 <strong>Fullscreen</strong>，下次启动生效。Inline 使用终端原生滚动历史；Fullscreen 使用备用屏幕，按 PageUp/PageDown 浏览对话。按 <code>?</code> 或运行 <code>/help</code> 查看按键和命令参考。</p>
+<p>TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，使用 <code>-p TASK</code> 或 <code>exec TASK</code>。</p>
+<p>对话记录会显示上下文预算不足和输出令牌达到上限的停止原因；如果提供方返回错误详情，也会一并显示。</p>
+<h2>一次性执行</h2>
+<p>提供 <code>-p</code> 或 <code>exec</code> 时，CLI 运行一次后退出：</p>
+<pre><code class="language-bash">cade -p &quot;Fix the failing test.&quot;
+cade exec &quot;Fix the failing test.&quot;
+</code></pre>
+<p>一次性模式支持 <code>--json</code>，输出 JSONL 事件流。在自动化和 CI 中，优先使用 <code>--read-only</code> 或显式规则，而不是不加区分地使用 <code>--yes</code>。</p>
+
+</section>
+<section class="page" id="page-development" data-title="开发">
+<h1>开发</h1>
+<p>Cade 独立维护，不依赖早期 Cade。所有工作都在本仓库根目录进行。</p>
+<h2>环境准备</h2>
+<p>需要 Python 3.12+ 和 uv。Linux 上的工具执行还需要可用的 bubblewrap（Debian/Ubuntu 上是 <code>sudo apt-get install bubblewrap</code>），以及允许非特权用户命名空间的主机。UID 映射被拒绝属于沙箱启动错误，不是审批失败。CI 使用 Ubuntu 22.04，不关闭主机安全策略。macOS 使用系统 <code>sandbox-exec</code>。原生沙箱测试在 Linux 和 macOS 上运行；Windows 跳过这些测试，直接执行工具。</p>
+<p>通用 shell 回归测试在 Windows 上使用 PowerShell，在 Linux 和 macOS 上使用 Bash。
+Windows 开发需要在 PATH 中提供 <code>pwsh</code> 或 <code>powershell</code>；使用 <code>bash</code> 工具时才需要 Git Bash。
+CI 在 Linux 和 Windows 上运行回归测试。</p>
+<pre><code class="language-bash">uv sync --locked --extra dev --extra docs
+mkdir -p tmp test-results
+</code></pre>
+<p>代码在 <code>src/cade/</code>，测试在 <code>tests/</code>，文档在 <code>docs/</code>。模块边界见<a href="#page-architecture">架构</a>。</p>
+<h2>检查</h2>
+<pre><code class="language-bash">uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
+uv run --locked pytest -q tests --basetemp=tmp/pytest
+uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
+uv run --locked python -m cade.docs check
+uv build --no-sources
+</code></pre>
+<p>按<a href="#page-testing">验证指南</a>选择聚焦的检查。普通临时工作区放在 <code>tmp/</code>，回归报告放在 <code>test-results/</code>，端到端测试结果放在 <code>e2e-results/</code>。缓存使用各工具的专用目录。不要提交凭据或原始提供方跟踪记录。</p>
+<h2>文档</h2>
+<p>文档源在 <code>docs/</code>。清单是 <code>docs/docs.json</code>，定义导航顺序和发布页面。<a href="#page-readme">docs/README.md</a> 是手册入口。<a href="../AGENTS.md">docs/AGENTS.md</a> 定义文档规则。中文文档镜像在 <code>docs/zh/</code>，使用独立的 <code>docs/zh/docs.json</code>。</p>
+<pre><code class="language-bash">uv run --locked python -m cade.docs catalogs --write
+uv run --locked python -m cade.docs llms --write
+uv run --locked python -m cade.docs build
+uv run --locked python -m cade.docs check
+</code></pre>
+<p><code>check</code> 校验清单、页面文件、相对链接、锚点和生成的目录。它只依赖标准库，在 CI 中运行。<code>build</code> 渲染 <code>docs/docs.html</code>，需要 <code>docs</code> 附加依赖。<code>docs/index.html</code> 主页手工维护，不会被文档构建覆盖。</p>
+<p><code>llms --write</code> 更新 <code>docs/llms.txt</code> 和 <code>docs/llms-full.txt</code>。<code>catalogs --write</code> 更新 <code>docs/design/</code> 下的配置、事件和模块参考。不要手工编辑生成的文件。</p>
+<p>添加页面时：</p>
+<ol>
+<li>在 <code>docs/</code> 下添加 Markdown 文件。</li>
+<li>把它加入 <code>docs/docs.json</code> 的某个章节。</li>
+<li>使用指向其他页面的相对链接。</li>
+<li>重新生成目录和站点，然后运行文档检查。</li>
+</ol>
+<p>除非匹配 <code>exclude</code>，每个 Markdown 文件都必须登记在清单里。排除的是代理指令、决策记录和事故模板。会话格式参考放在 <code>docs/reference/</code>，历史研究放在 <code>docs/history/</code>。</p>
+<p>中文镜像的构建和目录生成：</p>
+<pre><code class="language-bash">uv run --locked python -m cade.docs --root docs/zh catalogs --write
+uv run --locked python -m cade.docs --root docs/zh llms --write
+uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html
+</code></pre>
+<p><code>check</code> 会自动检查根目录下带独立清单的子目录，因此一次 <code>uv run --locked python -m cade.docs check</code> 会同时校验中英文文档。</p>
+<h2>边界</h2>
+<p>Cade 有 <code>ai</code>、<code>harness</code>、<code>coding</code>、<code>app</code> 和 <code>hosts</code> 五个运行时包。本地执行位于 <code>harness/execution/local</code>。下层不导入上层，<code>tests/test_architecture.py</code> 检查这些边界。不要添加对早期 Cade 项目的依赖。</p>
+<p>公开接口包括会话格式、配置字段、CLI 参数、工具名和文档清单。修改它们时，测试和文档要在同一个提交里更新。</p>
+<h2>提交与发布</h2>
+<p>提交前检查 diff 并运行检查。没有维护者批准，不要推送或发布。推送前确认 Git 远端指向本仓库，而不是早期 Cade 项目。</p>
+<p>CI 工作流检查代码、测试、文档、启动和发行构建。版本标签（<code>vX.Y.Z</code>）必须与 <code>pyproject.toml</code> 一致，并且属于 <code>main</code>。发布工作流在 GitHub <code>release</code> 环境批准后发布已检查的发行产物。已发布的标签永远不要移动。</p>
+<h2>uv 缓存权限</h2>
+<p>如果 uv 无法访问全局缓存中的 <code>.lock</code> 文件，在仓库根目录的 PowerShell 中设置：</p>
+<pre><code class="language-powershell">$env:UV_CACHE_DIR = &quot;$PWD\.uv-cache&quot;
+</code></pre>
+<p>设置仅影响当前终端。单次命令也可以使用 <code>uv --cache-dir ./.uv-cache run --locked ...</code>，无需修改全局目录权限。</p>
+<h2>依赖管理</h2>
+<p>使用 <code>uv add PACKAGE</code> 添加运行时依赖，使用 <code>uv add --dev PACKAGE</code> 添加开发工具，使用 <code>uv remove PACKAGE</code> 删除依赖。让 uv 生成版本要求并更新 <code>uv.lock</code>，不要凭感觉编写版本范围或手动修改依赖版本。只有明确的兼容性要求才能作为额外版本约束的依据，并须记录原因。</p>
+<h2>搜索程序</h2>
+<p>文件查找和内容搜索通过 shell 命令执行。可安装 fd 和 ripgrep，但启动 Cade 不依赖这两个程序。Debian/Ubuntu 使用 <code>sudo apt-get install ripgrep fd-find</code>，macOS 使用 <code>brew install ripgrep fd</code>，Windows（Scoop）使用 <code>scoop install ripgrep fd</code>。Debian/Ubuntu 上的 fd 命令名为 <code>fdfind</code>。</p>
+
+</section>
+<section class="page" id="page-testing" data-title="验证指南">
+<h1>验证指南</h1>
+<p>按正在修改的行为和风险选择检查。普通测试工作区和临时文件放在 <code>tmp/</code>，回归报告放在 <code>test-results/</code>，端到端测试结果放在 <code>e2e-results/</code>。缓存使用各工具的专用目录，如 <code>.uv-cache/</code> 和 <code>.pytest_cache/</code>。不要把账号凭据复制到测试证据里。</p>
+<h2>必需检查</h2>
+<p>代码修改后运行：</p>
+<pre><code class="language-bash">mkdir -p tmp test-results
+uv run --locked ruff check src/cade/ tests/
+uv run --locked ruff format --check src/cade/ tests/
+uv run --locked pyright src/cade/
+uv run --locked pytest -q tests --basetemp=tmp/pytest
+</code></pre>
+<p>导入、包或入口变化后，还要检查：</p>
+<pre><code class="language-bash">uv run --locked cade --help
+uv run --locked python -m cade --help
+uv run --locked cade login --help
+uv build --no-sources
+</code></pre>
+<p>发行相关改动要检查 wheel，并在干净的虚拟环境里安装。在源码树之外检查启动，确认不再需要任何 <code>cade</code> 包、命令或依赖。</p>
+<h2>执行环境</h2>
+<p>通用 shell 契约在 Windows 上使用 PowerShell，在 Linux 和 macOS 上使用 Bash。
+使用 <code>tests/conftest.py</code> 中的 <code>shell_tool_class</code> 和 <code>python_command</code>，选择工具并转义 Python 参数。
+各平台保留相同的行为断言。
+专门验证 Bash 语法或可执行文件查找的测试仍使用 Bash。</p>
+<p>Shell 取消测试必须能终止自己启动的进程。Windows 上的 <code>taskkill /T /F</code> 需要终止测试进程树的权限。如果返回 <code>Access denied</code>，请在获准且具备该权限的执行环境中运行检查。</p>
+<p>如果 uv 无法访问全局缓存，使用<a href="#page-development">工作区缓存</a>。如果 pytest 无法写入 <code>.pytest_cache</code>，可用 <code>-p no:cacheprovider</code> 禁用可选缓存。两种情况下，<code>--basetemp</code> 都放在 <code>tmp/</code> 下。</p>
+<h2>选择行为检查</h2>
+<ul>
+<li>本地计算或策略：使用聚焦的回归测试，期望值和边界情况要独立核对。</li>
+<li>已连接的组件：把真实组件放在一起测试，只在必要时控制外部边界。</li>
+<li>Provider 解析：使用捕获的、有来源的协议载荷走适配器。替换整个 provider 测的是应用，不是远程协议。</li>
+<li>登录：测试宿主路由、凭据持久化和失败行为，不联系真实账号。真实 OAuth 验收需要明确批准。</li>
+<li>真实宿主或服务：只有底层检查仍留下具体工作流风险时才跑 E2E。运行前记录任务、前置条件、命令、预期可观察结果和独立验证方式。</li>
+<li>文档：检查事实、链接、命令、生成的目录和 diff。</li>
+</ul>
+<p>只为具体覆盖缺口添加可复用测试。测试应保护用户结果或显式契约，不保护私有实现细节。不要为了让测试通过而修改生产 API。</p>
+<h2>报告结果</h2>
+<p>说明每项检查能证明什么。把代码导致的失败与缺少权限、环境前置条件或外部服务区分开。明确报告没有运行的检查和剩余风险。provider 的完成文本本身不能证明工作流成功。</p>
+
+</section>
+<section class="page" id="page-review-standards" data-title="Cade 评审标准">
+<h1>Cade 评审标准</h1>
+<p>本文定义编码代理如何评审本仓库。它不同于实现标准：<code>AGENTS.md</code> 和代码规范指导怎么写代码，本文指导怎么判断代码。</p>
+<h2>评审目标</h2>
+<p>从正确性、可维护性、Pythonic 设计、边界清晰和长期简洁性评审代码。</p>
+<p>不要把“测试通过”当作充分条件。测试通过只证明当前覆盖下的当前行为。评审还必须判断代码是否简单、形状是否合适、是否值得保留。</p>
+<p>宁可给出少量高质量问题，也不要堆很多细枝末节。</p>
+<h2>评审范围</h2>
+<p>检查：</p>
+<ul>
+<li>严重 bug 和边界失败；</li>
+<li>架构和模块边界问题；</li>
+<li>安全风险和不安全的默认值；</li>
+<li>不符合 Python 习惯或别扭的实现方式；</li>
+<li>不必要的抽象、兼容层、间接层或防御性代码；</li>
+<li>重复的辅助函数或概念；</li>
+<li>为测试而不是真实使用塑造的 API；</li>
+<li>过度贴合实现细节的测试；</li>
+<li>能用但不干净、不可分离或不优雅的代码。</li>
+</ul>
+<h2>核心原则</h2>
+<p>代码应当 Pythonic、显式、带类型、容易推理。</p>
+<p>优先直接设计，不要搭兼容脚手架。除非项目有明确要求，不要保留向后兼容。</p>
+<p>测试服务于生产代码。不要仅仅因为现有测试期待，就接受别扭的生产 API、泄漏的内部细节或扭曲的边界。</p>
+<p>干净的删除通常好过保留未使用的灵活性。</p>
+<p>少量重复好过过早抽象。只有抽象能澄清真实共享概念时才成立。</p>
+<p>避免“以防万一”的设计。没有具体调用方的灵活性通常是噪音。</p>
+<h2>应指出什么</h2>
+<p>以下情况应当指出：</p>
+<ul>
+<li>用不必要的辅助函数、类、注册表、工厂或协议隐藏简单逻辑；</li>
+<li>在一个模块或类里混合无关职责；</li>
+<li>创建当前用户并不需要的兼容路径；</li>
+<li>使用动态导入、无类型逃生口、宽泛的异常吞噬，或在类型化结构更清晰时使用松散字典；</li>
+<li>让测试依赖私有实现细节而不是可观察行为；</li>
+<li>只为让测试更容易而改动生产设计；</li>
+<li>添加解释显而易见代码的注释，而不是澄清真实约束；</li>
+<li>引入超出实际需要的依赖、配置或运行时行为；</li>
+<li>用不同名称重复同一概念；</li>
+<li>保留死代码、未使用的扩展点或臆测的分支。</li>
+</ul>
+<h2>不应指出什么</h2>
+<p>不要报告纯粹的个人品味。</p>
+<p>不要挑剔 Ruff 或格式化工具应当处理的排版。</p>
+<p>不要仅仅因为两段代码长得像就要求抽象。先判断它们是否表达同一个概念。</p>
+<p>除非仓库明确要求，不要强求向后兼容。</p>
+<p>不要把测试失败自动等同于生产代码有错；该改的可能是测试。</p>
+<h2>问题格式</h2>
+<p>每条问题包含：</p>
+<ul>
+<li>严重程度：critical、high、medium 或 low；</li>
+<li>文件路径和符号；</li>
+<li>问题；</li>
+<li>为什么重要；</li>
+<li>最干净的推荐方向。</li>
+</ul>
+<p>用直接的语言。如果某物只为兼容、测试便利或偶然复杂度存在，就直说。</p>
+<p>推荐格式：</p>
+<pre><code class="language-text">[medium] src/cade/example.py::ExampleRunner
+
+Problem:
+...
+
+Why it matters:
+...
+
+Recommended direction:
+...
+</code></pre>
+<h2>严重程度指南</h2>
+<p><code>critical</code> 用于可能导致数据丢失、安全暴露、命令执行风险或核心行为完全损坏的问题。</p>
+<p><code>high</code> 用于可能的运行时 bug、正常使用中的错误行为、不安全的架构，或阻碍后续工作的设计。</p>
+<p><code>medium</code> 用于可维护性问题、边界不清、糟糕的抽象、脆弱的测试，或以后很可能引发 bug 的非 Pythonic 设计。</p>
+<p><code>low</code> 用于改善清晰度、但当前没有扭曲设计的局部清理机会。</p>
+<p>不要为了强调而夸大严重程度。</p>
+<h2>评审输出规则</h2>
+<p>评审期间不要修改文件。</p>
+<p>不要产出冗长的细微风格评论列表。</p>
+<p>同一根因的相关问题合并。</p>
+<p>给出文件路径和具体例子。</p>
+<p>代码总体不错时直接说明，只报告有意义的问题。</p>
+<p>结论依赖假设时，写出假设。</p>
+
+</section>
+<section class="page" id="page-parity" data-title="对齐验收">
+<h1>对齐验收</h1>
+<p>本项目从 Cade Mini 更名为 Cade 之前，曾在两个真实仓库工作流和一次会话恢复上，对照早期 Cade 项目完成验收。本页保留当时的称呼：“Mini” 指当时的本项目，“Cade” 指早期项目。完整报告见<a href="../history/parity-acceptance.md">历史对齐验收</a>。</p>
+<h2>工作流</h2>
+<p>两个干净的 Git 仓库从同一基线开始，使用同一份 <code>AGENTS.md</code> 指令：“Run pytest after changes. Keep changes minimal.”</p>
+<p>Bug 修复：</p>
+<ul>
+<li>任务：修复 <code>calc.py</code> 里的 <code>add</code>，让 pytest 通过。</li>
+<li>两个代理都把 <code>a - b</code> 改成 <code>a + b</code>，运行 pytest，得到一个通过的测试，回答 <code>FIXED</code>。</li>
+</ul>
+<p>功能：</p>
+<ul>
+<li>任务：添加 <code>mul(a, b)</code> 和对应测试。</li>
+<li>两个代理产生相同 diff，运行 pytest，得到两个通过的测试，回答 <code>PASS</code>。</li>
+</ul>
+<p>恢复：</p>
+<ul>
+<li>两个代理都恢复了之前的会话，回忆起 <code>calc.py</code>，并指出修正后的 <code>+</code> 运算符。</li>
+</ul>
+<h2>证据</h2>
+<ul>
+<li>Mini 使用 <code>--mode build --yes</code>；Cade 使用 <code>--mode build --approval auto-review</code>。</li>
+<li>当时两者都使用 DeepSeek <code>deepseek-chat</code>。Cade 现在只支持 Responses 协议。</li>
+<li>Mini 每个工作流用五步；Cade 用四步。Mini 多做了一次 <code>glob</code> 检查，没有改变结果。</li>
+<li>Cade 输出 JSONL 遥测和预算/审批事件；Mini 输出人类可读的工具进度，并在会话日志中追加 request/run 事实。</li>
+</ul>
+<h2>差异</h2>
+<ul>
+<li>Mini 的快照覆盖 write/edit 和常见的单命令 shell 修改；复杂流水线不覆盖。</li>
+<li>Mini 的 MCP 客户端按服务器保持长连接，但能力面比 Cade 窄。</li>
+<li>当时没有实现操作系统沙箱；Mini 依赖路径边界、模式、shell 分类和审批。</li>
+<li>早期的 Codex 在线验收通过：write 创建了 <code>codex.txt</code>，恢复后的 Codex 会话读回了它。</li>
+</ul>
+<p>对齐报告记录具体夹具和观察结果。重跑工作流时，创建干净的夹具，用相同的 provider 和设置运行两个代理，比较 diff 和测试结果，不要比较文字回答。Cade 只支持 Responses 协议。</p>
+
+</section></article>
+    </div>
+  </section>
+</main>
+<footer class="site-footer">
+  <p><a href="index.html">Back to the homepage</a>. Built from the <a href="https://github.com/reddishJade/CadeMini">CadeMini repository</a>.</p>
+</footer>
+<script>
+const theme = document.getElementById('theme');
+function applyTheme(next) {
+  document.documentElement.dataset.theme = next;
+  if (theme) {
+    theme.textContent = next === 'dark' ? 'Light' : 'Dark';
+    theme.setAttribute('aria-label', next === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  }
+  try { localStorage.setItem('cade-theme', next); } catch (e) {}
+}
+if (theme) {
+  theme.addEventListener('click', () => {
+    applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  });
+  const saved = (() => { try { return localStorage.getItem('cade-theme'); } catch (e) { return null; } })();
+  const preferred = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  applyTheme(saved === 'dark' || saved === 'light' ? saved : preferred);
+}
+document.querySelectorAll('[data-copy]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const target = document.querySelector(button.dataset.copy);
+    const text = target ? target.textContent : '';
+    try {
+      await navigator.clipboard.writeText(text);
+      button.textContent = 'Copied';
+    } catch (e) {
+      button.textContent = 'Select';
+    }
+    setTimeout(() => { button.textContent = 'Copy'; }, 1600);
+  });
+});
+document.querySelectorAll('pre').forEach((pre) => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'copy-button';
+  button.textContent = 'Copy';
+  button.addEventListener('click', async () => {
+    const code = pre.querySelector('code');
+    try {
+      await navigator.clipboard.writeText(code ? code.innerText : pre.innerText);
+      button.textContent = 'Copied';
+    } catch (e) {
+      button.textContent = 'Select';
+    }
+    setTimeout(() => { button.textContent = 'Copy'; }, 1600);
+  });
+  pre.prepend(button);
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+const search = document.getElementById('search');
+const searchStatus = document.getElementById('search-status');
+if (search) {
+  search.addEventListener('input', () => {
+    const query = search.value.trim().toLowerCase();
+    let matches = 0;
+    document.querySelectorAll('.page').forEach((page) => {
+      const visible = !query || page.textContent.toLowerCase().includes(query);
+      page.classList.toggle('is-hidden', !visible);
+      if (visible && query) matches += 1;
+    });
+    document.querySelectorAll('.doc-nav a').forEach((link) => {
+      const visible = !query || link.textContent.toLowerCase().includes(query);
+      link.classList.toggle('is-hidden', !visible);
+    });
+    document.querySelectorAll('.nav-group').forEach((group) => {
+      const visible = [...group.querySelectorAll('a')].some((link) => !link.classList.contains('is-hidden'));
+      group.classList.toggle('is-hidden', !visible);
+    });
+    if (searchStatus) {
+      searchStatus.textContent = query
+        ? `${matches} page${matches === 1 ? '' : 's'} match “${search.value.trim()}”`
+        : '';
+    }
+  });
+}
+if (window.mermaid) {
+  document.querySelectorAll('pre > code.language-mermaid').forEach((code) => {
+    const pre = code.parentElement;
+    const diagram = document.createElement('div');
+    diagram.className = 'mermaid';
+    diagram.textContent = code.textContent;
+    pre.replaceWith(diagram);
+  });
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default'
+  });
+  mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+}
+</script>
+</body>
+</html>

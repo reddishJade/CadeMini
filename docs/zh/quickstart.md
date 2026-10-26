@@ -83,4 +83,4 @@ uv run --locked python -m cade.docs check
 uv run --locked python -m cade.docs build
 ```
 
-打开 `docs/index.html`。文档源文件在 `docs/` 下。中文文档在 `docs/zh/` 下，构建命令是 `uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html`。
+打开 `docs/index.html` 查看主页，打开 `docs/docs.html` 查看完整文档。文档源文件在 `docs/` 下。中文文档在 `docs/zh/` 下，构建命令是 `uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html`。

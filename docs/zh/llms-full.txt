@@ -78,7 +78,7 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 
 ## 构建文档
 
-文档以 Markdown 为准。一个小工具校验链接和锚点，生成单页站点，并为代理生成 `llms.txt` 目录：
+文档以 Markdown 为准。一个小工具校验链接和锚点，生成独立文档页，并为代理生成 `llms.txt` 目录：
 
 ```bash
 uv run --locked python -m cade.docs check
@@ -87,10 +87,10 @@ uv run --locked python -m cade.docs llms --write
 uv run --locked python -m cade.docs catalogs --write
 ```
 
-英文站点是 [docs/index.html](../index.html)。本目录的中文站点是 [index.html](index.html)，构建命令：
+英文主页是手工维护的 [docs/index.html](../index.html)，文档页是生成的 [docs/docs.html](../docs.html)。本目录的中文主页是 [index.html](index.html)，文档页是 [docs.html](docs.html)，构建命令：
 
 ```bash
-uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html
+uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html
 ```
 
 生成的目录是 `docs/llms.txt`、`docs/llms-full.txt`，以及 `design/` 下的配置、事件和模块图页面。
@@ -184,7 +184,7 @@ uv run --locked python -m cade.docs check
 uv run --locked python -m cade.docs build
 ```
 
-打开 `docs/index.html`。文档源文件在 `docs/` 下。中文文档在 `docs/zh/` 下，构建命令是 `uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html`。
+打开 `docs/index.html` 查看主页，打开 `docs/docs.html` 查看完整文档。文档源文件在 `docs/` 下。中文文档在 `docs/zh/` 下，构建命令是 `uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html`。
 
 # CLI
 
@@ -1592,7 +1592,8 @@ Cade 把持久历史和宿主状态分开。会话日志是模型看到什么、
 | 配置 | `cade.json` | `CadeConfig` | 项目 | Pydantic，严格校验 |
 | 凭据 | `~/.cade/auth.json` | `JsonCredentialStore` | 用户 | provider 凭据 |
 | SIWC 宿主 ID | `~/.cade/host.json` | `load_or_create_host_id` | 用户 | 稳定的代理宿主标识 |
-| 文档站点 | `docs/index.html` | 文档工具 | 仓库 | 生成 |
+| 文档主页 | `docs/index.html` | 仓库 | 仓库 | 手工维护的 HTML |
+| 文档页 | `docs/docs.html` | 文档工具 | 仓库 | 生成 |
 | LLM 目录 | `docs/llms*.txt` | 文档工具 | 仓库 | 生成 |
 
 ## 会话日志
@@ -2857,7 +2858,7 @@ uv run --locked python -m cade.docs build
 uv run --locked python -m cade.docs check
 ```
 
-`check` 校验清单、页面文件、相对链接、锚点和生成的目录。它只依赖标准库，在 CI 中运行。`build` 渲染 `docs/index.html`，需要 `docs` 附加依赖。
+`check` 校验清单、页面文件、相对链接、锚点和生成的目录。它只依赖标准库，在 CI 中运行。`build` 渲染 `docs/docs.html`，需要 `docs` 附加依赖。`docs/index.html` 主页手工维护，不会被文档构建覆盖。
 
 `llms --write` 更新 `docs/llms.txt` 和 `docs/llms-full.txt`。`catalogs --write` 更新 `docs/design/` 下的配置、事件和模块参考。不要手工编辑生成的文件。
 
@@ -2875,7 +2876,7 @@ uv run --locked python -m cade.docs check
 ```bash
 uv run --locked python -m cade.docs --root docs/zh catalogs --write
 uv run --locked python -m cade.docs --root docs/zh llms --write
-uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.html
+uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/docs.html
 ```
 
 `check` 会自动检查根目录下带独立清单的子目录，因此一次 `uv run --locked python -m cade.docs check` 会同时校验中英文文档。

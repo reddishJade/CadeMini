@@ -17,7 +17,8 @@ narrower jobs.
 | Config | `cade.json` | `CadeConfig` | Project | Pydantic, strict |
 | Credentials | `~/.cade/auth.json` | `JsonCredentialStore` | User | Provider credentials |
 | SIWC host ID | `~/.cade/host.json` | `load_or_create_host_id` | User | Stable agent host identifier |
-| Docs site | `docs/index.html` | Docs tool | Repository | Generated |
+| Docs homepage | `docs/index.html` | Repository | Repository | Hand-maintained HTML |
+| Docs page | `docs/docs.html` | Docs tool | Repository | Generated |
 | LLM catalogs | `docs/llms*.txt` | Docs tool | Repository | Generated |
 
 ## The session log
