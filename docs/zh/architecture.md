@@ -15,7 +15,7 @@ Cade 是 `src/cade/` 下的独立编码代理。它使用四段流水线，每�
 - `system`、`user`、`assistant` 和 `tool_result` 是模型可见的事实。
 - `compaction` 记录摘要和 `first_kept_id`。
 - `window` 记录新的上下文起点和可选的交接。
-- `request`、`run`、`attempt`、`branch`、`checkpoint` 和 `restore` 是审计事实。它们永远不会变成对话消息。branch 事件还会保留选中的输入，供重启后编辑。
+- `request`、`run`、`attempt`、`branch`、`checkpoint`、`restore` 和 `tool_execution` 是审计事实。它们永远不会变成对话消息。branch 事件还会保留选中的输入，供重启后编辑。
 
 格式是封闭的。见[会话日志格式](reference/session-schema.md)。
 
@@ -62,6 +62,10 @@ Cade 有五个运行时包：
 本地进程与沙箱实现放在 `harness/execution/local`，不作为顶层包暴露。执行范围契约不导入平台后端。`tests/test_architecture.py` 检查这些边界。
 
 `app/bootstrap.py` 为一次性执行和 TUI 创建同一种 `ApplicationSession`。`app/session.py` 管理活动会话，不导入终端模块。`harness/executor.py` 为模型调用和应用直接调用统一处理授权、逐调用执行范围、超时和工具错误。循环仍负责记录模型回合事实，在结果写入后发出工具完成事件。
+
+`coding/tools/run_code.py` 提供一次性 Python 工具编排。executor 注入当前工具集合和嵌套执行回调，调用方记录嵌套调用的提交和结果，不把中间结果投影给模型。
+`harness/execution/local/python.py` 管理新解释器、控制消息上限、输出和进程清理。
+Python 直接 I/O 使用 shell 沙箱，嵌套工具写入继承当前回合的恢复所有权。
 
 实现位置见[代码地图](design/code-map.md)。Cade 不依赖早期的 Cade 项目，也不提供兼容导入路径。类型和函数直接从所属模块导入。
 

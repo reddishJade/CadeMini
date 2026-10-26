@@ -24,6 +24,7 @@ them.
 - [0016: Preserve response observations for session restoration](0016-durable-response-observations.md)
 - [0017: Use shell commands for file discovery and search](0017-shell-search.md)
 - [0018: Keep SIWC cache affinity stable](0018-siwc-cache-affinity.md)
+- [0019: One-shot Python tool orchestration](0019-python-tool-orchestration.md)
 
 ## Adding a record
 

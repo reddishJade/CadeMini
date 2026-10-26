@@ -54,8 +54,9 @@ A block is one of:
 {"type":"tool_call","id":"c1","name":"bash","args":{"command":"pytest -q"}}
 ```
 
-`assistant.blocks` is the only record of a tool call. Do not add a separate
-`tool_use` event. The `tool_result.call_id` pairs with it.
+`assistant.blocks` records model-issued tool calls. Do not add a separate
+`tool_use` event. The `tool_result.call_id` pairs with it. Script-issued nested
+calls use log-only `tool_execution` records instead.
 
 A `provider_state` is opaque adapter data for Responses replay. It is
 stored on the assistant fact and passed back to the same adapter. It never enters
@@ -82,12 +83,19 @@ These are recorded but never projected.
 | Type | Payload | Purpose |
 | --- | --- | --- |
 | `meta` | `{"session": str, "project": str, "created": str}` | First event; identifies the session |
+| `tool_execution` | `{"parent_call_id": str, "call": ToolCallBlock, "status": "started"\|"ok"\|"error"\|"interrupted", "content": str\|null, "authorization": object\|null}` | Nested tool dispatch and outcome; never a model message |
 | `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit with normalized inputs |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | Run outcome |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | Failed model attempt that produced no message |
 | `branch` | `{"selected_id": str}` | Navigation control; never a model message |
 | `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | Turn ownership and completion audit |
 | `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | Recovery commit and conversation position |
+
+A nested dispatch writes `tool_execution` with `started` before authorization,
+then `ok`, `error`, or `interrupted` before the parent returns. Child call IDs are
+`<parent-call-id>/<sequence>`. Completed records include text and the authorization
+decision and reason. A start without an outcome means the result is unknown;
+resuming does not replay it. The model sees only the parent script's output.
 
 The `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
 `report`. `budget` records the context window, output reserve, and headroom;
@@ -106,7 +114,8 @@ The tool owns the attachment data for the lifetime of the session log.
 
 ## Invariants
 
-1. **One fact, one record.** A tool call appears once, in its assistant event.
+1. **One fact, one record.** A model-issued tool call appears in its assistant event;
+   nested calls use their dispatch and outcome audit records.
    The final answer is not stored again.
 2. **No derived content.** No replacement message list, no rendered preview used
    as history, no display summary.
@@ -173,7 +182,7 @@ recovery and block new writes. See [Checkpoint recovery](../snapshots-goals.md#c
    its summary and start the tail at `first_kept_id`.
 4. Walk the retained entries in order. Emit `user`, `assistant`, and
    `tool_result` messages. Skip `system`, `meta`, `window`, `compaction`,
-   `request`, `run`, `attempt`, `branch`, `checkpoint`, and `restore`.
+   `request`, `run`, `attempt`, `branch`, `checkpoint`, `restore`, and `tool_execution`.
 5. Pair tool calls with results by call ID.
 6. For an open call at the end, synthesize one interrupted result. Do not write
    it to the log. Insert it after the assistant message that contains the call.

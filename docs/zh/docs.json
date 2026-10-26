@@ -13,7 +13,7 @@
     },
     {
       "title": "开始使用",
-      "pages": ["quickstart.md", "cli.md", "configuration.md"]
+      "pages": ["quickstart.md", "cli.md", "configuration.md", "code-mode.md"]
     },
     {
       "title": "核心概念",

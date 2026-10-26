@@ -215,9 +215,15 @@ flowchart LR
   coding_tools_registry --> coding_tools_bash
   coding_tools_registry --> coding_tools_edit
   coding_tools_registry --> coding_tools_read
+  coding_tools_registry --> coding_tools_run_code
   coding_tools_registry --> coding_tools_write
   coding_tools_registry --> coding_workspace_snapshots
   coding_tools_registry --> harness_execution_local_sandbox
+  coding_tools_run_code --> coding_tools_base
+  coding_tools_run_code --> harness_cancellation
+  coding_tools_run_code --> harness_execution_local_python
+  coding_tools_run_code --> harness_session_types
+  coding_tools_run_code --> harness_tools
   coding_tools_webfetch --> coding_tools_base
   coding_tools_webfetch --> coding_tools_html_markdown
   coding_tools_webfetch --> coding_tools_truncate
@@ -245,6 +251,8 @@ flowchart LR
   harness_compaction --> harness_session_projection
   harness_compaction --> harness_session_types
   harness_events --> harness_session_types
+  harness_execution_local_python --> harness_session_types
+  harness_execution_local_python --> harness_tools
   harness_execution_local_sandbox --> harness_execution_scope
   harness_execution_local_subprocess --> harness_execution_result
   harness_executor --> harness_cancellation

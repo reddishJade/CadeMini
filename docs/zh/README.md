@@ -11,6 +11,7 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 - [快速上手](quickstart.md)：安装并跑通第一个任务。
 - [CLI](cli.md)：一次性任务、TUI、会话和恢复命令。
 - [配置](configuration.md)：`cade.json` 的字段。
+- [Code mode](code-mode.md)：使用 `run_code` 编排工具。
 - [架构](architecture.md)：日志、投影、请求和执行流水线。
 - [会话与上下文](sessions-context.md)：恢复、压缩、换窗和历史检索。
 - [工具与安全](tools-security.md)：模式、规则、授权和 shell 分析。

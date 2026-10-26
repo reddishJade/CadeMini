@@ -52,7 +52,7 @@ block 是以下之一：
 {"type":"tool_call","id":"c1","name":"bash","args":{"command":"pytest -q"}}
 ```
 
-`assistant.blocks` 是工具调用的唯一记录。不要另外添加 `tool_use` 事件。`tool_result.call_id` 与它配对。
+`assistant.blocks` 记录模型发出的工具调用，`tool_result.call_id` 与它配对。不要另外添加 `tool_use` 事件。脚本发出的嵌套调用使用仅日志事件 `tool_execution`。
 
 `provider_state` 是 Responses 重放用的不透明适配器数据。它保存在 assistant 事实里，并传回同一个适配器。它永远不会进入对话词汇。
 
@@ -75,6 +75,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 | 类型 | 载荷 | 用途 |
 | --- | --- | --- |
 | `meta` | `{"session": str, "project": str, "created": str}` | 第一条事件；标识会话 |
+| `tool_execution` | `{"parent_call_id": str, "call": ToolCallBlock, "status": "started"\|"ok"\|"error"\|"interrupted", "content": str\|null, "authorization": object\|null}` | 嵌套工具的提交和结果，不进入模型消息 |
 | `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | 带归一化输入的请求审计 |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | 运行结果 |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | 没有产生消息的失败模型尝试 |
@@ -82,13 +83,17 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 | `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | 回合所有权和完成状态审计 |
 | `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | 恢复提交和对话位置 |
 
+嵌套调用在授权前写入 `started`，在父调用返回前写入 `ok`、`error` 或 `interrupted`。
+子调用 ID 为 `<parent-call-id>/<sequence>`。完成记录保存文本，以及授权决策和理由。
+只有开始记录、没有结果时，执行结果未知，恢复会话不会重跑调用。模型只看到父脚本输出。
+
 `request.snapshot` 包含 `messages`、`tools`、`options`、`budget` 和 `report`。`budget` 记录上下文窗口、输出预留和余量；`report` 记录准入结果。`options` 省略 API key、所有请求头、取消信号和回调。这是 provider 接口的输入，不是 HTTP 抓包。其余请求数据不做脱敏。
 
 失败的尝试不会变成 assistant 消息。运行结果不重复最终答案；答案就是最后一段 assistant 文本。
 
 ## 不变式
 
-1. **一个事实一条记录。** 工具调用只出现一次，在它的 assistant 事件里。最终答案不会再次保存。
+1. **一个事实一条记录。** 模型调用记录在 assistant 事件里；嵌套调用分别保存提交和结果的审计记录。最终答案不会再次保存。
 2. **没有派生内容。** 没有替换用的消息列表，没有把渲染预览当历史，没有展示摘要。
 3. **决策也是事实。** 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。
 4. **请求上下文是审计，不是历史。** 动态上下文和请求信封放在 `request` 里；只有对话事件参与投影。
@@ -119,7 +124,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 1. 找到最新的 `system` 事件，最先输出。
 2. 找到最新的 `window`。存在时，从它的 `start_id` 开始，并保留非空 `handoff` 作为摘要消息。
 3. 找到窗口起点处或之后最新的 `compaction`。存在时，输出摘要，并从 `first_kept_id` 开始输出尾部。
-4. 按顺序遍历保留的条目。输出 `user`、`assistant` 和 `tool_result` 消息。跳过 `system`、`meta`、`window`、`compaction`、`request`、`run`、`attempt`、`branch`、`checkpoint` 和 `restore`。
+4. 按顺序遍历保留的条目。输出 `user`、`assistant` 和 `tool_result` 消息。跳过 `system`、`meta`、`window`、`compaction`、`request`、`run`、`attempt`、`branch`、`checkpoint`、`restore` 和 `tool_execution`。
 5. 按调用 ID 配对工具调用和结果。
 6. 末尾存在未闭合调用时，合成一条“已中断”结果。不要写入日志。把它插在包含该调用的 assistant 消息之后。
 7. 遇到孤立结果、重复结果、重复调用、错误切点或错误窗口时，用 `ProjectionError` 拒绝。
