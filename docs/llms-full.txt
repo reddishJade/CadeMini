@@ -25,6 +25,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
 - [Quickstart](quickstart.md) installs and runs the first task.
 - [CLI](cli.md) lists one-shot, TUI, session, and recovery commands.
 - [Configuration](configuration.md) documents `cade.json`.
+- [Code mode](code-mode.md) explains Python tool orchestration with `run_code`.
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
 - [Sessions and context](sessions-context.md) covers resume, compaction,
@@ -581,6 +582,79 @@ Set `trust_project_skills: true` to discover project skills. `skills_dir` select
 an additional trusted directory relative to the project root or by absolute
 path. See [Skills and memory](skills-memory.md).
 
+# Code mode
+
+<!-- source: code-mode.md -->
+
+# Code mode
+
+Use `run_code` to chain tools and filter intermediate results in one Python
+program. It is available alongside direct tools without additional configuration.
+For example, ask Cade to use `run_code` to read several files and return only
+their headings.
+
+## Write a program
+
+Provide both `code` and `description`. The description is a short, active-voice
+summary shown on the tool card, such as "Count file lines". It must not be blank.
+The `code` argument is the body of an async Python function. Top-level `await`
+and `return` work. Call tools with the same arguments as direct calls:
+
+```python
+result = await tools.read({"path": "README.md"})
+return [line for line in result["content"].splitlines() if line.startswith("#")]
+```
+
+Use `await tools.name({...})` or `await tools["name"]({...})`. Successful calls
+return `{content, metadata}`. Metadata preserves the tool's existing structured
+data, including MCP `mcp_result`. Failed or denied calls raise `RuntimeError`,
+which the program can catch.
+
+Only printed text and the JSON return value enter model history. Other tool
+results stay inside the program. Each execution starts a fresh Python process;
+variables do not persist between calls. `asyncio` is available, but tool calls
+execute serially, including those submitted with `asyncio.gather`. Scripts
+cannot call `run_code` recursively.
+
+## Results and limits
+
+The optional `timeout` argument sets the total deadline in seconds, including
+nested tool execution and approval waits. It must be a positive finite number,
+with no fixed maximum. Omit it to use the default 120 seconds. For example:
+
+```json
+{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "Wait for a long operation", "timeout": 300, "max_output_tokens": 2000}
+```
+
+Nested tools inherit the selected timeout as their default; the whole program
+still shares one total deadline. You can cancel the program before it expires.
+
+`max_output_tokens` is an optional non-negative integer, defaulting to 10,000.
+The budget estimates one token per four characters. If the rendered text exceeds
+it, Cade keeps the start and end and saves the complete text to a temporary file.
+The result reports the path, also available as `metadata.fullOutputPath`.
+Set the budget to `0` to receive only the truncation notice and file path.
+Use `read` with `offset` and `limit` to inspect the saved text. Session history
+retains the preview and path, not a durable copy of the temporary file.
+
+Printed output and the JSON return value also share a fixed 16 MiB hard limit.
+Exceeding it fails the script and stops execution; output beyond that limit is
+not retained. Increasing `max_output_tokens` cannot raise this limit. Tool-call
+control messages remain limited to 1 MiB; completion messages can carry a return
+value up to the hard output limit.
+
+A script error returns the captured output and error. Failure does not undo
+completed actions or automatically retry the program. Cancellation and timeouts
+terminate the Python process and wait for started nested calls to settle.
+
+Nested calls have `tool_execution` audit records outside model history. Use
+`history` to retrieve those records. Writes through `tools.write` and
+`tools.edit` retain tracked file recovery.
+
+See [Tools and security](tools-security.md#python-execution-permissions) for
+execution permissions and direct Python I/O, and
+[decision 0019](decisions/0019-python-tool-orchestration.md) for the design.
+
 # Architecture
 
 <!-- source: architecture.md -->
@@ -606,7 +680,7 @@ The log stores facts:
 - `system`, `user`, `assistant`, and `tool_result` are model-visible facts.
 - `compaction` records a summary and `first_kept_id`.
 - `window` records a new context start and an optional handoff.
-- `request`, `run`, `attempt`, `branch`, `checkpoint`, and `restore` are audit facts. They never become
+- `request`, `run`, `attempt`, `branch`, `checkpoint`, `restore`, and `tool_execution` are audit facts. They never become
   conversation messages. A branch event also preserves a selected input for
   editing after restart.
 
@@ -677,6 +751,13 @@ terminal modules. `harness/executor.py` handles authorization, per-call scope,
 timeouts, and tool errors for both model calls and direct application calls.
 The loop remains responsible for recording model-turn facts and emits completed
 tool events after recording results.
+
+`coding/tools/run_code.py` exposes one-shot Python tool orchestration. The executor
+injects the current tool set and a nested execution callback; the caller records
+nested dispatch and outcome facts without projecting intermediate results.
+`harness/execution/local/python.py` owns the fresh interpreter, bounded control
+messages, output, and process cleanup. Direct Python I/O uses the shell sandbox;
+nested tool writes retain the current turn's recovery ownership.
 
 See the [code map](design/code-map.md) for implementation locations. Cade does
 not depend on the earlier Cade project and provides no compatibility import
@@ -1310,6 +1391,7 @@ Session entry types from `EventType`.
 | `user` | Yes | Task or steering input |
 | `assistant` | Yes | Model text and tool calls |
 | `tool_result` | Yes | Tool output paired by call ID |
+| `tool_execution` | No | Nested tool dispatch and outcome |
 | `compaction` | Yes | Summary and first kept entry |
 | `window` | Yes | Context start and optional handoff |
 | `request` | No | Provider request audit |
@@ -1540,9 +1622,15 @@ flowchart LR
   coding_tools_registry --> coding_tools_bash
   coding_tools_registry --> coding_tools_edit
   coding_tools_registry --> coding_tools_read
+  coding_tools_registry --> coding_tools_run_code
   coding_tools_registry --> coding_tools_write
   coding_tools_registry --> coding_workspace_snapshots
   coding_tools_registry --> harness_execution_local_sandbox
+  coding_tools_run_code --> coding_tools_base
+  coding_tools_run_code --> harness_cancellation
+  coding_tools_run_code --> harness_execution_local_python
+  coding_tools_run_code --> harness_session_types
+  coding_tools_run_code --> harness_tools
   coding_tools_webfetch --> coding_tools_base
   coding_tools_webfetch --> coding_tools_html_markdown
   coding_tools_webfetch --> coding_tools_truncate
@@ -1570,6 +1658,8 @@ flowchart LR
   harness_compaction --> harness_session_projection
   harness_compaction --> harness_session_types
   harness_events --> harness_session_types
+  harness_execution_local_python --> harness_session_types
+  harness_execution_local_python --> harness_tools
   harness_execution_local_sandbox --> harness_execution_scope
   harness_execution_local_subprocess --> harness_execution_result
   harness_executor --> harness_cancellation
@@ -1660,6 +1750,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `write` | `path`, `content` | Creates or replaces a file; snapshot first | Ask in ask, allow in build |
 | `edit` | `path`, `edits: [{oldText, newText}]` | Applies disjoint replacements against the original file; snapshot first | Ask in ask, allow in build |
 | `bash`, `powershell` | `command`, `timeout`, `workdir`, `additional_write_paths` | Arbitrary process; snapshot common mutations | Normal development allowed in build; detected risks ask |
+| `run_code` | `code`, `description`, `timeout`, `max_output_tokens` | Runs Python and calls session tools; direct I/O follows the OS sandbox | Allow in build; ask in ask; denied plan and read-only |
 | `question` | `questions: [{question, header, options, multiple?}]` | Collects user answers; dismissal ends the turn | Allow, including plan |
 | `websearch` | `query` | Searches through Exa | Allow when network access is enabled |
 | `webfetch` | `url`, `format`, `timeout` | Fetches text, Markdown, or HTML | Allow when network access is enabled |
@@ -2151,8 +2242,9 @@ A block is one of:
 {"type":"tool_call","id":"c1","name":"bash","args":{"command":"pytest -q"}}
 ```
 
-`assistant.blocks` is the only record of a tool call. Do not add a separate
-`tool_use` event. The `tool_result.call_id` pairs with it.
+`assistant.blocks` records model-issued tool calls. Do not add a separate
+`tool_use` event. The `tool_result.call_id` pairs with it. Script-issued nested
+calls use log-only `tool_execution` records instead.
 
 A `provider_state` is opaque adapter data for Responses replay. It is
 stored on the assistant fact and passed back to the same adapter. It never enters
@@ -2179,12 +2271,19 @@ These are recorded but never projected.
 | Type | Payload | Purpose |
 | --- | --- | --- |
 | `meta` | `{"session": str, "project": str, "created": str}` | First event; identifies the session |
+| `tool_execution` | `{"parent_call_id": str, "call": ToolCallBlock, "status": "started"\|"ok"\|"error"\|"interrupted", "content": str\|null, "authorization": object\|null}` | Nested tool dispatch and outcome; never a model message |
 | `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | Request audit with normalized inputs |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | Run outcome |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | Failed model attempt that produced no message |
 | `branch` | `{"selected_id": str}` | Navigation control; never a model message |
 | `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | Turn ownership and completion audit |
 | `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | Recovery commit and conversation position |
+
+A nested dispatch writes `tool_execution` with `started` before authorization,
+then `ok`, `error`, or `interrupted` before the parent returns. Child call IDs are
+`<parent-call-id>/<sequence>`. Completed records include text and the authorization
+decision and reason. A start without an outcome means the result is unknown;
+resuming does not replay it. The model sees only the parent script's output.
 
 The `request.snapshot` contains `messages`, `tools`, `options`, `budget`, and
 `report`. `budget` records the context window, output reserve, and headroom;
@@ -2203,7 +2302,8 @@ The tool owns the attachment data for the lifetime of the session log.
 
 ## Invariants
 
-1. **One fact, one record.** A tool call appears once, in its assistant event.
+1. **One fact, one record.** A model-issued tool call appears in its assistant event;
+   nested calls use their dispatch and outcome audit records.
    The final answer is not stored again.
 2. **No derived content.** No replacement message list, no rendered preview used
    as history, no display summary.
@@ -2270,7 +2370,7 @@ recovery and block new writes. See [Checkpoint recovery](../snapshots-goals.md#c
    its summary and start the tail at `first_kept_id`.
 4. Walk the retained entries in order. Emit `user`, `assistant`, and
    `tool_result` messages. Skip `system`, `meta`, `window`, `compaction`,
-   `request`, `run`, `attempt`, `branch`, `checkpoint`, and `restore`.
+   `request`, `run`, `attempt`, `branch`, `checkpoint`, `restore`, and `tool_execution`.
 5. Pair tool calls with results by call ID.
 6. For an open call at the end, synthesize one interrupted result. Do not write
    it to the log. Insert it after the assistant message that contains the call.
@@ -2770,6 +2870,7 @@ and sequential execution.
 - `edit`: apply unique, non-overlapping replacements against the original file.
 - `bash`, `powershell`: run a shell command, optionally with a workdir and
   `additional_write_paths` that request extra permissions for this call.
+- `run_code`: run a fresh Python program that calls session tools and filters results.
 - `question`: collect choices or custom answers; dismissal stops the turn.
 - `websearch`, `webfetch`: search or retrieve web content. With `network=false`,
   both are hidden from tool catalogs and model requests, including subagents.
@@ -2782,6 +2883,20 @@ See the [tool catalog](design/tool-catalog.md) for parameters and limits.
 The workspace is the fixed project root, not the shell's current directory or
 an alias for the entire home directory. Reads can use external paths, except
 protected files. Workspace writes have snapshots; external writes do not.
+
+## Python execution permissions
+
+See [Code mode](code-mode.md) for `run_code` syntax, examples, and result handling.
+
+Direct Python file, network, and process access follows the shell's OS sandbox
+scope, without shell-command risk classification or individual tool approvals.
+The interpreter receives a minimal environment without inherited credentials;
+this does not hide readable credential files. Direct writes are not captured by
+the file tools' snapshots. Use `tools.write` and `tools.edit` for tracked changes.
+Build allows scripts by default; Ask requires approval for the whole program;
+Plan and read-only sessions deny scripts. Nested tools still require their own
+approvals. No process-memory quota is applied. Process cleanup inherits the
+shell backend's platform limitations.
 
 ## Modes
 

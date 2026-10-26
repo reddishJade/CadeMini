@@ -17,6 +17,7 @@ Chinese translations of the current guides start at [中文文档](zh/README.md)
 - [Quickstart](quickstart.md) installs and runs the first task.
 - [CLI](cli.md) lists one-shot, TUI, session, and recovery commands.
 - [Configuration](configuration.md) documents `cade.json`.
+- [Code mode](code-mode.md) explains Python tool orchestration with `run_code`.
 - [Architecture](architecture.md) explains the log, projection, request, and run
   pipeline.
 - [Sessions and context](sessions-context.md) covers resume, compaction,

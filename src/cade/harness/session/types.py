@@ -15,6 +15,7 @@ type EventType = Literal[
     "user",
     "assistant",
     "tool_result",
+    "tool_execution",
     "compaction",
     "window",
     "request",

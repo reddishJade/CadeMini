@@ -320,6 +320,7 @@ async def run(
                 cancel=cancel,
                 timeout_seconds=tool_timeout_seconds,
                 on_event=on_event,
+                on_nested=lambda data: log.append("tool_execution", data),
             )
             result_tool = execution.result
             _append_tool_result(

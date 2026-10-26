@@ -43,6 +43,7 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <a href="#page-quickstart">快速上手</a>
 <a href="#page-cli">CLI</a>
 <a href="#page-configuration">配置</a>
+<a href="#page-code-mode">Code mode</a>
 </div>
 <div class="nav-group"><p>核心概念</p>
 <a href="#page-architecture">架构</a>
@@ -112,6 +113,7 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <li><a href="#page-quickstart">快速上手</a>：安装并跑通第一个任务。</li>
 <li><a href="#page-cli">CLI</a>：一次性任务、TUI、会话和恢复命令。</li>
 <li><a href="#page-configuration">配置</a>：<code>cade.json</code> 的字段。</li>
+<li><a href="#page-code-mode">Code mode</a>：使用 <code>run_code</code> 编排工具。</li>
 <li><a href="#page-architecture">架构</a>：日志、投影、请求和执行流水线。</li>
 <li><a href="#page-sessions-context">会话与上下文</a>：恢复、压缩、换窗和历史检索。</li>
 <li><a href="#page-tools-security">工具与安全</a>：模式、规则、授权和 shell 分析。</li>
@@ -317,6 +319,7 @@ cade login --provider deepseek
 <li><code>/model [PROVIDER/MODEL]</code>：切换到已认证的精确模型，或在模型选择器里按部分名称搜索。</li>
 <li><code>/effort [LEVEL]</code>：选择模型推理强度，或打开选择器。</li>
 <li><code>/thinking [LEVEL]</code>：选择推理强度。用 <code>Ctrl+T</code> 折叠推理输出，不改变强度。</li>
+<li><code>/verbose [auto|low|medium|high]</code>：调整交互式 TUI 的显示详细程度。默认 <code>auto</code>：任务执行期间逐条显示工具调用和折叠的 Thinking，不聚合连续的只读工具，也不显示工具输出正文；任务完成后自动将活动记录按用户轮次折叠为一行，Assistant 消息始终可见。完成后按 <code>Ctrl+O</code> 可以展开活动列表，<code>high</code> 可查看详细记录。<code>low</code> 隐藏工具和 Thinking，<code>medium</code> 显示折叠摘要，<code>high</code> 展开详情。不带参数时打开选择器。切换只影响显示，不改变工具执行、模型请求或持久化会话。折叠时 Inline TUI 可能清理并重放终端滚动历史。</li>
 <li><code>/rollover [--force]</code>：开启新的上下文窗口；<code>/new-context</code> 是别名。</li>
 <li><code>/new-context [--force]</code>：用 <code>NOTE.md</code> 作为交接，开启新的上下文窗口。先写好该文件，或用 <code>--force</code> 在没有它的情况下重置。</li>
 <li><code>/mode [MODE]</code>：显示或切换执行模式。</li>
@@ -334,7 +337,7 @@ cade login --provider deepseek
 <li><code>/connect</code>：选择 provider，认证后打开它的模型选择器。</li>
 <li><code>/skill [NAME]</code>：为下一个任务激活技能。</li>
 <li><code>/tool [list]</code>：查看可用工具及说明。</li>
-<li><code>/config [KEY[=VALUE]]</code>：浏览配置，或更新项目设置。</li>
+<li><code>/config [KEY[=VALUE]]</code>：浏览配置，或更新项目设置。其中 <strong>TUI Rendering</strong> 提供 Inline/Fullscreen 原生选择菜单，不需要填写文本；下次启动生效。Fullscreen 下可用 PageUp/PageDown 滚动对话历史。</li>
 <li><code>/memory</code>：显示工作区记忆文件的路径。</li>
 <li><code>/exit</code> 或 <code>/quit</code>：退出。</li>
 </ul>
@@ -379,6 +382,7 @@ cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
 <p>Cade 默认读取 <code>&lt;project-root&gt;/cade.json</code>。用 <code>--config PATH</code> 选择其他文件。命令行选项覆盖文件，文件覆盖内置默认值。</p>
 <p>配置是严格的：未知键和非法值会被拒绝，不会静默忽略。</p>
 <p>在 TUI 中，<code>/config</code> 打开设置浏览器。每个设置项都先展示方向键菜单，默认选中当前值。数值项提供预设值，可空项提供 <strong>Use default</strong>。选择 <strong>Custom value...</strong> 后，才能在预填表单中输入自定义数值、路径或模型名。按 Enter 保存，按 Esc 返回选项。保存的默认值在下次启动时生效。</p>
+<p><strong>TUI Rendering</strong> 仅提供 <strong>Inline</strong> 和 <strong>Fullscreen</strong> 两个选项，无需手动输入。Inline（默认）保留终端原生滚动历史与文本选择；Fullscreen 使用备用屏幕，并通过 PageUp/PageDown 浏览对话。选择后重启 Cade 即可生效。</p>
 <h2>示例</h2>
 <pre><code class="language-json">{
   &quot;provider&quot;: &quot;chatgpt&quot;,
@@ -464,6 +468,50 @@ cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
 <p>设置 <code>trust_project_skills: true</code> 后才会发现项目技能。<code>skills_dir</code> 可指定额外的可信目录，支持相对项目根目录的路径或绝对路径。详见<a href="#page-skills-memory">技能与记忆</a>。</p>
 
 </section>
+<section class="page" id="page-code-mode" data-title="Code mode">
+<h1>Code mode</h1>
+<p>使用 <code>run_code</code>，让一段 Python 程序串联工具并筛选中间结果。
+它与直接工具调用同时可用，无需额外配置。
+例如，可以要求 Cade 使用 <code>run_code</code> 读取多个文件，只返回其中的标题。</p>
+<h2>编写程序</h2>
+<p><code>code</code> 和 <code>description</code> 都是必填参数。
+<code>description</code> 是工具卡片显示的简短操作说明，例如“统计文件行数”，不能留空。
+<code>code</code> 参数是异步 Python 函数体，支持顶层 <code>await</code> 和 <code>return</code>。
+工具参数与直接调用一致：</p>
+<pre><code class="language-python">result = await tools.read({&quot;path&quot;: &quot;README.md&quot;})
+return [line for line in result[&quot;content&quot;].splitlines() if line.startswith(&quot;#&quot;)]
+</code></pre>
+<p>使用 <code>await tools.name({...})</code> 或 <code>await tools[&quot;name&quot;]({...})</code> 调用工具。
+成功返回 <code>{content, metadata}</code>。metadata 保留工具已有的结构化数据，例如 MCP 的 <code>mcp_result</code>。
+工具失败或被拒绝时抛出 <code>RuntimeError</code>，程序可以捕获。</p>
+<p>只有打印的文本和 JSON 返回值进入模型历史，其他工具结果留在程序内部。
+每次执行使用新 Python 进程，变量不跨调用保留。
+脚本可使用 <code>asyncio</code>，但工具调用按顺序执行，<code>asyncio.gather</code> 提交的调用也不例外。
+脚本不能递归调用 <code>run_code</code>。</p>
+<h2>结果与限制</h2>
+<p>可选参数 <code>timeout</code> 指定整段程序的时限，单位为秒，包含嵌套工具执行和审批等待。
+它必须是正的有限数值，没有固定最大值；省略时默认使用 120 秒。例如：</p>
+<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;description&quot;: &quot;等待耗时操作&quot;, &quot;timeout&quot;: 300, &quot;max_output_tokens&quot;: 2000}
+</code></pre>
+<p>嵌套工具继承所选时限作为默认超时，整段程序仍受同一个总时限约束。
+你可以在超时前随时取消程序。</p>
+<p>可选参数 <code>max_output_tokens</code> 是非负整数，默认值为 10,000，按每 4 个字符估算 1 个 token。
+渲染后的文本超过预算时，Cade 保留首尾，并把完整文本保存到临时文件。
+结果中会显示文件路径，<code>metadata.fullOutputPath</code> 也保存该路径。
+设为 <code>0</code> 时，只返回截断提示和文件路径。
+可用 <code>read</code> 的 <code>offset</code> 和 <code>limit</code> 分段查看文件。会话历史保留预览和路径，不保存临时文件的持久副本。</p>
+<p>打印内容和 JSON 返回值另有固定的 16 MiB 硬上限，超限会使脚本失败并停止执行，超出部分不保留。
+调大 <code>max_output_tokens</code> 不能提高硬上限。
+工具调用控制消息仍限制为 1 MiB；完成消息可以传递硬输出上限以内的返回值。</p>
+<p>脚本报错时返回已捕获的输出和错误。
+失败不撤销已完成操作，也不自动重跑程序。
+取消或超时会终止 Python，并等待已启动的嵌套调用结束。</p>
+<p>嵌套调用的 <code>tool_execution</code> 审计记录不进入模型历史，可通过 <code>history</code> 检索。
+通过 <code>tools.write</code> 和 <code>tools.edit</code> 写入的文件保留已有的恢复能力。</p>
+<p>执行权限和 Python 直接 I/O 见<a href="#page-tools-security">工具与安全</a>。
+设计依据见<a href="../decisions/0019-python-tool-orchestration.md">决策 0019</a>。</p>
+
+</section>
 <section class="page" id="page-architecture" data-title="架构">
 <h1>架构</h1>
 <p>Cade 是 <code>src/cade/</code> 下的独立编码代理。它使用四段流水线，每段只有一个所有者，数据只朝一个方向流动。</p>
@@ -476,7 +524,7 @@ cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
 <li><code>system</code>、<code>user</code>、<code>assistant</code> 和 <code>tool_result</code> 是模型可见的事实。</li>
 <li><code>compaction</code> 记录摘要和 <code>first_kept_id</code>。</li>
 <li><code>window</code> 记录新的上下文起点和可选的交接。</li>
-<li><code>request</code>、<code>run</code>、<code>attempt</code>、<code>branch</code>、<code>checkpoint</code> 和 <code>restore</code> 是审计事实。它们永远不会变成对话消息。branch 事件还会保留选中的输入，供重启后编辑。</li>
+<li><code>request</code>、<code>run</code>、<code>attempt</code>、<code>branch</code>、<code>checkpoint</code>、<code>restore</code> 和 <code>tool_execution</code> 是审计事实。它们永远不会变成对话消息。branch 事件还会保留选中的输入，供重启后编辑。</li>
 </ul>
 <p>格式是封闭的。见<a href="#page-session-schema">会话日志格式</a>。</p>
 <h2>投影</h2>
@@ -513,6 +561,9 @@ cade --mode build --yes -p &quot;Fix the test and run pytest.&quot;
 <p>依赖从 hosts 指向 app、coding、harness 和 ai。每层可以使用下层，下层不导入上层。harness 包含代理运行时，不再设置平级的 agent 包。</p>
 <p>本地进程与沙箱实现放在 <code>harness/execution/local</code>，不作为顶层包暴露。执行范围契约不导入平台后端。<code>tests/test_architecture.py</code> 检查这些边界。</p>
 <p><code>app/bootstrap.py</code> 为一次性执行和 TUI 创建同一种 <code>ApplicationSession</code>。<code>app/session.py</code> 管理活动会话，不导入终端模块。<code>harness/executor.py</code> 为模型调用和应用直接调用统一处理授权、逐调用执行范围、超时和工具错误。循环仍负责记录模型回合事实，在结果写入后发出工具完成事件。</p>
+<p><code>coding/tools/run_code.py</code> 提供一次性 Python 工具编排。executor 注入当前工具集合和嵌套执行回调，调用方记录嵌套调用的提交和结果，不把中间结果投影给模型。
+<code>harness/execution/local/python.py</code> 管理新解释器、控制消息上限、输出和进程清理。
+Python 直接 I/O 使用 shell 沙箱，嵌套工具写入继承当前回合的恢复所有权。</p>
 <p>实现位置见<a href="#page-code-map">代码地图</a>。Cade 不依赖早期的 Cade 项目，也不提供兼容导入路径。类型和函数直接从所属模块导入。</p>
 <h2>恢复</h2>
 <p>应用装配时把 <code>TurnLifecycle</code> 注入 harness 循环。它在 user 事实之前创建根回合检查点，在该事实之后建立关联，并在执行结束后关闭检查点。工具工作线程和同步子代理继承捕获所有权。harness 不导入工作区存储。恢复除了会话运行锁，还用工作区锁串行化协作写入者。</p>
@@ -985,6 +1036,11 @@ uv run --locked cade login
 <td><code>true</code></td>
 </tr>
 <tr>
+<td><code>tui_render_mode</code></td>
+<td><code>inline | fullscreen</code></td>
+<td><code>&quot;inline&quot;</code></td>
+</tr>
+<tr>
 <td><code>rules</code></td>
 <td><code>list[RuleConfig]</code></td>
 <td><code>required</code></td>
@@ -1139,6 +1195,11 @@ uv run --locked cade login
 <td><code>tool_result</code></td>
 <td>Yes</td>
 <td>Tool output paired by call ID</td>
+</tr>
+<tr>
+<td><code>tool_execution</code></td>
+<td>No</td>
+<td>Nested tool dispatch and outcome</td>
 </tr>
 <tr>
 <td><code>compaction</code></td>
@@ -1348,6 +1409,7 @@ uv run --locked cade login
   coding_subagents --&gt; coding_security_policy
   coding_subagents --&gt; coding_tools_history
   coding_subagents --&gt; harness_cancellation
+  coding_subagents --&gt; harness_events
   coding_subagents --&gt; harness_lifecycle
   coding_subagents --&gt; harness_loop
   coding_subagents --&gt; harness_permissions
@@ -1359,7 +1421,6 @@ uv run --locked cade login
   coding_tools__worker --&gt; coding_tools_registry
   coding_tools__worker --&gt; harness_execution_scope
   coding_tools__worker --&gt; harness_tools
-  coding_tools_base --&gt; coding_tools_native
   coding_tools_base --&gt; coding_workspace_snapshots
   coding_tools_base --&gt; harness_cancellation
   coding_tools_base --&gt; harness_execution_local_sandbox
@@ -1386,10 +1447,6 @@ uv run --locked cade login
   coding_tools_history --&gt; harness_session_types
   coding_tools_history --&gt; harness_tools
   coding_tools_images --&gt; harness_tools
-  coding_tools_ls --&gt; coding_tools_base
-  coding_tools_ls --&gt; coding_tools_search
-  coding_tools_ls --&gt; harness_session_types
-  coding_tools_ls --&gt; harness_tools
   coding_tools_question --&gt; harness_cancellation
   coding_tools_question --&gt; harness_session_types
   coding_tools_question --&gt; harness_tools
@@ -1401,18 +1458,16 @@ uv run --locked cade login
   coding_tools_registry --&gt; coding_tools_base
   coding_tools_registry --&gt; coding_tools_bash
   coding_tools_registry --&gt; coding_tools_edit
-  coding_tools_registry --&gt; coding_tools_ls
   coding_tools_registry --&gt; coding_tools_read
-  coding_tools_registry --&gt; coding_tools_search
+  coding_tools_registry --&gt; coding_tools_run_code
   coding_tools_registry --&gt; coding_tools_write
   coding_tools_registry --&gt; coding_workspace_snapshots
   coding_tools_registry --&gt; harness_execution_local_sandbox
-  coding_tools_search --&gt; coding_tools_base
-  coding_tools_search --&gt; coding_tools_native
-  coding_tools_search --&gt; coding_tools_truncate
-  coding_tools_search --&gt; harness_execution_local_subprocess
-  coding_tools_search --&gt; harness_session_types
-  coding_tools_search --&gt; harness_tools
+  coding_tools_run_code --&gt; coding_tools_base
+  coding_tools_run_code --&gt; harness_cancellation
+  coding_tools_run_code --&gt; harness_execution_local_python
+  coding_tools_run_code --&gt; harness_session_types
+  coding_tools_run_code --&gt; harness_tools
   coding_tools_webfetch --&gt; coding_tools_base
   coding_tools_webfetch --&gt; coding_tools_html_markdown
   coding_tools_webfetch --&gt; coding_tools_truncate
@@ -1440,6 +1495,8 @@ uv run --locked cade login
   harness_compaction --&gt; harness_session_projection
   harness_compaction --&gt; harness_session_types
   harness_events --&gt; harness_session_types
+  harness_execution_local_python --&gt; harness_session_types
+  harness_execution_local_python --&gt; harness_tools
   harness_execution_local_sandbox --&gt; harness_execution_scope
   harness_execution_local_subprocess --&gt; harness_execution_result
   harness_executor --&gt; harness_cancellation
@@ -1451,6 +1508,7 @@ uv run --locked cade login
   harness_lifecycle --&gt; harness_session_log
   harness_lifecycle --&gt; harness_session_types
   harness_loop --&gt; ai_events
+  harness_loop --&gt; ai_providers_base
   harness_loop --&gt; ai_types
   harness_loop --&gt; harness_cancellation
   harness_loop --&gt; harness_events
@@ -1488,12 +1546,14 @@ uv run --locked cade login
   hosts_cli --&gt; harness_provider
   hosts_cli --&gt; harness_session_log
   hosts_cli --&gt; harness_session_types
+  hosts_tui_app --&gt; app_config
   hosts_tui_app --&gt; app_session
   hosts_tui_bridge --&gt; ai_models
   hosts_tui_bridge --&gt; app_session
   hosts_tui_bridge --&gt; coding_security_sensitive
   hosts_tui_bridge --&gt; harness_cancellation
   hosts_tui_bridge --&gt; harness_events
+  hosts_tui_bridge --&gt; harness_permissions
   hosts_tui_bridge --&gt; harness_session_log
   hosts_tui_bridge --&gt; harness_session_types
   hosts_tui_command_handlers --&gt; app_commands
@@ -1545,28 +1605,16 @@ uv run --locked cade login
 <td>ask 模式下询问，build 模式下允许</td>
 </tr>
 <tr>
-<td><code>find</code></td>
-<td><code>pattern</code>、<code>path</code>、<code>limit</code></td>
-<td>无</td>
-<td>允许，受保护路径除外</td>
-</tr>
-<tr>
-<td><code>ls</code></td>
-<td><code>path</code>、<code>limit</code></td>
-<td>无</td>
-<td>允许，受保护路径除外</td>
-</tr>
-<tr>
-<td><code>grep</code></td>
-<td><code>pattern</code>、<code>path</code>、<code>glob</code>、<code>ignoreCase</code>、<code>literal</code>、<code>context</code>、<code>limit</code></td>
-<td>无</td>
-<td>允许，受保护路径除外</td>
-</tr>
-<tr>
 <td><code>bash</code>、<code>powershell</code></td>
 <td><code>command</code>、<code>timeout</code>、<code>workdir</code>、<code>additional_write_paths</code></td>
 <td>任意进程；对常见修改做快照</td>
 <td>build 模式下允许普通开发；检测到风险时询问</td>
+</tr>
+<tr>
+<td><code>run_code</code></td>
+<td><code>code</code>、<code>description</code>、<code>timeout</code>、<code>max_output_tokens</code></td>
+<td>运行 Python 并调用会话工具；直接 I/O 遵守操作系统沙箱</td>
+<td>build 模式允许，ask 模式询问；计划和只读模式拒绝</td>
 </tr>
 <tr>
 <td><code>question</code></td>
@@ -1635,12 +1683,10 @@ uv run --locked cade login
 <p>权威 JSON schema 内建于每个工具。这张表只用于导航；与工具 schema 不一致时，以 schema 为准。</p>
 <p>工具默认值和 Cade 集成见<a href="../decisions/0015-tool-behavior-parity.md">行为契约</a>。
 <code>read</code> 返回不带行号前缀的文件内容，并支持图片附件。<code>offset</code> 和 <code>limit</code> 必须为正整数。
-编辑只支持精确匹配，每个替换都基于原始文件，命中位置必须唯一且互不重叠。列目录请用 <code>ls</code>。
+编辑只支持精确匹配，每个替换都基于原始文件，命中位置必须唯一且互不重叠。列目录、查找文件和搜索内容请使用 shell 命令。
 Shell 的 <code>timeout</code> 单位是秒，没有默认超时。Windows 上的 <code>bash</code> 使用 Bash；
 <code>powershell</code> 使用 PowerShell，仅支持 Windows。</p>
-<p><code>find</code> 使用 fd，<code>grep</code> 使用 ripgrep。请将这两个程序安装到 PATH。
-Cade 会报告缺少的程序，不会自动下载。
-搜索排除 <code>.cade</code>，包括其中的快照和会话日志。</p>
+<p>不再提供独立的 <code>ls</code>、<code>find</code> 或 <code>grep</code> 工具。搜索命令遵守 shell 的输出限制、权限和沙箱策略。见<a href="../decisions/0017-shell-search.md">决策 0017</a>。</p>
 <h2>相关页面</h2>
 <ul>
 <li><a href="#page-tools-security">工具与安全</a></li>
@@ -2152,7 +2198,7 @@ Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
 </tr>
 <tr>
 <td><code>assistant</code></td>
-<td><code>{&quot;blocks&quot;: [Block], &quot;model&quot;: str, &quot;provider&quot;: str, &quot;usage&quot;: object|null, &quot;provider_state&quot;: object|null}</code></td>
+<td><code>{&quot;blocks&quot;: [Block], &quot;model&quot;: str, &quot;provider&quot;: str, &quot;usage&quot;: object|null, &quot;provider_state&quot;: object|null, &quot;reasoning&quot;: str|null, &quot;response_metrics&quot;: object|null}</code></td>
 <td>助手消息；空 blocks 被跳过</td>
 </tr>
 <tr>
@@ -2176,8 +2222,18 @@ Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
 <pre><code class="language-json">{&quot;type&quot;:&quot;text&quot;,&quot;text&quot;:&quot;...&quot;}
 {&quot;type&quot;:&quot;tool_call&quot;,&quot;id&quot;:&quot;c1&quot;,&quot;name&quot;:&quot;bash&quot;,&quot;args&quot;:{&quot;command&quot;:&quot;pytest -q&quot;}}
 </code></pre>
-<p><code>assistant.blocks</code> 是工具调用的唯一记录。不要另外添加 <code>tool_use</code> 事件。<code>tool_result.call_id</code> 与它配对。</p>
+<p><code>assistant.blocks</code> 记录模型发出的工具调用，<code>tool_result.call_id</code> 与它配对。不要另外添加 <code>tool_use</code> 事件。脚本发出的嵌套调用使用仅日志事件 <code>tool_execution</code>。</p>
 <p><code>provider_state</code> 是 Responses 重放用的不透明适配器数据。它保存在 assistant 事实里，并传回同一个适配器。它永远不会进入对话词汇。</p>
+<p>harness 负责可选字段 <code>assistant.reasoning</code> 和 <code>assistant.response_metrics</code>。
+<code>reasoning</code> 保存 provider 流式输出的推理摘要。
+<code>response_metrics</code> 包含 <code>ttft_seconds</code> 和 <code>tokens_per_second</code>，值为非负有限数或 null。
+TTFT 包含等待首个非空文本或推理增量的时间。
+TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间。
+请求失败或取消时，TPS 为 null。
+这些字段随 assistant 记录保留，用于恢复宿主显示，不进入模型消息或 provider 重放数据。
+重试丢弃的失败尝试不会成为 assistant 记录。</p>
+<p>TUI 根据 <code>run.termination</code> 和 <code>run.error</code> 恢复停止提示，不保存格式化提示，也不重复保存回答。
+见<a href="../decisions/0016-durable-response-observations.md">决策 0016</a>。</p>
 <h3>仅日志事件</h3>
 <p>这些事件会被记录，但不会投影。</p>
 <table>
@@ -2193,6 +2249,11 @@ Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
 <td><code>meta</code></td>
 <td><code>{&quot;session&quot;: str, &quot;project&quot;: str, &quot;created&quot;: str}</code></td>
 <td>第一条事件；标识会话</td>
+</tr>
+<tr>
+<td><code>tool_execution</code></td>
+<td><code>{&quot;parent_call_id&quot;: str, &quot;call&quot;: ToolCallBlock, &quot;status&quot;: &quot;started&quot;|&quot;ok&quot;|&quot;error&quot;|&quot;interrupted&quot;, &quot;content&quot;: str|null, &quot;authorization&quot;: object|null}</code></td>
+<td>嵌套工具的提交和结果，不进入模型消息</td>
 </tr>
 <tr>
 <td><code>request</code></td>
@@ -2226,11 +2287,14 @@ Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
 </tr>
 </tbody>
 </table>
+<p>嵌套调用在授权前写入 <code>started</code>，在父调用返回前写入 <code>ok</code>、<code>error</code> 或 <code>interrupted</code>。
+子调用 ID 为 <code>&lt;parent-call-id&gt;/&lt;sequence&gt;</code>。完成记录保存文本，以及授权决策和理由。
+只有开始记录、没有结果时，执行结果未知，恢复会话不会重跑调用。模型只看到父脚本输出。</p>
 <p><code>request.snapshot</code> 包含 <code>messages</code>、<code>tools</code>、<code>options</code>、<code>budget</code> 和 <code>report</code>。<code>budget</code> 记录上下文窗口、输出预留和余量；<code>report</code> 记录准入结果。<code>options</code> 省略 API key、所有请求头、取消信号和回调。这是 provider 接口的输入，不是 HTTP 抓包。其余请求数据不做脱敏。</p>
 <p>失败的尝试不会变成 assistant 消息。运行结果不重复最终答案；答案就是最后一段 assistant 文本。</p>
 <h2>不变式</h2>
 <ol>
-<li><strong>一个事实一条记录。</strong> 工具调用只出现一次，在它的 assistant 事件里。最终答案不会再次保存。</li>
+<li><strong>一个事实一条记录。</strong> 模型调用记录在 assistant 事件里；嵌套调用分别保存提交和结果的审计记录。最终答案不会再次保存。</li>
 <li><strong>没有派生内容。</strong> 没有替换用的消息列表，没有把渲染预览当历史，没有展示摘要。</li>
 <li><strong>决策也是事实。</strong> 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。</li>
 <li><strong>请求上下文是审计，不是历史。</strong> 动态上下文和请求信封放在 <code>request</code> 里；只有对话事件参与投影。</li>
@@ -2252,7 +2316,7 @@ Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
 <li>找到最新的 <code>system</code> 事件，最先输出。</li>
 <li>找到最新的 <code>window</code>。存在时，从它的 <code>start_id</code> 开始，并保留非空 <code>handoff</code> 作为摘要消息。</li>
 <li>找到窗口起点处或之后最新的 <code>compaction</code>。存在时，输出摘要，并从 <code>first_kept_id</code> 开始输出尾部。</li>
-<li>按顺序遍历保留的条目。输出 <code>user</code>、<code>assistant</code> 和 <code>tool_result</code> 消息。跳过 <code>system</code>、<code>meta</code>、<code>window</code>、<code>compaction</code>、<code>request</code>、<code>run</code>、<code>attempt</code>、<code>branch</code>、<code>checkpoint</code> 和 <code>restore</code>。</li>
+<li>按顺序遍历保留的条目。输出 <code>user</code>、<code>assistant</code> 和 <code>tool_result</code> 消息。跳过 <code>system</code>、<code>meta</code>、<code>window</code>、<code>compaction</code>、<code>request</code>、<code>run</code>、<code>attempt</code>、<code>branch</code>、<code>checkpoint</code>、<code>restore</code> 和 <code>tool_execution</code>。</li>
 <li>按调用 ID 配对工具调用和结果。</li>
 <li>末尾存在未闭合调用时，合成一条“已中断”结果。不要写入日志。把它插在包含该调用的 assistant 消息之后。</li>
 <li>遇到孤立结果、重复结果、重复调用、错误切点或错误窗口时，用 <code>ProjectionError</code> 拒绝。</li>
@@ -2500,16 +2564,21 @@ Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
 <li><code>read</code>：读取文件文本或附加图片。文本最多返回 2,000 行或 50 KB。</li>
 <li><code>write</code>：写入 UTF-8 文本，并创建父目录。</li>
 <li><code>edit</code>：对原始文件执行唯一且互不重叠的批量替换。</li>
-<li><code>find</code>：按 glob 查找路径，遵循忽略规则。</li>
-<li><code>ls</code>：列出目录项，包括隐藏文件。</li>
-<li><code>grep</code>：搜索正则或字面文本，支持大小写控制和上下文行。</li>
 <li><code>bash</code>、<code>powershell</code>：运行 shell 命令，可选指定工作目录和 <code>additional_write_paths</code>，为本次调用申请额外权限。</li>
+<li><code>run_code</code>：运行独立 Python 程序，调用会话工具并筛选结果。</li>
 <li><code>question</code>：收集选项或自定义答案，关闭问题时结束当前轮次。</li>
-<li><code>websearch</code>、<code>webfetch</code>：搜索或获取网页内容，在所有平台上遵守 <code>network=false</code>。</li>
+<li><code>websearch</code>、<code>webfetch</code>：搜索或获取网页内容。设置 <code>network=false</code> 时，这两个工具不会出现在工具目录和模型请求中，子代理也不例外。执行策略仍会在所有平台上拒绝旧请求。</li>
 </ul>
-<p>搜索排除 <code>.cade</code>，包括会话日志和快照内容。
+<p>列目录、查找文件和搜索内容请使用 <code>bash</code> 或 <code>powershell</code>。这些命令遵守 shell 的权限和沙箱策略。
 上游行为和参数见<a href="#page-tool-catalog">工具目录</a>。</p>
 <p>工作区固定为项目根目录，不是 shell 的当前目录，也不是整个主目录的别名。读取可以使用外部路径，受保护文件除外。工作区内的写入有快照；外部写入没有。</p>
+<h2>Python 执行权限</h2>
+<p><code>run_code</code> 的语法、示例和结果处理见 <a href="#page-code-mode">Code mode</a>。</p>
+<p>Python 直接访问文件、网络和进程时遵守 shell 的操作系统沙箱范围，不经过 shell 命令风险分类或逐工具审批。
+解释器只接收最小环境，不继承凭据环境变量，但仍可能读取凭据文件。
+直接写入不经过文件工具的快照；需要跟踪的修改应使用 <code>tools.write</code> 和 <code>tools.edit</code>。
+build 模式默认允许脚本；ask 模式审批整段程序；计划和只读会话拒绝脚本。嵌套工具仍需各自的审批。
+不设置进程内存配额。进程清理继承 shell 后端的平台限制。</p>
 <h2>模式</h2>
 <ul>
 <li><code>build</code> 是默认模式。普通编辑、测试、构建和 shell 流水线自动运行。被判定为破坏性、提权、发布或对外发送的操作需要审批。</li>
@@ -2912,7 +2981,7 @@ cade &quot;Fix the failing test.&quot;
 <li><code>Ctrl+O</code>：展开或折叠工具详情；<code>Ctrl+T</code>：展开或折叠推理输出。</li>
 <li><code>Ctrl+Q</code>：退出。</li>
 </ul>
-<p>TUI 为模型、模式、推理强度、配置和权限打开原生选择器。按 <code>?</code> 或运行 <code>/help</code> 查看按键和命令参考。</p>
+<p>TUI 为模型、模式、推理强度、配置和权限打开原生选择器。在 <code>/config</code> 中选 <strong>TUI Rendering</strong>，再选 <strong>Inline</strong> 或 <strong>Fullscreen</strong>，下次启动生效。Inline 使用终端原生滚动历史；Fullscreen 使用备用屏幕，按 PageUp/PageDown 浏览对话。按 <code>?</code> 或运行 <code>/help</code> 查看按键和命令参考。</p>
 <p>TUI 要求 stdin 和 stdout 都是终端。在管道或非交互进程里，使用 <code>-p TASK</code> 或 <code>exec TASK</code>。</p>
 <p>对话记录会显示上下文预算不足和输出令牌达到上限的停止原因；如果提供方返回错误详情，也会一并显示。</p>
 <h2>一次性执行</h2>
@@ -2928,6 +2997,9 @@ cade exec &quot;Fix the failing test.&quot;
 <p>Cade 独立维护，不依赖早期 Cade。所有工作都在本仓库根目录进行。</p>
 <h2>环境准备</h2>
 <p>需要 Python 3.12+ 和 uv。Linux 上的工具执行还需要可用的 bubblewrap（Debian/Ubuntu 上是 <code>sudo apt-get install bubblewrap</code>），以及允许非特权用户命名空间的主机。UID 映射被拒绝属于沙箱启动错误，不是审批失败。CI 使用 Ubuntu 22.04，不关闭主机安全策略。macOS 使用系统 <code>sandbox-exec</code>。原生沙箱测试在 Linux 和 macOS 上运行；Windows 跳过这些测试，直接执行工具。</p>
+<p>通用 shell 回归测试在 Windows 上使用 PowerShell，在 Linux 和 macOS 上使用 Bash。
+Windows 开发需要在 PATH 中提供 <code>pwsh</code> 或 <code>powershell</code>；使用 <code>bash</code> 工具时才需要 Git Bash。
+CI 在 Linux 和 Windows 上运行回归测试。</p>
 <pre><code class="language-bash">uv sync --locked --extra dev --extra docs
 mkdir -p tmp test-results
 </code></pre>
@@ -2981,7 +3053,7 @@ uv run --locked python -m cade.docs --root docs/zh build --out docs/zh/index.htm
 <h2>依赖管理</h2>
 <p>使用 <code>uv add PACKAGE</code> 添加运行时依赖，使用 <code>uv add --dev PACKAGE</code> 添加开发工具，使用 <code>uv remove PACKAGE</code> 删除依赖。让 uv 生成版本要求并更新 <code>uv.lock</code>，不要凭感觉编写版本范围或手动修改依赖版本。只有明确的兼容性要求才能作为额外版本约束的依据，并须记录原因。</p>
 <h2>搜索程序</h2>
-<p>文件搜索需要在 PATH 中安装 fd 和 ripgrep。Debian/Ubuntu 使用 <code>sudo apt-get install ripgrep fd-find</code>，macOS 使用 <code>brew install ripgrep fd</code>，Windows（Scoop）使用 <code>scoop install ripgrep fd</code>。Cade 也识别 Debian/Ubuntu 的 <code>fdfind</code> 命令。</p>
+<p>文件查找和内容搜索通过 shell 命令执行。可安装 fd 和 ripgrep，但启动 Cade 不依赖这两个程序。Debian/Ubuntu 使用 <code>sudo apt-get install ripgrep fd-find</code>，macOS 使用 <code>brew install ripgrep fd</code>，Windows（Scoop）使用 <code>scoop install ripgrep fd</code>。Debian/Ubuntu 上的 fd 命令名为 <code>fdfind</code>。</p>
 
 </section>
 <section class="page" id="page-testing" data-title="验证指南">
@@ -3003,6 +3075,10 @@ uv build --no-sources
 </code></pre>
 <p>发行相关改动要检查 wheel，并在干净的虚拟环境里安装。在源码树之外检查启动，确认不再需要任何 <code>cade</code> 包、命令或依赖。</p>
 <h2>执行环境</h2>
+<p>通用 shell 契约在 Windows 上使用 PowerShell，在 Linux 和 macOS 上使用 Bash。
+使用 <code>tests/conftest.py</code> 中的 <code>shell_tool_class</code> 和 <code>python_command</code>，选择工具并转义 Python 参数。
+各平台保留相同的行为断言。
+专门验证 Bash 语法或可执行文件查找的测试仍使用 Bash。</p>
 <p>Shell 取消测试必须能终止自己启动的进程。Windows 上的 <code>taskkill /T /F</code> 需要终止测试进程树的权限。如果返回 <code>Access denied</code>，请在获准且具备该权限的执行环境中运行检查。</p>
 <p>如果 uv 无法访问全局缓存，使用<a href="#page-development">工作区缓存</a>。如果 pytest 无法写入 <code>.pytest_cache</code>，可用 <code>-p no:cacheprovider</code> 禁用可选缓存。两种情况下，<code>--basetemp</code> 都放在 <code>tmp/</code> 下。</p>
 <h2>选择行为检查</h2>

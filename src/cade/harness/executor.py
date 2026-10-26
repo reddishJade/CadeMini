@@ -61,6 +61,7 @@ async def execute_tool(
     cancel: CancellationToken | None = None,
     timeout_seconds: float = 120.0,
     on_event: Callable[[LoopEvent], None] | None = None,
+    on_nested: Callable[[dict[str, JsonValue]], object] | None = None,
 ) -> ToolExecution:
     """执行一个调用；完成事件由调用方在结果提交后发出。"""
     tool = tools.get(call.name)
@@ -94,8 +95,55 @@ async def execute_tool(
         )
     if on_event is not None:
         on_event(ToolStartEvent(call.id, call.name, call.args))
+    nested_count = 0
+
+    async def invoke(name: str, args: dict[str, JsonValue]) -> ToolResult:
+        nonlocal nested_count
+        nested_count += 1
+        child = ToolCallBlock(id=f"{call.id}/{nested_count}", name=name, args=args)
+        data: dict[str, JsonValue] = {
+            "parent_call_id": call.id,
+            "call": child.model_dump(mode="json"),
+            "status": "started",
+        }
+        if on_nested is not None:
+            on_nested(data)
+        try:
+            execution = await execute_tool(
+                child,
+                tools,
+                policy=policy,
+                approve=approve,
+                context=context,
+                messages=messages,
+                cancel=cancel,
+                timeout_seconds=current_tool_context().timeout_seconds,
+                on_nested=on_nested,
+            )
+        except asyncio.CancelledError:
+            if on_nested is not None:
+                on_nested({**data, "status": "interrupted"})
+            raise
+        result = execution.result
+        if on_nested is not None:
+            on_nested(
+                {
+                    **data,
+                    "status": "error" if result.is_error else "ok",
+                    "content": result.content,
+                    "authorization": {
+                        "decision": execution.authorization.decision,
+                        "reason": execution.authorization.reason,
+                    },
+                }
+            )
+        return result
+
     runtime = replace(
         current_tool_context(),
+        tools=tuple(tools.values()),
+        execute_tool=invoke,
+        timeout_seconds=timeout_seconds,
         on_update=(lambda text: on_event(ToolUpdateEvent(call.id, call.name, text)))
         if on_event is not None
         else None,
@@ -124,7 +172,9 @@ async def execute_tool(
         # 第三方工具可能抛出任意库异常，执行边界将异常转换为工具结果。
         except Exception as exc:  # noqa: BLE001
             result = ToolResult(str(exc), is_error=True)
-    if len(result.content) > _MAX_TOOL_RESULT_CHARS:
+    if len(result.content) > _MAX_TOOL_RESULT_CHARS and not getattr(
+        tool, "manages_output", False
+    ):
         result = ToolResult(
             result.content[:_MAX_TOOL_RESULT_CHARS] + "\n[truncated]",
             result.is_error,

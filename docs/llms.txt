@@ -9,6 +9,7 @@
 - [Quickstart](quickstart.md)
 - [CLI](cli.md)
 - [Configuration](configuration.md)
+- [Code mode](code-mode.md)
 
 ## Concepts
 - [Architecture](architecture.md)

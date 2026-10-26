@@ -19,7 +19,7 @@ The log stores facts:
 - `system`, `user`, `assistant`, and `tool_result` are model-visible facts.
 - `compaction` records a summary and `first_kept_id`.
 - `window` records a new context start and an optional handoff.
-- `request`, `run`, `attempt`, `branch`, `checkpoint`, and `restore` are audit facts. They never become
+- `request`, `run`, `attempt`, `branch`, `checkpoint`, `restore`, and `tool_execution` are audit facts. They never become
   conversation messages. A branch event also preserves a selected input for
   editing after restart.
 
@@ -90,6 +90,13 @@ terminal modules. `harness/executor.py` handles authorization, per-call scope,
 timeouts, and tool errors for both model calls and direct application calls.
 The loop remains responsible for recording model-turn facts and emits completed
 tool events after recording results.
+
+`coding/tools/run_code.py` exposes one-shot Python tool orchestration. The executor
+injects the current tool set and a nested execution callback; the caller records
+nested dispatch and outcome facts without projecting intermediate results.
+`harness/execution/local/python.py` owns the fresh interpreter, bounded control
+messages, output, and process cleanup. Direct Python I/O uses the shell sandbox;
+nested tool writes retain the current turn's recovery ownership.
 
 See the [code map](design/code-map.md) for implementation locations. Cade does
 not depend on the earlier Cade project and provides no compatibility import

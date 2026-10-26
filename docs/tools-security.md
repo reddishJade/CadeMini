@@ -7,6 +7,7 @@
 - `edit`: apply unique, non-overlapping replacements against the original file.
 - `bash`, `powershell`: run a shell command, optionally with a workdir and
   `additional_write_paths` that request extra permissions for this call.
+- `run_code`: run a fresh Python program that calls session tools and filters results.
 - `question`: collect choices or custom answers; dismissal stops the turn.
 - `websearch`, `webfetch`: search or retrieve web content. With `network=false`,
   both are hidden from tool catalogs and model requests, including subagents.
@@ -19,6 +20,20 @@ See the [tool catalog](design/tool-catalog.md) for parameters and limits.
 The workspace is the fixed project root, not the shell's current directory or
 an alias for the entire home directory. Reads can use external paths, except
 protected files. Workspace writes have snapshots; external writes do not.
+
+## Python execution permissions
+
+See [Code mode](code-mode.md) for `run_code` syntax, examples, and result handling.
+
+Direct Python file, network, and process access follows the shell's OS sandbox
+scope, without shell-command risk classification or individual tool approvals.
+The interpreter receives a minimal environment without inherited credentials;
+this does not hide readable credential files. Direct writes are not captured by
+the file tools' snapshots. Use `tools.write` and `tools.edit` for tracked changes.
+Build allows scripts by default; Ask requires approval for the whole program;
+Plan and read-only sessions deny scripts. Nested tools still require their own
+approvals. No process-memory quota is applied. Process cleanup inherits the
+shell backend's platform limitations.
 
 ## Modes
 

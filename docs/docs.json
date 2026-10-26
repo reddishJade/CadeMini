@@ -13,7 +13,7 @@
     },
     {
       "title": "Start",
-      "pages": ["quickstart.md", "cli.md", "configuration.md"]
+      "pages": ["quickstart.md", "cli.md", "configuration.md", "code-mode.md"]
     },
     {
       "title": "Concepts",

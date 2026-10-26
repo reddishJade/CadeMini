@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -90,9 +91,16 @@ class HistoryTool(WorkspaceTool):
         call_id: str,
     ) -> ToolResult:
         for entry in entries:
-            if entry.type != "tool_result":
+            if entry.type == "tool_execution":
+                nested = entry.data.get("call")
+                if (
+                    isinstance(nested, dict)
+                    and nested.get("id") == call_id
+                    and entry.data.get("status") != "started"
+                ):
+                    return self._exact_entry(entries, entry.id)
                 continue
-            if entry.data.get("call_id") != call_id:
+            if entry.type != "tool_result" or entry.data.get("call_id") != call_id:
                 continue
             content = entry.data.get("content")
             text = content if isinstance(content, str) else ""
@@ -117,6 +125,8 @@ def _optional_text(
 
 def _entry_text(entry: LogEntry) -> str:
     data = entry.data
+    if entry.type == "tool_execution":
+        return json.dumps(data, ensure_ascii=False)
     if entry.type == "tool_result":
         content = data.get("content")
         return content if isinstance(content, str) else ""

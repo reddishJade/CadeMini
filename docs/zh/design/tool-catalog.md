@@ -8,6 +8,7 @@
 | `write` | `path`、`content` | 创建或替换文件；先做快照 | ask 模式下询问，build 模式下允许 |
 | `edit` | `path`、`edits: [{oldText, newText}]` | 对原始文件执行互不重叠的替换；先做快照 | ask 模式下询问，build 模式下允许 |
 | `bash`、`powershell` | `command`、`timeout`、`workdir`、`additional_write_paths` | 任意进程；对常见修改做快照 | build 模式下允许普通开发；检测到风险时询问 |
+| `run_code` | `code`、`description`、`timeout`、`max_output_tokens` | 运行 Python 并调用会话工具；直接 I/O 遵守操作系统沙箱 | build 模式允许，ask 模式询问；计划和只读模式拒绝 |
 | `question` | `questions: [{question, header, options, multiple?}]` | 收集用户答案；关闭问题时结束当前轮次 | 允许，包括计划模式 |
 | `websearch` | `query` | 通过 Exa 搜索网页 | 网络开启时允许 |
 | `webfetch` | `url`、`format`、`timeout` | 获取文本、Markdown 或 HTML | 网络开启时允许 |

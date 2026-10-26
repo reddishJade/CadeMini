@@ -75,6 +75,14 @@ class _ToolResult(_Payload):
     artifact: dict[str, JsonValue] | None = None
 
 
+class _ToolExecution(_Payload):
+    parent_call_id: NonEmpty
+    call: ToolCallBlock
+    status: Literal["started", "ok", "error", "interrupted"]
+    content: str | None = None
+    authorization: dict[str, JsonValue] | None = None
+
+
 class _Compaction(_Payload):
     summary: str
     first_kept_id: NonEmpty
@@ -252,6 +260,7 @@ _SCHEMAS: dict[EventType, type[_Payload]] = {
     "user": _User,
     "assistant": _Assistant,
     "tool_result": _ToolResult,
+    "tool_execution": _ToolExecution,
     "compaction": _Compaction,
     "window": _Window,
     "request": _Request,

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from cade.harness.cancellation import CancellationToken
-from cade.harness.session.types import (
-    ToolCallBlock,
-)
+from cade.harness.session.types import JsonValue, ToolCallBlock
 
 
 class ToolDismissed(Exception):
@@ -20,9 +18,14 @@ class ToolDismissed(Exception):
 
 @dataclass(frozen=True)
 class ToolContext:
-    """工具进度回调，不写入模型参数。"""
+    """工具进度和嵌套调用接口，不写入模型参数。"""
 
     on_update: Callable[[str], None] | None = None
+    timeout_seconds: float = 120.0
+    tools: tuple[Tool, ...] = ()
+    execute_tool: (
+        Callable[[str, dict[str, JsonValue]], Awaitable[ToolResult]] | None
+    ) = None
 
 
 _CONTEXT: ContextVar[ToolContext | None] = ContextVar("tool_context", default=None)

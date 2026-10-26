@@ -19,6 +19,7 @@ Cade 是一个独立运行的编码代理。整个设计围绕一条规则：
 - [快速上手](quickstart.md)：安装并跑通第一个任务。
 - [CLI](cli.md)：一次性任务、TUI、会话和恢复命令。
 - [配置](configuration.md)：`cade.json` 的字段。
+- [Code mode](code-mode.md)：使用 `run_code` 编排工具。
 - [架构](architecture.md)：日志、投影、请求和执行流水线。
 - [会话与上下文](sessions-context.md)：恢复、压缩、换窗和历史检索。
 - [工具与安全](tools-security.md)：模式、规则、授权和 shell 分析。
@@ -440,6 +441,69 @@ MCP 服务器支持 stdio 和 Streamable HTTP，每个服务器保持一条连�
 
 设置 `trust_project_skills: true` 后才会发现项目技能。`skills_dir` 可指定额外的可信目录，支持相对项目根目录的路径或绝对路径。详见[技能与记忆](skills-memory.md)。
 
+# Code mode
+
+<!-- source: code-mode.md -->
+
+# Code mode
+
+使用 `run_code`，让一段 Python 程序串联工具并筛选中间结果。
+它与直接工具调用同时可用，无需额外配置。
+例如，可以要求 Cade 使用 `run_code` 读取多个文件，只返回其中的标题。
+
+## 编写程序
+
+`code` 和 `description` 都是必填参数。
+`description` 是工具卡片显示的简短操作说明，例如“统计文件行数”，不能留空。
+`code` 参数是异步 Python 函数体，支持顶层 `await` 和 `return`。
+工具参数与直接调用一致：
+
+```python
+result = await tools.read({"path": "README.md"})
+return [line for line in result["content"].splitlines() if line.startswith("#")]
+```
+
+使用 `await tools.name({...})` 或 `await tools["name"]({...})` 调用工具。
+成功返回 `{content, metadata}`。metadata 保留工具已有的结构化数据，例如 MCP 的 `mcp_result`。
+工具失败或被拒绝时抛出 `RuntimeError`，程序可以捕获。
+
+只有打印的文本和 JSON 返回值进入模型历史，其他工具结果留在程序内部。
+每次执行使用新 Python 进程，变量不跨调用保留。
+脚本可使用 `asyncio`，但工具调用按顺序执行，`asyncio.gather` 提交的调用也不例外。
+脚本不能递归调用 `run_code`。
+
+## 结果与限制
+
+可选参数 `timeout` 指定整段程序的时限，单位为秒，包含嵌套工具执行和审批等待。
+它必须是正的有限数值，没有固定最大值；省略时默认使用 120 秒。例如：
+
+```json
+{"code": "await asyncio.sleep(180)\nreturn 'done'", "description": "等待耗时操作", "timeout": 300, "max_output_tokens": 2000}
+```
+
+嵌套工具继承所选时限作为默认超时，整段程序仍受同一个总时限约束。
+你可以在超时前随时取消程序。
+
+可选参数 `max_output_tokens` 是非负整数，默认值为 10,000，按每 4 个字符估算 1 个 token。
+渲染后的文本超过预算时，Cade 保留首尾，并把完整文本保存到临时文件。
+结果中会显示文件路径，`metadata.fullOutputPath` 也保存该路径。
+设为 `0` 时，只返回截断提示和文件路径。
+可用 `read` 的 `offset` 和 `limit` 分段查看文件。会话历史保留预览和路径，不保存临时文件的持久副本。
+
+打印内容和 JSON 返回值另有固定的 16 MiB 硬上限，超限会使脚本失败并停止执行，超出部分不保留。
+调大 `max_output_tokens` 不能提高硬上限。
+工具调用控制消息仍限制为 1 MiB；完成消息可以传递硬输出上限以内的返回值。
+
+脚本报错时返回已捕获的输出和错误。
+失败不撤销已完成操作，也不自动重跑程序。
+取消或超时会终止 Python，并等待已启动的嵌套调用结束。
+
+嵌套调用的 `tool_execution` 审计记录不进入模型历史，可通过 `history` 检索。
+通过 `tools.write` 和 `tools.edit` 写入的文件保留已有的恢复能力。
+
+执行权限和 Python 直接 I/O 见[工具与安全](tools-security.md#python-执行权限)。
+设计依据见[决策 0019](../decisions/0019-python-tool-orchestration.md)。
+
 # 架构
 
 <!-- source: architecture.md -->
@@ -461,7 +525,7 @@ Cade 是 `src/cade/` 下的独立编码代理。它使用四段流水线，每�
 - `system`、`user`、`assistant` 和 `tool_result` 是模型可见的事实。
 - `compaction` 记录摘要和 `first_kept_id`。
 - `window` 记录新的上下文起点和可选的交接。
-- `request`、`run`、`attempt`、`branch`、`checkpoint` 和 `restore` 是审计事实。它们永远不会变成对话消息。branch 事件还会保留选中的输入，供重启后编辑。
+- `request`、`run`、`attempt`、`branch`、`checkpoint`、`restore` 和 `tool_execution` 是审计事实。它们永远不会变成对话消息。branch 事件还会保留选中的输入，供重启后编辑。
 
 格式是封闭的。见[会话日志格式](reference/session-schema.md)。
 
@@ -508,6 +572,10 @@ Cade 有五个运行时包：
 本地进程与沙箱实现放在 `harness/execution/local`，不作为顶层包暴露。执行范围契约不导入平台后端。`tests/test_architecture.py` 检查这些边界。
 
 `app/bootstrap.py` 为一次性执行和 TUI 创建同一种 `ApplicationSession`。`app/session.py` 管理活动会话，不导入终端模块。`harness/executor.py` 为模型调用和应用直接调用统一处理授权、逐调用执行范围、超时和工具错误。循环仍负责记录模型回合事实，在结果写入后发出工具完成事件。
+
+`coding/tools/run_code.py` 提供一次性 Python 工具编排。executor 注入当前工具集合和嵌套执行回调，调用方记录嵌套调用的提交和结果，不把中间结果投影给模型。
+`harness/execution/local/python.py` 管理新解释器、控制消息上限、输出和进程清理。
+Python 直接 I/O 使用 shell 沙箱，嵌套工具写入继承当前回合的恢复所有权。
 
 实现位置见[代码地图](design/code-map.md)。Cade 不依赖早期的 Cade 项目，也不提供兼容导入路径。类型和函数直接从所属模块导入。
 
@@ -972,6 +1040,7 @@ Session entry types from `EventType`.
 | `user` | Yes | Task or steering input |
 | `assistant` | Yes | Model text and tool calls |
 | `tool_result` | Yes | Tool output paired by call ID |
+| `tool_execution` | No | Nested tool dispatch and outcome |
 | `compaction` | Yes | Summary and first kept entry |
 | `window` | Yes | Context start and optional handoff |
 | `request` | No | Provider request audit |
@@ -1202,9 +1271,15 @@ flowchart LR
   coding_tools_registry --> coding_tools_bash
   coding_tools_registry --> coding_tools_edit
   coding_tools_registry --> coding_tools_read
+  coding_tools_registry --> coding_tools_run_code
   coding_tools_registry --> coding_tools_write
   coding_tools_registry --> coding_workspace_snapshots
   coding_tools_registry --> harness_execution_local_sandbox
+  coding_tools_run_code --> coding_tools_base
+  coding_tools_run_code --> harness_cancellation
+  coding_tools_run_code --> harness_execution_local_python
+  coding_tools_run_code --> harness_session_types
+  coding_tools_run_code --> harness_tools
   coding_tools_webfetch --> coding_tools_base
   coding_tools_webfetch --> coding_tools_html_markdown
   coding_tools_webfetch --> coding_tools_truncate
@@ -1232,6 +1307,8 @@ flowchart LR
   harness_compaction --> harness_session_projection
   harness_compaction --> harness_session_types
   harness_events --> harness_session_types
+  harness_execution_local_python --> harness_session_types
+  harness_execution_local_python --> harness_tools
   harness_execution_local_sandbox --> harness_execution_scope
   harness_execution_local_subprocess --> harness_execution_result
   harness_executor --> harness_cancellation
@@ -1321,6 +1398,7 @@ flowchart LR
 | `write` | `path`、`content` | 创建或替换文件；先做快照 | ask 模式下询问，build 模式下允许 |
 | `edit` | `path`、`edits: [{oldText, newText}]` | 对原始文件执行互不重叠的替换；先做快照 | ask 模式下询问，build 模式下允许 |
 | `bash`、`powershell` | `command`、`timeout`、`workdir`、`additional_write_paths` | 任意进程；对常见修改做快照 | build 模式下允许普通开发；检测到风险时询问 |
+| `run_code` | `code`、`description`、`timeout`、`max_output_tokens` | 运行 Python 并调用会话工具；直接 I/O 遵守操作系统沙箱 | build 模式允许，ask 模式询问；计划和只读模式拒绝 |
 | `question` | `questions: [{question, header, options, multiple?}]` | 收集用户答案；关闭问题时结束当前轮次 | 允许，包括计划模式 |
 | `websearch` | `query` | 通过 Exa 搜索网页 | 网络开启时允许 |
 | `webfetch` | `url`、`format`、`timeout` | 获取文本、Markdown 或 HTML | 网络开启时允许 |
@@ -1730,7 +1808,7 @@ block 是以下之一：
 {"type":"tool_call","id":"c1","name":"bash","args":{"command":"pytest -q"}}
 ```
 
-`assistant.blocks` 是工具调用的唯一记录。不要另外添加 `tool_use` 事件。`tool_result.call_id` 与它配对。
+`assistant.blocks` 记录模型发出的工具调用，`tool_result.call_id` 与它配对。不要另外添加 `tool_use` 事件。脚本发出的嵌套调用使用仅日志事件 `tool_execution`。
 
 `provider_state` 是 Responses 重放用的不透明适配器数据。它保存在 assistant 事实里，并传回同一个适配器。它永远不会进入对话词汇。
 
@@ -1753,6 +1831,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 | 类型 | 载荷 | 用途 |
 | --- | --- | --- |
 | `meta` | `{"session": str, "project": str, "created": str}` | 第一条事件；标识会话 |
+| `tool_execution` | `{"parent_call_id": str, "call": ToolCallBlock, "status": "started"\|"ok"\|"error"\|"interrupted", "content": str\|null, "authorization": object\|null}` | 嵌套工具的提交和结果，不进入模型消息 |
 | `request` | `{"model": str, "provider": str, "tools_digest": str, "conversation_digest": str, "context": [str], "estimated_tokens": int, "dropped": [str], "snapshot": object}` | 带归一化输入的请求审计 |
 | `run` | `{"termination": str, "steps": int, "usage": object\|null, "error": str\|null}` | 运行结果 |
 | `attempt` | `{"model": str, "provider": str, "error": str, "usage": object\|null}` | 没有产生消息的失败模型尝试 |
@@ -1760,13 +1839,17 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 | `checkpoint` | `{"checkpoint_id": str, "user_id": str, "anchor_id": str\|null, "phase": "started"\|"completed"\|"incomplete"}` | 回合所有权和完成状态审计 |
 | `restore` | `{"operation_id": str, "target_id": str\|null, "draft_id": str\|null, "scope": "conversation"\|"code"\|"both", "kind": "undo"\|"redo"\|"rewind"\|"revert"}` | 恢复提交和对话位置 |
 
+嵌套调用在授权前写入 `started`，在父调用返回前写入 `ok`、`error` 或 `interrupted`。
+子调用 ID 为 `<parent-call-id>/<sequence>`。完成记录保存文本，以及授权决策和理由。
+只有开始记录、没有结果时，执行结果未知，恢复会话不会重跑调用。模型只看到父脚本输出。
+
 `request.snapshot` 包含 `messages`、`tools`、`options`、`budget` 和 `report`。`budget` 记录上下文窗口、输出预留和余量；`report` 记录准入结果。`options` 省略 API key、所有请求头、取消信号和回调。这是 provider 接口的输入，不是 HTTP 抓包。其余请求数据不做脱敏。
 
 失败的尝试不会变成 assistant 消息。运行结果不重复最终答案；答案就是最后一段 assistant 文本。
 
 ## 不变式
 
-1. **一个事实一条记录。** 工具调用只出现一次，在它的 assistant 事件里。最终答案不会再次保存。
+1. **一个事实一条记录。** 模型调用记录在 assistant 事件里；嵌套调用分别保存提交和结果的审计记录。最终答案不会再次保存。
 2. **没有派生内容。** 没有替换用的消息列表，没有把渲染预览当历史，没有展示摘要。
 3. **决策也是事实。** 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。
 4. **请求上下文是审计，不是历史。** 动态上下文和请求信封放在 `request` 里；只有对话事件参与投影。
@@ -1797,7 +1880,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 1. 找到最新的 `system` 事件，最先输出。
 2. 找到最新的 `window`。存在时，从它的 `start_id` 开始，并保留非空 `handoff` 作为摘要消息。
 3. 找到窗口起点处或之后最新的 `compaction`。存在时，输出摘要，并从 `first_kept_id` 开始输出尾部。
-4. 按顺序遍历保留的条目。输出 `user`、`assistant` 和 `tool_result` 消息。跳过 `system`、`meta`、`window`、`compaction`、`request`、`run`、`attempt`、`branch`、`checkpoint` 和 `restore`。
+4. 按顺序遍历保留的条目。输出 `user`、`assistant` 和 `tool_result` 消息。跳过 `system`、`meta`、`window`、`compaction`、`request`、`run`、`attempt`、`branch`、`checkpoint`、`restore` 和 `tool_execution`。
 5. 按调用 ID 配对工具调用和结果。
 6. 末尾存在未闭合调用时，合成一条“已中断”结果。不要写入日志。把它插在包含该调用的 assistant 消息之后。
 7. 遇到孤立结果、重复结果、重复调用、错误切点或错误窗口时，用 `ProjectionError` 拒绝。
@@ -2149,6 +2232,7 @@ MCP 的协议版本与可选能力边界见 [MCP](../mcp.md)。子会话权限�
 - `write`：写入 UTF-8 文本，并创建父目录。
 - `edit`：对原始文件执行唯一且互不重叠的批量替换。
 - `bash`、`powershell`：运行 shell 命令，可选指定工作目录和 `additional_write_paths`，为本次调用申请额外权限。
+- `run_code`：运行独立 Python 程序，调用会话工具并筛选结果。
 - `question`：收集选项或自定义答案，关闭问题时结束当前轮次。
 - `websearch`、`webfetch`：搜索或获取网页内容。设置 `network=false` 时，这两个工具不会出现在工具目录和模型请求中，子代理也不例外。执行策略仍会在所有平台上拒绝旧请求。
 
@@ -2156,6 +2240,16 @@ MCP 的协议版本与可选能力边界见 [MCP](../mcp.md)。子会话权限�
 上游行为和参数见[工具目录](design/tool-catalog.md)。
 
 工作区固定为项目根目录，不是 shell 的当前目录，也不是整个主目录的别名。读取可以使用外部路径，受保护文件除外。工作区内的写入有快照；外部写入没有。
+
+## Python 执行权限
+
+`run_code` 的语法、示例和结果处理见 [Code mode](code-mode.md)。
+
+Python 直接访问文件、网络和进程时遵守 shell 的操作系统沙箱范围，不经过 shell 命令风险分类或逐工具审批。
+解释器只接收最小环境，不继承凭据环境变量，但仍可能读取凭据文件。
+直接写入不经过文件工具的快照；需要跟踪的修改应使用 `tools.write` 和 `tools.edit`。
+build 模式默认允许脚本；ask 模式审批整段程序；计划和只读会话拒绝脚本。嵌套工具仍需各自的审批。
+不设置进程内存配额。进程清理继承 shell 后端的平台限制。
 
 ## 模式
 

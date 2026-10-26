@@ -43,6 +43,7 @@ blockquote { margin:1rem 0; padding:.2rem 1rem; border-left:3px solid var(--line
 <a href="#page-quickstart">Quickstart</a>
 <a href="#page-cli">CLI</a>
 <a href="#page-configuration">Configuration</a>
+<a href="#page-code-mode">Code mode</a>
 </div>
 <div class="nav-group"><p>Concepts</p>
 <a href="#page-architecture">Architecture</a>
@@ -128,6 +129,7 @@ process restarts without inventing history.</p>
 <li><a href="#page-quickstart">Quickstart</a> installs and runs the first task.</li>
 <li><a href="#page-cli">CLI</a> lists one-shot, TUI, session, and recovery commands.</li>
 <li><a href="#page-configuration">Configuration</a> documents <code>cade.json</code>.</li>
+<li><a href="#page-code-mode">Code mode</a> explains Python tool orchestration with <code>run_code</code>.</li>
 <li><a href="#page-architecture">Architecture</a> explains the log, projection, request, and run
 pipeline.</li>
 <li><a href="#page-sessions-context">Sessions and context</a> covers resume, compaction,
@@ -401,6 +403,16 @@ model picker for a partial name.</li>
 <li><code>/effort [LEVEL]</code> chooses a model reasoning effort or opens its picker.</li>
 <li><code>/thinking [LEVEL]</code> selects reasoning effort. Use <code>Ctrl+T</code> to fold reasoning
 output without changing effort.</li>
+<li><code>/verbose [auto|low|medium|high]</code> controls interactive TUI display detail.
+<code>auto</code> is the default: while an agent turn runs, it displays each tool call
+separately and shows collapsed thinking, without tool result bodies or read
+aggregation. At the end of the turn, its activity folds into one line per
+user turn, while assistant messages remain visible. Press <code>Ctrl+O</code> after
+completion to expand the folded activity; choose <code>high</code> to inspect details.
+<code>low</code> hides thinking and tools; <code>medium</code> shows compact activity;
+<code>high</code> expands thinking and tool details. The choice is display-only,
+including restored history; requests, tools and the saved session do not
+change. The TUI may replay terminal scrollback when activity folds.</li>
 <li><code>/rollover [--force]</code> starts a new context window; <code>/new-context</code> is an alias.</li>
 <li><code>/new-context [--force]</code> starts a new context window using <code>NOTE.md</code> as the
 handoff. Write that file first, or use <code>--force</code> to reset without it.</li>
@@ -427,7 +439,10 @@ selected stored credential, not environment variables.</li>
 <li><code>/connect</code> selects a provider and opens its model picker after authentication.</li>
 <li><code>/skill [NAME]</code> activates a skill for the next task.</li>
 <li><code>/tool [list]</code> shows available tools and their descriptions.</li>
-<li><code>/config [KEY[=VALUE]]</code> browses settings or updates a project setting.</li>
+<li><code>/config [KEY[=VALUE]]</code> browses settings or updates a project setting.
+<strong>TUI Rendering</strong> opens an Inline/Fullscreen selector with no text entry;
+the chosen mode applies on the next start. In Fullscreen, PageUp/PageDown
+scrolls the conversation history.</li>
 <li><code>/memory</code> shows the workspace memory file path.</li>
 <li><code>/exit</code> or <code>/quit</code> exits.</li>
 </ul>
@@ -491,6 +506,10 @@ menu with the current value selected. Numeric settings offer presets; nullable
 settings offer <strong>Use default</strong>. Choose <strong>Custom value...</strong> to enter an arbitrary
 number, path, or model name in a prefilled form. Press Enter to save or Esc to
 return to the choices. Saved defaults take effect on the next start.</p>
+<p><strong>TUI Rendering</strong> is a two-option menu: <strong>Inline</strong> (default) keeps terminal
+scrollback and native text selection, while <strong>Fullscreen</strong> uses the alternate
+screen and in-app PageUp/PageDown scrolling. This option has no custom text
+input; choose a mode and restart Cade to apply it.</p>
 <h2>Example</h2>
 <pre><code class="language-json">{
   &quot;provider&quot;: &quot;chatgpt&quot;,
@@ -605,6 +624,60 @@ an additional trusted directory relative to the project root or by absolute
 path. See <a href="#page-skills-memory">Skills and memory</a>.</p>
 
 </section>
+<section class="page" id="page-code-mode" data-title="Code mode">
+<h1>Code mode</h1>
+<p>Use <code>run_code</code> to chain tools and filter intermediate results in one Python
+program. It is available alongside direct tools without additional configuration.
+For example, ask Cade to use <code>run_code</code> to read several files and return only
+their headings.</p>
+<h2>Write a program</h2>
+<p>Provide both <code>code</code> and <code>description</code>. The description is a short, active-voice
+summary shown on the tool card, such as &quot;Count file lines&quot;. It must not be blank.
+The <code>code</code> argument is the body of an async Python function. Top-level <code>await</code>
+and <code>return</code> work. Call tools with the same arguments as direct calls:</p>
+<pre><code class="language-python">result = await tools.read({&quot;path&quot;: &quot;README.md&quot;})
+return [line for line in result[&quot;content&quot;].splitlines() if line.startswith(&quot;#&quot;)]
+</code></pre>
+<p>Use <code>await tools.name({...})</code> or <code>await tools[&quot;name&quot;]({...})</code>. Successful calls
+return <code>{content, metadata}</code>. Metadata preserves the tool's existing structured
+data, including MCP <code>mcp_result</code>. Failed or denied calls raise <code>RuntimeError</code>,
+which the program can catch.</p>
+<p>Only printed text and the JSON return value enter model history. Other tool
+results stay inside the program. Each execution starts a fresh Python process;
+variables do not persist between calls. <code>asyncio</code> is available, but tool calls
+execute serially, including those submitted with <code>asyncio.gather</code>. Scripts
+cannot call <code>run_code</code> recursively.</p>
+<h2>Results and limits</h2>
+<p>The optional <code>timeout</code> argument sets the total deadline in seconds, including
+nested tool execution and approval waits. It must be a positive finite number,
+with no fixed maximum. Omit it to use the default 120 seconds. For example:</p>
+<pre><code class="language-json">{&quot;code&quot;: &quot;await asyncio.sleep(180)\nreturn 'done'&quot;, &quot;description&quot;: &quot;Wait for a long operation&quot;, &quot;timeout&quot;: 300, &quot;max_output_tokens&quot;: 2000}
+</code></pre>
+<p>Nested tools inherit the selected timeout as their default; the whole program
+still shares one total deadline. You can cancel the program before it expires.</p>
+<p><code>max_output_tokens</code> is an optional non-negative integer, defaulting to 10,000.
+The budget estimates one token per four characters. If the rendered text exceeds
+it, Cade keeps the start and end and saves the complete text to a temporary file.
+The result reports the path, also available as <code>metadata.fullOutputPath</code>.
+Set the budget to <code>0</code> to receive only the truncation notice and file path.
+Use <code>read</code> with <code>offset</code> and <code>limit</code> to inspect the saved text. Session history
+retains the preview and path, not a durable copy of the temporary file.</p>
+<p>Printed output and the JSON return value also share a fixed 16 MiB hard limit.
+Exceeding it fails the script and stops execution; output beyond that limit is
+not retained. Increasing <code>max_output_tokens</code> cannot raise this limit. Tool-call
+control messages remain limited to 1 MiB; completion messages can carry a return
+value up to the hard output limit.</p>
+<p>A script error returns the captured output and error. Failure does not undo
+completed actions or automatically retry the program. Cancellation and timeouts
+terminate the Python process and wait for started nested calls to settle.</p>
+<p>Nested calls have <code>tool_execution</code> audit records outside model history. Use
+<code>history</code> to retrieve those records. Writes through <code>tools.write</code> and
+<code>tools.edit</code> retain tracked file recovery.</p>
+<p>See <a href="#page-tools-security">Tools and security</a> for
+execution permissions and direct Python I/O, and
+<a href="decisions/0019-python-tool-orchestration.md">decision 0019</a> for the design.</p>
+
+</section>
 <section class="page" id="page-architecture" data-title="Architecture">
 <h1>Architecture</h1>
 <p>Cade is a standalone coding agent in <code>src/cade/</code>. It uses a pipeline
@@ -621,7 +694,7 @@ alternatives remain in the same file. The loop follows only that active path.</p
 <li><code>system</code>, <code>user</code>, <code>assistant</code>, and <code>tool_result</code> are model-visible facts.</li>
 <li><code>compaction</code> records a summary and <code>first_kept_id</code>.</li>
 <li><code>window</code> records a new context start and an optional handoff.</li>
-<li><code>request</code>, <code>run</code>, <code>attempt</code>, <code>branch</code>, <code>checkpoint</code>, and <code>restore</code> are audit facts. They never become
+<li><code>request</code>, <code>run</code>, <code>attempt</code>, <code>branch</code>, <code>checkpoint</code>, <code>restore</code>, and <code>tool_execution</code> are audit facts. They never become
 conversation messages. A branch event also preserves a selected input for
 editing after restart.</li>
 </ul>
@@ -683,6 +756,12 @@ terminal modules. <code>harness/executor.py</code> handles authorization, per-ca
 timeouts, and tool errors for both model calls and direct application calls.
 The loop remains responsible for recording model-turn facts and emits completed
 tool events after recording results.</p>
+<p><code>coding/tools/run_code.py</code> exposes one-shot Python tool orchestration. The executor
+injects the current tool set and a nested execution callback; the caller records
+nested dispatch and outcome facts without projecting intermediate results.
+<code>harness/execution/local/python.py</code> owns the fresh interpreter, bounded control
+messages, output, and process cleanup. Direct Python I/O uses the shell sandbox;
+nested tool writes retain the current turn's recovery ownership.</p>
 <p>See the <a href="#page-code-map">code map</a> for implementation locations. Cade does
 not depend on the earlier Cade project and provides no compatibility import
 paths. Import types and functions from their owning modules.</p>
@@ -1329,6 +1408,11 @@ and window fallback.</li>
 <td><code>true</code></td>
 </tr>
 <tr>
+<td><code>tui_render_mode</code></td>
+<td><code>inline | fullscreen</code></td>
+<td><code>&quot;inline&quot;</code></td>
+</tr>
+<tr>
 <td><code>rules</code></td>
 <td><code>list[RuleConfig]</code></td>
 <td><code>required</code></td>
@@ -1483,6 +1567,11 @@ and window fallback.</li>
 <td><code>tool_result</code></td>
 <td>Yes</td>
 <td>Tool output paired by call ID</td>
+</tr>
+<tr>
+<td><code>tool_execution</code></td>
+<td>No</td>
+<td>Nested tool dispatch and outcome</td>
 </tr>
 <tr>
 <td><code>compaction</code></td>
@@ -1692,6 +1781,7 @@ and window fallback.</li>
   coding_subagents --&gt; coding_security_policy
   coding_subagents --&gt; coding_tools_history
   coding_subagents --&gt; harness_cancellation
+  coding_subagents --&gt; harness_events
   coding_subagents --&gt; harness_lifecycle
   coding_subagents --&gt; harness_loop
   coding_subagents --&gt; harness_permissions
@@ -1703,7 +1793,6 @@ and window fallback.</li>
   coding_tools__worker --&gt; coding_tools_registry
   coding_tools__worker --&gt; harness_execution_scope
   coding_tools__worker --&gt; harness_tools
-  coding_tools_base --&gt; coding_tools_native
   coding_tools_base --&gt; coding_workspace_snapshots
   coding_tools_base --&gt; harness_cancellation
   coding_tools_base --&gt; harness_execution_local_sandbox
@@ -1730,10 +1819,6 @@ and window fallback.</li>
   coding_tools_history --&gt; harness_session_types
   coding_tools_history --&gt; harness_tools
   coding_tools_images --&gt; harness_tools
-  coding_tools_ls --&gt; coding_tools_base
-  coding_tools_ls --&gt; coding_tools_search
-  coding_tools_ls --&gt; harness_session_types
-  coding_tools_ls --&gt; harness_tools
   coding_tools_question --&gt; harness_cancellation
   coding_tools_question --&gt; harness_session_types
   coding_tools_question --&gt; harness_tools
@@ -1745,18 +1830,16 @@ and window fallback.</li>
   coding_tools_registry --&gt; coding_tools_base
   coding_tools_registry --&gt; coding_tools_bash
   coding_tools_registry --&gt; coding_tools_edit
-  coding_tools_registry --&gt; coding_tools_ls
   coding_tools_registry --&gt; coding_tools_read
-  coding_tools_registry --&gt; coding_tools_search
+  coding_tools_registry --&gt; coding_tools_run_code
   coding_tools_registry --&gt; coding_tools_write
   coding_tools_registry --&gt; coding_workspace_snapshots
   coding_tools_registry --&gt; harness_execution_local_sandbox
-  coding_tools_search --&gt; coding_tools_base
-  coding_tools_search --&gt; coding_tools_native
-  coding_tools_search --&gt; coding_tools_truncate
-  coding_tools_search --&gt; harness_execution_local_subprocess
-  coding_tools_search --&gt; harness_session_types
-  coding_tools_search --&gt; harness_tools
+  coding_tools_run_code --&gt; coding_tools_base
+  coding_tools_run_code --&gt; harness_cancellation
+  coding_tools_run_code --&gt; harness_execution_local_python
+  coding_tools_run_code --&gt; harness_session_types
+  coding_tools_run_code --&gt; harness_tools
   coding_tools_webfetch --&gt; coding_tools_base
   coding_tools_webfetch --&gt; coding_tools_html_markdown
   coding_tools_webfetch --&gt; coding_tools_truncate
@@ -1784,6 +1867,8 @@ and window fallback.</li>
   harness_compaction --&gt; harness_session_projection
   harness_compaction --&gt; harness_session_types
   harness_events --&gt; harness_session_types
+  harness_execution_local_python --&gt; harness_session_types
+  harness_execution_local_python --&gt; harness_tools
   harness_execution_local_sandbox --&gt; harness_execution_scope
   harness_execution_local_subprocess --&gt; harness_execution_result
   harness_executor --&gt; harness_cancellation
@@ -1795,6 +1880,7 @@ and window fallback.</li>
   harness_lifecycle --&gt; harness_session_log
   harness_lifecycle --&gt; harness_session_types
   harness_loop --&gt; ai_events
+  harness_loop --&gt; ai_providers_base
   harness_loop --&gt; ai_types
   harness_loop --&gt; harness_cancellation
   harness_loop --&gt; harness_events
@@ -1832,12 +1918,14 @@ and window fallback.</li>
   hosts_cli --&gt; harness_provider
   hosts_cli --&gt; harness_session_log
   hosts_cli --&gt; harness_session_types
+  hosts_tui_app --&gt; app_config
   hosts_tui_app --&gt; app_session
   hosts_tui_bridge --&gt; ai_models
   hosts_tui_bridge --&gt; app_session
   hosts_tui_bridge --&gt; coding_security_sensitive
   hosts_tui_bridge --&gt; harness_cancellation
   hosts_tui_bridge --&gt; harness_events
+  hosts_tui_bridge --&gt; harness_permissions
   hosts_tui_bridge --&gt; harness_session_log
   hosts_tui_bridge --&gt; harness_session_types
   hosts_tui_command_handlers --&gt; app_commands
@@ -1890,28 +1978,16 @@ and window fallback.</li>
 <td>Ask in ask, allow in build</td>
 </tr>
 <tr>
-<td><code>find</code></td>
-<td><code>pattern</code>, <code>path</code>, <code>limit</code></td>
-<td>None</td>
-<td>Allow except protected paths</td>
-</tr>
-<tr>
-<td><code>ls</code></td>
-<td><code>path</code>, <code>limit</code></td>
-<td>None</td>
-<td>Allow except protected paths</td>
-</tr>
-<tr>
-<td><code>grep</code></td>
-<td><code>pattern</code>, <code>path</code>, <code>glob</code>, <code>ignoreCase</code>, <code>literal</code>, <code>context</code>, <code>limit</code></td>
-<td>None</td>
-<td>Allow except protected paths</td>
-</tr>
-<tr>
 <td><code>bash</code>, <code>powershell</code></td>
 <td><code>command</code>, <code>timeout</code>, <code>workdir</code>, <code>additional_write_paths</code></td>
 <td>Arbitrary process; snapshot common mutations</td>
 <td>Normal development allowed in build; detected risks ask</td>
+</tr>
+<tr>
+<td><code>run_code</code></td>
+<td><code>code</code>, <code>description</code>, <code>timeout</code>, <code>max_output_tokens</code></td>
+<td>Runs Python and calls session tools; direct I/O follows the OS sandbox</td>
+<td>Allow in build; ask in ask; denied plan and read-only</td>
 </tr>
 <tr>
 <td><code>question</code></td>
@@ -1985,11 +2061,12 @@ navigation aid; when it disagrees with the tool schema, the schema wins.</p>
 for tool defaults and Cade integration. <code>read</code> returns file content without
 line-number prefixes and supports image attachments. <code>offset</code> and <code>limit</code>
 are positive integers. Editing uses exact text matching; all edits target the
-original file and must be unique and disjoint. Use <code>ls</code> for directories.
+original file and must be unique and disjoint. Use shell commands for directory
+listings, file discovery, and content search.
 Shell <code>timeout</code> is in seconds and has no default. <code>bash</code> uses Bash on Windows;
 <code>powershell</code> uses PowerShell and is available only on Windows.</p>
-<p><code>find</code> uses fd and <code>grep</code> uses ripgrep. Install both on PATH. Cade reports
-missing programs without downloading binaries. Searches exclude <code>.cade</code>, including snapshots and session logs.</p>
+<p>There are no standalone <code>ls</code>, <code>find</code>, or <code>grep</code> tools. Search commands use the
+shell's output limits, permissions, and sandbox. See <a href="decisions/0017-shell-search.md">decision 0017</a>.</p>
 <h2>Related</h2>
 <ul>
 <li><a href="#page-tools-security">Tools and security</a></li>
@@ -2577,7 +2654,7 @@ and context-cut references are validated by projection.</p>
 </tr>
 <tr>
 <td><code>assistant</code></td>
-<td><code>{&quot;blocks&quot;: [Block], &quot;model&quot;: str, &quot;provider&quot;: str, &quot;usage&quot;: object|null, &quot;provider_state&quot;: object|null}</code></td>
+<td><code>{&quot;blocks&quot;: [Block], &quot;model&quot;: str, &quot;provider&quot;: str, &quot;usage&quot;: object|null, &quot;provider_state&quot;: object|null, &quot;reasoning&quot;: str|null, &quot;response_metrics&quot;: object|null}</code></td>
 <td>Assistant message; empty blocks are skipped</td>
 </tr>
 <tr>
@@ -2601,11 +2678,24 @@ and context-cut references are validated by projection.</p>
 <pre><code class="language-json">{&quot;type&quot;:&quot;text&quot;,&quot;text&quot;:&quot;...&quot;}
 {&quot;type&quot;:&quot;tool_call&quot;,&quot;id&quot;:&quot;c1&quot;,&quot;name&quot;:&quot;bash&quot;,&quot;args&quot;:{&quot;command&quot;:&quot;pytest -q&quot;}}
 </code></pre>
-<p><code>assistant.blocks</code> is the only record of a tool call. Do not add a separate
-<code>tool_use</code> event. The <code>tool_result.call_id</code> pairs with it.</p>
+<p><code>assistant.blocks</code> records model-issued tool calls. Do not add a separate
+<code>tool_use</code> event. The <code>tool_result.call_id</code> pairs with it. Script-issued nested
+calls use log-only <code>tool_execution</code> records instead.</p>
 <p>A <code>provider_state</code> is opaque adapter data for Responses replay. It is
 stored on the assistant fact and passed back to the same adapter. It never enters
 the conversation vocabulary.</p>
+<p>The harness owns optional <code>assistant.reasoning</code> and <code>assistant.response_metrics</code>.
+<code>reasoning</code> contains the provider's streamed reasoning summary. <code>response_metrics</code>
+contains <code>ttft_seconds</code> and <code>tokens_per_second</code>, each a nonnegative finite number
+or null. TTFT includes the wait for the first nonempty text or reasoning delta.
+TPS uses reported output tokens and the interval from that delta to the final
+response; failed or cancelled requests have null TPS. These fields remain with
+the assistant record for the session's lifetime. They restore host output and
+never enter model messages or provider replay data. Failed attempts discarded
+for a retry do not become assistant records.</p>
+<p>The TUI restores stop notices from <code>run.termination</code> and <code>run.error</code>, without
+storing formatted notices or duplicating answers. See
+<a href="decisions/0016-durable-response-observations.md">decision 0016</a>.</p>
 <h3>Log-only events</h3>
 <p>These are recorded but never projected.</p>
 <table>
@@ -2621,6 +2711,11 @@ the conversation vocabulary.</p>
 <td><code>meta</code></td>
 <td><code>{&quot;session&quot;: str, &quot;project&quot;: str, &quot;created&quot;: str}</code></td>
 <td>First event; identifies the session</td>
+</tr>
+<tr>
+<td><code>tool_execution</code></td>
+<td><code>{&quot;parent_call_id&quot;: str, &quot;call&quot;: ToolCallBlock, &quot;status&quot;: &quot;started&quot;|&quot;ok&quot;|&quot;error&quot;|&quot;interrupted&quot;, &quot;content&quot;: str|null, &quot;authorization&quot;: object|null}</code></td>
+<td>Nested tool dispatch and outcome; never a model message</td>
 </tr>
 <tr>
 <td><code>request</code></td>
@@ -2654,6 +2749,11 @@ the conversation vocabulary.</p>
 </tr>
 </tbody>
 </table>
+<p>A nested dispatch writes <code>tool_execution</code> with <code>started</code> before authorization,
+then <code>ok</code>, <code>error</code>, or <code>interrupted</code> before the parent returns. Child call IDs are
+<code>&lt;parent-call-id&gt;/&lt;sequence&gt;</code>. Completed records include text and the authorization
+decision and reason. A start without an outcome means the result is unknown;
+resuming does not replay it. The model sees only the parent script's output.</p>
 <p>The <code>request.snapshot</code> contains <code>messages</code>, <code>tools</code>, <code>options</code>, <code>budget</code>, and
 <code>report</code>. <code>budget</code> records the context window, output reserve, and headroom;
 <code>report</code> records the admission result. Options omit API keys, all headers,
@@ -2668,7 +2768,8 @@ field. The Responses adapter sends them as <code>input_image</code> function out
 The tool owns the attachment data for the lifetime of the session log.</p>
 <h2>Invariants</h2>
 <ol>
-<li><strong>One fact, one record.</strong> A tool call appears once, in its assistant event.
+<li><strong>One fact, one record.</strong> A model-issued tool call appears in its assistant event;
+nested calls use their dispatch and outcome audit records.
 The final answer is not stored again.</li>
 <li><strong>No derived content.</strong> No replacement message list, no rendered preview used
 as history, no display summary.</li>
@@ -2726,7 +2827,7 @@ non-empty <code>handoff</code> for a summary message.</li>
 its summary and start the tail at <code>first_kept_id</code>.</li>
 <li>Walk the retained entries in order. Emit <code>user</code>, <code>assistant</code>, and
 <code>tool_result</code> messages. Skip <code>system</code>, <code>meta</code>, <code>window</code>, <code>compaction</code>,
-<code>request</code>, <code>run</code>, <code>attempt</code>, <code>branch</code>, <code>checkpoint</code>, and <code>restore</code>.</li>
+<code>request</code>, <code>run</code>, <code>attempt</code>, <code>branch</code>, <code>checkpoint</code>, <code>restore</code>, and <code>tool_execution</code>.</li>
 <li>Pair tool calls with results by call ID.</li>
 <li>For an open call at the end, synthesize one interrupted result. Do not write
 it to the log. Insert it after the assistant message that contains the call.</li>
@@ -3121,20 +3222,31 @@ and sequential execution.</p>
 <li><code>read</code>: read file text or attach an image. Output is capped at 2,000 lines or 50 KB.</li>
 <li><code>write</code>: write UTF-8 text and create parent directories.</li>
 <li><code>edit</code>: apply unique, non-overlapping replacements against the original file.</li>
-<li><code>find</code>: find paths with a glob, respecting ignore rules.</li>
-<li><code>ls</code>: list directory entries, including dotfiles.</li>
-<li><code>grep</code>: search with regex or literal matching, case controls, and context lines.</li>
 <li><code>bash</code>, <code>powershell</code>: run a shell command, optionally with a workdir and
 <code>additional_write_paths</code> that request extra permissions for this call.</li>
+<li><code>run_code</code>: run a fresh Python program that calls session tools and filters results.</li>
 <li><code>question</code>: collect choices or custom answers; dismissal stops the turn.</li>
-<li><code>websearch</code>, <code>webfetch</code>: search or retrieve web content. Both honor
-<code>network=false</code> on every platform.</li>
+<li><code>websearch</code>, <code>webfetch</code>: search or retrieve web content. With <code>network=false</code>,
+both are hidden from tool catalogs and model requests, including subagents.
+The execution policy still rejects stale calls on every platform.</li>
 </ul>
-<p>Searches exclude <code>.cade</code>, including session logs and snapshot payloads.
+<p>Use <code>bash</code> or <code>powershell</code> for directory listings, file discovery, and content
+search. These commands follow the shell's permissions and sandbox policy.
 See the <a href="#page-tool-catalog">tool catalog</a> for parameters and limits.</p>
 <p>The workspace is the fixed project root, not the shell's current directory or
 an alias for the entire home directory. Reads can use external paths, except
 protected files. Workspace writes have snapshots; external writes do not.</p>
+<h2>Python execution permissions</h2>
+<p>See <a href="#page-code-mode">Code mode</a> for <code>run_code</code> syntax, examples, and result handling.</p>
+<p>Direct Python file, network, and process access follows the shell's OS sandbox
+scope, without shell-command risk classification or individual tool approvals.
+The interpreter receives a minimal environment without inherited credentials;
+this does not hide readable credential files. Direct writes are not captured by
+the file tools' snapshots. Use <code>tools.write</code> and <code>tools.edit</code> for tracked changes.
+Build allows scripts by default; Ask requires approval for the whole program;
+Plan and read-only sessions deny scripts. Nested tools still require their own
+approvals. No process-memory quota is applied. Process cleanup inherits the
+shell backend's platform limitations.</p>
 <h2>Modes</h2>
 <ul>
 <li><code>build</code> is the default. Normal edits, tests, builds, and shell pipelines run
@@ -3718,8 +3830,11 @@ Use <code>/tree</code> to navigate branches in the same session, or <code>/fork<
 <li><code>Ctrl+Q</code> exits.</li>
 </ul>
 <p>The TUI opens native selectors for models, modes, reasoning effort,
-configuration, and permissions. Press <code>?</code> or run <code>/help</code> for the key and
-command reference.</p>
+configuration, and permissions. Under <code>/config</code>, choose <strong>TUI Rendering</strong>,
+then <strong>Inline</strong> or <strong>Fullscreen</strong>; the selected mode applies on the next start.
+Inline uses terminal scrollback. Fullscreen uses the alternate screen, with
+PageUp/PageDown for conversation history. Press <code>?</code> or run <code>/help</code> for the key
+and command reference.</p>
 <p>The TUI requires both stdin and stdout to be terminals. In a pipe or a
 non-interactive process, use <code>-p TASK</code> or <code>exec TASK</code>.</p>
 <p>The transcript shows context budget failures and output token limits as stopped
@@ -3742,7 +3857,8 @@ bubblewrap (<code>sudo apt-get install bubblewrap</code> on Debian/Ubuntu) and a
 permits unprivileged user namespaces. Denied UID mappings are sandbox startup
 errors, not approval failures. CI uses Ubuntu 22.04 without disabling host
 security policies. macOS uses system <code>sandbox-exec</code>.
-File search requires fd and ripgrep on PATH. Install them before running tests:</p>
+File discovery and content search use shell commands. You can install fd and
+ripgrep for these operations; they are not required to start Cade:</p>
 <pre><code class="language-bash"># Debian or Ubuntu
 sudo apt-get install ripgrep fd-find
 # macOS
@@ -3750,9 +3866,12 @@ brew install ripgrep fd
 # Windows (Scoop)
 scoop install ripgrep fd
 </code></pre>
-<p>Cade also recognizes Debian/Ubuntu's <code>fdfind</code> executable.</p>
+<p>On Debian/Ubuntu, invoke fd as <code>fdfind</code>.</p>
 <p>Native sandbox tests run on Linux and macOS; Windows
-skips those tests and executes tools directly.</p>
+skips those tests and executes tools directly. General shell regression tests
+use PowerShell on Windows and Bash on Linux and macOS. Windows development
+requires <code>pwsh</code> or <code>powershell</code> on PATH; Git Bash is needed only when using the
+<code>bash</code> tool. CI runs the regression suite on both Linux and Windows.</p>
 <pre><code class="language-bash">uv sync --locked --extra dev --extra docs
 mkdir -p tmp test-results
 </code></pre>
@@ -3857,6 +3976,11 @@ uv build --no-sources
 environment. Check startup outside the source tree and confirm that no <code>cade</code>
 package, command, or dependency is required.</p>
 <h2>Execution environment</h2>
+<p>General shell contracts run through the native shell: PowerShell on Windows,
+Bash on Linux and macOS. Use <code>shell_tool_class</code> and <code>python_command</code> from
+<code>tests/conftest.py</code> to select the tool and quote Python arguments. Keep the same
+behavioral assertions on every platform. Do not substitute PowerShell for a
+test that specifically exercises Bash syntax or Bash executable discovery.</p>
 <p>Shell cancellation tests must be able to terminate the processes they start.
 On Windows, <code>taskkill /T /F</code> needs permission to terminate the test's process
 tree. If it reports <code>Access denied</code>, run the check in an approved execution
