@@ -94,23 +94,50 @@ rewind with conversation history.
 
 ## Goals
 
-A goal is one durable objective stored in `.cade/goal.json`. It has an
-objective, a status (`active` or `done`), and an update time.
+A goal is one durable objective in `.cade/goal.json`, with status `active`,
+`done`, `paused`, or `blocked`, an update time, and an optional blocker reason.
+Mutations use `.cade/goal.lock`; completion and blocking check the version
+returned by `goal get` so stale model calls cannot update a changed objective.
 
 ```bash
-cade --goal "Add a regression test for the parser" "Start the task."
+cade --goal "Implement the backend and verify every requirement" --max-steps 100 "Start the task."
 ```
 
 In the TUI:
 
-- `/goal` shows the current goal.
-- `/goal TEXT` sets an active goal.
-- `/goal done` marks it complete.
-- `/goal clear` removes it.
+- `/goal` shows the objective, blocker, and whether continuation is disarmed.
+- `/goal TEXT` sets and arms a goal.
+- `/goal pause` persists a pause and cancels active work.
+- `/goal resume` rearms an unfinished goal; the TUI schedules it when idle.
+- `/goal done` marks completion; `/goal clear` removes the goal.
 
-The `goal` tool provides the same actions to the model. An active goal is added
-to request context so a resumed or compacted session still knows the objective.
-Goals are host state; they do not change the session schema.
+The application and model tool share one store. Normal model replies continue
+an armed active goal through the existing loop. Queued human input takes
+priority. All automatic rounds in one run share `--max-steps` and usage
+accounting; a final reply does not reset the allowance. Cancellation, errors,
+max tokens, or the step limit disarm continuation. Read-only and Plan sessions
+do not automatically continue goals whose completion tool their policy denies.
 
-Goals are intentionally small. Use `NOTE.md` for working details and `MEMORY.md`
-for facts that outlive the objective.
+Activation is process-local and tied to the current goal version. Loading a
+saved goal or changing conversation history does not authorize automatic work.
+`/goal resume` rearms an existing goal; creating or updating a goal through the
+tool also arms its new version. A resumed run receives a new step allowance,
+while goal edits within a run keep its existing allowance. There is no
+persistent goal-wide token, time, or cost budget.
+
+Automatic inputs are logged as `user` events with `source: "goal"`. They keep
+the objective in the same session but are excluded from human prompt pickers.
+The original task and steering survive rollover without duplicating every
+automatic reminder in the handoff. Active objectives remain request context.
+
+The model is instructed to verify every requirement against current artifacts
+and tool results before completion. `goal complete` and `goal block` require the
+`updated_at` returned by `get`; `block` also requires a concrete `reason`.
+The model may create, update, replace, or clear goals in both human-input and
+automatic rounds. Goal edits do not change the user's requirements or reset the
+run budget. Pause and resume retain their human-input requirement. These are
+control and version checks, not an independent evaluator: completion evidence
+and whether a blocker persisted across three rounds remain model judgments.
+The shared step limit bounds unproductive continuation.
+
+Use `NOTE.md` for working details and `MEMORY.md` for durable project facts.

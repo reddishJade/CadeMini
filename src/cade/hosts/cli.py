@@ -13,7 +13,6 @@ from typing import Any
 
 from cade.app.bootstrap import create_session, resolve_sessions_dir, undo_session
 from cade.app.config import CadeConfig
-from cade.coding.goal import GoalStore
 from cade.coding.tools.question import Question
 from cade.harness.events import (
     LoopEvent,
@@ -108,8 +107,6 @@ def _main(
     if args.sessions_dir is not None:
         overrides["sessions_dir"] = str(args.sessions_dir)
     config = config.model_copy(update=overrides)
-    if args.goal:
-        GoalStore(project_root).set(args.goal)
     if not one_shot and args.steer:
         print("cade: --steer requires a task", file=sys.stderr)
         return 2
@@ -141,6 +138,7 @@ def _main(
             auto_approve=args.yes,
             config_path=args.config,
             answer=_terminal_questions if one_shot else None,
+            goal=args.goal,
         )
     except (OSError, ValueError, RuntimeError, LogError) as exc:
         print(f"cade: {exc}", file=sys.stderr)
@@ -177,7 +175,7 @@ def _main(
         project_root,
         session_id=service.log.session_id,
         config_path=args.config,
-        initial_prompt=initial_prompt,
+        initial_prompt=initial_prompt or args.goal,
     )
 
 

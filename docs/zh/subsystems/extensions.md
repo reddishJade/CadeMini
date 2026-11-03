@@ -24,7 +24,7 @@
 
 ## 目标
 
-`GoalStore` 在 `.cade/goal.json` 里持久保存一个目标。`goal` 工具和 `/goal` 命令负责管理。活动目标属于请求上下文。
+`GoalStore` 在 `.cade/goal.json` 里持久保存一个目标。`goal` 工具和 `/goal` 命令负责管理。活动目标属于请求上下文；只有获得当前进程的续跑授权后，应用才自动继续。状态和预算行为见[目标](../snapshots-goals.md#目标)。
 
 ## 宿主
 

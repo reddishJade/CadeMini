@@ -74,6 +74,9 @@ the `bash` tool requires Bash (for example, Git for Windows); `powershell` uses
 PowerShell. The TUI supports
 stepwise undo/redo, scoped rewind, and selected-file revert. Recovery covers
 tracked file mutations, not arbitrary shell or external side effects.
+[Goals](docs/snapshots-goals.md#goals) created or updated by the user or model
+continue through early replies within the shared step limit. Loading a saved
+goal alone does not start execution.
 
 - [User and developer guides](docs/README.md)
 - [CLI](docs/cli.md) · [Configuration](docs/configuration.md)

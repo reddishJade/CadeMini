@@ -1187,7 +1187,38 @@ def test_cli_undo_rejects_foreign_workspace(
 
 
 def test_cli_sets_goal_in_context(tmp_path: Path) -> None:
-    provider = FakeProvider([_text("ok")])
+    class CompletingProvider(FakeProvider):
+        async def stream(
+            self,
+            messages: list[dict[str, Any]],
+            tools: list[ToolDefinition],
+            options: StreamOptions | None = None,
+        ) -> AsyncIterator[ProviderEvent]:
+            if not self.requests:
+                goal = GoalStore(tmp_path).load()
+                assert goal is not None
+                self.batches.insert(
+                    0,
+                    [
+                        ToolCallEvent(
+                            [
+                                ToolCall(
+                                    id="goal-complete",
+                                    name="goal",
+                                    input={
+                                        "action": "complete",
+                                        "updated_at": goal.updated_at,
+                                    },
+                                )
+                            ]
+                        ),
+                        FinalMessage("", "tool_use"),
+                    ],
+                )
+            async for event in super().stream(messages, tools, options):
+                yield event
+
+    provider = CompletingProvider([_text("ok")])
 
     code = main(
         [

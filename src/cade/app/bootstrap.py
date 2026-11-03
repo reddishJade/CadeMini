@@ -195,7 +195,21 @@ def create_session(
         WebSearchTool(),
         LoadSkillTool(workspace, skill_registry),
         MemoryTool(workspace),
-        GoalTool(workspace),
+        GoalTool(
+            workspace,
+            store=goals,
+            allow_control=lambda: (
+                next(
+                    (
+                        entry.data.get("source", "user")
+                        for entry in reversed(session.log.branch())
+                        if entry.type == "user"
+                    ),
+                    "goal",
+                )
+                != "goal"
+            ),
+        ),
         *mcp_tools,
     )
     grants = GrantStore()

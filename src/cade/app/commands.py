@@ -91,7 +91,9 @@ SPECS: tuple[CommandSpec, ...] = (
     ),
     CommandSpec("/stop", "Stop the active run", "Execution"),
     CommandSpec("/btw", "Ask an independent side question", "Execution", "<question>"),
-    CommandSpec("/goal", "Manage workspace goal", "Execution", "[text|done|clear]"),
+    CommandSpec(
+        "/goal", "Manage workspace goal", "Execution", "[text|pause|resume|done|clear]"
+    ),
     CommandSpec("/login", "Connect a provider account", "Authentication", "[provider]"),
     CommandSpec(
         "/connect",

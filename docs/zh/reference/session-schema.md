@@ -24,6 +24,8 @@
 
 载荷在追加和读取时都会校验。未知字段、错误的原始类型、非法枚举和非有限数字都会被拒绝。缺失的可选字段允许存在，但默认值不会写进记录。`user.source` 默认是 `user`；assistant 的 model/provider/usage/replay 元数据以及可空的 artifact/handoff/usage/details 字段可以缺失。跨事件的调用配对和上下文切点引用由投影校验。
 
+自动目标轮次使用 `user.source: "goal"`，宿主注入的 steering 使用 `runtime`。两者都不代表新的人工指令，也不重置步数额度。目标输入使纯目标会话可以保存和列出，但不进入人工提示选择器。
+
 ## 事件类型
 
 图片工具把附件写入 `tool_result.artifact.tool_metadata.images`。
@@ -39,7 +41,7 @@ Responses 适配器将其发送为函数输出中的 `input_image`。
 | 类型 | 载荷 | 投影 |
 | --- | --- | --- |
 | `system` | `{"text": str}` | 最新一条最先输出；永不被遮蔽 |
-| `user` | `{"text": str, "source": "user"\|"runtime"}` | 在所在位置输出用户消息 |
+| `user` | `{"text": str, "source": "user"\|"runtime"\|"goal"}` | 在所在位置输出用户消息 |
 | `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null, "reasoning": str\|null, "response_metrics": object\|null}` | 助手消息；空 blocks 被跳过 |
 | `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | 工具消息；与对应调用配对 |
 | `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | 先输出摘要消息，再从 `first_kept_id` 输出尾部 |

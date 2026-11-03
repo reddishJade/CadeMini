@@ -16,7 +16,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `history` | `query`, `entry_id`, `call_id`, `limit` | None | Allow |
 | `skill` | `name` | None; loads a skill body | Allow |
 | `memory` | `text` | Appends to `MEMORY.md` | Allow; denied read-only |
-| `goal` | `action`, `objective` | Updates `.cade/goal.json` | Allow |
+| `goal` | `action`, `objective`, `reason`, `updated_at` | Updates `.cade/goal.json` | Allow |
 | `delegate` | `prompt` or `tasks`, `mode`, `description` | Creates one or more child sessions | Allow |
 | `mcp__*` | Server-defined | Remote side effects | Ask; denied plan and read-only |
 
