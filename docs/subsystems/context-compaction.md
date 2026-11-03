@@ -54,15 +54,16 @@ normal model calls do not issue an additional pre-count request.
 
 `Compactor` runs when the full projection exceeds the input budget.
 
-1. Select the cut at a user boundary that keeps the recent tail under the
-   configured target.
+1. Prefer a visible user boundary that keeps the recent tail under the
+   configured target. If no later user boundary fits, cut before an assistant
+   message within the current task. Keep each tool call with all its results.
 2. Serialize older messages, including a prior summary.
 3. Ask the provider for a summary with a bounded output.
 4. Append a `compaction` fact with summary and `first_kept_id`.
 5. Reproject.
 
-A summary failure or a cut with no messages appends an `attempt` fact and leaves
-the conversation unchanged. A prior summary is included as `PRIOR SUMMARY`, so
+A summary failure appends an `attempt` fact and leaves the conversation unchanged.
+If there is no usable cut, compaction returns without calling the provider. A prior summary is included as `PRIOR SUMMARY`, so
 compaction is iterative.
 
 ## Window fallback

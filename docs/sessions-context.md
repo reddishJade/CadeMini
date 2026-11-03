@@ -74,7 +74,8 @@ only. File coverage, conflicts, and interrupted transactions are described in
 
 When the full conversation exceeds the input budget, `Compactor`:
 
-1. Selects a cut at a visible user boundary.
+1. Prefers a visible user boundary, or cuts before an assistant message within
+   a long task while keeping tool calls with their results.
 2. Sends the older messages to the provider for a summary.
 3. Appends a `compaction` fact with the summary and `first_kept_id`.
 4. Reprojects the conversation as the latest system, summary, and retained tail.

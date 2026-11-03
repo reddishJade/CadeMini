@@ -1020,7 +1020,7 @@ cade --resume SESSION_ID &quot;Explain the current state.&quot;
 <h2>压缩</h2>
 <p>完整对话超出输入预算时，<code>Compactor</code> 会：</p>
 <ol>
-<li>在可见的用户边界选择切点。</li>
+<li>优先在可见的用户边界选择切点；长任务也可以在 assistant 消息之前切分，工具调用与结果一起保留。</li>
 <li>把较早的消息发给 provider 生成摘要。</li>
 <li>追加一条 <code>compaction</code> 事实，包含摘要和 <code>first_kept_id</code>。</li>
 <li>把对话重新投影为最新 system、摘要和保留的尾部。</li>
@@ -1308,7 +1308,7 @@ uv run --locked cade login
 <h2>顺序与配对</h2>
 <p>工具结果跟在其 assistant 工具调用之后。投影拒绝孤立结果或重复结果。如果分支在工具调用之后结束且没有结果，投影会在尾部插入一条合成的“已中断”结果，让请求保持协议有效。</p>
 <h2>压缩与窗口</h2>
-<p>压缩在用户边界切分。摘要消息出现在保留上下文的最前面。window 丢弃较早的条目，可以插入交接。只有最新的切点生效。优先使用压缩；摘要仍放不下时，window 是回退方案。</p>
+<p>压缩在 user 或 assistant 消息之前切分，工具调用与结果一起保留。摘要消息出现在保留上下文的最前面。window 丢弃较早的条目，可以插入交接。只有最新的切点生效。优先使用压缩；摘要仍放不下时，window 是回退方案。</p>
 <h2>格式权威</h2>
 <p>封闭格式定义在<a href="#page-session-schema">会话日志格式</a>。生成的<a href="#page-event-catalog">事件目录</a>列出代码中的当前事件类型。</p>
 
@@ -2705,7 +2705,7 @@ TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间
 <li><strong>没有派生内容。</strong> 没有替换用的消息列表，没有把渲染预览当历史，没有展示摘要。</li>
 <li><strong>决策也是事实。</strong> 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。</li>
 <li><strong>请求上下文是审计，不是历史。</strong> 动态上下文和请求信封放在 <code>request</code> 里；只有对话事件参与投影。</li>
-<li><strong>压缩切点是用户轮次。</strong> <code>first_kept_id</code> 必须指向压缩之前的 <code>user</code> 事件。工具调用和结果不能跨越切点。</li>
+<li><strong>压缩保留完整工具组。</strong> <code>first_kept_id</code> 必须指向压缩之前的 <code>user</code> 或 <code>assistant</code> 事件。工具调用和结果不能跨越切点。assistant 边界允许在同一个用户任务内压缩。</li>
 <li><strong>窗口起点是用户轮次。</strong> <code>start_id</code> 必须指向窗口之前的 <code>user</code> 事件。</li>
 <li><strong>最新 system 事件生效。</strong> 它最先投影，不会被压缩或窗口遮蔽。</li>
 </ol>
@@ -2924,13 +2924,13 @@ TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间
 <h2>压缩</h2>
 <p>完整投影超出输入预算时，<code>Compactor</code> 会运行。</p>
 <ol>
-<li>在用户边界选择切点，让最近的尾部落在配置目标之内。</li>
+<li>优先在可见的用户边界选择切点，让最近的尾部落在配置目标之内。没有合适的后续用户边界时，可以在当前任务内的 assistant 消息之前切分。工具调用与全部结果一起保留。</li>
 <li>序列化较早的消息，包括之前的摘要。</li>
 <li>请求 provider 生成摘要，输出长度有上限。</li>
 <li>追加一条 <code>compaction</code> 事实，包含摘要和 <code>first_kept_id</code>。</li>
 <li>重新投影。</li>
 </ol>
-<p>摘要失败或切点没有消息时，追加一条 <code>attempt</code> 事实，对话保持不变。之前的摘要以 <code>PRIOR SUMMARY</code> 加入，因此压缩可以迭代。</p>
+<p>摘要失败时，追加一条 <code>attempt</code> 事实，对话保持不变。没有可用切点时，直接返回，不调用 provider。之前的摘要以 <code>PRIOR SUMMARY</code> 加入，因此压缩可以迭代。</p>
 <h2>窗口回退</h2>
 <p>压缩仍放不下时，循环可以调用窗口钩子。CLI 从最新的用户记录开始一个窗口，附带指向 <code>NOTE.md</code> 和 history 的固定交接。请求仍然放不下时，运行以 <code>context_error</code> 终止。</p>
 <h2>历史</h2>
