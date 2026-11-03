@@ -8,7 +8,7 @@ from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 from cade.ai.events import FinalMessage, ProviderEvent, ProviderFailure, TextDelta
@@ -195,7 +195,11 @@ class ApplicationSession:
         if kind == "commands":
             return tuple(COMMANDS.items())
         if kind == "fork":
-            users = [entry for entry in self.log.entries() if entry.type == "user"]
+            users = [
+                entry
+                for entry in self.log.entries()
+                if entry.type == "user" and entry.data.get("source", "user") == "user"
+            ]
             return tuple(
                 (
                     item.id,
@@ -299,6 +303,7 @@ class ApplicationSession:
         return ()
 
     def _new(self) -> None:
+        self.goals.disarm()
         self.log = SessionLog.create(
             self.sessions_dir, project_root=self.workspace, deferred=True
         )
@@ -307,6 +312,7 @@ class ApplicationSession:
         self.last_usage = {}
 
     def _resume(self, session_id: str) -> None:
+        self.goals.disarm()
         if not session_id:
             sessions = list_sessions(self.sessions_dir)
             if not sessions:
@@ -320,7 +326,11 @@ class ApplicationSession:
         self.last_usage = {}
 
     def resolve_turn(self, argument: str) -> LogEntry | None:
-        users = [e for e in self.log.entries() if e.type == "user"]
+        users = [
+            e
+            for e in self.log.entries()
+            if e.type == "user" and e.data.get("source", "user") == "user"
+        ]
         if not argument:
             return users[-1] if users else None
         selected = next((entry for entry in users if entry.id == argument), None)
@@ -518,24 +528,27 @@ class ApplicationSession:
         approve: Callable[[ToolCallBlock], Awaitable[ApprovalResult]] | None = None,
         *,
         approver: Approver | None = None,
+        input_source: Literal["user", "goal"] = "user",
     ) -> RunResult:
         if self.running:
             raise RuntimeError("A task is already running")
-        if isinstance(self.provider, UnavailableProvider):
-            raise RuntimeError(self.provider.reason)  # noqa: TRY004 - authentication state
-        text = self.expand(text)
-        self.recovery.prepare_run(self.log)
         self.running = True
-        self.cancel = self.cancel or CancellationToken()
-
-        selected_approver = self._select_approver(approve, approver)
         runners = {
             tool.runner for tool in self.base_tools if isinstance(tool, DelegateTool)
         }
         previous_approvers = {runner: runner.approve for runner in runners}
-        for runner in runners:
-            runner.approve = selected_approver
+        result: RunResult | None = None
         try:
+            if isinstance(self.provider, UnavailableProvider):
+                raise RuntimeError(self.provider.reason)  # noqa: TRY004 - 认证状态错误。
+            text = self.expand(text) if input_source == "user" else text
+            self.recovery.prepare_run(self.log)
+            if self.policy.read_only or self.policy.mode == "plan":
+                self.goals.disarm()
+            self.cancel = self.cancel or CancellationToken()
+            selected_approver = self._select_approver(approve, approver)
+            for runner in runners:
+                runner.approve = selected_approver
 
             async def refresh_tools() -> Sequence[Tool]:
                 if self.mcp is not None:
@@ -553,6 +566,8 @@ class ApplicationSession:
                 context=self.context(),
                 lifecycle=self.recovery,
                 max_steps=self.max_steps,
+                input_source=input_source,
+                continuation=self._continue_goal,
                 compact=self.compactor,
                 window=self.window,
                 window_notice=_WINDOW_NOTICE,
@@ -567,10 +582,34 @@ class ApplicationSession:
             self.last_usage = result.usage or {}
             return result
         finally:
+            if result is None or result.termination != "completed":
+                self.goals.disarm()
             for runner, previous in previous_approvers.items():
                 runner.approve = previous
             self.cancel = None
             self.running = False
+
+    def goal_input(self) -> str | None:
+        """为已授权的活动目标构造下一轮输入，不改变持久状态。"""
+        goal = self.goals.runnable()
+        if goal is None or self.policy.read_only or self.policy.mode == "plan":
+            return None
+        return (
+            f"Continue the active goal: {goal.objective}\n\n"
+            "Inspect the current workspace, tool results, NOTE.md, and history. "
+            "Preserve the full objective and make concrete progress. Before calling "
+            "goal complete, verify every requirement against current evidence. "
+            "If work remains, keep the goal active. Report blocked only when the "
+            "same genuine blocker persists across at least three goal rounds and "
+            "no useful work remains; include the concrete reason. Do not pause, "
+            "clear, replace, or narrow the goal without human input."
+        )
+
+    def _continue_goal(self) -> UserMessage | None:
+        if self.pending:
+            return None
+        prompt = self.goal_input()
+        return UserMessage(text=prompt, source="goal") if prompt else None
 
     async def execute_tool(
         self,
@@ -769,6 +808,7 @@ class ApplicationSession:
                 raise RuntimeError(
                     "Wait for the active task to finish before navigating history."
                 )
+            self.goals.disarm()
             self.log.switch_branch(arg)
             if not any(e.type == "system" for e in self.log.branch()):
                 self.log.append("system", {"text": self.system_prompt})
@@ -807,6 +847,7 @@ class ApplicationSession:
                 copied = self.log.copy_branch(
                     self.sessions_dir, project_root=self.workspace, deferred=True
                 )
+            self.goals.disarm()
             self.log = copied
             if not any(e.type == "system" for e in self.log.branch()):
                 self.log.append("system", {"text": self.system_prompt})
@@ -903,16 +944,31 @@ class ApplicationSession:
         if command == "/goal":
             if not arg:
                 goal = self.goals.load()
-                return CommandResult(
-                    ("No goal" if goal is None else f"{goal.status}: {goal.objective}",)
-                )
+                if goal is None:
+                    return CommandResult(("No goal",))
+                lines = [f"{goal.status}: {goal.objective}"]
+                if goal.blocked_reason:
+                    lines.append(f"Blocked: {goal.blocked_reason}")
+                if goal.status == "active" and self.goals.runnable() is None:
+                    lines.append(
+                        "Automatic continuation is disarmed; use /goal resume."
+                    )
+                return CommandResult(tuple(lines))
             if arg == "clear":
                 self.goals.clear()
                 return CommandResult(("Goal cleared",))
             if arg == "done":
                 goal = self.goals.complete()
-            elif arg in {"pause", "resume"}:
-                return CommandResult((f"Goal {arg} is not supported.",))
+            elif arg == "pause":
+                goal = self.goals.pause()
+                if goal is not None and self.cancel is not None:
+                    self.cancel.cancel("goal paused by user")
+            elif arg == "resume":
+                if self.running:
+                    raise RuntimeError(
+                        "Wait for the active task to stop before resuming the goal."
+                    )
+                goal = self.goals.resume()
             else:
                 goal = self.goals.set(arg)
             return CommandResult(

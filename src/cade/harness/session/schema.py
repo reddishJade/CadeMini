@@ -40,7 +40,7 @@ class _System(_Payload):
 
 
 class _User(_System):
-    source: Literal["user", "runtime"] = "user"
+    source: Literal["user", "runtime", "goal"] = "user"
 
 
 class _ResponseMetrics(_Payload):

@@ -445,7 +445,7 @@ def _branch(entries: Sequence[LogEntry], entry_id: str | None = None) -> list[Lo
 def _is_conversation(entry: LogEntry) -> bool:
     return (
         entry.type == "user"
-        and entry.data.get("source", "user") == "user"
+        and entry.data.get("source", "user") in {"user", "goal"}
         and bool(str(entry.data.get("text", "")).strip())
     ) or (entry.type == "assistant" and bool(entry.data.get("blocks")))
 
@@ -485,7 +485,7 @@ def list_sessions(sessions_dir: Path) -> list[SessionInfo]:
             continue
         if not any(
             entry.type == "user"
-            and entry.data.get("source", "user") == "user"
+            and entry.data.get("source", "user") in {"user", "goal"}
             and str(entry.data.get("text", "")).strip()
             for entry in entries
         ):

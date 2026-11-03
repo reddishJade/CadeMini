@@ -20,11 +20,32 @@ def reset_window(
         entry
         for entry in entries
         if entry.type == "user"
-        and (not clear_history or entry.data.get("source", "user") == "user")
+        and (not clear_history or entry.data.get("source", "user") in {"user", "goal"})
     ]
     if not users:
         return False
-    start_id = users[-1].id
+    task = users[-1]
+    if clear_history and task.data.get("source") == "goal":
+        # 自动续跑消息不应覆盖原任务及此前的 steering。
+        last_input = next(i for i, entry in enumerate(entries) if entry.id == task.id)
+        previous_run = next(
+            (i for i in range(last_input - 1, -1, -1) if entries[i].type == "run"), -1
+        )
+        roots = [
+            entry
+            for entry in entries[previous_run + 1 : last_input + 1]
+            if entry.type == "user"
+            and entry.data.get("source", "user") in {"user", "goal"}
+        ]
+        task = next(
+            (
+                entry
+                for entry in reversed(roots)
+                if entry.data.get("source", "user") == "user"
+            ),
+            roots[0],
+        )
+    start_id = task.id
     if (
         entries
         and entries[-1].type == "window"
@@ -56,6 +77,7 @@ def reset_window(
             str(entry.data["text"])
             for entry in entries[task_index:]
             if entry.type == "user"
+            and (entry.data.get("source") != "goal" or entry.id == start_id)
         ]
         data["handoff"] = "\n\n".join(
             [

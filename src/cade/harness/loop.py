@@ -8,7 +8,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from functools import wraps
 from time import perf_counter
-from typing import Any, Concatenate, cast
+from typing import Any, Concatenate, Literal, cast
 
 from cade.ai.events import (
     FinalMessage,
@@ -48,6 +48,7 @@ from cade.harness.session.types import (
     JsonValue,
     ToolCallBlock,
     ToolResultMessage,
+    UserMessage,
 )
 from cade.harness.tools import Tool
 
@@ -89,6 +90,8 @@ async def run(
     options: StreamOptions | None = None,
     context: Sequence[str] = (),
     max_steps: int = 50,
+    input_source: Literal["user", "runtime", "goal"] = "user",
+    continuation: Callable[[], UserMessage | None] | None = None,
     tool_timeout_seconds: float = 120.0,
     max_provider_retries: int = 1,
     retry_delay_seconds: float = 0.5,
@@ -122,7 +125,7 @@ async def run(
     )
 
     _recover_tool_calls(log)
-    user = log.append("user", {"text": text, "source": "user"})
+    user = log.append("user", {"text": text, "source": input_source})
     lifecycle_context: tuple[str, ...] = ()
     if lifecycle is not None:
         lifecycle.started(log, user)
@@ -307,6 +310,22 @@ async def run(
             termination: Termination = (
                 "max_tokens" if result.stop_reason == "max_tokens" else "completed"
             )
+            if termination == "completed" and continuation is not None:
+                followup = continuation()
+                if followup is not None:
+                    if step == max_steps:
+                        return _finish(
+                            log,
+                            "step_limit",
+                            step,
+                            last_answer,
+                            _usage(total_usage, has_usage),
+                            "Continuation reached the model-step limit.",
+                        )
+                    log.append(
+                        "user", {"text": followup.text, "source": followup.source}
+                    )
+                    continue
             return _finish(
                 log,
                 termination,

@@ -65,7 +65,7 @@ class UserMessage(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     role: Literal["user"] = "user"
     text: str
-    source: Literal["user", "runtime"] = "user"
+    source: Literal["user", "runtime", "goal"] = "user"
 
 
 class SummaryMessage(BaseModel):
