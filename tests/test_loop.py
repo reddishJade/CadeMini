@@ -837,3 +837,58 @@ async def test_run_appends_steering_at_step_boundary(tmp_path: Path) -> None:
         "inspect the code",
         "focus on the parser",
     ]
+
+
+async def test_single_task_rolls_over_without_resubmission(tmp_path: Path) -> None:
+    log = _log(tmp_path)
+    provider = FakeProvider(
+        [_tool_response(f"c{i}", f"evidence {i} " * 2000) for i in range(6)]
+        + [_text_response("done")]
+    )
+    tool = EchoTool()
+    result = await run(
+        log,
+        "finish the backend and verify migrations",
+        provider=provider,
+        tools=(tool,),
+        budget=Budget(2000, output_reserve=0, headroom_tokens=0),
+        window=lambda log: reset_window(log, reason="fallback", clear_history=True),
+    )
+    assert result.termination == "completed"
+    assert len(tool.calls) == 6
+    assert len(provider.requests) == 7
+    entries = log.branch()
+    assert len([entry for entry in entries if entry.type == "window"]) == 6
+    assert len([entry for entry in entries if entry.type == "user"]) == 1
+    assert [
+        entry.data["content"] for entry in entries if entry.type == "tool_result"
+    ] == [f"evidence {i} " * 2000 for i in range(6)]
+    for messages, _, _ in provider.requests:
+        assert "finish the backend and verify migrations" in str(messages)
+    assert project(SessionLog.open(log.path).branch()) == project(entries)
+
+
+async def test_window_notice_is_audited_once_without_an_extra_model_call(
+    tmp_path: Path,
+) -> None:
+    log = _log(tmp_path)
+    log.append("user", {"text": "x" * 3200})
+    provider = FakeProvider(
+        [_tool_response("c1"), _tool_response("c2"), _text_response("done")]
+    )
+    notice = "Save NOTE.md before rollover."
+    result = await run(
+        log,
+        "continue",
+        provider=provider,
+        tools=(EchoTool(),),
+        budget=Budget(1000, output_reserve=0, headroom_tokens=0),
+        window=lambda log: reset_window(log, clear_history=True),
+        window_notice=notice,
+    )
+    assert result.termination == "completed"
+    assert len(provider.requests) == 3
+    assert sum(notice in str(messages) for messages, _, _ in provider.requests) == 1
+    audits = [entry for entry in log.branch() if entry.type == "request"]
+    assert sum(notice in entry.data["context"] for entry in audits) == 1
+    assert len([entry for entry in log.branch() if entry.type == "user"]) == 2
