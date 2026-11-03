@@ -123,7 +123,7 @@ modes, configuration, and permissions.
   handoff. Write that file first, or use `--force` to reset without it.
 - `/mode [MODE]` shows or switches the execution mode.
 - `/permissions [list|clear]` lists or clears session grants; without arguments it opens a picker.
-- `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
+- `/goal [TEXT|pause|resume|done|clear]` manages the goal and its automatic continuation.
 - `/context-window [SIZE|default]` shows or changes the current context window.
 - `/context` shows estimated context usage, source totals, remaining input space, and loaded
   file paths with token estimates, including instructions, skills, MCP schemas,

@@ -62,7 +62,10 @@ Before appending a new user fact, `run()` persists interrupted results for
 unfinished tool calls. It does not repeat tools whose outcome is unknown.
 It then calls the provider, appends assistant and tool-result facts, and executes
 tools. It is the only stage that writes during a turn. Compaction and window
-fallback are decisions expressed as new log facts.
+fallback are decisions expressed as new log facts. An optional continuation
+callback can provide another sourced input after a normal model reply, sharing
+the same step limit and usage totals. The application owns Goal policy; the
+harness does not import the goal store.
 
 ## Package boundaries
 

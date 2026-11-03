@@ -41,7 +41,9 @@ Snapshots are not part of the session branch.
 
 ## Goals and notes
 
-A goal is one objective with an active or done status. `NOTE.md` is working
+A goal has an active, done, paused, or blocked status. Its version and optional
+blocker are stored in `.cade/goal.json`; `.cade/goal.lock` serializes mutations.
+Automatic continuation authority is process-local and is not restored from disk. `NOTE.md` is working
 state that is included in every request and summarized during compaction.
 `MEMORY.md` is durable project knowledge. These files are intentionally plain:
 they can be edited by hand and inspected with ordinary tools.

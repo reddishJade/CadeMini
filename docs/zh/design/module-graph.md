@@ -298,7 +298,6 @@ flowchart LR
   hosts_auth --> app_auth
   hosts_cli --> app_bootstrap
   hosts_cli --> app_config
-  hosts_cli --> coding_goal
   hosts_cli --> coding_tools_question
   hosts_cli --> harness_events
   hosts_cli --> harness_provider

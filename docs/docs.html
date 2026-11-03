@@ -821,7 +821,7 @@ change. The TUI may replay terminal scrollback when activity folds.</li>
 handoff. Write that file first, or use <code>--force</code> to reset without it.</li>
 <li><code>/mode [MODE]</code> shows or switches the execution mode.</li>
 <li><code>/permissions [list|clear]</code> lists or clears session grants; without arguments it opens a picker.</li>
-<li><code>/goal [TEXT|done|clear]</code> shows, sets, completes, or clears the goal.</li>
+<li><code>/goal [TEXT|pause|resume|done|clear]</code> manages the goal and its automatic continuation.</li>
 <li><code>/context-window [SIZE|default]</code> shows or changes the current context window.</li>
 <li><code>/context</code> shows estimated context usage, source totals, remaining input space, and loaded
 file paths with token estimates, including instructions, skills, MCP schemas,
@@ -1134,7 +1134,10 @@ is rejected rather than silently truncated.</p>
 unfinished tool calls. It does not repeat tools whose outcome is unknown.
 It then calls the provider, appends assistant and tool-result facts, and executes
 tools. It is the only stage that writes during a turn. Compaction and window
-fallback are decisions expressed as new log facts.</p>
+fallback are decisions expressed as new log facts. An optional continuation
+callback can provide another sourced input after a normal model reply, sharing
+the same step limit and usage totals. The application owns Goal policy; the
+harness does not import the goal store.</p>
 <h2>Package boundaries</h2>
 <p>Cade has five runtime packages:</p>
 <ul>
@@ -2322,7 +2325,6 @@ and window fallback.</li>
   hosts_auth --&gt; app_auth
   hosts_cli --&gt; app_bootstrap
   hosts_cli --&gt; app_config
-  hosts_cli --&gt; coding_goal
   hosts_cli --&gt; coding_tools_question
   hosts_cli --&gt; harness_events
   hosts_cli --&gt; harness_provider
@@ -2437,7 +2439,7 @@ and window fallback.</li>
 </tr>
 <tr>
 <td><code>goal</code></td>
-<td><code>action</code>, <code>objective</code></td>
+<td><code>action</code>, <code>objective</code>, <code>reason</code>, <code>updated_at</code></td>
 <td>Updates <code>.cade/goal.json</code></td>
 <td>Allow</td>
 </tr>
@@ -2822,7 +2824,9 @@ atomically. Before/after records and content-addressed blobs remain immutable.
 See <a href="#page-snapshots-goals">Snapshots and goals</a> for conflict and legacy behavior.
 Snapshots are not part of the session branch.</p>
 <h2>Goals and notes</h2>
-<p>A goal is one objective with an active or done status. <code>NOTE.md</code> is working
+<p>A goal has an active, done, paused, or blocked status. Its version and optional
+blocker are stored in <code>.cade/goal.json</code>; <code>.cade/goal.lock</code> serializes mutations.
+Automatic continuation authority is process-local and is not restored from disk. <code>NOTE.md</code> is working
 state that is included in every request and summarized during compaction.
 <code>MEMORY.md</code> is durable project knowledge. These files are intentionally plain:
 they can be edited by hand and inspected with ordinary tools.</p>
@@ -3047,6 +3051,10 @@ fields are allowed but defaults are not written into the record. <code>user.sour
 defaults to <code>user</code>; assistant model/provider/usage/replay metadata and nullable
 artifact/handoff/usage/details fields may be absent. Cross-event call pairing
 and context-cut references are validated by projection.</p>
+<p>Automatic goal rounds use <code>user.source: &quot;goal&quot;</code>; host-attested steering uses
+<code>runtime</code>. Neither is a new human instruction or a new step allowance. Goal
+inputs make goal-only sessions durable and discoverable, but are excluded from
+human prompt pickers.</p>
 <h2>Event types</h2>
 <h3>Conversation events</h3>
 <p>These produce model-visible messages.</p>
@@ -3066,7 +3074,7 @@ and context-cut references are validated by projection.</p>
 </tr>
 <tr>
 <td><code>user</code></td>
-<td><code>{&quot;text&quot;: str, &quot;source&quot;: &quot;user&quot;|&quot;runtime&quot;}</code></td>
+<td><code>{&quot;text&quot;: str, &quot;source&quot;: &quot;user&quot;|&quot;runtime&quot;|&quot;goal&quot;}</code></td>
 <td>User message at its position</td>
 </tr>
 <tr>
@@ -3626,7 +3634,9 @@ mutations. <code>WorkspaceRecovery</code> coordinates checkpoint actions for CLI
 and TUI <code>/undo</code> and <code>/redo</code>. Snapshots are project state, not session facts.</p>
 <h2>Goals</h2>
 <p><code>GoalStore</code> persists one objective in <code>.cade/goal.json</code>. The <code>goal</code> tool and
-<code>/goal</code> command manage it. An active goal is request context.</p>
+<code>/goal</code> command manage it. An active goal is request context; the application
+continues it only while process-local authorization is armed. See
+<a href="#page-snapshots-goals">Goals</a> for lifecycle and budget behavior.</p>
 <h2>Hosts</h2>
 <p>The terminal host runs one-shot tasks and the TUI. It uses the same loop and
 policy as every other entry path.</p>
@@ -3853,22 +3863,42 @@ request receives an audited notice to inspect restored files rather than trust
 older tool effects. Settings, credentials, grants, and external services do not
 rewind with conversation history.</p>
 <h2>Goals</h2>
-<p>A goal is one durable objective stored in <code>.cade/goal.json</code>. It has an
-objective, a status (<code>active</code> or <code>done</code>), and an update time.</p>
-<pre><code class="language-bash">cade --goal &quot;Add a regression test for the parser&quot; &quot;Start the task.&quot;
+<p>A goal is one durable objective in <code>.cade/goal.json</code>, with status <code>active</code>,
+<code>done</code>, <code>paused</code>, or <code>blocked</code>, an update time, and an optional blocker reason.
+Mutations use <code>.cade/goal.lock</code>; completion and blocking check the version
+returned by <code>goal get</code> so stale model calls cannot update a changed objective.</p>
+<pre><code class="language-bash">cade --goal &quot;Implement the backend and verify every requirement&quot; --max-steps 100 &quot;Start the task.&quot;
 </code></pre>
 <p>In the TUI:</p>
 <ul>
-<li><code>/goal</code> shows the current goal.</li>
-<li><code>/goal TEXT</code> sets an active goal.</li>
-<li><code>/goal done</code> marks it complete.</li>
-<li><code>/goal clear</code> removes it.</li>
+<li><code>/goal</code> shows the objective, blocker, and whether continuation is disarmed.</li>
+<li><code>/goal TEXT</code> sets and arms a goal.</li>
+<li><code>/goal pause</code> persists a pause and cancels active work.</li>
+<li><code>/goal resume</code> rearms an unfinished goal; the TUI schedules it when idle.</li>
+<li><code>/goal done</code> marks completion; <code>/goal clear</code> removes the goal.</li>
 </ul>
-<p>The <code>goal</code> tool provides the same actions to the model. An active goal is added
-to request context so a resumed or compacted session still knows the objective.
-Goals are host state; they do not change the session schema.</p>
-<p>Goals are intentionally small. Use <code>NOTE.md</code> for working details and <code>MEMORY.md</code>
-for facts that outlive the objective.</p>
+<p>The application and model tool share one store. Normal model replies continue
+an armed active goal through the existing loop. Queued human input takes
+priority. All automatic rounds in one run share <code>--max-steps</code> and usage
+accounting; a final reply does not reset the allowance. Cancellation, errors,
+max tokens, or the step limit disarm continuation. Read-only and Plan sessions
+do not automatically continue goals whose completion tool their policy denies.</p>
+<p>Activation is process-local and tied to the current goal version. Loading a
+saved goal or changing conversation history does not authorize automatic work;
+use <code>/goal resume</code>. A resumed run receives a new step allowance. There is no
+persistent goal-wide token, time, or cost budget.</p>
+<p>Automatic inputs are logged as <code>user</code> events with <code>source: &quot;goal&quot;</code>. They keep
+the objective in the same session but are excluded from human prompt pickers.
+The original task and steering survive rollover without duplicating every
+automatic reminder in the handoff. Active objectives remain request context.</p>
+<p>The model is instructed to verify every requirement against current artifacts
+and tool results before completion. <code>goal complete</code> and <code>goal block</code> require the
+<code>updated_at</code> returned by <code>get</code>; <code>block</code> also requires a concrete <code>reason</code>.
+Automatic goal rounds cannot set, clear, pause, or resume the goal. These are
+control and version checks, not an independent evaluator: completion evidence
+and whether a blocker persisted across three rounds remain model judgments.
+The shared step limit bounds unproductive continuation.</p>
+<p>Use <code>NOTE.md</code> for working details and <code>MEMORY.md</code> for durable project facts.</p>
 
 </section>
 <section class="page" id="page-skills-memory" data-title="Skills and memory">

@@ -32,6 +32,11 @@ defaults to `user`; assistant model/provider/usage/replay metadata and nullable
 artifact/handoff/usage/details fields may be absent. Cross-event call pairing
 and context-cut references are validated by projection.
 
+Automatic goal rounds use `user.source: "goal"`; host-attested steering uses
+`runtime`. Neither is a new human instruction or a new step allowance. Goal
+inputs make goal-only sessions durable and discoverable, but are excluded from
+human prompt pickers.
+
 ## Event types
 
 ### Conversation events
@@ -41,7 +46,7 @@ These produce model-visible messages.
 | Type | Payload | Projection |
 | --- | --- | --- |
 | `system` | `{"text": str}` | Latest one is emitted first; never shadowed |
-| `user` | `{"text": str, "source": "user"\|"runtime"}` | User message at its position |
+| `user` | `{"text": str, "source": "user"\|"runtime"\|"goal"}` | User message at its position |
 | `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null, "reasoning": str\|null, "response_metrics": object\|null}` | Assistant message; empty blocks are skipped |
 | `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | Tool message; paired with its call |
 | `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | Emits a summary message, then the tail from `first_kept_id` |

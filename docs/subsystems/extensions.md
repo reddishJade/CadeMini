@@ -41,7 +41,9 @@ and TUI `/undo` and `/redo`. Snapshots are project state, not session facts.
 ## Goals
 
 `GoalStore` persists one objective in `.cade/goal.json`. The `goal` tool and
-`/goal` command manage it. An active goal is request context.
+`/goal` command manage it. An active goal is request context; the application
+continues it only while process-local authorization is armed. See
+[Goals](../snapshots-goals.md#goals) for lifecycle and budget behavior.
 
 ## Hosts
 
