@@ -89,13 +89,13 @@ def test_goal_activation_does_not_survive_restart_or_external_edits(
     assert reopened.runnable() is None
 
 
-def test_goal_tools_reject_automatic_control_and_stale_completion(
+def test_goal_tools_reject_automatic_pause_resume_and_stale_completion(
     tmp_path: Path,
 ) -> None:
     store = GoalStore(tmp_path)
     old = store.set("full objective")
     tool = GoalTool(tmp_path, store=store, allow_control=lambda: False)
-    for action in ("set", "clear", "pause", "resume"):
+    for action in ("pause", "resume"):
         result = asyncio.run(tool.execute(_call(action, "smaller objective")))
         assert result.is_error
         assert store.load() == old
@@ -108,3 +108,22 @@ def test_goal_tools_reject_automatic_control_and_stale_completion(
     )
     assert not completed.is_error
     assert store.load().status == "done"
+
+
+def test_goal_tools_can_create_update_and_clear_in_automatic_rounds(
+    tmp_path: Path,
+) -> None:
+    store = GoalStore(tmp_path)
+    tool = GoalTool(tmp_path, store=store, allow_control=lambda: False)
+    created = asyncio.run(tool.execute(_call("set", "implement backend")))
+    assert not created.is_error
+    assert store.runnable().objective == "implement backend"
+    updated = asyncio.run(
+        tool.execute(_call("set", "implement backend and verify migrations"))
+    )
+    assert not updated.is_error
+    assert store.runnable().objective == "implement backend and verify migrations"
+    cleared = asyncio.run(tool.execute(_call("clear")))
+    assert not cleared.is_error
+    assert store.load() is None
+    assert store.runnable() is None

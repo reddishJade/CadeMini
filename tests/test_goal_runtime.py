@@ -433,3 +433,133 @@ def test_pause_command_cancels_the_running_goal(tmp_path: Path) -> None:
             assert len(provider.requests) == 1
 
         asyncio.run(scenario())
+
+
+def test_automatic_goal_round_can_create_update_and_delete_goals(
+    tmp_path: Path,
+) -> None:
+    provider = Provider()
+    with ExitStack() as resources:
+        session = create_session(
+            tmp_path,
+            CadeConfig(sandbox="danger-full-access"),
+            resources=resources,
+            provider=provider,
+            goal="finish backend",
+        ).session
+        provider.batches = [
+            _text("first part remains"),
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall("clear-old", "goal", {"action": "clear"}),
+                        ToolCall(
+                            "create",
+                            "goal",
+                            {"action": "set", "objective": "draft backend goal"},
+                        ),
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("goal needs refinement"),
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            "update",
+                            "goal",
+                            {
+                                "action": "set",
+                                "objective": "full backend verification",
+                            },
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("ready to verify work"),
+            [
+                ToolCallEvent([ToolCall("clear-final", "goal", {"action": "clear"})]),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("work verified"),
+        ]
+        result = asyncio.run(
+            session.run_task("finish and verify the backend", lambda _: None)
+        )
+        assert result.termination == "completed"
+        assert result.steps == 7
+        assert len(provider.requests) == 7
+        assert session.goals.load() is None
+        assert session.goal_input() is None
+        entries = session.log.branch()
+        outcomes = [entry for entry in entries if entry.type == "tool_result"]
+        assert len(outcomes) == 4
+        assert all(entry.data["status"] == "ok" for entry in outcomes)
+        assert [entry.data["source"] for entry in entries if entry.type == "user"] == [
+            "user",
+            "goal",
+            "goal",
+            "goal",
+        ]
+        assert "draft backend goal" in str(provider.requests[2])
+        assert "full backend verification" in str(provider.requests[4])
+        assert not any(
+            "<goal>" in str(message.get("content", ""))
+            for message in provider.requests[6]
+            if message["role"] == "system"
+        )
+        assert len([entry for entry in entries if entry.type == "run"]) == 1
+
+
+def test_model_goal_updates_do_not_reset_the_run_step_limit(tmp_path: Path) -> None:
+    provider = Provider()
+    with ExitStack() as resources:
+        session = create_session(
+            tmp_path,
+            CadeConfig(max_steps=5, sandbox="danger-full-access"),
+            resources=resources,
+            provider=provider,
+            goal="finish backend",
+        ).session
+        provider.batches = [
+            _text("work remains"),
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            "update-1",
+                            "goal",
+                            {"action": "set", "objective": "backend checkpoint one"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("more verification remains"),
+            [
+                ToolCallEvent(
+                    [
+                        ToolCall(
+                            "update-2",
+                            "goal",
+                            {"action": "set", "objective": "backend checkpoint two"},
+                        )
+                    ]
+                ),
+                FinalMessage("", "tool_use"),
+            ],
+            _text("still working"),
+        ]
+        result = asyncio.run(session.run_task("finish backend", lambda _: None))
+        assert result.termination == "step_limit"
+        assert result.steps == 5
+        assert len(provider.requests) == 5
+        assert session.goals.load().objective == "backend checkpoint two"
+        assert session.goals.runnable() is None
+        assert all(
+            entry.data["status"] == "ok"
+            for entry in session.log.branch()
+            if entry.type == "tool_result"
+        )
