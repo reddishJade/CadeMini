@@ -308,7 +308,7 @@ COMMAND_CASES = [
     ("/rewind", "picker"),
     ("/revert", "picker"),
     ("/tree", "picker"),
-    ("/compact", "Nothing to compact"),
+    ("/compact", "Compacted"),
     ("/rollover --force", "Context reset"),
     ("/new-context --force", "Context reset"),
     ("/model openai/gpt-5.5", "Model:"),
@@ -464,6 +464,21 @@ def test_each_slash_command(
         if name in {"/rollover", "/new-context"}:
             assert any(
                 e.type == "window" for e in SessionLog.open(original_path).branch()
+            )
+        if name == "/compact":
+            entries = SessionLog.open(original_path).branch()
+            compaction = next(entry for entry in entries if entry.type == "compaction")
+            assert (
+                next(
+                    entry
+                    for entry in entries
+                    if entry.id == compaction.data["first_kept_id"]
+                ).type
+                == "assistant"
+            )
+            assert any(
+                entry.type == "user" and entry.data["text"] == "first task"
+                for entry in entries
             )
         if name == "/goal":
             assert term.service.goals.load().objective == "E2E objective"

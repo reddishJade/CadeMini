@@ -61,8 +61,8 @@ request remains protocol-valid.
 
 ## Compaction and windows
 
-A compaction cuts at a user boundary. Its summary message appears first in the
-retained context. A window discards earlier entries and may insert a handoff.
+A compaction cuts before a user or assistant message, keeping tool calls with
+their results. Its summary message appears first in the retained context. A window discards earlier entries and may insert a handoff.
 Only the latest cut applies. Compaction is preferred; a window is a fallback
 when a summary cannot fit.
 

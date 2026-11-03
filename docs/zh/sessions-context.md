@@ -42,7 +42,7 @@ cade --resume SESSION_ID "Explain the current state."
 
 完整对话超出输入预算时，`Compactor` 会：
 
-1. 在可见的用户边界选择切点。
+1. 优先在可见的用户边界选择切点；长任务也可以在 assistant 消息之前切分，工具调用与结果一起保留。
 2. 把较早的消息发给 provider 生成摘要。
 3. 追加一条 `compaction` 事实，包含摘要和 `first_kept_id`。
 4. 把对话重新投影为最新 system、摘要和保留的尾部。

@@ -128,8 +128,9 @@ The tool owns the attachment data for the lifetime of the session log.
    messages they produce are recomputed.
 4. **Request context is audited, not history.** Dynamic context and the request
    envelope live in `request`; only conversation events project.
-5. **A compaction cut is a user turn.** `first_kept_id` must name a `user` event
-   before the compaction. A tool call and its result never cross the cut.
+5. **A compaction cut preserves tool groups.** `first_kept_id` must name a `user`
+   or `assistant` event before the compaction. A tool call and its results never
+   cross the cut. An assistant boundary allows compaction within one user task.
 6. **A window names its task anchor.** `start_id` must name a `user` event before
    the window. Optional `clear_history` defaults to false. When true, retained
    execution starts after the window event; the handoff carries the current

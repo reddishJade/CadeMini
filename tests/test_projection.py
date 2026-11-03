@@ -237,7 +237,7 @@ def test_compaction_emits_summary_and_retained_tail() -> None:
     assert messages[2] == UserMessage(text="new")
 
 
-def test_compaction_cut_must_be_a_user_event() -> None:
+def test_compaction_can_keep_an_assistant_boundary() -> None:
     entries = [
         _user("e1", None, "old"),
         _assistant("e2", "e1", [_text("answer")]),
@@ -245,7 +245,32 @@ def test_compaction_cut_must_be_a_user_event() -> None:
         _compaction("e4", "e3", "summary", "e2"),
     ]
 
+    messages = project(entries)
+    assert [message.role for message in messages] == ["summary", "assistant", "user"]
+
+
+@pytest.mark.parametrize("cut", ["e1", "e4"])
+def test_compaction_rejects_non_boundary_events(cut: str) -> None:
+    entries = [
+        _system("e1", None, "sys"),
+        _user("e2", "e1", "task"),
+        _assistant("e3", "e2", [_call("c1")]),
+        _result("e4", "e3", "c1"),
+        _compaction("e5", "e4", "summary", cut),
+    ]
     with pytest.raises(ProjectionError):
+        project(entries)
+
+
+def test_compaction_rejects_a_call_split_from_its_result() -> None:
+    entries = [
+        _user("e1", None, "task"),
+        _assistant("e2", "e1", [_call("c1")]),
+        _assistant("e3", "e2", [_text("next")]),
+        _result("e4", "e3", "c1"),
+        _compaction("e5", "e4", "summary", "e3"),
+    ]
+    with pytest.raises(ProjectionError, match="orphan tool result"):
         project(entries)
 
 

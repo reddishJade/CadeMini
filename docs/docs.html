@@ -1285,7 +1285,8 @@ only. File coverage, conflicts, and interrupted transactions are described in
 <h2>Compaction</h2>
 <p>When the full conversation exceeds the input budget, <code>Compactor</code>:</p>
 <ol>
-<li>Selects a cut at a visible user boundary.</li>
+<li>Prefers a visible user boundary, or cuts before an assistant message within
+a long task while keeping tool calls with their results.</li>
 <li>Sends the older messages to the provider for a summary.</li>
 <li>Appends a <code>compaction</code> fact with the summary and <code>first_kept_id</code>.</li>
 <li>Reprojects the conversation as the latest system, summary, and retained tail.</li>
@@ -1672,8 +1673,8 @@ result or a duplicate result. If the branch ends after a tool call without a
 result, projection inserts a synthetic interrupted result at the tail so the
 request remains protocol-valid.</p>
 <h2>Compaction and windows</h2>
-<p>A compaction cuts at a user boundary. Its summary message appears first in the
-retained context. A window discards earlier entries and may insert a handoff.
+<p>A compaction cuts before a user or assistant message, keeping tool calls with
+their results. Its summary message appears first in the retained context. A window discards earlier entries and may insert a handoff.
 Only the latest cut applies. Compaction is preferred; a window is a fallback
 when a summary cannot fit.</p>
 <h2>Schema authority</h2>
@@ -3202,8 +3203,9 @@ as history, no display summary.</li>
 messages they produce are recomputed.</li>
 <li><strong>Request context is audited, not history.</strong> Dynamic context and the request
 envelope live in <code>request</code>; only conversation events project.</li>
-<li><strong>A compaction cut is a user turn.</strong> <code>first_kept_id</code> must name a <code>user</code> event
-before the compaction. A tool call and its result never cross the cut.</li>
+<li><strong>A compaction cut preserves tool groups.</strong> <code>first_kept_id</code> must name a <code>user</code>
+or <code>assistant</code> event before the compaction. A tool call and its results never
+cross the cut. An assistant boundary allows compaction within one user task.</li>
 <li><strong>A window names its task anchor.</strong> <code>start_id</code> must name a <code>user</code> event before
 the window. Optional <code>clear_history</code> defaults to false. When true, retained
 execution starts after the window event; the handoff carries the current
@@ -3570,15 +3572,16 @@ normal model calls do not issue an additional pre-count request.</p>
 <h2>Compaction</h2>
 <p><code>Compactor</code> runs when the full projection exceeds the input budget.</p>
 <ol>
-<li>Select the cut at a user boundary that keeps the recent tail under the
-configured target.</li>
+<li>Prefer a visible user boundary that keeps the recent tail under the
+configured target. If no later user boundary fits, cut before an assistant
+message within the current task. Keep each tool call with all its results.</li>
 <li>Serialize older messages, including a prior summary.</li>
 <li>Ask the provider for a summary with a bounded output.</li>
 <li>Append a <code>compaction</code> fact with summary and <code>first_kept_id</code>.</li>
 <li>Reproject.</li>
 </ol>
-<p>A summary failure or a cut with no messages appends an <code>attempt</code> fact and leaves
-the conversation unchanged. A prior summary is included as <code>PRIOR SUMMARY</code>, so
+<p>A summary failure appends an <code>attempt</code> fact and leaves the conversation unchanged.
+If there is no usable cut, compaction returns without calling the provider. A prior summary is included as <code>PRIOR SUMMARY</code>, so
 compaction is iterative.</p>
 <h2>Window fallback</h2>
 <p>If compaction cannot fit, the loop may call the window hook. The CLI starts a
