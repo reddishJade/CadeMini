@@ -43,7 +43,7 @@ Responses 适配器将其发送为函数输出中的 `input_image`。
 | `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null, "reasoning": str\|null, "response_metrics": object\|null}` | 助手消息；空 blocks 被跳过 |
 | `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | 工具消息；与对应调用配对 |
 | `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | 先输出摘要消息，再从 `first_kept_id` 输出尾部 |
-| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null}` | 从 `start_id` 开始投影；可选交接摘要 |
+| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null, "clear_history": bool}` | 从 `start_id` 开始投影；可选交接摘要 |
 
 block 是以下之一：
 
@@ -98,7 +98,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 3. **决策也是事实。** 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。
 4. **请求上下文是审计，不是历史。** 动态上下文和请求信封放在 `request` 里；只有对话事件参与投影。
 5. **压缩切点是用户轮次。** `first_kept_id` 必须指向压缩之前的 `user` 事件。工具调用和结果不能跨越切点。
-6. **窗口起点是用户轮次。** `start_id` 必须指向窗口之前的 `user` 事件。
+6. **窗口记录任务锚点。** `start_id` 必须指向窗口之前的 `user` 事件。可选字段 `clear_history` 默认为 false。设置为 true 时，执行历史从窗口事件之后开始，交接保存当前任务和 steering；否则从 `start_id` 开始。
 7. **最新 system 事件生效。** 它最先投影，不会被压缩或窗口遮蔽。
 
 ## 分支导航
@@ -122,7 +122,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 `project(branch) -> list[Message]` 是纯函数，结果确定。
 
 1. 找到最新的 `system` 事件，最先输出。
-2. 找到最新的 `window`。存在时，从它的 `start_id` 开始，并保留非空 `handoff` 作为摘要消息。
+2. 找到最新的 `window`。存在时，保留非空 `handoff` 作为摘要消息。`clear_history: true` 时从窗口事件之后开始，否则从 `start_id` 开始。
 3. 找到窗口起点处或之后最新的 `compaction`。存在时，输出摘要，并从 `first_kept_id` 开始输出尾部。
 4. 按顺序遍历保留的条目。输出 `user`、`assistant` 和 `tool_result` 消息。跳过 `system`、`meta`、`window`、`compaction`、`request`、`run`、`attempt`、`branch`、`checkpoint`、`restore` 和 `tool_execution`。
 5. 按调用 ID 配对工具调用和结果。

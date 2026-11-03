@@ -658,7 +658,9 @@ cade --resume SESSION_ID "Explain the current state."
 
 ## 上下文窗口
 
-`window` 事实在某个用户条目处开启新上下文，可以附带交接。TUI 可以用 `/new-context` 显式开启。如果压缩仍无法把请求带入预算，循环可以追加自动 window，附带指向 `NOTE.md` 和 history 工具的固定交接。
+`window` 默认从某个用户条目开始投影。设置 `clear_history: true` 后，窗口事件及之前的执行历史退出投影，交接保留当前人工任务和后续 steering。原始条目仍可通过 `history` 检索。
+
+`/rollover`（别名 `/new-context`）使用这种重置，并附上 `NOTE.md`；没有笔记时须显式使用 `--force`。自动回退使用相同的重置，交接指向 NOTE 和 history。接近预算时，只要还有空间，请求会提醒模型更新 NOTE。下一次请求重新加载已启用的笔记和目标上下文。指令或固定上下文本身过大时，仍会返回 `context_error`。
 
 ## History 工具
 
@@ -1348,6 +1350,8 @@ flowchart LR
   harness_tools --> harness_cancellation
   harness_tools --> harness_session_types
   harness_window --> harness_session_log
+  harness_window --> harness_session_projection
+  harness_window --> harness_session_types
   hosts_auth --> ai_auth
   hosts_auth --> app_auth
   hosts_cli --> app_bootstrap
@@ -1800,7 +1804,7 @@ Responses 适配器将其发送为函数输出中的 `input_image`。
 | `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null, "reasoning": str\|null, "response_metrics": object\|null}` | 助手消息；空 blocks 被跳过 |
 | `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | 工具消息；与对应调用配对 |
 | `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | 先输出摘要消息，再从 `first_kept_id` 输出尾部 |
-| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null}` | 从 `start_id` 开始投影；可选交接摘要 |
+| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null, "clear_history": bool}` | 从 `start_id` 开始投影；可选交接摘要 |
 
 block 是以下之一：
 
@@ -1855,7 +1859,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 3. **决策也是事实。** 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。
 4. **请求上下文是审计，不是历史。** 动态上下文和请求信封放在 `request` 里；只有对话事件参与投影。
 5. **压缩切点是用户轮次。** `first_kept_id` 必须指向压缩之前的 `user` 事件。工具调用和结果不能跨越切点。
-6. **窗口起点是用户轮次。** `start_id` 必须指向窗口之前的 `user` 事件。
+6. **窗口记录任务锚点。** `start_id` 必须指向窗口之前的 `user` 事件。可选字段 `clear_history` 默认为 false。设置为 true 时，执行历史从窗口事件之后开始，交接保存当前任务和 steering；否则从 `start_id` 开始。
 7. **最新 system 事件生效。** 它最先投影，不会被压缩或窗口遮蔽。
 
 ## 分支导航
@@ -1879,7 +1883,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 `project(branch) -> list[Message]` 是纯函数，结果确定。
 
 1. 找到最新的 `system` 事件，最先输出。
-2. 找到最新的 `window`。存在时，从它的 `start_id` 开始，并保留非空 `handoff` 作为摘要消息。
+2. 找到最新的 `window`。存在时，保留非空 `handoff` 作为摘要消息。`clear_history: true` 时从窗口事件之后开始，否则从 `start_id` 开始。
 3. 找到窗口起点处或之后最新的 `compaction`。存在时，输出摘要，并从 `first_kept_id` 开始输出尾部。
 4. 按顺序遍历保留的条目。输出 `user`、`assistant` 和 `tool_result` 消息。跳过 `system`、`meta`、`window`、`compaction`、`request`、`run`、`attempt`、`branch`、`checkpoint`、`restore` 和 `tool_execution`。
 5. 按调用 ID 配对工具调用和结果。
@@ -2163,7 +2167,7 @@ Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端�
 
 ## 窗口回退
 
-压缩仍放不下时，循环可以调用窗口钩子。CLI 从最新的用户记录开始一个窗口，附带指向 `NOTE.md` 和 history 的固定交接。请求仍然放不下时，运行以 `context_error` 终止。
+压缩仍放不下时，循环可以调用窗口钩子。CLI 在完整工具批次之后追加 `clear_history: true` 的窗口。交接保留最近的人工任务及后续 steering，并指向 `NOTE.md` 和 history。窗口事件之前的执行消息不再进入投影。输入用量接近预算的 80% 时，应用请求可以提醒模型更新 `NOTE.md`；每个窗口只提醒一次，且提醒本身必须能放入预算。提醒写入请求审计，不增加模型调用。大型结果可能直接越过提醒阈值；换窗不保证笔记已经更新。请求仍然放不下时，运行以 `context_error` 终止。
 
 ## 历史
 

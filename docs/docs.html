@@ -1297,10 +1297,15 @@ still exceeds the budget after these steps, the loop returns <code>context_error
 without sending it to the provider. Use the <code>history</code> tool to retrieve evidence
 outside the current context.</p>
 <h2>Windows</h2>
-<p>A <code>window</code> fact starts a new context at a user entry and may include a handoff.
-The TUI can start one explicitly with <code>/new-context</code>. If compaction cannot bring
-a request under budget, the loop can append an automatic window with a fixed
-handoff that points to <code>NOTE.md</code> and the history tool.</p>
+<p>A <code>window</code> fact normally starts context at a user entry. With <code>clear_history: true</code>, it instead discards execution history through the window event and
+retains the current human task and steering in its handoff. Raw entries remain
+available through <code>history</code>.</p>
+<p><code>/rollover</code> (alias <code>/new-context</code>) uses this reset and includes <code>NOTE.md</code>; it
+requires an existing note unless <code>--force</code> is supplied. Automatic fallback uses
+the same reset with a handoff pointing to NOTE and history. A near-budget
+request reminds the model to update NOTE when there is room. The next request
+reloads enabled note and goal context. Oversized instructions or fixed context
+can still produce <code>context_error</code>.</p>
 <h2>History tool</h2>
 <p><code>history</code> accepts one of:</p>
 <ul>
@@ -2311,6 +2316,8 @@ and window fallback.</li>
   harness_tools --&gt; harness_cancellation
   harness_tools --&gt; harness_session_types
   harness_window --&gt; harness_session_log
+  harness_window --&gt; harness_session_projection
+  harness_window --&gt; harness_session_types
   hosts_auth --&gt; ai_auth
   hosts_auth --&gt; app_auth
   hosts_cli --&gt; app_bootstrap
@@ -3079,7 +3086,7 @@ and context-cut references are validated by projection.</p>
 </tr>
 <tr>
 <td><code>window</code></td>
-<td><code>{&quot;start_id&quot;: str, &quot;reason&quot;: &quot;manual&quot;|&quot;fallback&quot;, &quot;handoff&quot;: str|null}</code></td>
+<td><code>{&quot;start_id&quot;: str, &quot;reason&quot;: &quot;manual&quot;|&quot;fallback&quot;, &quot;handoff&quot;: str|null, &quot;clear_history&quot;: bool}</code></td>
 <td>Starts the projection at <code>start_id</code>; optional handoff summary</td>
 </tr>
 </tbody>
@@ -3189,8 +3196,10 @@ messages they produce are recomputed.</li>
 envelope live in <code>request</code>; only conversation events project.</li>
 <li><strong>A compaction cut is a user turn.</strong> <code>first_kept_id</code> must name a <code>user</code> event
 before the compaction. A tool call and its result never cross the cut.</li>
-<li><strong>A window start is a user turn.</strong> <code>start_id</code> must name a <code>user</code> event before
-the window.</li>
+<li><strong>A window names its task anchor.</strong> <code>start_id</code> must name a <code>user</code> event before
+the window. Optional <code>clear_history</code> defaults to false. When true, retained
+execution starts after the window event; the handoff carries the current
+task and steering. Otherwise, execution starts at <code>start_id</code>.</li>
 <li><strong>The latest system event wins.</strong> It is projected first and is not shadowed by
 compaction or a window.</li>
 </ol>
@@ -3231,8 +3240,8 @@ recovery and block new writes. See <a href="#page-snapshots-goals">Checkpoint re
 <p><code>project(branch) -&gt; list[Message]</code> is pure and deterministic.</p>
 <ol>
 <li>Find the latest <code>system</code> event. Emit it first.</li>
-<li>Find the latest <code>window</code>. If present, start at its <code>start_id</code> and keep its
-non-empty <code>handoff</code> for a summary message.</li>
+<li>Find the latest <code>window</code>. Keep its non-empty <code>handoff</code> as a summary. With
+<code>clear_history: true</code>, start after the window event; otherwise use <code>start_id</code>.</li>
 <li>Find the latest <code>compaction</code> at or after the window start. If present, emit
 its summary and start the tail at <code>first_kept_id</code>.</li>
 <li>Walk the retained entries in order. Emit <code>user</code>, <code>assistant</code>, and
@@ -3565,8 +3574,13 @@ the conversation unchanged. A prior summary is included as <code>PRIOR SUMMARY</
 compaction is iterative.</p>
 <h2>Window fallback</h2>
 <p>If compaction cannot fit, the loop may call the window hook. The CLI starts a
-window at the latest user entry with a fixed handoff that points to <code>NOTE.md</code>
-and history. If the request still does not fit, the run terminates with
+window with <code>clear_history: true</code> after the completed tool batch. The handoff
+retains the latest human task and subsequent steering, and points to <code>NOTE.md</code>
+and history. Execution messages before the window event leave the projection.
+Near 80% of the input budget, an application request can carry a reminder to
+update <code>NOTE.md</code>, once per window and only if the reminder fits. This reminder
+is request context recorded in the audit, not an extra model call. A large
+result can jump past the reminder; rollover does not certify that the note is current. If the request still does not fit, the run terminates with
 <code>context_error</code>.</p>
 <h2>History</h2>
 <p>The <code>history</code> tool searches the branch or reads an exact entry or tool result.
