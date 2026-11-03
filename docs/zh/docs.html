@@ -1029,7 +1029,8 @@ cade --resume SESSION_ID &quot;Explain the current state.&quot;
 <h2>请求准入</h2>
 <p>请求构造保留整个投影，包括工具输出。只有记录在案的 compaction 和 window 事件会缩减可见历史。如果这些步骤之后请求仍超出预算，循环返回 <code>context_error</code>，不发给 provider。用 <code>history</code> 工具检索当前上下文之外的证据。</p>
 <h2>上下文窗口</h2>
-<p><code>window</code> 事实在某个用户条目处开启新上下文，可以附带交接。TUI 可以用 <code>/new-context</code> 显式开启。如果压缩仍无法把请求带入预算，循环可以追加自动 window，附带指向 <code>NOTE.md</code> 和 history 工具的固定交接。</p>
+<p><code>window</code> 默认从某个用户条目开始投影。设置 <code>clear_history: true</code> 后，窗口事件及之前的执行历史退出投影，交接保留当前人工任务和后续 steering。原始条目仍可通过 <code>history</code> 检索。</p>
+<p><code>/rollover</code>（别名 <code>/new-context</code>）使用这种重置，并附上 <code>NOTE.md</code>；没有笔记时须显式使用 <code>--force</code>。自动回退使用相同的重置，交接指向 NOTE 和 history。接近预算时，只要还有空间，请求会提醒模型更新 NOTE。下一次请求重新加载已启用的笔记和目标上下文。指令或固定上下文本身过大时，仍会返回 <code>context_error</code>。</p>
 <h2>History 工具</h2>
 <p><code>history</code> 接受以下参数之一：</p>
 <ul>
@@ -1936,6 +1937,8 @@ uv run --locked cade login
   harness_tools --&gt; harness_cancellation
   harness_tools --&gt; harness_session_types
   harness_window --&gt; harness_session_log
+  harness_window --&gt; harness_session_projection
+  harness_window --&gt; harness_session_types
   hosts_auth --&gt; ai_auth
   hosts_auth --&gt; app_auth
   hosts_cli --&gt; app_bootstrap
@@ -2620,7 +2623,7 @@ Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
 </tr>
 <tr>
 <td><code>window</code></td>
-<td><code>{&quot;start_id&quot;: str, &quot;reason&quot;: &quot;manual&quot;|&quot;fallback&quot;, &quot;handoff&quot;: str|null}</code></td>
+<td><code>{&quot;start_id&quot;: str, &quot;reason&quot;: &quot;manual&quot;|&quot;fallback&quot;, &quot;handoff&quot;: str|null, &quot;clear_history&quot;: bool}</code></td>
 <td>从 <code>start_id</code> 开始投影；可选交接摘要</td>
 </tr>
 </tbody>
@@ -2706,7 +2709,7 @@ TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间
 <li><strong>决策也是事实。</strong> 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。</li>
 <li><strong>请求上下文是审计，不是历史。</strong> 动态上下文和请求信封放在 <code>request</code> 里；只有对话事件参与投影。</li>
 <li><strong>压缩切点是用户轮次。</strong> <code>first_kept_id</code> 必须指向压缩之前的 <code>user</code> 事件。工具调用和结果不能跨越切点。</li>
-<li><strong>窗口起点是用户轮次。</strong> <code>start_id</code> 必须指向窗口之前的 <code>user</code> 事件。</li>
+<li><strong>窗口记录任务锚点。</strong> <code>start_id</code> 必须指向窗口之前的 <code>user</code> 事件。可选字段 <code>clear_history</code> 默认为 false。设置为 true 时，执行历史从窗口事件之后开始，交接保存当前任务和 steering；否则从 <code>start_id</code> 开始。</li>
 <li><strong>最新 system 事件生效。</strong> 它最先投影，不会被压缩或窗口遮蔽。</li>
 </ol>
 <h2>分支导航</h2>
@@ -2721,7 +2724,7 @@ TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间
 <p><code>project(branch) -&gt; list[Message]</code> 是纯函数，结果确定。</p>
 <ol>
 <li>找到最新的 <code>system</code> 事件，最先输出。</li>
-<li>找到最新的 <code>window</code>。存在时，从它的 <code>start_id</code> 开始，并保留非空 <code>handoff</code> 作为摘要消息。</li>
+<li>找到最新的 <code>window</code>。存在时，保留非空 <code>handoff</code> 作为摘要消息。<code>clear_history: true</code> 时从窗口事件之后开始，否则从 <code>start_id</code> 开始。</li>
 <li>找到窗口起点处或之后最新的 <code>compaction</code>。存在时，输出摘要，并从 <code>first_kept_id</code> 开始输出尾部。</li>
 <li>按顺序遍历保留的条目。输出 <code>user</code>、<code>assistant</code> 和 <code>tool_result</code> 消息。跳过 <code>system</code>、<code>meta</code>、<code>window</code>、<code>compaction</code>、<code>request</code>、<code>run</code>、<code>attempt</code>、<code>branch</code>、<code>checkpoint</code>、<code>restore</code> 和 <code>tool_execution</code>。</li>
 <li>按调用 ID 配对工具调用和结果。</li>
@@ -2932,7 +2935,7 @@ TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间
 </ol>
 <p>摘要失败或切点没有消息时，追加一条 <code>attempt</code> 事实，对话保持不变。之前的摘要以 <code>PRIOR SUMMARY</code> 加入，因此压缩可以迭代。</p>
 <h2>窗口回退</h2>
-<p>压缩仍放不下时，循环可以调用窗口钩子。CLI 从最新的用户记录开始一个窗口，附带指向 <code>NOTE.md</code> 和 history 的固定交接。请求仍然放不下时，运行以 <code>context_error</code> 终止。</p>
+<p>压缩仍放不下时，循环可以调用窗口钩子。CLI 在完整工具批次之后追加 <code>clear_history: true</code> 的窗口。交接保留最近的人工任务及后续 steering，并指向 <code>NOTE.md</code> 和 history。窗口事件之前的执行消息不再进入投影。输入用量接近预算的 80% 时，应用请求可以提醒模型更新 <code>NOTE.md</code>；每个窗口只提醒一次，且提醒本身必须能放入预算。提醒写入请求审计，不增加模型调用。大型结果可能直接越过提醒阈值；换窗不保证笔记已经更新。请求仍然放不下时，运行以 <code>context_error</code> 终止。</p>
 <h2>历史</h2>
 <p><code>history</code> 工具搜索分支，或读取精确记录和工具结果。它检索当前压缩或窗口边界之外的证据。完整内容有上限；搜索结果指回条目 ID。</p>
 <h2>请求准入</h2>

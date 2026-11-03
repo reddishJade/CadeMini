@@ -256,3 +256,32 @@ def test_failed_model_selection_keeps_active_configuration(
             for tool in service.base_tools
             if isinstance(tool, DelegateTool)
         )
+
+
+def test_rollover_command_and_fallback_clear_current_execution(tmp_path: Path) -> None:
+    from cade.harness.session.projection import project
+
+    with ExitStack() as resources:
+        session = create_session(
+            tmp_path,
+            CadeConfig(sandbox="danger-full-access"),
+            resources=resources,
+            provider=WritingProvider(),
+        ).session
+        session.log.append("user", {"text": "finish the backend"})
+        session.log.append(
+            "assistant", {"blocks": [{"type": "text", "text": "old execution"}]}
+        )
+        (tmp_path / "NOTE.md").write_text("Migration tests remain.", encoding="utf-8")
+        result = asyncio.run(session.command("/rollover"))
+        assert result.changed_session
+        visible = str(project(session.log.branch()))
+        assert "finish the backend" in visible
+        assert "Migration tests remain." in visible
+        assert "old execution" not in visible
+        session.log.append(
+            "assistant", {"blocks": [{"type": "text", "text": "new execution"}]}
+        )
+        assert session.window is not None
+        assert session.window(session.log)
+        assert "new execution" not in str(project(session.log.branch()))

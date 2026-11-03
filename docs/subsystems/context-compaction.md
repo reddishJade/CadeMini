@@ -68,8 +68,13 @@ compaction is iterative.
 ## Window fallback
 
 If compaction cannot fit, the loop may call the window hook. The CLI starts a
-window at the latest user entry with a fixed handoff that points to `NOTE.md`
-and history. If the request still does not fit, the run terminates with
+window with `clear_history: true` after the completed tool batch. The handoff
+retains the latest human task and subsequent steering, and points to `NOTE.md`
+and history. Execution messages before the window event leave the projection.
+Near 80% of the input budget, an application request can carry a reminder to
+update `NOTE.md`, once per window and only if the reminder fits. This reminder
+is request context recorded in the audit, not an extra model call. A large
+result can jump past the reminder; rollover does not certify that the note is current. If the request still does not fit, the run terminates with
 `context_error`.
 
 ## History

@@ -94,6 +94,7 @@ class _Compaction(_Payload):
 
 
 class _Window(_Payload):
+    clear_history: bool = False
     start_id: NonEmpty
     reason: Literal["manual", "fallback"]
     handoff: str | None = None

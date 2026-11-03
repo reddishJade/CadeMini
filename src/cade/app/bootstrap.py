@@ -217,7 +217,9 @@ def create_session(
         return load_working_note(workspace) if config.note else None
 
     def fallback_window(log: SessionLog) -> bool:
-        return reset_window(log, handoff=WINDOW_HANDOFF, reason="fallback")
+        return reset_window(
+            log, handoff=WINDOW_HANDOFF, reason="fallback", clear_history=True
+        )
 
     def context() -> Sequence[str]:
         parts = [policy.describe()]

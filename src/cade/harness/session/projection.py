@@ -61,6 +61,8 @@ def project(entries: Sequence[LogEntry]) -> list[Message]:
         if entries[start].type != "user":
             raise ProjectionError("window start must be a user event")
         handoff = _optional_text(window_entry.data, "handoff")
+        if window_entry.data.get("clear_history", False):
+            start = window_index + 1
 
     first_kept = start
     summary: str | None = None

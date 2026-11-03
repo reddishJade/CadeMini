@@ -50,6 +50,15 @@ from cade.harness.session.types import JsonValue, LogEntry, ToolCallBlock, UserM
 from cade.harness.tools import Tool, ToolResult
 from cade.harness.window import reset_window
 
+_WINDOW_NOTICE = (
+    "The context window is nearly full. Before continuing other work, update "
+    "NOTE.md, if file writes are allowed, with the current objective, constraints, "
+    "progress, verification, "
+    "and next action. A rollover may discard execution history; exact evidence "
+    "will remain available through history. Do not mark the task complete "
+    "merely because a rollover is approaching."
+)
+
 
 class UnavailableProvider:
     """显式表示未连接状态，不用替代回答掩盖缺少认证。"""
@@ -546,6 +555,7 @@ class ApplicationSession:
                 max_steps=self.max_steps,
                 compact=self.compactor,
                 window=self.window,
+                window_notice=_WINDOW_NOTICE,
                 steering=lambda: (
                     self.expand(self.steering.popleft()) if self.steering else None
                 ),
@@ -873,7 +883,9 @@ class ApplicationSession:
                 else None
             )
             with self.log.run_lock():
-                ok = reset_window(self.log, handoff=handoff, reason="manual")
+                ok = reset_window(
+                    self.log, handoff=handoff, reason="manual", clear_history=True
+                )
             return CommandResult(
                 ("Context reset" if ok else "No task to reset",), changed_session=ok
             )
