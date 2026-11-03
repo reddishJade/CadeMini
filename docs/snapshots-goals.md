@@ -119,8 +119,10 @@ max tokens, or the step limit disarm continuation. Read-only and Plan sessions
 do not automatically continue goals whose completion tool their policy denies.
 
 Activation is process-local and tied to the current goal version. Loading a
-saved goal or changing conversation history does not authorize automatic work;
-use `/goal resume`. A resumed run receives a new step allowance. There is no
+saved goal or changing conversation history does not authorize automatic work.
+`/goal resume` rearms an existing goal; creating or updating a goal through the
+tool also arms its new version. A resumed run receives a new step allowance,
+while goal edits within a run keep its existing allowance. There is no
 persistent goal-wide token, time, or cost budget.
 
 Automatic inputs are logged as `user` events with `source: "goal"`. They keep
@@ -131,7 +133,9 @@ automatic reminder in the handoff. Active objectives remain request context.
 The model is instructed to verify every requirement against current artifacts
 and tool results before completion. `goal complete` and `goal block` require the
 `updated_at` returned by `get`; `block` also requires a concrete `reason`.
-Automatic goal rounds cannot set, clear, pause, or resume the goal. These are
+The model may create, update, replace, or clear goals in both human-input and
+automatic rounds. Goal edits do not change the user's requirements or reset the
+run budget. Pause and resume retain their human-input requirement. These are
 control and version checks, not an independent evaluator: completion evidence
 and whether a blocker persisted across three rounds remain model judgments.
 The shared step limit bounds unproductive continuation.

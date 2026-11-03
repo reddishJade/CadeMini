@@ -17,16 +17,18 @@ recovery ownership, step allowance, cancellation, and usage accounting. Queued
 human input wins. Errors, output limits, cancellation, and step exhaustion do
 not automatically start a fresh allowance.
 
-Share one `GoalStore` between application and tool. Explicit creation or resume
-arms the current version in memory; loading or navigating history disarms it.
+Share one `GoalStore` between application and tool. Creation or editing by the
+user or model arms the current version in memory, as does explicit resume.
+Loading or navigating history disarms it. Edits do not reset the run allowance.
 Persist paused and blocked states and a concrete blocker reason. A file lock
 serializes changes, and completion/blocking compare the model's supplied
 `updated_at` with the current version under that lock.
 
 Tag automatic inputs as `user.source: goal`. They remain durable and make
-sessions discoverable, without becoming human prompt choices or granting goal
-replacement, clearing, pause, or resume authority to automatic rounds. Rollover
-retains the root task and steering instead of repeated continuation prompts.
+sessions discoverable without becoming human prompt choices. The model may
+create, update, replace, or clear goals during automatic rounds; pause and
+resume retain the human-input requirement. Rollover retains the root task and
+steering instead of repeated continuation prompts.
 
 ## Consequences
 
