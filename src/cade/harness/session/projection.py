@@ -73,8 +73,10 @@ def project(entries: Sequence[LogEntry]) -> list[Message]:
             raise ProjectionError(
                 "compaction first_kept_id must be a retained entry before it"
             )
-        if entries[first_kept].type != "user":
-            raise ProjectionError("compaction first_kept_id must be a user event")
+        if entries[first_kept].type not in {"user", "assistant"}:
+            raise ProjectionError(
+                "compaction first_kept_id must be a user or assistant event"
+            )
         summary = _text(compaction_entry.data, "summary")
 
     messages: list[Message] = []

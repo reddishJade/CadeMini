@@ -1,4 +1,4 @@
-"""Cade 的压缩：摘要旧轮次，保留最近任务。"""
+"""Cade 的压缩：摘要旧历史，保留完整的近期模型与工具周期。"""
 
 from __future__ import annotations
 
@@ -42,7 +42,10 @@ Create a compact checkpoint with these sections:
 ## Key decisions
 ## Next steps
 ## Critical context
-Keep each section short. Preserve exact names and error text."""
+Keep each section short. Preserve exact names and error text.
+The retained history may start midway through a user task. Preserve the full
+objective, user constraints, completed verification, and unfinished work so the
+next model can continue without another user message."""
 _MAX_SUMMARY_CHARS = 120_000
 
 
@@ -203,39 +206,52 @@ def _select_cut(
     keep_tokens: int,
     hard_limit: int,
 ) -> tuple[str, list[Message]] | None:
-    user_entries = [entry for entry in entries if entry.type == "user"]
-    user_positions = [
+    positions = [
         index
         for index, message in enumerate(conversation)
-        if isinstance(message, UserMessage)
+        if isinstance(message, UserMessage | AssistantMessage)
     ]
-    count = min(len(user_entries), len(user_positions))
-    if count < 2:
+    if len(positions) < 2:
         return None
-    # 压缩/换窗会遮蔽旧用户轮次；投影里的用户消息对应最近的那部分 entry。
-    visible_entries = user_entries[-count:]
-    chosen: int | None = None
-    for index in range(1, count):
-        tail = conversation[user_positions[index] :]
-        tokens = estimate(tail)
-        if tokens <= keep_tokens:
-            chosen = index
+    # 投影保留原始消息的后缀；空 assistant 不产生消息。
+    message_entries = [
+        entry
+        for entry in entries
+        if entry.type == "user"
+        or (entry.type == "assistant" and entry.data.get("blocks"))
+    ][-len(positions) :]
+    candidates = list(zip(message_entries, positions, strict=True))[1:]
+    users = [
+        (entry, position) for entry, position in candidates if entry.type == "user"
+    ]
+    assistants = [
+        (entry, position) for entry, position in candidates if entry.type == "assistant"
+    ]
+    # 优先保留完整用户轮次；目标保留量放不下时再拆分模型与工具周期。
+    chosen: tuple[LogEntry, int] | None = None
+    for boundaries in (users, assistants):
+        chosen = next(
+            (
+                (entry, position)
+                for entry, position in boundaries
+                if estimate(conversation[position:]) <= keep_tokens
+            ),
+            None,
+        )
+        if chosen is not None:
             break
     if chosen is None:
-        last = count - 1
-        if estimate(conversation[user_positions[last] :]) <= hard_limit:
-            chosen = last
-    if chosen is None:
-        return None
-    first_kept_id = visible_entries[chosen].id
+        entry, position = candidates[-1]
+        if estimate(conversation[position:]) > hard_limit:
+            return None
+        chosen = entry, position
+    entry, position = chosen
     messages: list[Message] = [
         message
-        for message in conversation[: user_positions[chosen]]
+        for message in conversation[:position]
         if not isinstance(message, SystemMessage)
     ]
-    if not messages:
-        return None
-    return first_kept_id, messages
+    return entry.id, messages
 
 
 def _serialize(messages: Sequence[Message]) -> str:
