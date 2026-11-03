@@ -61,6 +61,8 @@ def project(entries: Sequence[LogEntry]) -> list[Message]:
         if entries[start].type != "user":
             raise ProjectionError("window start must be a user event")
         handoff = _optional_text(window_entry.data, "handoff")
+        if window_entry.data.get("clear_history", False):
+            start = window_index + 1
 
     first_kept = start
     summary: str | None = None
@@ -152,11 +154,15 @@ def _index_of(
 
 def _parse_user(entry: LogEntry) -> UserMessage:
     source = _optional_text(entry.data, "source") or "user"
-    if source not in {"user", "runtime"}:
+    if source not in {"user", "runtime", "goal"}:
         raise ProjectionError(f"invalid user source: {source}")
     return UserMessage(
         text=_text(entry.data, "text"),
-        source="runtime" if source == "runtime" else "user",
+        source="goal"
+        if source == "goal"
+        else "runtime"
+        if source == "runtime"
+        else "user",
     )
 
 

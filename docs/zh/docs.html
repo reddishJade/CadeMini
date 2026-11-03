@@ -724,7 +724,7 @@ cade login --provider deepseek
 <li><code>/new-context [--force]</code>：用 <code>NOTE.md</code> 作为交接，开启新的上下文窗口。先写好该文件，或用 <code>--force</code> 在没有它的情况下重置。</li>
 <li><code>/mode [MODE]</code>：显示或切换执行模式。</li>
 <li><code>/permissions [list|clear]</code>：列出或清除会话授权；不带参数时打开选择器。</li>
-<li><code>/goal [TEXT|done|clear]</code>：显示、设置、完成或清除目标。</li>
+<li><code>/goal [TEXT|pause|resume|done|clear]</code>：管理目标及其自动续跑。</li>
 <li><code>/context-window [SIZE|default]</code>：显示或调整当前上下文窗口。</li>
 <li><code>/context</code>：显示按来源分类的用量和剩余输入空间，包括指令文件、技能、MCP schema 和已加载的 MCP 内容。OpenAI API key 模式使用输入计数接口；ChatGPT 套餐模式使用本地估算，因为 SIWC 未公开输入计数端点。DeepSeek 使用官方 V4 文本分词器并估算请求开销。最近一次请求的 provider 用量单独显示。</li>
 <li><code>/btw QUESTION</code>：提出一个独立的旁路问题。</li>
@@ -948,7 +948,7 @@ return [line for line in result[&quot;content&quot;].splitlines() if line.starts
 </ul>
 <p>准入不修改对话，也不写事实。只有 compaction 和 window 事件会改变可见历史。超出预算的请求会被拒绝，不会静默截断。</p>
 <h2>运行</h2>
-<p>在追加新的 user 事实之前，<code>run()</code> 会为未完成的工具调用保存“已中断”结果。它不会重跑结果未知的工具。随后它调用 provider，追加 assistant 和 tool-result 事实，并执行工具。它是回合内唯一写日志的阶段。压缩和窗口回退都是决策，最终以新的日志事实表示。</p>
+<p>在追加新的 user 事实之前，<code>run()</code> 会为未完成的工具调用保存“已中断”结果。它不会重跑结果未知的工具。随后它调用 provider，追加 assistant 和 tool-result 事实，并执行工具。它是回合内唯一写日志的阶段。压缩和窗口回退都是决策，最终以新的日志事实表示。正常回复之后，可选的续跑回调可以追加带来源标记的输入，共用原有步数上限和用量统计。Goal 策略属于应用层，harness 不导入目标存储。</p>
 <h2>包边界</h2>
 <p>Cade 有五个运行时包：</p>
 <ul>
@@ -1029,7 +1029,8 @@ cade --resume SESSION_ID &quot;Explain the current state.&quot;
 <h2>请求准入</h2>
 <p>请求构造保留整个投影，包括工具输出。只有记录在案的 compaction 和 window 事件会缩减可见历史。如果这些步骤之后请求仍超出预算，循环返回 <code>context_error</code>，不发给 provider。用 <code>history</code> 工具检索当前上下文之外的证据。</p>
 <h2>上下文窗口</h2>
-<p><code>window</code> 事实在某个用户条目处开启新上下文，可以附带交接。TUI 可以用 <code>/new-context</code> 显式开启。如果压缩仍无法把请求带入预算，循环可以追加自动 window，附带指向 <code>NOTE.md</code> 和 history 工具的固定交接。</p>
+<p><code>window</code> 默认从某个用户条目开始投影。设置 <code>clear_history: true</code> 后，窗口事件及之前的执行历史退出投影，交接保留当前人工任务和后续 steering。原始条目仍可通过 <code>history</code> 检索。</p>
+<p><code>/rollover</code>（别名 <code>/new-context</code>）使用这种重置，并附上 <code>NOTE.md</code>；没有笔记时须显式使用 <code>--force</code>。自动回退使用相同的重置，交接指向 NOTE 和 history。接近预算时，只要还有空间，请求会提醒模型更新 NOTE。下一次请求重新加载已启用的笔记和目标上下文。指令或固定上下文本身过大时，仍会返回 <code>context_error</code>。</p>
 <h2>History 工具</h2>
 <p><code>history</code> 接受以下参数之一：</p>
 <ul>
@@ -1936,11 +1937,12 @@ uv run --locked cade login
   harness_tools --&gt; harness_cancellation
   harness_tools --&gt; harness_session_types
   harness_window --&gt; harness_session_log
+  harness_window --&gt; harness_session_projection
+  harness_window --&gt; harness_session_types
   hosts_auth --&gt; ai_auth
   hosts_auth --&gt; app_auth
   hosts_cli --&gt; app_bootstrap
   hosts_cli --&gt; app_config
-  hosts_cli --&gt; coding_goal
   hosts_cli --&gt; coding_tools_question
   hosts_cli --&gt; harness_events
   hosts_cli --&gt; harness_provider
@@ -2054,7 +2056,7 @@ uv run --locked cade login
 </tr>
 <tr>
 <td><code>goal</code></td>
-<td><code>action</code>、<code>objective</code></td>
+<td><code>action</code>、<code>objective</code>、<code>reason</code>、<code>updated_at</code></td>
 <td>更新 <code>.cade/goal.json</code></td>
 <td>允许</td>
 </tr>
@@ -2391,7 +2393,7 @@ ApplicationSession
 <h2>快照</h2>
 <p>快照是文件变更的撤销日志，覆盖 <code>write</code>、<code>edit</code> 和常见的单命令 shell 修改。捕获操作向 JSONL 索引追加一条以换行结尾的记录，并同步文件。读取会忽略残缺尾部，下次追加前修复；完整记录损坏时仍会报错。独立的快照撤销方法仍以原子替换方式缩短索引。前后记录和按内容寻址的内容块保持不可变。冲突和旧版行为见<a href="#page-snapshots-goals">快照与目标</a>。快照不属于会话分支。</p>
 <h2>目标与笔记</h2>
-<p>目标是一个带 active 或 done 状态的对象。<code>NOTE.md</code> 是工作状态，会进入每次请求，并在压缩时被总结。<code>MEMORY.md</code> 是长期项目知识。这些文件刻意保持朴素：可以手工编辑，也可以用普通工具查看。</p>
+<p>目标状态包括 active、done、paused 和 blocked。版本和可选的阻塞原因保存在 <code>.cade/goal.json</code>，<code>.cade/goal.lock</code> 串行处理修改。自动续跑授权只在进程内有效，不从磁盘恢复。<code>NOTE.md</code> 是工作状态，会进入每次请求，并在压缩时被总结。<code>MEMORY.md</code> 是长期项目知识。这些文件刻意保持朴素：可以手工编辑，也可以用普通工具查看。</p>
 <h2>生成的产物</h2>
 <p>文档站点、<code>llms.txt</code> 和 <code>llms-full.txt</code> 由 Markdown 和 <code>docs.json</code> 生成。它们会检查是否最新；不要手工编辑 HTML。</p>
 <h2>不持久化的内容</h2>
@@ -2576,6 +2578,7 @@ uv run --locked python -m cade.docs check
 <p>头部是最后一条物理记录。普通记录指向前一个头部。<code>branch</code> 记录则指向选中的历史续接点。其他路径仍留在同一个文件里。非空父记录必须在子记录之前。</p>
 <p>未知事件类型非法，不要忽略。</p>
 <p>载荷在追加和读取时都会校验。未知字段、错误的原始类型、非法枚举和非有限数字都会被拒绝。缺失的可选字段允许存在，但默认值不会写进记录。<code>user.source</code> 默认是 <code>user</code>；assistant 的 model/provider/usage/replay 元数据以及可空的 artifact/handoff/usage/details 字段可以缺失。跨事件的调用配对和上下文切点引用由投影校验。</p>
+<p>自动目标轮次使用 <code>user.source: &quot;goal&quot;</code>，宿主注入的 steering 使用 <code>runtime</code>。两者都不代表新的人工指令，也不重置步数额度。目标输入使纯目标会话可以保存和列出，但不进入人工提示选择器。</p>
 <h2>事件类型</h2>
 <p>图片工具把附件写入 <code>tool_result.artifact.tool_metadata.images</code>。
 每张图片包含 <code>data</code>（base64）和 <code>mimeType</code>。
@@ -2600,7 +2603,7 @@ Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
 </tr>
 <tr>
 <td><code>user</code></td>
-<td><code>{&quot;text&quot;: str, &quot;source&quot;: &quot;user&quot;|&quot;runtime&quot;}</code></td>
+<td><code>{&quot;text&quot;: str, &quot;source&quot;: &quot;user&quot;|&quot;runtime&quot;|&quot;goal&quot;}</code></td>
 <td>在所在位置输出用户消息</td>
 </tr>
 <tr>
@@ -2620,7 +2623,7 @@ Responses 适配器将其发送为函数输出中的 <code>input_image</code>。
 </tr>
 <tr>
 <td><code>window</code></td>
-<td><code>{&quot;start_id&quot;: str, &quot;reason&quot;: &quot;manual&quot;|&quot;fallback&quot;, &quot;handoff&quot;: str|null}</code></td>
+<td><code>{&quot;start_id&quot;: str, &quot;reason&quot;: &quot;manual&quot;|&quot;fallback&quot;, &quot;handoff&quot;: str|null, &quot;clear_history&quot;: bool}</code></td>
 <td>从 <code>start_id</code> 开始投影；可选交接摘要</td>
 </tr>
 </tbody>
@@ -2706,7 +2709,7 @@ TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间
 <li><strong>决策也是事实。</strong> 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。</li>
 <li><strong>请求上下文是审计，不是历史。</strong> 动态上下文和请求信封放在 <code>request</code> 里；只有对话事件参与投影。</li>
 <li><strong>压缩保留完整工具组。</strong> <code>first_kept_id</code> 必须指向压缩之前的 <code>user</code> 或 <code>assistant</code> 事件。工具调用和结果不能跨越切点。assistant 边界允许在同一个用户任务内压缩。</li>
-<li><strong>窗口起点是用户轮次。</strong> <code>start_id</code> 必须指向窗口之前的 <code>user</code> 事件。</li>
+<li><strong>窗口记录任务锚点。</strong> <code>start_id</code> 必须指向窗口之前的 <code>user</code> 事件。可选字段 <code>clear_history</code> 默认为 false。设置为 true 时，执行历史从窗口事件之后开始，交接保存当前任务和 steering；否则从 <code>start_id</code> 开始。</li>
 <li><strong>最新 system 事件生效。</strong> 它最先投影，不会被压缩或窗口遮蔽。</li>
 </ol>
 <h2>分支导航</h2>
@@ -2721,7 +2724,7 @@ TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间
 <p><code>project(branch) -&gt; list[Message]</code> 是纯函数，结果确定。</p>
 <ol>
 <li>找到最新的 <code>system</code> 事件，最先输出。</li>
-<li>找到最新的 <code>window</code>。存在时，从它的 <code>start_id</code> 开始，并保留非空 <code>handoff</code> 作为摘要消息。</li>
+<li>找到最新的 <code>window</code>。存在时，保留非空 <code>handoff</code> 作为摘要消息。<code>clear_history: true</code> 时从窗口事件之后开始，否则从 <code>start_id</code> 开始。</li>
 <li>找到窗口起点处或之后最新的 <code>compaction</code>。存在时，输出摘要，并从 <code>first_kept_id</code> 开始输出尾部。</li>
 <li>按顺序遍历保留的条目。输出 <code>user</code>、<code>assistant</code> 和 <code>tool_result</code> 消息。跳过 <code>system</code>、<code>meta</code>、<code>window</code>、<code>compaction</code>、<code>request</code>、<code>run</code>、<code>attempt</code>、<code>branch</code>、<code>checkpoint</code>、<code>restore</code> 和 <code>tool_execution</code>。</li>
 <li>按调用 ID 配对工具调用和结果。</li>
@@ -2932,7 +2935,7 @@ TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间
 </ol>
 <p>摘要失败时，追加一条 <code>attempt</code> 事实，对话保持不变。没有可用切点时，直接返回，不调用 provider。之前的摘要以 <code>PRIOR SUMMARY</code> 加入，因此压缩可以迭代。</p>
 <h2>窗口回退</h2>
-<p>压缩仍放不下时，循环可以调用窗口钩子。CLI 从最新的用户记录开始一个窗口，附带指向 <code>NOTE.md</code> 和 history 的固定交接。请求仍然放不下时，运行以 <code>context_error</code> 终止。</p>
+<p>压缩仍放不下时，循环可以调用窗口钩子。CLI 在完整工具批次之后追加 <code>clear_history: true</code> 的窗口。交接保留最近的人工任务及后续 steering，并指向 <code>NOTE.md</code> 和 history。窗口事件之前的执行消息不再进入投影。输入用量接近预算的 80% 时，应用请求可以提醒模型更新 <code>NOTE.md</code>；每个窗口只提醒一次，且提醒本身必须能放入预算。提醒写入请求审计，不增加模型调用。大型结果可能直接越过提醒阈值；换窗不保证笔记已经更新。请求仍然放不下时，运行以 <code>context_error</code> 终止。</p>
 <h2>历史</h2>
 <p><code>history</code> 工具搜索分支，或读取精确记录和工具结果。它检索当前压缩或窗口边界之外的证据。完整内容有上限；搜索结果指回条目 ID。</p>
 <h2>请求准入</h2>
@@ -2955,7 +2958,7 @@ TPS 使用服务端输出 token 数，除以首个增量到响应结束的时间
 <h2>快照</h2>
 <p><code>SnapshotStore</code> 捕获 <code>write</code>、<code>edit</code> 和常见的单命令 shell 修改。<code>WorkspaceRecovery</code> 为 CLI <code>--undo</code> 和 TUI <code>/undo</code>、<code>/redo</code> 协调检查点操作。快照是项目状态，不是会话事实。</p>
 <h2>目标</h2>
-<p><code>GoalStore</code> 在 <code>.cade/goal.json</code> 里持久保存一个目标。<code>goal</code> 工具和 <code>/goal</code> 命令负责管理。活动目标属于请求上下文。</p>
+<p><code>GoalStore</code> 在 <code>.cade/goal.json</code> 里持久保存一个目标。<code>goal</code> 工具和 <code>/goal</code> 命令负责管理。活动目标属于请求上下文；只有获得当前进程的续跑授权后，应用才自动继续。状态和预算行为见<a href="#page-snapshots-goals">目标</a>。</p>
 <h2>宿主</h2>
 <p>终端宿主运行一次性任务和 TUI。它与其他所有入口共用同一个循环和策略。</p>
 <h2>限制</h2>
@@ -3073,18 +3076,22 @@ build 模式默认允许脚本；ask 模式审批整段程序；计划和只读�
 <p>协作操作共用 <code>.cade/recovery/workspace.lock</code>。操作日志和检查点链接使用该目录下的封闭记录。<code>pending.json</code> 计划在恢复开始前保存两份镜像。文件按单个文件原子替换；多文件恢复不是整个文件系统层面的原子操作。中断后，恢复指定的会话即可幂等完成计划。如果出现第三个外部编辑过的状态，恢复会停止，不覆盖该编辑。解决报告的冲突后继续；不要删除待处理计划来绕过写入保护。在计划完成前，代理的新写入会一直被阻止。外部编辑器不遵守这把锁，恢复期间必须停止它们。只读模式会阻止代码恢复；仅恢复对话仍然可用。Esc 取消预览，不取消正在提交的文件恢复。正常退出 TUI 会等待恢复提交完成；进程被强制中断时使用待处理计划。</p>
 <p>只恢复代码时，模型可见的对话消息保持不变。下一次请求会收到一条有审计记录的通知，要求检查已恢复的文件，而不是相信旧工具的效果。设置、凭据、授权和外部服务不会随对话历史回退。</p>
 <h2>目标</h2>
-<p>目标是保存在 <code>.cade/goal.json</code> 里的一个持久目标，包含目标内容、状态（<code>active</code> 或 <code>done</code>）和更新时间。</p>
-<pre><code class="language-bash">cade --goal &quot;Add a regression test for the parser&quot; &quot;Start the task.&quot;
+<p>目标保存在 <code>.cade/goal.json</code> 中，包含目标内容、状态（<code>active</code>、<code>done</code>、<code>paused</code> 或 <code>blocked</code>）、更新时间和可选的阻塞原因。修改使用 <code>.cade/goal.lock</code>；完成和阻塞操作校验 <code>goal get</code> 返回的版本，避免旧模型请求修改后来更新的目标。</p>
+<pre><code class="language-bash">cade --goal &quot;Implement the backend and verify every requirement&quot; --max-steps 100 &quot;Start the task.&quot;
 </code></pre>
-<p>在 TUI 中：</p>
+<p>TUI 命令：</p>
 <ul>
-<li><code>/goal</code> 显示当前目标。</li>
-<li><code>/goal TEXT</code> 设置活动目标。</li>
-<li><code>/goal done</code> 标记完成。</li>
-<li><code>/goal clear</code> 删除目标。</li>
+<li><code>/goal</code> 显示目标、阻塞原因和自动续跑授权状态。</li>
+<li><code>/goal TEXT</code> 设置目标并授权续跑。</li>
+<li><code>/goal pause</code> 保存暂停状态，并取消当前工作。</li>
+<li><code>/goal resume</code> 为未完成目标重新授权；TUI 空闲后开始执行。</li>
+<li><code>/goal done</code> 标记完成；<code>/goal clear</code> 删除目标。</li>
 </ul>
-<p><code>goal</code> 工具为模型提供相同操作。活动目标会加入请求上下文，因此恢复或压缩后的会话仍然知道目标。目标是宿主状态，不改变会话格式。</p>
-<p>目标刻意保持简单。工作细节用 <code>NOTE.md</code>，比目标存活更久的事实用 <code>MEMORY.md</code>。</p>
+<p>应用与模型工具共用同一个目标存储。模型正常结束一轮后，已授权的活动目标继续使用现有循环执行。排队的人工输入优先。同一次运行的自动轮次共用 <code>--max-steps</code> 和用量统计，最终回复不会重置额度。取消、错误、输出截断或步数耗尽都会撤销续跑授权。只读和 Plan 会话不自动续跑，因为策略禁止它们调用完成工具。</p>
+<p>授权只在当前进程中有效，并绑定目标版本。加载已有目标或切换会话历史不会自动授权工作。<code>/goal resume</code> 为已有目标重新授权；通过工具创建或更新目标，也会授权其新版本。恢复后的运行获得新的步数额度；同一次运行中修改目标仍共用原有额度。目标没有跨运行持久保存的 Token、时间或费用预算。</p>
+<p>自动输入使用 <code>user</code> 事件记录，<code>source</code> 为 <code>goal</code>。这些输入在同一会话中保持目标，但不会出现在人工提示选择器中。换窗保留原任务和 steering，不把每次自动提醒都复制到交接。活动目标仍属于请求上下文。</p>
+<p>提示要求模型在完成前，逐项用当前产物和工具结果验证要求。<code>goal complete</code> 和 <code>goal block</code> 必须提供 <code>get</code> 返回的 <code>updated_at</code>，<code>block</code> 还必须提供具体的 <code>reason</code>。模型可以在人工输入轮次和自动续跑轮次中创建、修改、替换或清除目标。修改目标不改变用户要求，也不重置运行预算。暂停和恢复仍要求人工输入。这些检查控制操作权限和版本，不是独立验收器；完成证据是否充分、同一阻塞是否持续三轮，仍由模型判断。共用步数上限限制无进展续跑。</p>
+<p>工作细节用 <code>NOTE.md</code>，长期项目事实用 <code>MEMORY.md</code>。</p>
 
 </section>
 <section class="page" id="page-skills-memory" data-title="技能与记忆">

@@ -75,7 +75,7 @@ TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原�
 - `/new-context [--force]`：用 `NOTE.md` 作为交接，开启新的上下文窗口。先写好该文件，或用 `--force` 在没有它的情况下重置。
 - `/mode [MODE]`：显示或切换执行模式。
 - `/permissions [list|clear]`：列出或清除会话授权；不带参数时打开选择器。
-- `/goal [TEXT|done|clear]`：显示、设置、完成或清除目标。
+- `/goal [TEXT|pause|resume|done|clear]`：管理目标及其自动续跑。
 - `/context-window [SIZE|default]`：显示或调整当前上下文窗口。
 - `/context`：显示按来源分类的用量和剩余输入空间，包括指令文件、技能、MCP schema 和已加载的 MCP 内容。OpenAI API key 模式使用输入计数接口；ChatGPT 套餐模式使用本地估算，因为 SIWC 未公开输入计数端点。DeepSeek 使用官方 V4 文本分词器并估算请求开销。最近一次请求的 provider 用量单独显示。
 - `/btw QUESTION`：提出一个独立的旁路问题。

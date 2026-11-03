@@ -55,7 +55,9 @@ cade --resume SESSION_ID "Explain the current state."
 
 ## 上下文窗口
 
-`window` 事实在某个用户条目处开启新上下文，可以附带交接。TUI 可以用 `/new-context` 显式开启。如果压缩仍无法把请求带入预算，循环可以追加自动 window，附带指向 `NOTE.md` 和 history 工具的固定交接。
+`window` 默认从某个用户条目开始投影。设置 `clear_history: true` 后，窗口事件及之前的执行历史退出投影，交接保留当前人工任务和后续 steering。原始条目仍可通过 `history` 检索。
+
+`/rollover`（别名 `/new-context`）使用这种重置，并附上 `NOTE.md`；没有笔记时须显式使用 `--force`。自动回退使用相同的重置，交接指向 NOTE 和 history。接近预算时，只要还有空间，请求会提醒模型更新 NOTE。下一次请求重新加载已启用的笔记和目标上下文。指令或固定上下文本身过大时，仍会返回 `context_error`。
 
 ## History 工具
 

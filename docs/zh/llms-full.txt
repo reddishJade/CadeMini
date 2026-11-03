@@ -267,7 +267,7 @@ TUI 接受以下斜杠命令，并为模型、模式、配置和权限提供原�
 - `/new-context [--force]`：用 `NOTE.md` 作为交接，开启新的上下文窗口。先写好该文件，或用 `--force` 在没有它的情况下重置。
 - `/mode [MODE]`：显示或切换执行模式。
 - `/permissions [list|clear]`：列出或清除会话授权；不带参数时打开选择器。
-- `/goal [TEXT|done|clear]`：显示、设置、完成或清除目标。
+- `/goal [TEXT|pause|resume|done|clear]`：管理目标及其自动续跑。
 - `/context-window [SIZE|default]`：显示或调整当前上下文窗口。
 - `/context`：显示按来源分类的用量和剩余输入空间，包括指令文件、技能、MCP schema 和已加载的 MCP 内容。OpenAI API key 模式使用输入计数接口；ChatGPT 套餐模式使用本地估算，因为 SIWC 未公开输入计数端点。DeepSeek 使用官方 V4 文本分词器并估算请求开销。最近一次请求的 provider 用量单独显示。
 - `/btw QUESTION`：提出一个独立的旁路问题。
@@ -555,7 +555,7 @@ Cade 是 `src/cade/` 下的独立编码代理。它使用四段流水线，每�
 
 ## 运行
 
-在追加新的 user 事实之前，`run()` 会为未完成的工具调用保存“已中断”结果。它不会重跑结果未知的工具。随后它调用 provider，追加 assistant 和 tool-result 事实，并执行工具。它是回合内唯一写日志的阶段。压缩和窗口回退都是决策，最终以新的日志事实表示。
+在追加新的 user 事实之前，`run()` 会为未完成的工具调用保存“已中断”结果。它不会重跑结果未知的工具。随后它调用 provider，追加 assistant 和 tool-result 事实，并执行工具。它是回合内唯一写日志的阶段。压缩和窗口回退都是决策，最终以新的日志事实表示。正常回复之后，可选的续跑回调可以追加带来源标记的输入，共用原有步数上限和用量统计。Goal 策略属于应用层，harness 不导入目标存储。
 
 ## 包边界
 
@@ -658,7 +658,9 @@ cade --resume SESSION_ID "Explain the current state."
 
 ## 上下文窗口
 
-`window` 事实在某个用户条目处开启新上下文，可以附带交接。TUI 可以用 `/new-context` 显式开启。如果压缩仍无法把请求带入预算，循环可以追加自动 window，附带指向 `NOTE.md` 和 history 工具的固定交接。
+`window` 默认从某个用户条目开始投影。设置 `clear_history: true` 后，窗口事件及之前的执行历史退出投影，交接保留当前人工任务和后续 steering。原始条目仍可通过 `history` 检索。
+
+`/rollover`（别名 `/new-context`）使用这种重置，并附上 `NOTE.md`；没有笔记时须显式使用 `--force`。自动回退使用相同的重置，交接指向 NOTE 和 history。接近预算时，只要还有空间，请求会提醒模型更新 NOTE。下一次请求重新加载已启用的笔记和目标上下文。指令或固定上下文本身过大时，仍会返回 `context_error`。
 
 ## History 工具
 
@@ -1348,11 +1350,12 @@ flowchart LR
   harness_tools --> harness_cancellation
   harness_tools --> harness_session_types
   harness_window --> harness_session_log
+  harness_window --> harness_session_projection
+  harness_window --> harness_session_types
   hosts_auth --> ai_auth
   hosts_auth --> app_auth
   hosts_cli --> app_bootstrap
   hosts_cli --> app_config
-  hosts_cli --> coding_goal
   hosts_cli --> coding_tools_question
   hosts_cli --> harness_events
   hosts_cli --> harness_provider
@@ -1405,7 +1408,7 @@ flowchart LR
 | `history` | `query`、`entry_id`、`call_id`、`limit` | 无 | 允许 |
 | `skill` | `name` | 无；加载技能正文 | 允许 |
 | `memory` | `text` | 追加到 `MEMORY.md` | 允许；只读模式拒绝 |
-| `goal` | `action`、`objective` | 更新 `.cade/goal.json` | 允许 |
+| `goal` | `action`、`objective`、`reason`、`updated_at` | 更新 `.cade/goal.json` | 允许 |
 | `delegate` | `prompt` 或 `tasks`、`mode`、`description` | 创建一个或多个子会话 | 允许 |
 | `mcp__*` | 由服务器定义 | 远程副作用 | 询问；计划模式和只读模式拒绝 |
 
@@ -1606,7 +1609,7 @@ Cade 把持久历史和宿主状态分开。会话日志是模型看到什么、
 
 ## 目标与笔记
 
-目标是一个带 active 或 done 状态的对象。`NOTE.md` 是工作状态，会进入每次请求，并在压缩时被总结。`MEMORY.md` 是长期项目知识。这些文件刻意保持朴素：可以手工编辑，也可以用普通工具查看。
+目标状态包括 active、done、paused 和 blocked。版本和可选的阻塞原因保存在 `.cade/goal.json`，`.cade/goal.lock` 串行处理修改。自动续跑授权只在进程内有效，不从磁盘恢复。`NOTE.md` 是工作状态，会进入每次请求，并在压缩时被总结。`MEMORY.md` 是长期项目知识。这些文件刻意保持朴素：可以手工编辑，也可以用普通工具查看。
 
 ## 生成的产物
 
@@ -1781,6 +1784,8 @@ uv run --locked python -m cade.docs check
 
 载荷在追加和读取时都会校验。未知字段、错误的原始类型、非法枚举和非有限数字都会被拒绝。缺失的可选字段允许存在，但默认值不会写进记录。`user.source` 默认是 `user`；assistant 的 model/provider/usage/replay 元数据以及可空的 artifact/handoff/usage/details 字段可以缺失。跨事件的调用配对和上下文切点引用由投影校验。
 
+自动目标轮次使用 `user.source: "goal"`，宿主注入的 steering 使用 `runtime`。两者都不代表新的人工指令，也不重置步数额度。目标输入使纯目标会话可以保存和列出，但不进入人工提示选择器。
+
 ## 事件类型
 
 图片工具把附件写入 `tool_result.artifact.tool_metadata.images`。
@@ -1796,11 +1801,11 @@ Responses 适配器将其发送为函数输出中的 `input_image`。
 | 类型 | 载荷 | 投影 |
 | --- | --- | --- |
 | `system` | `{"text": str}` | 最新一条最先输出；永不被遮蔽 |
-| `user` | `{"text": str, "source": "user"\|"runtime"}` | 在所在位置输出用户消息 |
+| `user` | `{"text": str, "source": "user"\|"runtime"\|"goal"}` | 在所在位置输出用户消息 |
 | `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null, "reasoning": str\|null, "response_metrics": object\|null}` | 助手消息；空 blocks 被跳过 |
 | `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | 工具消息；与对应调用配对 |
 | `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | 先输出摘要消息，再从 `first_kept_id` 输出尾部 |
-| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null}` | 从 `start_id` 开始投影；可选交接摘要 |
+| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null, "clear_history": bool}` | 从 `start_id` 开始投影；可选交接摘要 |
 
 block 是以下之一：
 
@@ -1855,7 +1860,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 3. **决策也是事实。** 压缩切点和窗口起点会记录在案；它们产生的消息重新计算。
 4. **请求上下文是审计，不是历史。** 动态上下文和请求信封放在 `request` 里；只有对话事件参与投影。
 5. **压缩保留完整工具组。** `first_kept_id` 必须指向压缩之前的 `user` 或 `assistant` 事件。工具调用和结果不能跨越切点。assistant 边界允许在同一个用户任务内压缩。
-6. **窗口起点是用户轮次。** `start_id` 必须指向窗口之前的 `user` 事件。
+6. **窗口记录任务锚点。** `start_id` 必须指向窗口之前的 `user` 事件。可选字段 `clear_history` 默认为 false。设置为 true 时，执行历史从窗口事件之后开始，交接保存当前任务和 steering；否则从 `start_id` 开始。
 7. **最新 system 事件生效。** 它最先投影，不会被压缩或窗口遮蔽。
 
 ## 分支导航
@@ -1879,7 +1884,7 @@ TUI 根据 `run.termination` 和 `run.error` 恢复停止提示，不保存格�
 `project(branch) -> list[Message]` 是纯函数，结果确定。
 
 1. 找到最新的 `system` 事件，最先输出。
-2. 找到最新的 `window`。存在时，从它的 `start_id` 开始，并保留非空 `handoff` 作为摘要消息。
+2. 找到最新的 `window`。存在时，保留非空 `handoff` 作为摘要消息。`clear_history: true` 时从窗口事件之后开始，否则从 `start_id` 开始。
 3. 找到窗口起点处或之后最新的 `compaction`。存在时，输出摘要，并从 `first_kept_id` 开始输出尾部。
 4. 按顺序遍历保留的条目。输出 `user`、`assistant` 和 `tool_result` 消息。跳过 `system`、`meta`、`window`、`compaction`、`request`、`run`、`attempt`、`branch`、`checkpoint`、`restore` 和 `tool_execution`。
 5. 按调用 ID 配对工具调用和结果。
@@ -2163,7 +2168,7 @@ Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端�
 
 ## 窗口回退
 
-压缩仍放不下时，循环可以调用窗口钩子。CLI 从最新的用户记录开始一个窗口，附带指向 `NOTE.md` 和 history 的固定交接。请求仍然放不下时，运行以 `context_error` 终止。
+压缩仍放不下时，循环可以调用窗口钩子。CLI 在完整工具批次之后追加 `clear_history: true` 的窗口。交接保留最近的人工任务及后续 steering，并指向 `NOTE.md` 和 history。窗口事件之前的执行消息不再进入投影。输入用量接近预算的 80% 时，应用请求可以提醒模型更新 `NOTE.md`；每个窗口只提醒一次，且提醒本身必须能放入预算。提醒写入请求审计，不增加模型调用。大型结果可能直接越过提醒阈值；换窗不保证笔记已经更新。请求仍然放不下时，运行以 `context_error` 终止。
 
 ## 历史
 
@@ -2207,7 +2212,7 @@ Linux 使用 bubblewrap，macOS 使用 Seatbelt，Windows 直接运行。后端�
 
 ## 目标
 
-`GoalStore` 在 `.cade/goal.json` 里持久保存一个目标。`goal` 工具和 `/goal` 命令负责管理。活动目标属于请求上下文。
+`GoalStore` 在 `.cade/goal.json` 里持久保存一个目标。`goal` 工具和 `/goal` 命令负责管理。活动目标属于请求上下文；只有获得当前进程的续跑授权后，应用才自动继续。状态和预算行为见[目标](../snapshots-goals.md#目标)。
 
 ## 宿主
 
@@ -2355,22 +2360,29 @@ cade --undo
 
 ## 目标
 
-目标是保存在 `.cade/goal.json` 里的一个持久目标，包含目标内容、状态（`active` 或 `done`）和更新时间。
+目标保存在 `.cade/goal.json` 中，包含目标内容、状态（`active`、`done`、`paused` 或 `blocked`）、更新时间和可选的阻塞原因。修改使用 `.cade/goal.lock`；完成和阻塞操作校验 `goal get` 返回的版本，避免旧模型请求修改后来更新的目标。
 
 ```bash
-cade --goal "Add a regression test for the parser" "Start the task."
+cade --goal "Implement the backend and verify every requirement" --max-steps 100 "Start the task."
 ```
 
-在 TUI 中：
+TUI 命令：
 
-- `/goal` 显示当前目标。
-- `/goal TEXT` 设置活动目标。
-- `/goal done` 标记完成。
-- `/goal clear` 删除目标。
+- `/goal` 显示目标、阻塞原因和自动续跑授权状态。
+- `/goal TEXT` 设置目标并授权续跑。
+- `/goal pause` 保存暂停状态，并取消当前工作。
+- `/goal resume` 为未完成目标重新授权；TUI 空闲后开始执行。
+- `/goal done` 标记完成；`/goal clear` 删除目标。
 
-`goal` 工具为模型提供相同操作。活动目标会加入请求上下文，因此恢复或压缩后的会话仍然知道目标。目标是宿主状态，不改变会话格式。
+应用与模型工具共用同一个目标存储。模型正常结束一轮后，已授权的活动目标继续使用现有循环执行。排队的人工输入优先。同一次运行的自动轮次共用 `--max-steps` 和用量统计，最终回复不会重置额度。取消、错误、输出截断或步数耗尽都会撤销续跑授权。只读和 Plan 会话不自动续跑，因为策略禁止它们调用完成工具。
 
-目标刻意保持简单。工作细节用 `NOTE.md`，比目标存活更久的事实用 `MEMORY.md`。
+授权只在当前进程中有效，并绑定目标版本。加载已有目标或切换会话历史不会自动授权工作。`/goal resume` 为已有目标重新授权；通过工具创建或更新目标，也会授权其新版本。恢复后的运行获得新的步数额度；同一次运行中修改目标仍共用原有额度。目标没有跨运行持久保存的 Token、时间或费用预算。
+
+自动输入使用 `user` 事件记录，`source` 为 `goal`。这些输入在同一会话中保持目标，但不会出现在人工提示选择器中。换窗保留原任务和 steering，不把每次自动提醒都复制到交接。活动目标仍属于请求上下文。
+
+提示要求模型在完成前，逐项用当前产物和工具结果验证要求。`goal complete` 和 `goal block` 必须提供 `get` 返回的 `updated_at`，`block` 还必须提供具体的 `reason`。模型可以在人工输入轮次和自动续跑轮次中创建、修改、替换或清除目标。修改目标不改变用户要求，也不重置运行预算。暂停和恢复仍要求人工输入。这些检查控制操作权限和版本，不是独立验收器；完成证据是否充分、同一阻塞是否持续三轮，仍由模型判断。共用步数上限限制无进展续跑。
+
+工作细节用 `NOTE.md`，长期项目事实用 `MEMORY.md`。
 
 # 技能与记忆
 

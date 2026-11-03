@@ -94,10 +94,17 @@ outside the current context.
 
 ## Windows
 
-A `window` fact starts a new context at a user entry and may include a handoff.
-The TUI can start one explicitly with `/new-context`. If compaction cannot bring
-a request under budget, the loop can append an automatic window with a fixed
-handoff that points to `NOTE.md` and the history tool.
+A `window` fact normally starts context at a user entry. With `clear_history:
+true`, it instead discards execution history through the window event and
+retains the current human task and steering in its handoff. Raw entries remain
+available through `history`.
+
+`/rollover` (alias `/new-context`) uses this reset and includes `NOTE.md`; it
+requires an existing note unless `--force` is supplied. Automatic fallback uses
+the same reset with a handoff pointing to NOTE and history. A near-budget
+request reminds the model to update NOTE when there is room. The next request
+reloads enabled note and goal context. Oversized instructions or fixed context
+can still produce `context_error`.
 
 ## History tool
 

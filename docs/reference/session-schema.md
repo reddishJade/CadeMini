@@ -32,6 +32,11 @@ defaults to `user`; assistant model/provider/usage/replay metadata and nullable
 artifact/handoff/usage/details fields may be absent. Cross-event call pairing
 and context-cut references are validated by projection.
 
+Automatic goal rounds use `user.source: "goal"`; host-attested steering uses
+`runtime`. Neither is a new human instruction or a new step allowance. Goal
+inputs make goal-only sessions durable and discoverable, but are excluded from
+human prompt pickers.
+
 ## Event types
 
 ### Conversation events
@@ -41,11 +46,11 @@ These produce model-visible messages.
 | Type | Payload | Projection |
 | --- | --- | --- |
 | `system` | `{"text": str}` | Latest one is emitted first; never shadowed |
-| `user` | `{"text": str, "source": "user"\|"runtime"}` | User message at its position |
+| `user` | `{"text": str, "source": "user"\|"runtime"\|"goal"}` | User message at its position |
 | `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null, "reasoning": str\|null, "response_metrics": object\|null}` | Assistant message; empty blocks are skipped |
 | `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | Tool message; paired with its call |
 | `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | Emits a summary message, then the tail from `first_kept_id` |
-| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null}` | Starts the projection at `start_id`; optional handoff summary |
+| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null, "clear_history": bool}` | Starts the projection at `start_id`; optional handoff summary |
 
 A block is one of:
 
@@ -126,8 +131,10 @@ The tool owns the attachment data for the lifetime of the session log.
 5. **A compaction cut preserves tool groups.** `first_kept_id` must name a `user`
    or `assistant` event before the compaction. A tool call and its results never
    cross the cut. An assistant boundary allows compaction within one user task.
-6. **A window start is a user turn.** `start_id` must name a `user` event before
-   the window.
+6. **A window names its task anchor.** `start_id` must name a `user` event before
+   the window. Optional `clear_history` defaults to false. When true, retained
+   execution starts after the window event; the handoff carries the current
+   task and steering. Otherwise, execution starts at `start_id`.
 7. **The latest system event wins.** It is projected first and is not shadowed by
    compaction or a window.
 
@@ -177,8 +184,8 @@ recovery and block new writes. See [Checkpoint recovery](../snapshots-goals.md#c
 `project(branch) -> list[Message]` is pure and deterministic.
 
 1. Find the latest `system` event. Emit it first.
-2. Find the latest `window`. If present, start at its `start_id` and keep its
-   non-empty `handoff` for a summary message.
+2. Find the latest `window`. Keep its non-empty `handoff` as a summary. With
+   `clear_history: true`, start after the window event; otherwise use `start_id`.
 3. Find the latest `compaction` at or after the window start. If present, emit
    its summary and start the tail at `first_kept_id`.
 4. Walk the retained entries in order. Emit `user`, `assistant`, and

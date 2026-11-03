@@ -292,11 +292,12 @@ flowchart LR
   harness_tools --> harness_cancellation
   harness_tools --> harness_session_types
   harness_window --> harness_session_log
+  harness_window --> harness_session_projection
+  harness_window --> harness_session_types
   hosts_auth --> ai_auth
   hosts_auth --> app_auth
   hosts_cli --> app_bootstrap
   hosts_cli --> app_config
-  hosts_cli --> coding_goal
   hosts_cli --> coding_tools_question
   hosts_cli --> harness_events
   hosts_cli --> harness_provider

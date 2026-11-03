@@ -195,7 +195,21 @@ def create_session(
         WebSearchTool(),
         LoadSkillTool(workspace, skill_registry),
         MemoryTool(workspace),
-        GoalTool(workspace),
+        GoalTool(
+            workspace,
+            store=goals,
+            allow_control=lambda: (
+                next(
+                    (
+                        entry.data.get("source", "user")
+                        for entry in reversed(session.log.branch())
+                        if entry.type == "user"
+                    ),
+                    "goal",
+                )
+                != "goal"
+            ),
+        ),
         *mcp_tools,
     )
     grants = GrantStore()
@@ -217,7 +231,9 @@ def create_session(
         return load_working_note(workspace) if config.note else None
 
     def fallback_window(log: SessionLog) -> bool:
-        return reset_window(log, handoff=WINDOW_HANDOFF, reason="fallback")
+        return reset_window(
+            log, handoff=WINDOW_HANDOFF, reason="fallback", clear_history=True
+        )
 
     def context() -> Sequence[str]:
         parts = [policy.describe()]

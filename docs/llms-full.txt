@@ -349,7 +349,7 @@ modes, configuration, and permissions.
   handoff. Write that file first, or use `--force` to reset without it.
 - `/mode [MODE]` shows or switches the execution mode.
 - `/permissions [list|clear]` lists or clears session grants; without arguments it opens a picker.
-- `/goal [TEXT|done|clear]` shows, sets, completes, or clears the goal.
+- `/goal [TEXT|pause|resume|done|clear]` manages the goal and its automatic continuation.
 - `/context-window [SIZE|default]` shows or changes the current context window.
 - `/context` shows estimated context usage, source totals, remaining input space, and loaded
   file paths with token estimates, including instructions, skills, MCP schemas,
@@ -726,7 +726,10 @@ Before appending a new user fact, `run()` persists interrupted results for
 unfinished tool calls. It does not repeat tools whose outcome is unknown.
 It then calls the provider, appends assistant and tool-result facts, and executes
 tools. It is the only stage that writes during a turn. Compaction and window
-fallback are decisions expressed as new log facts.
+fallback are decisions expressed as new log facts. An optional continuation
+callback can provide another sourced input after a normal model reply, sharing
+the same step limit and usage totals. The application owns Goal policy; the
+harness does not import the goal store.
 
 ## Package boundaries
 
@@ -911,10 +914,17 @@ outside the current context.
 
 ## Windows
 
-A `window` fact starts a new context at a user entry and may include a handoff.
-The TUI can start one explicitly with `/new-context`. If compaction cannot bring
-a request under budget, the loop can append an automatic window with a fixed
-handoff that points to `NOTE.md` and the history tool.
+A `window` fact normally starts context at a user entry. With `clear_history:
+true`, it instead discards execution history through the window event and
+retains the current human task and steering in its handoff. Raw entries remain
+available through `history`.
+
+`/rollover` (alias `/new-context`) uses this reset and includes `NOTE.md`; it
+requires an existing note unless `--force` is supplied. Automatic fallback uses
+the same reset with a handoff pointing to NOTE and history. A near-budget
+request reminds the model to update NOTE when there is room. The next request
+reloads enabled note and goal context. Oversized instructions or fixed context
+can still produce `context_error`.
 
 ## History tool
 
@@ -1703,11 +1713,12 @@ flowchart LR
   harness_tools --> harness_cancellation
   harness_tools --> harness_session_types
   harness_window --> harness_session_log
+  harness_window --> harness_session_projection
+  harness_window --> harness_session_types
   hosts_auth --> ai_auth
   hosts_auth --> app_auth
   hosts_cli --> app_bootstrap
   hosts_cli --> app_config
-  hosts_cli --> coding_goal
   hosts_cli --> coding_tools_question
   hosts_cli --> harness_events
   hosts_cli --> harness_provider
@@ -1761,7 +1772,7 @@ The built-in tool surface. MCP tools are discovered at startup and named
 | `history` | `query`, `entry_id`, `call_id`, `limit` | None | Allow |
 | `skill` | `name` | None; loads a skill body | Allow |
 | `memory` | `text` | Appends to `MEMORY.md` | Allow; denied read-only |
-| `goal` | `action`, `objective` | Updates `.cade/goal.json` | Allow |
+| `goal` | `action`, `objective`, `reason`, `updated_at` | Updates `.cade/goal.json` | Allow |
 | `delegate` | `prompt` or `tasks`, `mode`, `description` | Creates one or more child sessions | Allow |
 | `mcp__*` | Server-defined | Remote side effects | Ask; denied plan and read-only |
 
@@ -2010,7 +2021,9 @@ Snapshots are not part of the session branch.
 
 ## Goals and notes
 
-A goal is one objective with an active or done status. `NOTE.md` is working
+A goal has an active, done, paused, or blocked status. Its version and optional
+blocker are stored in `.cade/goal.json`; `.cade/goal.lock` serializes mutations.
+Automatic continuation authority is process-local and is not restored from disk. `NOTE.md` is working
 state that is included in every request and summarized during compaction.
 `MEMORY.md` is durable project knowledge. These files are intentionally plain:
 they can be edited by hand and inspected with ordinary tools.
@@ -2225,6 +2238,11 @@ defaults to `user`; assistant model/provider/usage/replay metadata and nullable
 artifact/handoff/usage/details fields may be absent. Cross-event call pairing
 and context-cut references are validated by projection.
 
+Automatic goal rounds use `user.source: "goal"`; host-attested steering uses
+`runtime`. Neither is a new human instruction or a new step allowance. Goal
+inputs make goal-only sessions durable and discoverable, but are excluded from
+human prompt pickers.
+
 ## Event types
 
 ### Conversation events
@@ -2234,11 +2252,11 @@ These produce model-visible messages.
 | Type | Payload | Projection |
 | --- | --- | --- |
 | `system` | `{"text": str}` | Latest one is emitted first; never shadowed |
-| `user` | `{"text": str, "source": "user"\|"runtime"}` | User message at its position |
+| `user` | `{"text": str, "source": "user"\|"runtime"\|"goal"}` | User message at its position |
 | `assistant` | `{"blocks": [Block], "model": str, "provider": str, "usage": object\|null, "provider_state": object\|null, "reasoning": str\|null, "response_metrics": object\|null}` | Assistant message; empty blocks are skipped |
 | `tool_result` | `{"call_id": str, "status": "ok"\|"error"\|"interrupted", "content": str, "artifact": object\|null}` | Tool message; paired with its call |
 | `compaction` | `{"summary": str, "first_kept_id": str, "tokens_before": int, "model": str, "provider": str, "usage": object\|null, "details": object\|null}` | Emits a summary message, then the tail from `first_kept_id` |
-| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null}` | Starts the projection at `start_id`; optional handoff summary |
+| `window` | `{"start_id": str, "reason": "manual"\|"fallback", "handoff": str\|null, "clear_history": bool}` | Starts the projection at `start_id`; optional handoff summary |
 
 A block is one of:
 
@@ -2319,8 +2337,10 @@ The tool owns the attachment data for the lifetime of the session log.
 5. **A compaction cut preserves tool groups.** `first_kept_id` must name a `user`
    or `assistant` event before the compaction. A tool call and its results never
    cross the cut. An assistant boundary allows compaction within one user task.
-6. **A window start is a user turn.** `start_id` must name a `user` event before
-   the window.
+6. **A window names its task anchor.** `start_id` must name a `user` event before
+   the window. Optional `clear_history` defaults to false. When true, retained
+   execution starts after the window event; the handoff carries the current
+   task and steering. Otherwise, execution starts at `start_id`.
 7. **The latest system event wins.** It is projected first and is not shadowed by
    compaction or a window.
 
@@ -2370,8 +2390,8 @@ recovery and block new writes. See [Checkpoint recovery](../snapshots-goals.md#c
 `project(branch) -> list[Message]` is pure and deterministic.
 
 1. Find the latest `system` event. Emit it first.
-2. Find the latest `window`. If present, start at its `start_id` and keep its
-   non-empty `handoff` for a summary message.
+2. Find the latest `window`. Keep its non-empty `handoff` as a summary. With
+   `clear_history: true`, start after the window event; otherwise use `start_id`.
 3. Find the latest `compaction` at or after the window start. If present, emit
    its summary and start the tail at `first_kept_id`.
 4. Walk the retained entries in order. Emit `user`, `assistant`, and
@@ -2778,8 +2798,13 @@ compaction is iterative.
 ## Window fallback
 
 If compaction cannot fit, the loop may call the window hook. The CLI starts a
-window at the latest user entry with a fixed handoff that points to `NOTE.md`
-and history. If the request still does not fit, the run terminates with
+window with `clear_history: true` after the completed tool batch. The handoff
+retains the latest human task and subsequent steering, and points to `NOTE.md`
+and history. Execution messages before the window event leave the projection.
+Near 80% of the input budget, an application request can carry a reminder to
+update `NOTE.md`, once per window and only if the reminder fits. This reminder
+is request context recorded in the audit, not an extra model call. A large
+result can jump past the reminder; rollover does not certify that the note is current. If the request still does not fit, the run terminates with
 `context_error`.
 
 ## History
@@ -2846,7 +2871,9 @@ and TUI `/undo` and `/redo`. Snapshots are project state, not session facts.
 ## Goals
 
 `GoalStore` persists one objective in `.cade/goal.json`. The `goal` tool and
-`/goal` command manage it. An active goal is request context.
+`/goal` command manage it. An active goal is request context; the application
+continues it only while process-local authorization is armed. See
+[Goals](../snapshots-goals.md#goals) for lifecycle and budget behavior.
 
 ## Hosts
 
@@ -3103,26 +3130,53 @@ rewind with conversation history.
 
 ## Goals
 
-A goal is one durable objective stored in `.cade/goal.json`. It has an
-objective, a status (`active` or `done`), and an update time.
+A goal is one durable objective in `.cade/goal.json`, with status `active`,
+`done`, `paused`, or `blocked`, an update time, and an optional blocker reason.
+Mutations use `.cade/goal.lock`; completion and blocking check the version
+returned by `goal get` so stale model calls cannot update a changed objective.
 
 ```bash
-cade --goal "Add a regression test for the parser" "Start the task."
+cade --goal "Implement the backend and verify every requirement" --max-steps 100 "Start the task."
 ```
 
 In the TUI:
 
-- `/goal` shows the current goal.
-- `/goal TEXT` sets an active goal.
-- `/goal done` marks it complete.
-- `/goal clear` removes it.
+- `/goal` shows the objective, blocker, and whether continuation is disarmed.
+- `/goal TEXT` sets and arms a goal.
+- `/goal pause` persists a pause and cancels active work.
+- `/goal resume` rearms an unfinished goal; the TUI schedules it when idle.
+- `/goal done` marks completion; `/goal clear` removes the goal.
 
-The `goal` tool provides the same actions to the model. An active goal is added
-to request context so a resumed or compacted session still knows the objective.
-Goals are host state; they do not change the session schema.
+The application and model tool share one store. Normal model replies continue
+an armed active goal through the existing loop. Queued human input takes
+priority. All automatic rounds in one run share `--max-steps` and usage
+accounting; a final reply does not reset the allowance. Cancellation, errors,
+max tokens, or the step limit disarm continuation. Read-only and Plan sessions
+do not automatically continue goals whose completion tool their policy denies.
 
-Goals are intentionally small. Use `NOTE.md` for working details and `MEMORY.md`
-for facts that outlive the objective.
+Activation is process-local and tied to the current goal version. Loading a
+saved goal or changing conversation history does not authorize automatic work.
+`/goal resume` rearms an existing goal; creating or updating a goal through the
+tool also arms its new version. A resumed run receives a new step allowance,
+while goal edits within a run keep its existing allowance. There is no
+persistent goal-wide token, time, or cost budget.
+
+Automatic inputs are logged as `user` events with `source: "goal"`. They keep
+the objective in the same session but are excluded from human prompt pickers.
+The original task and steering survive rollover without duplicating every
+automatic reminder in the handoff. Active objectives remain request context.
+
+The model is instructed to verify every requirement against current artifacts
+and tool results before completion. `goal complete` and `goal block` require the
+`updated_at` returned by `get`; `block` also requires a concrete `reason`.
+The model may create, update, replace, or clear goals in both human-input and
+automatic rounds. Goal edits do not change the user's requirements or reset the
+run budget. Pause and resume retain their human-input requirement. These are
+control and version checks, not an independent evaluator: completion evidence
+and whether a blocker persisted across three rounds remain model judgments.
+The shared step limit bounds unproductive continuation.
+
+Use `NOTE.md` for working details and `MEMORY.md` for durable project facts.
 
 # Skills and memory
 

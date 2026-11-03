@@ -8,7 +8,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from queue import Queue
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 from cade.ai.models import get_model_context_window, get_models
@@ -365,7 +365,11 @@ class CadeAgent:
         return True
 
     def has_pending_input(self) -> bool:
-        return bool(self._service.pending or self._service.steering)
+        return bool(
+            self._service.pending
+            or self._service.steering
+            or self._service.goal_input() is not None
+        )
 
     async def approve(self, call: ToolCallBlock) -> ApprovalResult:
         check = self._service.policy.check(call)
@@ -450,13 +454,18 @@ class CadeInteractionApp:
         del display_question
         if mode is not None:
             self.service.policy.set_mode("build" if mode == "act" else mode)
+        input_source: Literal["user", "goal"] = "user"
         if not text:
             queued = list(self.service.pending)
             self.service.pending.clear()
-            if not queued:
-                yield FinalStructuredEvent(AgentHarnessResult())
-                return
-            text = "\n\n".join(queued)
+            if queued:
+                text = "\n\n".join(queued)
+            else:
+                text = self.service.goal_input()
+                input_source = "goal"
+                if text is None:
+                    yield FinalStructuredEvent(AgentHarnessResult())
+                    return
         pending_skill = getattr(self, "_pending_skill", None)
         if pending_skill:
             text = f"${pending_skill} {text}"
@@ -514,7 +523,9 @@ class CadeInteractionApp:
         def worker() -> None:
             try:
                 result = asyncio.run(
-                    self.service.run_task(text, emit, self.agent.approve)
+                    self.service.run_task(
+                        text, emit, self.agent.approve, input_source=input_source
+                    )
                 )
                 events.put(self._final_event(result))
             except Exception as exc:  # noqa: BLE001

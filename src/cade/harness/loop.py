@@ -8,7 +8,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from functools import wraps
 from time import perf_counter
-from typing import Any, Concatenate, cast
+from typing import Any, Concatenate, Literal, cast
 
 from cade.ai.events import (
     FinalMessage,
@@ -48,6 +48,7 @@ from cade.harness.session.types import (
     JsonValue,
     ToolCallBlock,
     ToolResultMessage,
+    UserMessage,
 )
 from cade.harness.tools import Tool
 
@@ -89,6 +90,8 @@ async def run(
     options: StreamOptions | None = None,
     context: Sequence[str] = (),
     max_steps: int = 50,
+    input_source: Literal["user", "runtime", "goal"] = "user",
+    continuation: Callable[[], UserMessage | None] | None = None,
     tool_timeout_seconds: float = 120.0,
     max_provider_retries: int = 1,
     retry_delay_seconds: float = 0.5,
@@ -96,6 +99,7 @@ async def run(
     on_event: Callable[[LoopEvent], None] | None = None,
     compact: Callable[[SessionLog, Budget], Awaitable[bool]] | None = None,
     window: Callable[[SessionLog], bool] | None = None,
+    window_notice: str | None = None,
     steering: Callable[[], str | None] | None = None,
     lifecycle: TurnLifecycle | None = None,
     refresh_tools: Callable[[], Awaitable[Sequence[Tool]]] | None = None,
@@ -121,7 +125,7 @@ async def run(
     )
 
     _recover_tool_calls(log)
-    user = log.append("user", {"text": text, "source": "user"})
+    user = log.append("user", {"text": text, "source": input_source})
     lifecycle_context: tuple[str, ...] = ()
     if lifecycle is not None:
         lifecycle.started(log, user)
@@ -130,6 +134,7 @@ async def run(
     total_usage = {"input": 0, "output": 0}
     has_usage = False
     last_answer = ""
+    window_notified = False
     retries = 0
 
     for step in range(1, max_steps + 1):
@@ -181,6 +186,7 @@ async def run(
                     total_usage["output"] += cast(int, usage["output"])
                     has_usage = True
             if compacted:
+                window_notified = False
                 conversation = project(updated_entries)
                 if context_source is not None:
                     context = (*context_source(), *lifecycle_context)
@@ -192,6 +198,7 @@ async def run(
             context=context,
         )
         if request.report.over_budget and window is not None and window(log):
+            window_notified = False
             conversation = project(log.branch())
             if context_source is not None:
                 context = (*context_source(), *lifecycle_context)
@@ -215,7 +222,26 @@ async def run(
                 ),
             )
 
-        _append_request(log, provider, request, context)
+        request_context = context
+        if (
+            window is not None
+            and window_notice
+            and not window_notified
+            and request.report.estimated_tokens >= budget.input_budget * 4 // 5
+        ):
+            notice_context = (*context, window_notice)
+            notice_request = build(
+                conversation,
+                tools=definitions,
+                budget=budget,
+                options=options,
+                context=notice_context,
+            )
+            if not notice_request.report.over_budget:
+                request = notice_request
+                request_context = notice_context
+                window_notified = True
+        _append_request(log, provider, request, request_context)
         result = await _call_provider(provider, request, cancel, on_event)
 
         if result.usage is not None:
@@ -284,6 +310,22 @@ async def run(
             termination: Termination = (
                 "max_tokens" if result.stop_reason == "max_tokens" else "completed"
             )
+            if termination == "completed" and continuation is not None:
+                followup = continuation()
+                if followup is not None:
+                    if step == max_steps:
+                        return _finish(
+                            log,
+                            "step_limit",
+                            step,
+                            last_answer,
+                            _usage(total_usage, has_usage),
+                            "Continuation reached the model-step limit.",
+                        )
+                    log.append(
+                        "user", {"text": followup.text, "source": followup.source}
+                    )
+                    continue
             return _finish(
                 log,
                 termination,
