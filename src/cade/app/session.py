@@ -597,12 +597,15 @@ class ApplicationSession:
         return (
             f"Continue the active goal: {goal.objective}\n\n"
             "Inspect the current workspace, tool results, NOTE.md, and history. "
-            "Preserve the full objective and make concrete progress. Before calling "
+            "Preserve the full scope requested by the user and make concrete progress. "
+            "Before calling "
             "goal complete, verify every requirement against current evidence. "
             "If work remains, keep the goal active. Report blocked only when the "
             "same genuine blocker persists across at least three goal rounds and "
-            "no useful work remains; include the concrete reason. Do not pause, "
-            "clear, replace, or narrow the goal without human input."
+            "no useful work remains; include the concrete reason. You may create, "
+            "update, replace, or clear goals to manage the task. Changing a goal "
+            "does not change the user's requirements or reset the run budget. "
+            "Pause and resume require human input."
         )
 
     def _continue_goal(self) -> UserMessage | None:

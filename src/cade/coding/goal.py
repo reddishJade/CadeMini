@@ -153,9 +153,10 @@ class GoalTool:
 
     name = "goal"
     description = (
-        "Read or update the workspace goal. Set, clear, pause, and resume require "
-        "a human input turn. Complete only after current evidence proves the "
-        "whole objective; report a concrete blocker only after repeated attempts."
+        "Read, create, update, or clear the workspace goal as needed for the task. "
+        "Pause and resume require a human input turn. Complete only after current "
+        "evidence proves the whole objective; report a concrete blocker only "
+        "after repeated attempts."
     )
 
     def __init__(
@@ -201,7 +202,7 @@ class GoalTool:
         del signal
         action = text_arg(call.args, "action").strip()
         if (
-            action in {"set", "clear", "pause", "resume"}
+            action in {"pause", "resume"}
             and self.allow_control is not None
             and not self.allow_control()
         ):
