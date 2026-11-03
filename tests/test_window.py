@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from cade.harness.session.log import SessionLog
 from cade.harness.session.projection import project
 from cade.harness.session.types import JsonValue, SummaryMessage
@@ -121,3 +123,25 @@ def test_rollover_waits_for_the_whole_tool_batch(tmp_path: Path) -> None:
         {"call_id": "b", "status": "interrupted", "content": "interrupted"},
     )
     assert reset_window(log, clear_history=True)
+
+
+@pytest.mark.parametrize("source", ["user", "goal"])
+def test_rollover_keeps_goal_root_and_steering_without_repeated_prompts(
+    tmp_path: Path, source: str
+) -> None:
+    log = _log(tmp_path)
+    log.append("user", {"text": "unrelated previous task"})
+    log.append("assistant", _assistant("done"))
+    log.append("run", {"termination": "completed", "steps": 1})
+    root = log.append("user", {"text": "finish current backend", "source": source})
+    log.append("user", {"text": "verify migrations too", "source": "runtime"})
+    log.append("assistant", _assistant("some progress"))
+    log.append("user", {"text": "goal round reminder", "source": "goal"})
+    log.append("assistant", _assistant("more progress"))
+    assert reset_window(log, clear_history=True)
+    window = log.branch()[-1]
+    assert window.data["start_id"] == root.id
+    assert "finish current backend" in str(window.data["handoff"])
+    assert "verify migrations too" in str(window.data["handoff"])
+    assert "goal round reminder" not in str(window.data["handoff"])
+    assert "unrelated previous task" not in str(window.data["handoff"])
