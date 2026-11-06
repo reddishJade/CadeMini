@@ -422,8 +422,14 @@ def test_each_slash_command(
         before = len(term.tui._state.log)
         if command.startswith("/model "):
             term.service.auth.save_api_key("openai", "e2e-model-key")
-        await term.send(command)
         name = command.split()[0]
+        if name == "/goal":
+            term.service.provider.delay = 0.1
+        await term.send(command, wait_idle=name != "/goal")
+        if name == "/goal":
+            await term.until(
+                lambda: len(term.service.provider.requests) >= 2, "goal started"
+            )
         if expected == "picker":
             assert term.tui._state.pending_command_choice is not None
         elif expected == "text":
@@ -482,6 +488,11 @@ def test_each_slash_command(
             )
         if name == "/goal":
             assert term.service.goals.load().objective == "E2E objective"
+            assert term.service.goals.runnable() is not None
+            assert term.service.running
+            await term.send("/goal pause")
+            assert term.service.goals.load().status == "paused"
+            assert term.service.goals.runnable() is None
 
     terminal_runner(scenario)
 
@@ -1133,11 +1144,36 @@ def test_queue_picker_and_side_question_form(terminal_runner: Runner) -> None:
 
 def test_goal_lifecycle(terminal_runner: Runner) -> None:
     async def scenario(term: Terminal) -> None:
-        await term.send("/goal test lifecycle")
+        provider = term.service.provider
+        provider.delay = 0.1
+        await term.send("/goal test lifecycle", wait_idle=False)
+        await term.until(lambda: len(provider.requests) >= 2, "goal continued")
+        assert term.service.goals.runnable() is not None
+        assert term.service.running
+        await term.send("/goal pause")
+        assert term.service.goals.load().status == "paused"
+        assert term.service.goals.runnable() is None
+        runs = [entry for entry in term.service.log.branch() if entry.type == "run"]
+        assert len(runs) == 1
+        assert runs[0].data["termination"] == "aborted"
         await term.send("/goal")
-        assert "active: test lifecycle" in term.transcript
+        assert "paused: test lifecycle" in term.transcript
+        requests = len(provider.requests)
+        await term.send("/goal resume", wait_idle=False)
+        await term.until(lambda: len(provider.requests) > requests, "goal resumed")
+        assert term.service.goals.runnable() is not None
+        assert term.service.running
         await term.send("/goal done")
         assert term.service.goals.load().status == "done"
+        assert term.service.goals.runnable() is None
+        entries = term.service.log.branch()
+        runs = [entry for entry in entries if entry.type == "run"]
+        assert len(runs) == 2
+        assert runs[-1].data["termination"] == "completed"
+        assert all(
+            entry.data["source"] == "goal" for entry in entries if entry.type == "user"
+        )
+        assert not term.service.running
         await term.send("/goal clear")
         assert term.service.goals.load() is None
 
