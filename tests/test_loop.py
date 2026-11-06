@@ -475,10 +475,26 @@ async def test_run_step_limit(tmp_path: Path) -> None:
     assert run_entry.data["termination"] == "step_limit"
 
 
-async def test_run_provider_failure_retries_once(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "failure",
+    [
+        ProviderFailure("timeout", "TimeoutError"),
+        ProviderFailure("OpenAI request failed with HTTP 520.", "APIError", 520),
+        ProviderFailure("OpenAI request failed with HTTP 520.", "APIError"),
+        ProviderFailure("OpenAI request failed with HTTP 504.", "APIError", 504),
+        ProviderFailure(
+            "OpenAI request failed: APIError. Our servers are currently overloaded. "
+            "Please try again later.",
+            "ProviderRequestError",
+        ),
+    ],
+)
+async def test_run_provider_failure_retries_once(
+    tmp_path: Path, failure: ProviderFailure
+) -> None:
     provider = FakeProvider(
         [
-            [ProviderFailure("timeout", "TimeoutError")],
+            [failure],
             _text_response("recovered"),
         ]
     )
@@ -497,6 +513,29 @@ async def test_run_provider_failure_retries_once(tmp_path: Path) -> None:
     assert result.termination == "completed"
     assert result.answer == "recovered"
     assert [entry.type for entry in log.branch()].count("attempt") == 1
+
+
+@pytest.mark.parametrize("status", [None, 401, 520])
+async def test_overload_retry_is_bounded_and_respects_nonretryable_status(
+    tmp_path: Path, status: int | None
+) -> None:
+    failure = ProviderFailure("Our servers are overloaded", "APIError", status)
+    provider = FakeProvider([[failure], [failure]])
+    log = _log(tmp_path)
+    result = await run(
+        log,
+        "hi",
+        provider=provider,
+        tools=(),
+        budget=Budget(100_000),
+        max_provider_retries=1,
+        retry_delay_seconds=0,
+    )
+    assert result.termination == "provider_error"
+    assert len(provider.requests) == (1 if status == 401 else 2)
+    assert sum(entry.type == "attempt" for entry in log.branch()) == len(
+        provider.requests
+    )
 
 
 async def test_run_context_over_budget_without_compaction(tmp_path: Path) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
@@ -735,16 +736,17 @@ def _retryable(failure: ProviderFailure) -> bool:
     status = failure.status_code
     if status in {400, 401, 403, 404, 413, 422}:
         return False
-    if status in {429, 500, 502, 503, 529}:
+    if status == 429 or (status is not None and 500 <= status < 600):
         return True
     text = f"{failure.exception_type} {failure.message}".lower()
-    return any(
+    return bool(re.search(r"\b5\d\d\b", text)) or any(
         marker in text
         for marker in (
             "timeout",
             "connection",
             "rate limit",
             "temporary",
+            "overloaded",
             "429",
             "500",
             "502",
