@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
 
 from cade.coding.goal import GoalStore, GoalTool
 from cade.coding.security.policy import WorkspacePolicy
@@ -19,6 +23,14 @@ def _call(
     if updated_at is not None:
         args["updated_at"] = updated_at
     return ToolCallBlock(id="g1", name="goal", args=args)
+
+
+@pytest.fixture
+def goal_clock(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    clock = Mock(wraps=datetime)
+    clock.now.return_value = datetime(2026, 11, 6, 6, 21, 44, 111111, tzinfo=UTC)
+    monkeypatch.setattr("cade.coding.goal.datetime", clock)
+    return clock
 
 
 def test_goal_store_lifecycle(tmp_path: Path) -> None:
@@ -64,6 +76,7 @@ def test_goal_policy_allows_tool(tmp_path: Path) -> None:
     assert WorkspacePolicy(tmp_path).check(_call("get")).decision == "allow"
 
 
+@pytest.mark.usefixtures("goal_clock")
 def test_goal_activation_does_not_survive_restart_or_external_edits(
     tmp_path: Path,
 ) -> None:
@@ -89,6 +102,7 @@ def test_goal_activation_does_not_survive_restart_or_external_edits(
     assert reopened.runnable() is None
 
 
+@pytest.mark.usefixtures("goal_clock")
 def test_goal_tools_reject_automatic_pause_resume_and_stale_completion(
     tmp_path: Path,
 ) -> None:
@@ -108,6 +122,31 @@ def test_goal_tools_reject_automatic_pause_resume_and_stale_completion(
     )
     assert not completed.is_error
     assert store.load().status == "done"
+
+
+@pytest.mark.parametrize("action", ["set", "resume"])
+def test_goal_clock_rollback_does_not_reuse_stale_versions(
+    tmp_path: Path, goal_clock: Mock, action: str
+) -> None:
+    store = GoalStore(tmp_path)
+    old = store.set("full objective")
+    reopened = GoalStore(tmp_path)
+    goal_clock.now.return_value -= timedelta(seconds=1)
+    if action == "set":
+        reopened.set("updated full objective")
+    else:
+        reopened.resume()
+    assert store.runnable() is None
+    goal_clock.now.return_value += timedelta(seconds=1)
+    if action == "set":
+        current = reopened.set("latest full objective")
+    else:
+        current = reopened.resume()
+    assert store.runnable() is None
+    assert reopened.runnable() == current
+    with pytest.raises(ValueError, match="The goal changed"):
+        store.complete(updated_at=old.updated_at)
+    assert reopened.load() == current
 
 
 def test_goal_tools_can_create_update_and_clear_in_automatic_rounds(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,6 +25,20 @@ class Goal:
     status: Literal["active", "done", "paused", "blocked"]
     updated_at: str
     blocked_reason: str | None = None
+
+
+def _next_updated_at(previous: Goal | None) -> str:
+    now = datetime.now(UTC)
+    if previous is not None:
+        try:
+            previous_at = datetime.fromisoformat(previous.updated_at)
+        except ValueError:
+            pass
+        else:
+            if previous_at.tzinfo is None:
+                previous_at = previous_at.replace(tzinfo=UTC)
+            now = max(now, previous_at + timedelta(microseconds=1))
+    return now.isoformat()
 
 
 class GoalStore:
@@ -68,7 +82,7 @@ class GoalStore:
             goal = Goal(
                 objective=objective.strip(),
                 status="active",
-                updated_at=datetime.now(UTC).isoformat(),
+                updated_at=_next_updated_at(self.load()),
             )
             self._write(goal)
             self._armed_at = goal.updated_at
@@ -117,7 +131,7 @@ class GoalStore:
             updated = Goal(
                 objective=goal.objective,
                 status=status,
-                updated_at=datetime.now(UTC).isoformat(),
+                updated_at=_next_updated_at(goal),
                 blocked_reason=blocked_reason,
             )
             self._write(updated)
