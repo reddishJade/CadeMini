@@ -134,7 +134,7 @@ class ApplicationSession:
         policy: WorkspacePolicy,
         budget: Budget,
         context: Callable[[], Sequence[str]],
-        max_steps: int,
+        max_steps: int | None,
         compactor: Compactor,
         window: Callable[[SessionLog], bool] | None,
         automatic_approver: Approver | None = None,

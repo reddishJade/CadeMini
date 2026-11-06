@@ -587,6 +587,26 @@ def test_cli_config_sets_sessions_dir_and_max_steps(tmp_path: Path) -> None:
     assert run_entry.data["termination"] == "step_limit"
 
 
+def test_cli_default_allows_more_than_50_steps(tmp_path: Path) -> None:
+    responses = [
+        [
+            ToolCallEvent(
+                [ToolCall(id=f"read-{i}", name="read", input={"path": "missing"})]
+            ),
+            FinalMessage("", "tool_use"),
+        ]
+        for i in range(50)
+    ]
+    provider = FakeProvider(responses + [_text("done")])
+
+    code = main(
+        ["exec", "hi", "--project-root", str(tmp_path), "--yes"],
+        provider=provider,
+    )
+
+    assert code == 0
+
+
 def test_cli_config_can_disable_instructions(tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()

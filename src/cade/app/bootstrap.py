@@ -160,7 +160,7 @@ def create_session(
             "metadata or pass --context-window"
         )
     budget = Budget(context_window=context_window)
-    max_steps = config.max_steps or 50
+    max_steps = config.max_steps
     sessions_dir = resolve_sessions_dir(workspace, config)
     skill_registry = discover_skills(
         workspace,
@@ -276,7 +276,7 @@ def create_session(
         policy=policy,
         approve=approver,
         context=context,
-        max_steps=min(max_steps, 20),
+        max_steps=max_steps,
         lifecycle=recovery,
         refresh_tools=refresh_base_tools,
     )

@@ -90,7 +90,7 @@ async def run(
     approve: Approver | None = None,
     options: StreamOptions | None = None,
     context: Sequence[str] = (),
-    max_steps: int = 50,
+    max_steps: int | None = None,
     input_source: Literal["user", "runtime", "goal"] = "user",
     continuation: Callable[[], UserMessage | None] | None = None,
     tool_timeout_seconds: float = 120.0,
@@ -113,7 +113,7 @@ async def run(
     window 钩子丢弃更早的历史。
     用量汇总包含本次运行的摘要调用；失败尝试保留已上报的用量。
     """
-    if max_steps <= 0:
+    if max_steps is not None and max_steps <= 0:
         raise ValueError("max_steps must be positive")
     tools_by_name = index_tools(tools)
     definitions = tuple(
@@ -138,7 +138,17 @@ async def run(
     window_notified = False
     retries = 0
 
-    for step in range(1, max_steps + 1):
+    step = 0
+    while True:
+        step += 1
+        if max_steps is not None and step > max_steps:
+            return _finish(
+                log,
+                "step_limit",
+                max_steps,
+                last_answer,
+                _usage(total_usage, has_usage),
+            )
         if cancel is not None and cancel.cancelled:
             return _finish(
                 log,
@@ -388,14 +398,6 @@ async def run(
                     ),
                 ),
             )
-
-    return _finish(
-        log,
-        "step_limit",
-        max_steps,
-        last_answer,
-        _usage(total_usage, has_usage),
-    )
 
 
 def _recover_tool_calls(log: SessionLog) -> None:

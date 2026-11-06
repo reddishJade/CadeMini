@@ -111,6 +111,24 @@ def _tool_response(call_id: str, text: str = "hi") -> list[ProviderEvent]:
     ]
 
 
+async def test_default_run_completes_after_more_than_50_steps(tmp_path: Path) -> None:
+    provider = FakeProvider(
+        [_tool_response(f"call-{i}") for i in range(50)] + [_text_response("done")]
+    )
+    result = await run(
+        _log(tmp_path),
+        "task",
+        provider=provider,
+        tools=[EchoTool()],
+        budget=Budget(context_window=100_000),
+        policy=AllowAll(),
+    )
+
+    assert result.termination == "completed"
+    assert result.steps == 51
+    assert result.answer == "done"
+
+
 @pytest.mark.parametrize("selection", ["assistant", "first_result"])
 async def test_tree_continuation_recovers_only_selected_path_calls(
     tmp_path: Path,

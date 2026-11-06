@@ -56,7 +56,7 @@ input; choose a mode and restart Cade to apply it.
 - `context_window`: model context window in tokens. The default comes from the
   registered model metadata. Unregistered models require this field or
   `--context-window`; Cade rejects them otherwise.
-- `max_steps`: maximum model steps in one run.
+- `max_steps`: maximum model steps in one run. The default is unlimited.
 - `sessions_dir`: session directory. Relative paths resolve against the project
   root.
 - `mode`: `plan`, `build`, or `ask`. Default is `build`; replace old `act` values with `ask`.

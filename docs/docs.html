@@ -948,7 +948,7 @@ key, or <code>deepseek</code> for a DeepSeek API key. The CLI flags override bot
 <li><code>context_window</code>: model context window in tokens. The default comes from the
 registered model metadata. Unregistered models require this field or
 <code>--context-window</code>; Cade rejects them otherwise.</li>
-<li><code>max_steps</code>: maximum model steps in one run.</li>
+<li><code>max_steps</code>: maximum model steps in one run. The default is unlimited.</li>
 <li><code>sessions_dir</code>: session directory. Relative paths resolve against the project
 root.</li>
 <li><code>mode</code>: <code>plan</code>, <code>build</code>, or <code>ask</code>. Default is <code>build</code>; replace old <code>act</code> values with <code>ask</code>.</li>

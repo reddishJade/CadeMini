@@ -36,7 +36,7 @@ class SubagentRunner:
         policy: Policy,
         approve: Approver,
         context: Callable[[], Sequence[str]] | None = None,
-        max_steps: int = 20,
+        max_steps: int | None = None,
         lifecycle: TurnLifecycle | None = None,
         refresh_tools: Callable[[], Awaitable[Sequence[Tool]]] | None = None,
     ) -> None:
