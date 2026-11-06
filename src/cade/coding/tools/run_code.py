@@ -24,33 +24,56 @@ class RunCodeTool(WorkspaceTool):
     manages_timeout = True
     manages_output = True
     description = (
-        "Run an async Python function body to chain tools and filter intermediate results. "
-        "Provide code and a short description of the operation, shown in the UI. "
-        "Top-level await and return work; asyncio is available. "
-        "Call await tools.name({...}) or await tools['name']({...}) using the other "
-        "tools' declared arguments. Calls run serially, including asyncio.gather. "
-        "Successful calls return {'content': str, 'metadata': object or null}; "
-        "failed calls raise RuntimeError. Only print output and a JSON return value "
-        "reach the model. Each call starts fresh. Direct Python I/O follows the shell "
-        "sandbox policy; use tools.write/edit for tracked file changes. "
-        "Scripts cannot call run_code. Errors do not undo completed actions. "
-        "Set timeout to a positive finite number of seconds to override the default "
-        "120-second deadline, including tool and approval waits. There is no fixed maximum. "
-        "max_output_tokens sets the estimated output budget (default 10000, four characters "
-        "per token). Larger output keeps its start and end and saves full text to a temp file. "
-        "Printed text and the JSON return value have a separate hard limit of 16 MiB."
+        "Run Python that calls other tools. Prefer run_code for a known sequence of "
+        "tool calls, repeated reads or checks, or filtering large results before "
+        "returning them. Chain dependent calls with variables, loops, and conditions "
+        "in one program to avoid model round trips. Use a direct tool for a single "
+        "simple operation.\n"
+        "Provide code as an async function body, plus a short description shown in "
+        "the UI. Top-level await and return work; asyncio is available. Call "
+        "await tools.name({...}) or await tools['name']({...}) with the other tools' "
+        "declared arguments. Successful calls return {'content': str, 'metadata': "
+        "object or null}; failed or denied calls raise RuntimeError.\n"
+        "Intermediate tool results stay in the program. Only printed text and the "
+        "JSON return value reach the model: return the evidence you need, rather "
+        "than dumping every result. Example:\n"
+        "results = {}\n"
+        "for path in ['src/main.py', 'tests/test_main.py']:\n"
+        "    result = await tools.read({'path': path})\n"
+        "    results[path] = result['content'][:2000]\n"
+        "return results\n"
+        "Each call starts fresh. Calls run serially, including asyncio.gather. "
+        "Direct Python I/O follows the shell sandbox policy; use tools.write/edit "
+        "for tracked file changes. Scripts cannot call run_code. Errors do not undo "
+        "completed actions.\n"
+        "timeout overrides the default 120-second deadline, including tool and "
+        "approval waits; it must be positive and finite, with no fixed maximum. "
+        "max_output_tokens sets the estimated output budget (default 10000, four "
+        "characters per token). Larger output keeps its start and end and saves "
+        "full text to a temp file. Printed text and the JSON return value share "
+        "a separate hard limit of 16 MiB."
     )
 
     def _parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "code": {"type": "string", "minLength": 1},
+                "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": (
+                        "Body of an async Python function. Call tools with await "
+                        "tools.name({...}); print or return selected results."
+                    ),
+                },
                 "description": {
                     "type": "string",
                     "minLength": 1,
                     "pattern": r"\S",
-                    "description": "Short, active-voice summary of what the program does, shown in the UI.",
+                    "description": (
+                        "Short, active-voice summary shown in the UI, such as "
+                        "'Read implementation and failing tests'."
+                    ),
                 },
                 "max_output_tokens": {
                     "type": "integer",

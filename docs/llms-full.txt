@@ -596,6 +596,11 @@ program. It is available alongside direct tools without additional configuration
 For example, ask Cade to use `run_code` to read several files and return only
 their headings.
 
+Prefer `run_code` when you can express a sequence of tool calls, repeat a check,
+or select evidence from large results in one program. Use variables and conditions
+to pass results to later calls without returning every intermediate result to the
+model. A single simple operation can use its direct tool.
+
 ## Write a program
 
 Provide both `code` and `description`. The description is a short, active-voice
